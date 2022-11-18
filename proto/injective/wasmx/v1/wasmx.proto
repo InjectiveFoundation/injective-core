@@ -1,0 +1,26 @@
+syntax = "proto3";
+package injective.wasmx.v1;
+
+import "gogoproto/gogo.proto";
+
+option go_package = "github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/types";
+
+message Params {
+  option (gogoproto.equal) = true;
+
+  // Set the status to active to indicate that the contract is to be executed in begin blocker.
+  bool is_execution_enabled = 1;
+
+  // registry_contract is the address of the registry contract that will be used to register contract executions in begin blocker.
+  string registry_contract = 2;
+
+  // Maximum aggregate total gas to be used for the contract executions in the BeginBlocker.
+  uint64 max_begin_block_total_gas = 3;
+
+  // the maximum gas limit each individual contract can consume in the BeginBlocker.
+  uint64 max_contract_gas_limit = 4;
+
+  // min_gas_price defines the minimum gas price the contracts must pay to be executed in the BeginBlocker.
+  uint64 min_gas_price = 5;
+
+}

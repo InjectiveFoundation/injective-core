@@ -1,0 +1,17 @@
+coverage:
+  status:
+    project: off
+    patch:
+      default:
+        threshold: 1%
+
+ignore:
+  - "**/*.pb.go"
+  - "**/*.gw.go"
+  - "**/*_test.go"
+
+fixes:
+  - "/injective-core::"
+
+comment:
+  layout: "diff"

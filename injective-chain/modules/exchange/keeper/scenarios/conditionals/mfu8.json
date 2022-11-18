@@ -1,0 +1,52 @@
+{
+  "numAccounts": 2,
+  "numDerivativeMarkets": 1,
+  "seed": 1658339268842048000,
+  "actions": [
+    {
+      "actionType": "priceOracle",
+      "perpsPrices": [100]
+    },
+    {
+      "actionType": "derivativeLimitOrder",
+      "price": 100,
+      "quantity": 100,
+      "accountIndex": 0,
+      "isLong": false,
+      "triggerPrice": 110
+    },
+    {
+      "actionType": "endblocker"
+    },
+    {
+      "actionType": "derivativeLimitOrder",
+      "price": 200,
+      "quantity": 100,
+      "accountIndex": 0,
+      "isLong": false,
+      "triggerPrice": 199,
+      "isReduceOnly": true
+    },
+    {
+      "actionType": "endblocker",
+      "actionId": "setup"
+    },
+    {
+      "actionType": "withdrawal",
+      "denom": "USDT0",
+      "toLeave": 0
+    },
+    {
+      "actionType": "endblocker"
+    },
+    {
+      "actionType": "updateMarket",
+      "marketType": "derivative",
+      "marketStatus": "Active",
+      "makerFeeRate": 0.002
+    },
+    {
+      "actionType": "endblocker"
+    }
+  ]
+}

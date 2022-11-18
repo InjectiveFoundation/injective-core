@@ -1,0 +1,61 @@
+  {
+    "numAccounts": 2,
+    "numBinaryOptionsMarkets": 1,
+    "seed": 1658339268842048000,
+    "actions": [
+      {
+        "actionType": "positionBinary",
+        "quantity": 10,
+        "longAccountIndex": 0,
+        "shortAccountIndex" : 1,
+        "marketIndex": 0
+      },
+      {
+        "actionType": "boLimitOrder",
+        "price": 3500,
+        "quantity": 2,
+        "accountIndex": 0,
+        "isLong": false,
+        "isReduceOnly": true,
+        "marketIndex": 0,
+        "comment" : "resting"
+      },
+      {
+        "actionType": "boLimitOrder",
+        "price": 3600,
+        "quantity": 2,
+        "accountIndex": 0,
+        "isLong": false,
+        "isReduceOnly": true,
+        "marketIndex": 0,
+        "comment" : "resting - should be cancelled"
+      },
+      {
+        "actionType": "boLimitOrder",
+        "price": 3450,
+        "quantity": 6,
+        "accountIndex": 0,
+        "isLong": false,
+        "isReduceOnly": false,
+        "marketIndex": 0,
+        "comment" : "resting"
+      },
+      {
+        "actionType": "endblocker"
+      },
+      {
+        "actionType": "boLimitOrder",
+        "price": 3550,
+        "quantity": 4,
+        "accountIndex": 0,
+        "isLong": false,
+        "isReduceOnly": false,
+        "marketIndex": 0,
+        "comment" : "new non RO"
+      },
+      {
+        "actionType": "endblocker"
+      }
+    ]
+
+  }

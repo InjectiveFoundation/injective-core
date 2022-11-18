@@ -1,0 +1,153 @@
+{
+  "numAccounts": 2,
+  "numDerivativeMarkets": 1,
+  "seed": 1658339268842048000,
+  "actions": [
+    {
+      "actionType": "priceOracle",
+      "perpsPrices": [10]
+    },
+    {
+      "actionType": "derivativeLimitOrder",
+      "price": 8,
+      "quantity": 2,
+      "accountIndex": 0,
+      "isLong": true,
+      "orderId": "BRL"
+    },
+    {
+      "actionType": "derivativeLimitOrder",
+      "price": 11,
+      "quantity": 2,
+      "accountIndex": 0,
+      "isLong": false,
+      "orderId": "SRL"
+    },
+    {
+      "actionType": "endblocker"
+    },
+    {
+      "actionType": "derivativeMarketOrder",
+      "price": 8,
+      "quantity": 2,
+      "accountIndex": 0,
+      "isLong": true,
+      "triggerPrice": 9,
+      "orderId": "LCM"
+    },
+    {
+      "actionType": "derivativeMarketOrder",
+      "price": 11,
+      "quantity": 2,
+      "accountIndex": 0,
+      "isLong": false,
+      "triggerPrice": 11,
+      "orderId": "HCM"
+    },
+    {
+      "actionType": "derivativeLimitOrder",
+      "price": 8,
+      "quantity": 2,
+      "accountIndex": 0,
+      "isLong": true,
+      "triggerPrice": 7,
+      "orderId": "LCL"
+    },
+    {
+      "actionType": "derivativeLimitOrder",
+      "price": 11,
+      "quantity": 2,
+      "accountIndex": 0,
+      "isLong": false,
+      "triggerPrice": 13,
+      "orderId": "HCL"
+    },
+    {
+      "actionType": "cancelOrder",
+      "marketType" : "derivative",
+      "accountIndex": 0,
+      "orderId": "BRL",
+      "orderMask": 52,
+      "actionId": "nBRL"
+    },
+    {
+      "actionType": "cancelOrder",
+      "marketType" : "derivative",
+      "accountIndex": 0,
+      "orderId": "BRL",
+      "orderMask": 74,
+      "actionId": "yBRL"
+    },
+    {
+      "actionType": "cancelOrder",
+      "marketType" : "derivative",
+      "accountIndex": 0,
+      "orderId": "SRL",
+      "orderMask": 4,
+      "actionId": "nSRL"
+    },
+    {
+      "actionType": "cancelOrder",
+      "marketType" : "derivative",
+      "accountIndex": 0,
+      "orderId": "SRL",
+      "orderMask": 18,
+      "actionId": "ySRL"
+    },
+    {
+      "actionType": "cancelOrder",
+      "marketType" : "derivative",
+      "accountIndex": 0,
+      "orderId": "LCM",
+      "orderMask": 68,
+      "actionId": "nLCM"
+    },
+    {
+      "actionType": "cancelOrder",
+      "marketType" : "derivative",
+      "accountIndex": 0,
+      "orderId": "LCM",
+      "orderMask": 4,
+      "actionId": "yLCM"
+    },
+    {
+      "actionType": "cancelOrder",
+      "marketType" : "derivative",
+      "accountIndex": 0,
+      "orderId": "HCM",
+      "orderMask": 80,
+      "actionId": "nHCM"
+    },
+    {
+      "actionType": "cancelOrder",
+      "marketType" : "derivative",
+      "accountIndex": 0,
+      "orderId": "HCM",
+      "orderMask": 124,
+      "actionId": "yHCM"
+    },
+    {
+      "actionType": "cancelOrder",
+      "marketType" : "derivative",
+      "accountIndex": 0,
+      "orderId": "LCL",
+      "orderMask": 14,
+      "actionId": "nLCL"
+    },
+    {
+      "actionType": "cancelOrder",
+      "marketType" : "derivative",
+      "accountIndex": 0,
+      "orderId": "LCL",
+      "orderMask": 30,
+      "actionId": "yLCL"
+    },
+    {
+      "actionType": "cancelOrder",
+      "marketType" : "derivative",
+      "accountIndex": 0,
+      "orderId": "HCL",
+      "orderMask": 1
+    }
+  ]
+}

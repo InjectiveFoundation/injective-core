@@ -1,0 +1,35 @@
+{
+  "numAccounts": 2,
+  "numDerivativeMarkets": 1,
+  "seed": 1658339268842048000,
+  "actions": [
+    {
+      "actionType": "endblocker",
+      "actionId": "pre-setup"
+    },
+    {
+      "actionType": "priceOracle",
+      "perpsPrices": [11]
+    },
+    {
+      "actionType": "derivativeLimitOrder",
+      "price": 15,
+      "quantity": 1,
+      "accountIndex": 0,
+      "isLong": true,
+      "isReduceOnly": true,
+      "triggerPrice" : 14,
+      "comment" : "tp limit buy - should be placed"
+    },
+    {
+      "actionType": "endblocker"
+    },
+    {
+      "actionType": "priceOracle",
+      "perpsPrices": [14]
+    },
+    {
+      "actionType": "endblocker"
+    }
+  ]
+}

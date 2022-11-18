@@ -1,0 +1,46 @@
+{
+  "numAccounts": 2,
+  "numDerivativeMarkets": 1,
+  "seed": 1658339268842048000,
+  "config": {
+    "perpMarkets": [
+      {
+        "takerFeeRate": 0.003,
+        "makerFeeRate": -0.001
+      }
+    ]
+  },
+  "actions": [
+    {
+      "actionType": "priceOracle",
+      "perpsPrices": [11]
+    },
+    {
+      "actionType": "derivativeLimitOrder",
+      "price": 13,
+      "quantity": 5,
+      "accountIndex": 0,
+      "isLong": true,
+      "triggerPrice" : 12
+    },
+    {
+      "actionType": "derivativeLimitOrder",
+      "price": 14,
+      "quantity": 5,
+      "accountIndex": 0,
+      "isLong": true,
+      "triggerPrice" : 13
+    },
+    {
+      "actionType": "endblocker",
+      "actionId": "post-setup"
+    },
+    {
+      "actionType": "priceOracle",
+      "perpsPrices": [12]
+    },
+    {
+      "actionType": "endblocker"
+    }
+  ]
+}

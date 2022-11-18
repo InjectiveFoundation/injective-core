@@ -1,0 +1,36 @@
+{
+  "numAccounts": 1,
+  "numDerivativeMarkets": 1,
+  "seed": 1658339268842048000,
+  "actions": [
+    {
+      "actionType": "endblocker",
+      "actionId": "pre-setup"
+    },
+    {
+      "actionType": "priceOracle",
+      "perpsPrices": [10]
+    },
+    {
+      "actionType": "derivativeMarketOrder",
+      "price": 9,
+      "quantity": 5,
+      "accountIndex": 0,
+      "isLong": false,
+      "triggerPrice": 9,
+      "orderId": "order1"
+    },
+    {
+      "actionType": "endblocker"
+    },
+    {
+      "actionType": "cancelOrder",
+      "accountIndex": 0,
+      "marketType" : "derivative",
+      "orderId" : "order1"
+    },
+    {
+      "actionType": "endblocker"
+    }
+  ]
+}

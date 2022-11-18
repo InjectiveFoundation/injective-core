@@ -1,0 +1,79 @@
+{
+  "numAccounts": 2,
+  "numDerivativeMarkets": 2,
+  "seed": 1658339268842048001,
+  "actions": [
+    {
+      "actionType": "derivativeLimitOrder",
+      "price": 10,
+      "quantity": 2,
+      "accountIndex": 0,
+      "marketIndex": 0,
+      "isLong": false,
+      "orderId": "ord0-1"
+    },
+    {
+      "actionType": "derivativeLimitOrder",
+      "price": 12,
+      "quantity": 2,
+      "accountIndex": 0,
+      "marketIndex": 0,
+      "isLong": false,
+      "orderId": "ord0-2"
+    },
+    {
+      "actionType": "derivativeLimitOrder",
+      "price": 10,
+      "quantity": 2,
+      "accountIndex": 0,
+      "marketIndex": 1,
+      "isLong": false,
+      "orderId": "ord1-1"
+    },
+    {
+      "actionType": "derivativeLimitOrder",
+      "price": 12,
+      "quantity": 2,
+      "accountIndex": 0,
+      "marketIndex": 1,
+      "isLong": false,
+      "orderId": "ord1-2"
+    },
+    {
+      "actionType": "endblocker"
+    },
+    {
+      "actionType": "batchUpdate",
+      "accountIndex": 0,
+      "derivativeOrdersToCancel": [
+        "ord0-2"
+      ],
+      "derivativeMarketsToCancelAll": [
+        1
+      ],
+      "derivativeOrdersToCreate": [
+        {
+          "actionType": "derivativeLimitOrder",
+          "price": 11,
+          "quantity": 3,
+          "accountIndex": 0,
+          "marketIndex": 0,
+          "isLong": false,
+          "orderId": "ord0-1a"
+        },
+        {
+          "actionType": "derivativeLimitOrder",
+          "price": 13,
+          "quantity": 3,
+          "accountIndex": 0,
+          "marketIndex": 0,
+          "isLong": false,
+          "orderId": "ord1-1b"
+        }
+      ]
+    },
+    {
+      "actionType": "endblocker"
+    }
+  ]
+}

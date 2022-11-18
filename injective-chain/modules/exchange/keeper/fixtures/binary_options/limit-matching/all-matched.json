@@ -1,0 +1,59 @@
+{
+  "resting-sells": [
+    {
+      "price": 193000,
+      "quantity": 2,
+      "margin": 1614000,
+      "subaccountNonce": 1,
+      "expectedQuantityFilledViaMatching": 2,
+      "expectedQuantityFilledViaMarketOrders": 0
+    },
+    {
+      "price": 191800,
+      "quantity": 1,
+      "margin": 808200,
+      "subaccountNonce": 2,
+      "expectedQuantityFilledViaMatching": 1,
+      "expectedQuantityFilledViaMarketOrders": 0
+    },
+    {
+      "price": 190000,
+      "quantity": 3,
+      "margin": 2430000,
+      "subaccountNonce": 3,
+      "expectedQuantityFilledViaMatching": 3,
+      "expectedQuantityFilledViaMarketOrders": 0
+    }
+  ],
+  "transient-sells": [],
+  "resting-buys": [],
+  "transient-buys": [
+    {
+      "price": 196700,
+      "quantity": 2,
+      "margin": 393400,
+      "subaccountNonce": 4,
+      "expectedQuantityFilledViaMatching": 2,
+      "expectedQuantityFilledViaMarketOrders": 0
+    },
+    {
+      "price": 198500,
+      "quantity": 1,
+      "margin": 198500,
+      "subaccountNonce": 5,
+      "expectedQuantityFilledViaMatching": 1,
+      "expectedQuantityFilledViaMarketOrders": 0
+    },
+    {
+      "price": 200000,
+      "quantity": 3,
+      "margin": 600000,
+      "subaccountNonce": 6,
+      "expectedQuantityFilledViaMatching": 3,
+      "expectedQuantityFilledViaMarketOrders": 0
+    }
+  ],
+  "expected-clearing-price-matching": 193000,
+  "expected-clearing-price-market-sells": 0,
+  "expected-clearing-price-market-buys": 0
+}

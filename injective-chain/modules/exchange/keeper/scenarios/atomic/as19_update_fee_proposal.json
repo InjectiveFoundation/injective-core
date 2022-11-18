@@ -1,0 +1,58 @@
+{
+  "numAccounts": 3,
+  "numSpotMarkets": 2,
+  "seed": 1658339268842048002,
+  "config": {
+    "exchangeParams": {
+      "atomicMarketOrderAccessLevel": "everyone"
+    }
+  },
+  "actions": [
+    {
+      "actionType": "endblocker",
+      "actionId": "pre-setup"
+    },
+    {
+      "actionType": "spotLimitOrder",
+      "price": 10,
+      "quantity": 10,
+      "accountIndex": 2,
+      "marketIndex": 0,
+      "isLong": false,
+      "orderId": "limit-sell"
+    },
+    {
+      "actionType": "spotLimitOrder",
+      "price": 10,
+      "quantity": 10,
+      "accountIndex": 2,
+      "marketIndex": 1,
+      "isLong": false,
+      "orderId": "limit-sell"
+    },
+    {
+      "actionType": "endblocker"
+    },
+    {
+      "actionType": "spotMarketOrder",
+      "orderType": "buyAtomic",
+      "price": 10,
+      "quantity": 10,
+      "marketIndex": 0,
+      "accountIndex": 0,
+      "orderId": "atomic"
+    },
+    {
+      "actionType": "spotMarketOrder",
+      "orderType": "buyAtomic",
+      "price": 10,
+      "quantity": 10,
+      "accountIndex": 1,
+      "marketIndex": 1,
+      "orderId": "atomic"
+    },
+    {
+      "actionType": "endblocker"
+    }
+  ]
+}

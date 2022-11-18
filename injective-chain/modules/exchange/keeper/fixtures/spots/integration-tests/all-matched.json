@@ -1,0 +1,86 @@
+{
+  "resting-sells": [
+    {
+      "price": 2100,
+      "quantity": 1,
+      "subaccountNonce": 9,
+      "expectedQuantityFilledViaMatching": 0,
+      "expectedQuantityFilledViaMarketOrders": 1
+    }
+  ],
+  "transient-sells": [
+    {
+      "price": 1930,
+      "quantity": 2,
+      "subaccountNonce": 1,
+      "expectedQuantityFilledViaMatching": 2,
+      "expectedQuantityFilledViaMarketOrders": 0
+    },
+    {
+      "price": 1918,
+      "quantity": 1,
+      "subaccountNonce": 2,
+      "expectedQuantityFilledViaMatching": 1,
+      "expectedQuantityFilledViaMarketOrders": 0
+    },
+    {
+      "price": 1900,
+      "quantity": 3,
+      "subaccountNonce": 3,
+      "expectedQuantityFilledViaMatching": 3,
+      "expectedQuantityFilledViaMarketOrders": 0
+    }
+  ],
+  "market-sells": [
+    {
+      "quantity": 1,
+      "subaccountNonce": 7,
+      "expectedQuantityFilled": 1,
+      "worstPrice": 1950
+    }
+  ],
+  "resting-buys": [
+    {
+      "price": 1967,
+      "quantity": 1,
+      "subaccountNonce": 4,
+      "expectedQuantityFilledViaMatching": 1,
+      "expectedQuantityFilledViaMarketOrders": 0
+    },
+    {
+      "price": 1985,
+      "quantity": 3,
+      "subaccountNonce": 5,
+      "expectedQuantityFilledViaMatching": 3,
+      "expectedQuantityFilledViaMarketOrders": 0
+    },
+    {
+      "price": 2000,
+      "quantity": 2,
+      "subaccountNonce": 6,
+      "expectedQuantityFilledViaMatching": 2,
+      "expectedQuantityFilledViaMarketOrders": 0
+    },
+    {
+      "price": 2050,
+      "quantity": 1,
+      "subaccountNonce": 1,
+      "expectedQuantityFilledViaMatching": 0,
+      "expectedQuantityFilledViaMarketOrders": 1
+    }
+  ],
+  "transient-buys": [],
+  "market-buys": [
+    {
+      "quantity": 1,
+      "subaccountNonce": 8,
+      "expectedQuantityFilled": 1,
+      "worstPrice": 2150
+    }
+  ],
+  "expected-buys-after-matching": [],
+  "expected-sells-after-matching": [],
+  "expected-clearing-price-matching": 1967,
+  "expected-clearing-price-market-sells": 2050,
+  "expected-clearing-price-market-buys": 2100
+}

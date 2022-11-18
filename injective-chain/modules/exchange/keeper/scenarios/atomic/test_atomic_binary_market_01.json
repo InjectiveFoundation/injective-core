@@ -1,0 +1,42 @@
+{
+  "numAccounts": 3,
+  "numBinaryOptionsMarkets": 1,
+  "seed": 1658339268842048002,
+  "config": {
+    "exchangeParams": {
+      "atomicMarketOrderAccessLevel": "everyone",
+      "atomicMarketOrderFeeMultiplier": 5
+    }
+  },
+  "actions": [
+    {
+      "actionType": "boLimitOrder",
+      "price": 1000,
+      "quantity": 8,
+      "accountIndex": 1,
+      "isLong": false
+    },
+    {
+      "actionType": "endblocker"
+    },
+    {
+      "actionType": "boMarketOrder",
+      "orderType" : "buyAtomic",
+      "price": 1000,
+      "quantity": 10,
+      "accountIndex": 0,
+      "actionId" : "atomicOrder"
+    },
+    {
+      "actionType": "boMarketOrder",
+      "orderType" : "buy",
+      "price": 1000,
+      "quantity": 10,
+      "accountIndex": 2,
+      "actionId": "otherMarketOrder"
+    },
+    {
+      "actionType": "endblocker"
+    }
+  ]
+}

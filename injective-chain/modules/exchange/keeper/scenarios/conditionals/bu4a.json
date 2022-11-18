@@ -1,0 +1,50 @@
+{
+  "numAccounts": 2,
+  "numDerivativeMarkets": 1,
+  "seed": 1658339268842048000,
+  "actions": [
+    {
+      "actionType": "priceOracle",
+      "perpsPrices": [10]
+    },
+    {
+      "actionType": "derivativeLimitOrder",
+      "price": 8,
+      "quantity": 3,
+      "accountIndex": 0,
+      "isLong": false,
+      "orderId": "order1"
+    },
+    {
+      "actionType": "endblocker"
+    },
+    {
+      "actionType": "batchUpdate",
+      "accountIndex": 0,
+        "derivativeOrdersToCancel": ["order1"],
+        "derivativeOrdersToCreate": [
+          {
+            "actionType": "derivativeLimitOrder",
+            "price": 5,
+            "quantity": 2,
+            "accountIndex": 0,
+            "isLong": true,
+            "isReduceOnly": true,
+            "triggerPrice": 7
+          },
+          {
+            "actionType": "derivativeLimitOrder",
+            "price": 11,
+            "quantity": 3,
+            "accountIndex": 0,
+            "isLong": true,
+            "isReduceOnly": true,
+            "triggerPrice": 12
+          }
+        ]
+    },
+    {
+      "actionType": "endblocker"
+    }
+  ]
+}

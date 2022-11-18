@@ -1,0 +1,54 @@
+{
+  "numAccounts": 3,
+  "numBinaryOptionsMarkets": 1,
+  "seed": 1658339268842048002,
+  "config": {
+    "exchangeParams": {
+      "atomicMarketOrderAccessLevel": "everyone"
+    }
+  },
+  "actions": [
+    {
+      "actionType": "priceOracle",
+      "binaryMarkets": [10]
+    },
+    {
+      "actionType": "endblocker",
+      "actionId": "pre-setup"
+    },
+    {
+      "actionType": "boLimitOrder",
+      "price": 10,
+      "quantity": 10,
+      "accountIndex": 2,
+      "isLong": true,
+      "orderId": "limit-buy",
+      "margin": 100
+    },
+    {
+      "actionType": "endblocker",
+      "actionId": "post-setup"
+    },
+    {
+      "actionType": "boLimitOrder",
+      "price": 10,
+      "quantity": 10,
+      "accountIndex": 1,
+      "isLong": false,
+      "actionId": "limit",
+      "margin": 9999900
+    },
+    {
+      "actionType": "boMarketOrder",
+      "orderType" : "sellAtomic",
+      "price": 10,
+      "quantity": 10,
+      "accountIndex": 0,
+      "actionId": "atomic",
+      "margin": 9999900
+    },
+    {
+      "actionType": "endblocker"
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "numAccounts": 1,
+  "numDerivativeMarkets": 1,
+  "seed": 1,
+  "config": {
+    "tokenFactoryParams": {
+      "denomCreationFee": {
+        "amount": 1000,
+        "denom": "USDT0"
+      }
+    }
+  },
+  "actions": [
+    {
+      "actionType": "endblocker",
+      "actionId": "post-setup"
+    },
+    {
+      "actionType": "transferExecute",
+        "funds": [
+        {
+          "amount": 1000,
+          "denom": "USDT0"
+        }
+      ],
+      "accountIndex": 0,
+      "fundsDirection": "to_bank",
+      "message":
+        {
+          "actionType": "createTfDenom",
+          "subdenom": "custom"
+        }
+    },
+    {
+      "actionType": "endblocker"
+    },
+    {
+      "actionType": "mintTfDenom",
+      "denom": "factory/inj1lg2tz6rtvqdvxm649r72v46vgwrynmczekah9k/custom",
+      "amount": 1000
+    },
+    {
+      "actionType": "deposit",
+      "denom": "factory/inj1lg2tz6rtvqdvxm649r72v46vgwrynmczekah9k/custom",
+      "amount": 1000
+    },
+    {
+      "actionType": "endblocker"
+    }
+  ]
+}

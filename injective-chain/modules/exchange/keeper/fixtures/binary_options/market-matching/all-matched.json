@@ -1,0 +1,99 @@
+/*
+  BID       ASK
+            310000  1
+ *2 320000  293000  2
+ *2 310000  291800  1
+  2 200000  *150000 6
+  3 198500  
+  1 196700
+ */
+{
+  "resting-sells": [
+    {
+      "price": 310000,
+      "quantity": 1,
+      "margin": 690000,
+      "subaccountNonce": 1,
+      "expectedQuantityFilledViaMatching": 0,
+      "expectedQuantityFilledViaMarketOrders": 1
+    },
+    {
+      "price": 293000,
+      "quantity": 2,
+      "margin": 1414000,
+      "subaccountNonce": 2,
+      "expectedQuantityFilledViaMatching": 0,
+      "expectedQuantityFilledViaMarketOrders": 2
+    },
+    {
+      "price": 291800,
+      "quantity": 1,
+      "margin": 708200,
+      "subaccountNonce": 3,
+      "expectedQuantityFilledViaMatching": 0,
+      "expectedQuantityFilledViaMarketOrders": 1
+    }
+  ],
+  "market-sells": [
+    {
+      "quantity": 3,
+      "subaccountNonce": 4,
+      "margin": 2550000,
+      "expectedQuantityFilled": 3,
+      "worstPrice": 150000
+    },
+    {
+      "quantity": 3,
+      "subaccountNonce": 5,
+      "margin": 2550000,
+      "expectedQuantityFilled": 3,
+      "worstPrice": 150000
+    }
+  ],
+  "resting-buys": [
+    {
+      "price": 200000,
+      "quantity": 2,
+      "margin": 400000,
+      "subaccountNonce": 8,
+      "expectedQuantityFilledViaMatching": 0,
+      "expectedQuantityFilledViaMarketOrders": 2
+    },
+    {
+      "price": 198500,
+      "quantity": 3,
+      "margin": 595500,
+      "subaccountNonce": 7,
+      "expectedQuantityFilledViaMatching": 0,
+      "expectedQuantityFilledViaMarketOrders": 3
+    },
+    {
+      "price": 196700,
+      "quantity": 1,
+      "margin": 196700,
+      "subaccountNonce": 6,
+      "expectedQuantityFilledViaMatching": 0,
+      "expectedQuantityFilledViaMarketOrders": 1
+    }
+  ],
+  "transient-buys": [],
+  "market-buys": [
+    {
+      "quantity": 2,
+      "margin": 640000,
+      "subaccountNonce": 9,
+      "expectedQuantityFilled": 2,
+      "worstPrice": 320000
+    },
+    {
+      "quantity": 2,
+      "margin": 620000,
+      "subaccountNonce": 10,
+      "expectedQuantityFilled": 2,
+      "worstPrice": 310000
+    }
+  ],
+  "expected-clearing-price-matching": 0,
+  "expected-clearing-price-market-sells": 198700,
+  "expected-clearing-price-market-buys": 296950
+}

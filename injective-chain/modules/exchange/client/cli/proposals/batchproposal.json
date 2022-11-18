@@ -1,0 +1,106 @@
+{
+  "title": "title",
+  "description": "description",
+  "spot_market_param_update_proposals": [
+    {
+      "title": "title",
+      "description": "description",
+      "market_id": "marketId",
+      "maker_fee_rate": "0.020000000000000000",
+      "taker_fee_rate": "0.020000000000000000",
+      "relayer_fee_share_rate": "0.050000000000000000",
+      "min_price_tick_size": "0.000010000000000000",
+      "min_quantity_tick_size": "0.000010000000000000",
+      "status": 1
+    }
+  ],
+  "derivative_market_param_update_proposals": [
+    {
+      "title": "Update derivative market param",
+      "description": "Update derivative market description",
+      "market_id": "marketId",
+      "initial_margin_ratio": "0.000010000000000000",
+      "maintenance_margin_ratio": "0.000010000000000000",
+      "maker_fee_rate": "0.020000000000000000",
+      "taker_fee_rate": "0.020000000000000000",
+      "relayer_fee_share_rate": "0.050000000000000000",
+      "min_price_tick_size": "0.000010000000000000",
+      "min_quantity_tick_size": "0.000010000000000000",
+      "HourlyInterestRate": "0.000010000000000000",
+      "HourlyFundingRateCap": "0.000010000000000000"
+    }
+  ],
+  "spot_market_launch_proposals": [
+    {
+      "title": "Just a Title",
+      "description": "Just a Description",
+      "ticker": "ticker",
+      "base_denom": "baseDenom",
+      "quote_denom": "quoteDenom",
+      "min_price_tick_size": "0.000100000000000000",
+      "min_quantity_tick_size": "0.000100000000000000"
+    }
+  ],
+  "perpetual_market_launch_proposals": [
+    {
+      "title": "Just a Title",
+      "description": "Just a Description",
+      "ticker": "ticker",
+      "quote_denom": "quoteDenom",
+      "oracle_base": "oracleBase",
+      "oracle_quote": "oracleQuote",
+      "oracle_type": 1,
+      "initial_margin_ratio": "0.050000000000000000",
+      "maintenance_margin_ratio": "0.020000000000000000",
+      "maker_fee_rate": "0.001000000000000000",
+      "taker_fee_rate": "0.001500000000000000",
+      "min_price_tick_size": "0.000100000000000000",
+      "min_quantity_tick_size": "0.000100000000000000"
+    }
+  ],
+  "expiry_futures_market_launch_proposals": [
+    {
+      "title": "Just a Title",
+      "description": "Just a Description",
+      "ticker": "ticker",
+      "quote_denom": "quoteDenom",
+      "oracle_base": "oracleBase",
+      "oracle_quote": "oracleQuote",
+      "oracle_type": 1,
+      "expiry": 1000,
+      "initial_margin_ratio": "0.050000000000000000",
+      "maintenance_margin_ratio": "0.020000000000000000",
+      "maker_fee_rate": "0.001000000000000000",
+      "taker_fee_rate": "0.001500000000000000",
+      "min_price_tick_size": "0.000100000000000000",
+      "min_quantity_tick_size": "0.000100000000000000"
+    }
+  ],
+  "trading_reward_campaign_update_proposal": {
+    "title": "Trade Reward Campaign",
+    "description": "Trade Reward Campaign",
+    "campaign_info": {
+      "campaign_duration_seconds": 30000,
+      "quote_denoms": [
+        "quoteDenom1",
+        "quoteDenom2"
+      ],
+      "trading_reward_boost_info": {
+        "spot_market_multipliers": null,
+        "boosted_derivative_market_ids": [
+          "marketID"
+        ],
+        "derivative_market_multipliers": [
+          {
+            "maker_points_multiplier": "1.000000000000000000",
+            "taker_points_multiplier": "3.000000000000000000"
+          }
+        ]
+      },
+      "disqualified_market_ids": [
+        "marketId1",
+        "marketId2"
+      ]
+    }
+  }
+}

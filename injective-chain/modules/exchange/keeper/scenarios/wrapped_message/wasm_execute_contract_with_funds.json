@@ -1,0 +1,60 @@
+{
+  "numAccounts": 2,
+  "numSpotMarkets": 1,
+  "seed": 1,
+  "actions": [
+    {
+      "actionType": "registerAndInitContract",
+      "filename": "atomic_order_example.wasm",
+      "contractId": "scAtomicSpot",
+      "label": "atomic-orders",
+      "registerForBB" : false,
+      "message": {
+        "market_id": "$marketId"
+      }
+    },
+    {
+      "actionType": "spotLimitOrder",
+      "price": 100,
+      "quantity": 8,
+      "accountIndex": 1,
+      "isLong": false
+    },
+    {
+      "actionType": "endblocker",
+      "actionId": "post-setup"
+    },
+    {
+      "actionType": "transferExecute",
+        "funds": [
+        {
+          "amount": 1000,
+          "denom": "USDT0"
+        }
+      ],
+      "accountIndex": 0,
+      "fundsDirection": "to_bank",
+      "message": {
+        "actionType": "executeContract",
+        "contractId": "scAtomicSpot",
+        "message": {
+          "swap_spot": {
+            "price": "100.0",
+            "quantity": "8.0"
+          }
+        },
+        "withdrawFunds": false,
+        "executionType": "wasm",
+        "funds": [
+          {
+            "amount": 1000,
+            "denom": "USDT0"
+          }
+        ]
+      }
+    },
+    {
+      "actionType": "endblocker"
+    }
+  ]
+}

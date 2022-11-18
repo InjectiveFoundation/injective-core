@@ -1,0 +1,82 @@
+  {
+    "numAccounts": 2,
+    "numBinaryOptionsMarkets": 1,
+    "seed": 1658339268842048000,
+    "actions": [
+      {
+        "actionType": "positionBinary",
+        "quantity": 10,
+        "longAccountIndex": 1,
+        "shortAccountIndex" : 0,
+        "marketIndex": 0,
+        "comment" : "1 open position"
+      },
+      {
+        "actionType": "boLimitOrder",
+        "price": 10,
+        "quantity": 5,
+        "accountIndex": 0,
+        "isLong": true,
+        "isReduceOnly": true,
+        "marketIndex": 0,
+        "comment" : "2: should be cancelled"
+      },
+      {
+        "actionType": "boLimitOrder",
+        "price": 10,
+        "quantity": 5,
+        "accountIndex": 0,
+        "isLong": true,
+        "isReduceOnly": false,
+        "marketIndex": 0,
+        "comment" : "3: should stay"
+      },
+      {
+        "actionType": "boLimitOrder",
+        "price": 14,
+        "quantity": 6,
+        "accountIndex": 1,
+        "isLong": true,
+        "isReduceOnly": false,
+        "marketIndex": 0,
+        "comment" : "5: resting buy from other side to match sell"
+      },
+      {
+        "actionType": "endblocker"
+      },
+      {
+        "actionType": "boLimitOrder",
+        "price": 14,
+        "quantity": 6,
+        "accountIndex": 0,
+        "isLong": false,
+        "isReduceOnly": false,
+        "marketIndex": 0,
+        "comment" : "4: limit sell to increase position"
+      },
+      {
+        "actionType": "boLimitOrder",
+        "price": 11,
+        "quantity": 6,
+        "accountIndex": 0,
+        "isLong": true,
+        "isReduceOnly": true,
+        "marketIndex": 0,
+        "comment" : "6: should be rejected"
+      },
+      {
+        "actionType": "boLimitOrder",
+        "price": 11,
+        "quantity": 6,
+        "accountIndex": 0,
+        "isLong": true,
+        "isReduceOnly": false,
+        "marketIndex": 0,
+        "comment" : "7: should be placed"
+      },
+      {
+        "actionType": "endblocker"
+      }
+    ]
+
+  }

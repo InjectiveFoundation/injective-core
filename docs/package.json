@@ -1,0 +1,31 @@
+{
+  "name": "docs",
+  "version": "1.0.0",
+  "description": "Injective Chain Documentation",
+  "main": "index.js",
+  "scripts": {
+    "serve": "vuepress dev --no-cache",
+    "build": "vuepress build --no-cache"
+  },
+  "keywords": [
+    "cosmos",
+    "tendermint",
+    "injective",
+    "blockchain",
+    "cryptocurrency"
+  ],
+  "author": "InjectiveLabs",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^16.0.1",
+    "entities": "1.1.1",
+    "markdown-it-katex": "^2.0.3",
+    "vuepress-theme-cosmos": "^1.0.172"
+  },
+  "devDependencies": {
+    "watchpack": "^1.7.2"
+  },
+  "resolutions": {
+    "serialize-javascript": "^4.0.0"
+  }
+}

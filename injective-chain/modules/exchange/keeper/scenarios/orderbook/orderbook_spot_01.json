@@ -1,0 +1,81 @@
+{
+  "numAccounts": 4,
+  "numSpotMarkets": 1,
+  "seed": 1658339268842048001,
+  "actions": [
+    {
+      "actionType": "spotLimitOrder",
+      "price": 10,
+      "quantity": 9,
+      "margin": 100,
+      "isLong": true,
+      "accountIndex": 0
+    },
+    {
+      "actionType": "spotLimitOrder",
+      "price": 10,
+      "quantity": 4,
+      "margin": 100,
+      "isLong": true,
+      "accountIndex": 1
+    },
+    {
+      "actionType": "spotLimitOrder",
+      "price": 9,
+      "quantity": 8,
+      "margin": 100,
+      "isLong": true,
+      "accountIndex": 1
+    },
+    {
+      "actionType": "spotLimitOrder",
+      "price": 11,
+      "quantity": 10,
+      "margin": 100,
+      "isLong": false,
+      "accountIndex": 2
+    },
+    {
+      "actionType": "spotLimitOrder",
+      "price": 12,
+      "quantity": 10,
+      "margin": 100,
+      "isLong": false,
+      "accountIndex": 3,
+      "orderId" : "order-12-10"
+    },
+    {
+      "actionType": "endblocker",
+      "actionId" : "block-1-setup"
+    },
+    {
+      "actionType": "cancelOrder",
+      "orderId" : "order-12-10",
+      "accountIndex": 3
+    },
+    {
+      "actionType": "endblocker",
+      "actionId" : "block-2-cancel"
+    },
+    {
+      "actionType": "spotLimitOrder",
+      "price": 10,
+      "quantity": 10,
+      "margin": 100,
+      "isLong": false,
+      "accountIndex": 3
+    },
+    {
+      "actionType": "spotLimitOrder",
+      "price": 10,
+      "quantity": 4,
+      "margin": 100,
+      "isLong": true,
+      "accountIndex": 1
+    },
+    {
+      "actionType": "endblocker",
+      "actionId" : "block-3-match"
+    }
+  ]
+}

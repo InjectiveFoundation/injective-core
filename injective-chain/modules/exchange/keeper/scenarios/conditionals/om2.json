@@ -1,0 +1,88 @@
+{
+  "numAccounts": 2,
+  "numDerivativeMarkets": 1,
+  "seed": 1658339268842048000,
+  "actions": [
+    {
+      "actionType": "priceOracle",
+      "perpsPrices": [10]
+    },
+    {
+      "actionType": "endblocker"
+    },
+    {
+      "actionType": "derivativeMarketOrder",
+      "price": 8,
+      "quantity": 2,
+      "accountIndex": 0,
+      "isLong": true,
+      "triggerPrice": 9,
+      "orderId": "LCM"
+    },
+    {
+      "actionType": "derivativeMarketOrder",
+      "price": 11,
+      "quantity": 2,
+      "accountIndex": 0,
+      "isLong": false,
+      "triggerPrice": 11,
+      "orderId": "HCM"
+    },
+    {
+      "actionType": "derivativeLimitOrder",
+      "price": 8,
+      "quantity": 2,
+      "accountIndex": 0,
+      "isLong": true,
+      "triggerPrice": 7,
+      "orderId": "LCL"
+    },
+    {
+      "actionType": "derivativeLimitOrder",
+      "price": 11,
+      "quantity": 2,
+      "accountIndex": 0,
+      "isLong": false,
+      "triggerPrice": 13,
+      "orderId": "HCL"
+    },
+    {
+      "actionType": "endblocker"
+    },
+    {
+      "actionType": "cancelOrder",
+      "marketType" : "derivative",
+      "accountIndex": 0,
+      "orderId": "LCM",
+      "orderMask": 1,
+      "actionId": "LCM"
+    },
+    {
+      "actionType": "cancelOrder",
+      "marketType" : "derivative",
+      "accountIndex": 0,
+      "orderId": "HCM",
+      "orderMask": 1,
+      "actionId": "HCM"
+    },
+    {
+      "actionType": "cancelOrder",
+      "marketType" : "derivative",
+      "accountIndex": 0,
+      "orderId": "LCL",
+      "orderMask": 1,
+      "actionId": "LCL"
+    },
+    {
+      "actionType": "cancelOrder",
+      "marketType" : "derivative",
+      "accountIndex": 0,
+      "orderId": "HCL",
+      "orderMask": 1,
+      "actionId": "HCL"
+    },
+    {
+      "actionType": "endblocker"
+    }
+  ]
+}

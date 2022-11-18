@@ -1,0 +1,29 @@
+  {
+    "numAccounts": 2,
+    "numBinaryOptionsMarkets": 1,
+    "seed": 1658339268842048000,
+    "actions": [
+      {
+        "actionType": "positionBinary",
+        "actionId": "0",
+        "quantity": 10,
+        "longAccountIndex": 0,
+        "shortAccountIndex" : 1
+      },
+      {
+        "actionType": "boLimitOrder",
+        "actionId": "1",
+        "price": 5,
+        "quantity": 10,
+        "accountIndex": 0,
+        "isLong": true,
+        "isReduceOnly": true,
+        "comment" : "[should be rejected]"
+      },
+      {
+        "actionType": "endblocker",
+        "actionId": "2"
+      }
+    ]
+
+  }

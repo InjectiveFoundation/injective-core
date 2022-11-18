@@ -1,0 +1,25 @@
+{
+  "numAccounts": 1,
+  "numDerivativeMarkets": 1,
+  "seed": 1658339268842048000,
+  "actions": [
+    {
+      "actionType": "priceOracle",
+      "perpsPrices": [11]
+    },
+    {
+      "actionType": "endblocker"
+    },
+    {
+      "actionType": "derivativeLimitOrder",
+      "price": 12,
+      "quantity": 5,
+      "accountIndex": 0,
+      "isLong": false,
+      "triggerPrice" : -1
+    },
+    {
+      "actionType": "endblocker"
+    }
+  ]
+}

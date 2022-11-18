@@ -1,0 +1,29 @@
+  {
+    "numAccounts": 2,
+    "numDerivativeMarkets": 1,
+    "seed": 1658339268842048000,
+    "actions": [
+      {
+        "actionType": "positionDerivative",
+        "actionId": "(1)",
+        "quantity": 10,
+        "longAccountIndex": 0,
+        "shortAccountIndex" : 1
+      },
+      {
+        "actionType": "derivativeLimitOrder",
+        "actionId": "1",
+        "price": 5,
+        "quantity": 10,
+        "accountIndex": 0,
+        "isLong": true,
+        "isReduceOnly": true,
+        "comment" : "[should be rejected]"
+      },
+      {
+        "actionType": "endblocker",
+        "actionId": "2"
+      }
+    ]
+
+  }

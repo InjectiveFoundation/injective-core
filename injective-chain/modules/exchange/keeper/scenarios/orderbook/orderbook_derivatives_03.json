@@ -1,0 +1,115 @@
+{
+  "numAccounts": 2,
+  "numDerivativeMarkets": 1,
+  "seed": 1658339268842048000,
+  "config": {
+    "exchangeParams": {
+      "atomicMarketOrderAccessLevel": "everyone"
+    }
+  },
+  "actions": [
+    {
+      "actionType": "priceOracle",
+      "perpsPrices": [10]
+    },
+    {
+      "actionType": "positionDerivative",
+      "quantity": 10,
+      "longAccountIndex": 0,
+      "shortAccountIndex": 1,
+      "marketIndex": 0
+    },
+    {
+      "actionType": "endblocker",
+      "actionId" : "block-1-setup"
+    },
+    {
+      "actionType": "derivativeLimitOrder",
+      "price": 10,
+      "quantity": 5,
+      "margin": 50,
+      "isLong": true,
+      "isReduceOnly": true,
+      "accountIndex": 0
+    },
+    {
+      "actionType": "derivativeMarketOrder",
+      "price": 9,
+      "quantity": 10,
+      "margin": 45,
+      "isLong": false,
+      "accountIndex": 1,
+      "triggerPrice": 12
+    },
+    {
+      "actionType": "endblocker",
+      "actionId" : "block-2-ro-mo-co"
+    },
+    {
+      "actionType": "derivativeLimitOrder",
+      "price": 10,
+      "quantity": 3,
+      "margin": 50,
+      "isLong": true,
+      "isReduceOnly": true,
+      "accountIndex": 0,
+      "triggerPrice": 12
+    },
+    {
+      "actionType": "derivativeLimitOrder",
+      "price": 8,
+      "quantity": 12,
+      "margin": 96,
+      "isLong": true,
+      "isReduceOnly": true,
+      "accountIndex": 0,
+      "triggerPrice": 12
+    },
+    {
+      "actionType": "endblocker",
+      "actionId" : "block-3-ro-co-li"
+    },
+    {
+      "actionType": "priceOracle",
+      "perpsPrices": [12]
+    },
+    {
+      "actionType": "endblocker",
+      "actionId" : "block-4-trigger"
+    },
+    {
+      "actionType": "derivativeMarketOrder",
+      "orderType" : "sellAtomic",
+      "isReduceOnly": true,
+      "price": 10,
+      "quantity": 3,
+      "accountIndex": 0
+    },
+    {
+      "actionType": "endblocker",
+      "actionId" : "block-5-atomic-match"
+    },
+    {
+      "actionType": "derivativeLimitOrder",
+      "price": 11,
+      "quantity": 10,
+      "isLong": false,
+      "accountIndex": 0
+    },
+    {
+      "actionType": "endblocker",
+      "actionId" : "block-6-new-limit"
+    },
+    {
+      "actionType": "derivativeMarketOrder",
+      "orderType" : "buyAtomic",
+      "price": 10,
+      "quantity": 8,
+      "accountIndex": 1
+    },
+    {
+      "actionType": "endblocker",
+      "actionId" : "block-7-atomic-miss"
+    }
+  ]
+}

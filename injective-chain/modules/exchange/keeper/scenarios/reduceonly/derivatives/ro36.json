@@ -1,0 +1,83 @@
+{
+  "numAccounts": 2,
+  "numDerivativeMarkets": 1,
+  "seed": 1658339268842048000,
+  "actions": [
+    {
+      "actionType": "positionDerivative",
+      "quantity": 10,
+      "longAccountIndex": 0,
+      "shortAccountIndex": 1,
+      "marketIndex": 0
+    },
+    {
+      "actionType": "derivativeLimitOrder",
+      "price": 4,
+      "quantity": 1,
+      "accountIndex": 0,
+      "isLong": false,
+      "isReduceOnly": true,
+      "marketIndex": 0
+    },
+    {
+      "actionType": "derivativeLimitOrder",
+      "price": 4,
+      "quantity": 1,
+      "accountIndex": 0,
+      "isLong": false,
+      "isReduceOnly": true,
+      "marketIndex": 0
+    },
+    {
+      "actionType": "derivativeLimitOrder",
+      "price": 5,
+      "quantity": 1,
+      "accountIndex": 0,
+      "isLong": false,
+      "isReduceOnly": true,
+      "marketIndex": 0
+    },
+    {
+      "actionType": "derivativeLimitOrder",
+      "price": 5,
+      "quantity": 1,
+      "accountIndex": 0,
+      "isLong": false,
+      "isReduceOnly": true,
+      "marketIndex": 0
+    },
+    {
+      "actionType": "derivativeLimitOrder",
+      "price": 6,
+      "quantity": 1,
+      "accountIndex": 0,
+      "isLong": false,
+      "isReduceOnly": true,
+      "marketIndex": 0
+    },
+    {
+      "actionType": "derivativeLimitOrder",
+      "price": 6,
+      "quantity": 1,
+      "accountIndex": 0,
+      "isLong": false,
+      "isReduceOnly": true,
+      "marketIndex": 0
+    },
+    {
+      "actionType": "endblocker"
+    },
+    {
+      "actionType": "derivativeLimitOrder",
+      "price": 3,
+      "quantity": 8,
+      "accountIndex": 0,
+      "isLong": false,
+      "isReduceOnly": false,
+      "marketIndex": 0
+    },
+    {
+      "actionType": "endblocker"
+    }
+  ]
+}

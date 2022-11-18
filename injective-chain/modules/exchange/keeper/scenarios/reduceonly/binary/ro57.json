@@ -1,0 +1,83 @@
+{
+  "numAccounts": 2,
+  "numBinaryOptionsMarkets": 1,
+  "seed": 1658339268842048000,
+  "actions": [
+    {
+      "actionType": "positionBinary",
+      "quantity": 10,
+      "longAccountIndex": 1,
+      "shortAccountIndex": 0,
+      "marketIndex": 0
+    },
+    {
+      "actionType": "boLimitOrder",
+      "price": 8,
+      "quantity": 1,
+      "accountIndex": 0,
+      "isLong": true,
+      "isReduceOnly": true,
+      "marketIndex": 0
+    },
+    {
+      "actionType": "boLimitOrder",
+      "price": 8,
+      "quantity": 1,
+      "accountIndex": 0,
+      "isLong": true,
+      "isReduceOnly": true,
+      "marketIndex": 0
+    },
+    {
+      "actionType": "boLimitOrder",
+      "price": 6,
+      "quantity": 2,
+      "accountIndex": 0,
+      "isLong": true,
+      "isReduceOnly": true,
+      "marketIndex": 0
+    },
+    {
+      "actionType": "boLimitOrder",
+      "price": 6,
+      "quantity": 3,
+      "accountIndex": 0,
+      "isLong": true,
+      "isReduceOnly": true,
+      "marketIndex": 0
+    },
+    {
+      "actionType": "boLimitOrder",
+      "price": 5,
+      "quantity": 1,
+      "accountIndex": 0,
+      "isLong": true,
+      "isReduceOnly": true,
+      "marketIndex": 0
+    },
+    {
+      "actionType": "boLimitOrder",
+      "price": 5,
+      "quantity": 2,
+      "accountIndex": 0,
+      "isLong": true,
+      "isReduceOnly": true,
+      "marketIndex": 0
+    },
+    {
+      "actionType": "endblocker"
+    },
+    {
+      "actionType": "boLimitOrder",
+      "price": 7,
+      "quantity": 4,
+      "accountIndex": 0,
+      "isLong": true,
+      "isReduceOnly": false,
+      "marketIndex": 0
+    },
+    {
+      "actionType": "endblocker"
+    }
+  ]
+}

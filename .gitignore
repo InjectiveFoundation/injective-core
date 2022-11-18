@@ -1,0 +1,41 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, build with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# OS
+.DS_Store
+*.swp
+*.swo
+.vscode
+.idea
+
+# Build
+build
+
+# IDE
+.idea/
+*.iml
+.root/
+*.sublime-project
+*.sublime-workspace
+
+dist/
+var/
+tests-solidity/suites/basic/.env
+tests-solidity/suites/proxy/.env
+tests-solidity/suites/staking/.env
+.env
+node_modules
+tests-solidity/**/artifacts
+tests-solidity/**/cache
+
+/injective-chain/modules/old_exchange/

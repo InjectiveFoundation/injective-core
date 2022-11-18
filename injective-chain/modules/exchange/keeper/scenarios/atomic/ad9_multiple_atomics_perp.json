@@ -1,0 +1,54 @@
+{
+  "numAccounts": 2,
+  "numDerivativeMarkets": 1,
+  "seed": 1658339268842048002,
+  "config": {
+    "exchangeParams": {
+      "atomicMarketOrderAccessLevel": "everyone"
+    }
+  },
+  "actions": [
+    {
+      "actionType": "priceOracle",
+      "perpsPrices": [10]
+    },
+    {
+      "actionType": "endblocker",
+      "actionId": "pre-setup"
+    },
+    {
+      "actionType": "derivativeLimitOrder",
+      "price": 11,
+      "quantity": 10,
+      "accountIndex": 1,
+      "isLong": false,
+      "orderId": "limit-sell",
+      "margin": 100
+    },
+    {
+      "actionType": "endblocker",
+      "actionId": "post-setup"
+    },
+    {
+      "actionType": "derivativeMarketOrder",
+      "orderType" : "buyAtomic",
+      "price": 12,
+      "quantity": 2,
+      "accountIndex": 0,
+      "actionId": "atomic1",
+      "margin": 22
+    },
+    {
+      "actionType": "derivativeMarketOrder",
+      "orderType" : "buyAtomic",
+      "price": 11,
+      "quantity": 2,
+      "accountIndex": 0,
+      "actionId": "atomic2",
+      "margin": 22
+    },
+    {
+      "actionType": "endblocker"
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "numAccounts": 1,
+  "numSpotMarkets": 2,
+  "seed": 1,
+  "config": {
+    "bankParams": {
+      "extraCoins": [
+          {
+            "amount": 1950,
+            "denom": "peggy0xdAC17F958D2ee523a2206206994597C13D831ec7",
+            "mintTo": "subaccount"
+          }
+      ]
+    }
+  },
+  "actions": [
+    {
+      "actionType": "endblocker",
+      "actionId": "post-setup"
+    },
+    {
+      "actionType": "multiExec",
+      "accountIndex": 0,
+      "messages": [
+        {
+          "actionType": "withdrawal",
+          "denom": "peggy0xdAC17F958D2ee523a2206206994597C13D831ec7",
+          "amount": 1950
+        },
+        {
+          "actionType": "sendToEth",
+          "recipientEthAddress": "0xbdAEdEc95d563Fb05240d6e01821008454c24C36",
+          "amount": {
+            "amount": 800,
+            "denom": "peggy0xdAC17F958D2ee523a2206206994597C13D831ec7"
+          },
+          "bridgeFee": {
+            "amount": 50,
+            "denom": "peggy0xdAC17F958D2ee523a2206206994597C13D831ec7"
+          }
+        },
+        {
+          "actionType": "sendToEth",
+          "recipientEthAddress": "0xaf79152ac5df276d9a8e1e2e22822f9713474902",
+          "amount": {
+            "amount": 1000,
+            "denom": "peggy0xdAC17F958D2ee523a2206206994597C13D831ec7"
+          },
+          "bridgeFee": {
+            "amount": 100,
+            "denom": "peggy0xdAC17F958D2ee523a2206206994597C13D831ec7"
+          }
+        }
+      ]
+    },
+    {
+      "actionType": "endblocker"
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "resting-sells": [
+    {
+      "price": 1910,
+      "quantity": 5,
+      "margin": 1900,
+      "subaccountNonce": 3,
+      "expectedQuantityFilledViaMatching": 5,
+      "expectedQuantityFilledViaMarketOrders": 0
+    }
+  ],
+  "transient-sells": [],
+  "resting-buys": [],
+  "transient-buys": [
+    {
+      "price": 1915,
+      "quantity": 1,
+      "margin": 2100,
+      "subaccountNonce": 4,
+      "expectedQuantityFilledViaMatching": 1,
+      "expectedQuantityFilledViaMarketOrders": 0
+    },
+    {
+      "price": 3000,
+      "quantity": 4,
+      "margin": 5400,
+      "subaccountNonce": 5,
+      "expectedQuantityFilledViaMatching": 4,
+      "expectedQuantityFilledViaMarketOrders": 0
+    }
+  ],
+  "expected-clearing-price-matching": 1910,
+  "expected-clearing-price-market-sells": 0,
+  "expected-clearing-price-market-buys": 0
+}

@@ -1,0 +1,43 @@
+linters:
+  fast: false
+  enable:
+    - misspell
+    - prealloc
+    - revive
+    - unconvert
+    - unparam
+    - errorlint
+    - gocritic
+    # - gosec
+linters-settings:
+  revive:
+    enableAllRules: true
+    rules:
+      - name: var-naming
+        arguments:
+          - ["ID"]
+  gocritic:
+    enabled-tags:
+      - performance
+      - diagnostic
+      - style
+      - opinionated
+      - experimental
+    disabled-checks:
+      - singleCaseSwitch
+      - deferInLoop
+      - hugeParam
+      - unnamedResult
+issues:
+  exclude-rules:
+    - linters:
+        - revive
+      text: ALL_CAPS
+  max-issues-per-linter: 0
+
+run:
+  tests: false
+  skip-dirs:
+    - injective-chain/modules/peggy/testpeggy
+    - injective-chain/modules/exchange/testexchange
+    - injective-chain/modules/exchange/client/testutil

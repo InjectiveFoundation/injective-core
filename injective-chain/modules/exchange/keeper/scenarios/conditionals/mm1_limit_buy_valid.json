@@ -1,0 +1,38 @@
+{
+  "numAccounts": 2,
+  "numDerivativeMarkets": 1,
+  "seed": 1658339268842048000,
+  "config": {
+    "perpMarkets": [
+      {
+			"initialMarginRatio": 0.05,
+			"maintenanceMarginRatio": 0.02
+      }
+    ]
+  },
+  "actions": [
+    {
+      "actionType": "priceOracle",
+      "perpsPrices": [4000]
+    },
+    {
+      "actionType": "derivativeLimitOrder",
+      "price": 5000,
+      "quantity": 20,
+      "margin": 5000,
+      "triggerPrice" : 5000,
+      "isLong": true
+    },
+    {
+      "actionType": "endblocker",
+      "actionId": "setup"
+    },
+    {
+      "actionType": "priceOracle",
+      "perpsPrices": [5000]
+    },
+    {
+      "actionType": "endblocker"
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "numAccounts": 2,
+  "numSpotMarkets": 1,
+  "seed": 1,
+  "actions": [
+    {
+      "actionType": "endblocker",
+      "actionId": "post-setup"
+    },
+    {
+      "actionType": "endblocker",
+      "actionId": "pre-test"
+    },
+    {
+      "actionType": "transferExecute",
+        "funds": [
+        {
+          "amount": 1000,
+          "denom": "USDT0"
+        }
+      ],
+      "accountIndex": 0,
+      "fundsDirection": "to_bank",
+      "message": {
+        "actionType": "send",
+        "denom": "USDT0",
+        "amount": 1000,
+        "recipientIndex": 1
+      }
+    },
+    {
+      "actionType": "endblocker"
+    }
+  ]
+}

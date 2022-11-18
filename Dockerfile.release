@@ -1,0 +1,21 @@
+# syntax=docker/dockerfile:experimental
+
+FROM golang:1.19-alpine AS mod
+ENV GOPATH=/root/go
+ENV GOCACHE=/root/.cache/go-build
+RUN apk add --no-cache git openssh
+
+WORKDIR /src
+COPY go.mod .
+COPY go.sum .
+
+ENV GOPRIVATE=github.com/InjectiveLabs/injective-core/*
+RUN git config --system url."ssh://git@github.com:InjectiveLabs/injective-core".insteadOf "https://github.com/InjectiveLabs/injective-core"
+RUN mkdir -p -m 0600 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
+RUN --mount=type=ssh go mod download
+RUN touch /mod
+
+FROM docker.injective.dev/go-cross:build
+
+# ensures that dependency on mod stage (1) is properly resolved
+COPY --from=mod /mod /mod

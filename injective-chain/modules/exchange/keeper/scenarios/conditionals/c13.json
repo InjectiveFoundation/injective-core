@@ -1,0 +1,87 @@
+{
+  "numAccounts": 2,
+  "numDerivativeMarkets": 1,
+  "seed": 1658339268842048000,
+  "actions": [
+    {
+      "actionType": "priceOracle",
+      "perpsPrices": [10]
+    },
+    {
+      "actionType": "derivativeLimitOrder",
+      "price": 6,
+      "quantity": 5,
+      "isLong": true,
+      "triggerPrice" : 6
+    },
+    {
+      "actionType": "derivativeLimitOrder",
+      "price": 7,
+      "quantity": 5,
+      "isLong": true,
+      "triggerPrice" : 7
+    },
+    {
+      "actionType": "derivativeLimitOrder",
+      "price": 8,
+      "quantity": 5,
+      "isLong": true,
+      "triggerPrice" : 8
+    },
+    {
+      "actionType": "derivativeLimitOrder",
+      "price": 9,
+      "quantity": 5,
+      "isLong": true,
+      "triggerPrice" : 9
+    },
+    {
+      "actionType": "derivativeLimitOrder",
+      "price": 11,
+      "quantity": 5,
+      "isLong": false,
+      "triggerPrice" : 11
+    },
+    {
+      "actionType": "derivativeLimitOrder",
+      "price": 12,
+      "quantity": 5,
+      "isLong": false,
+      "triggerPrice" : 12
+    },
+    {
+      "actionType": "derivativeLimitOrder",
+      "price": 13,
+      "quantity": 5,
+      "isLong": false,
+      "triggerPrice" : 13
+    },
+    {
+      "actionType": "derivativeLimitOrder",
+      "price": 14,
+      "quantity": 5,
+      "isLong": false,
+      "triggerPrice" : 14
+    },
+    {
+      "actionType": "endblocker",
+      "actionNumber": -1
+    },
+    {
+      "actionType": "priceOracle",
+      "perpsPrices": [13]
+    },
+    {
+      "actionType": "endblocker",
+      "actionId": "1"
+    },
+        {
+      "actionType": "priceOracle",
+      "perpsPrices": [7]
+    },
+    {
+      "actionType": "endblocker",
+      "actionId": "2"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "numAccounts": 1,
+  "numSpotMarkets" : 1,
+  "numDerivativeMarkets": 0,
+  "seed": 1658339268842048001,
+  "actions": [
+    {
+      "actionType": "endblocker",
+      "actionId": "start"
+    },
+    {
+      "actionType": "spotLimitOrder",
+      "price": 790,
+      "triggerPrice": 800,
+      "quantity": 100,
+      "orderType" : "takeSell",
+      "actionId": "submit"
+    },
+    {
+      "actionType": "endblocker"
+    }
+  ]
+}

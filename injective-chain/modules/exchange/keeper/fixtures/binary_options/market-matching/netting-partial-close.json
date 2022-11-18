@@ -1,0 +1,36 @@
+{
+  "existing-position-sells": [
+    {
+      "price": 200000,
+      "quantity": 5,
+      "margin": 4000000,
+      "subaccountNonce": 1
+    }
+  ],
+  "resting-buys": [
+    {
+      "price": 220000,
+      "quantity": 3,
+      "margin": 660000,
+      "subaccountNonce": 1,
+      "expectedQuantityFilledViaMatching": 0,
+      "expectedQuantityFilledViaMarketOrders": 3
+    }
+  ],
+  "transient-buys": [],
+  "market-buys": [],
+  "resting-sells": [],
+  "transient-sells": [],
+  "market-sells": [
+    {
+      "quantity": 3,
+      "margin": 2430000,
+      "subaccountNonce": 2,
+      "expectedQuantityFilled": 3,
+      "worstPrice": 190000
+    }
+  ],
+  "expected-clearing-price-matching": 0,
+  "expected-clearing-price-market-sells": 220000,
+  "expected-clearing-price-market-buys": 0
+}
