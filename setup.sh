@@ -94,6 +94,9 @@ yes $PASSPHRASE | injectived add-genesis-account --chain-id $CHAINID $(yes $PASS
 # zero address account
 yes $PASSPHRASE | injectived add-genesis-account --chain-id $CHAINID inj1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqe2hm49 1inj
 
+WASM_KEY="wasm"
+WASM_MNEMONIC="juice dog over thing anger search film document sight fork enrich jungle vacuum grab more sunset winner diesel flock smooth route impulse cheap toward"
+
 VAL_KEY="localkey"
 VAL_MNEMONIC="gesture inject test cycle original hollow east ridge hen combine junk child bacon zero hope comfort vacuum milk pitch cage oppose unhappy lunar seat"
 
@@ -130,6 +133,7 @@ USER10_MNEMONIC="apart acid night more advance december weather expect pause tax
 NEWLINE=$'\n'
 
 # Import keys from mnemonics
+yes "$WASM_MNEMONIC$NEWLINE$PASSPHRASE" | injectived keys add $WASM_KEY --recover
 yes "$VAL_MNEMONIC$NEWLINE$PASSPHRASE" | injectived keys add $VAL_KEY --recover
 yes "$USER1_MNEMONIC$NEWLINE$PASSPHRASE" | injectived keys add $USER1_KEY --recover
 yes "$USER2_MNEMONIC$NEWLINE$PASSPHRASE" | injectived keys add $USER2_KEY --recover
@@ -143,6 +147,7 @@ yes "$USER9_MNEMONIC$NEWLINE$PASSPHRASE" | injectived keys add $USER9_KEY --reco
 yes "$USER10_MNEMONIC$NEWLINE$PASSPHRASE" | injectived keys add $USER10_KEY --recover
 
 # Allocate genesis accounts (cosmos formatted addresses)
+yes $PASSPHRASE | injectived add-genesis-account --chain-id $CHAINID $(injectived keys show $WASM_KEY -a) 1000000000000000000000inj
 yes $PASSPHRASE | injectived add-genesis-account --chain-id $CHAINID $(injectived keys show $VAL_KEY -a) 1000000000000000000000inj
 yes $PASSPHRASE | injectived add-genesis-account --chain-id $CHAINID $(injectived keys show $USER1_KEY -a) 1000000000000000000000inj,1000000000000000000000atom,100000000000000000000000000peggy0xdAC17F958D2ee523a2206206994597C13D831ec7,100000000000000000000000000peggy0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599
 yes $PASSPHRASE | injectived add-genesis-account --chain-id $CHAINID $(injectived keys show $USER2_KEY -a) 1000000000000000000000inj,100000000000000000000000000peggy0xdAC17F958D2ee523a2206206994597C13D831ec7,100000000000000000000000000peggy0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599

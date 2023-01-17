@@ -10,11 +10,11 @@ import (
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	capabilitytypes "github.com/cosmos/cosmos-sdk/x/capability/types"
 
-	channeltypes "github.com/cosmos/ibc-go/v3/modules/core/04-channel/types"
-	ibcexported "github.com/cosmos/ibc-go/v3/modules/core/exported"
+	channeltypes "github.com/cosmos/ibc-go/v4/modules/core/04-channel/types"
+	ibcexported "github.com/cosmos/ibc-go/v4/modules/core/exported"
 
-	porttypes "github.com/cosmos/ibc-go/v3/modules/core/05-port/types"
-	host "github.com/cosmos/ibc-go/v3/modules/core/24-host"
+	porttypes "github.com/cosmos/ibc-go/v4/modules/core/05-port/types"
+	host "github.com/cosmos/ibc-go/v4/modules/core/24-host"
 
 	bandprice "github.com/InjectiveLabs/sdk-go/bandchain/hooks/price"
 	bandoracle "github.com/InjectiveLabs/sdk-go/bandchain/oracle/types"
@@ -29,29 +29,29 @@ func (am AppModule) OnChanOpenInit(
 	connectionHops []string,
 	portID string,
 	channelID string,
-	chanCap *capabilitytypes.Capability,
+	channelCap *capabilitytypes.Capability,
 	counterparty channeltypes.Counterparty,
 	version string,
-) error {
+) (string, error) {
 	// Require portID is the portID module is bound to
 	boundPort := am.keeper.GetPort(ctx)
 	if boundPort != portID {
-		return sdkerrors.Wrapf(porttypes.ErrInvalidPort, "invalid port: %s, expected %s", portID, boundPort)
+		return "", sdkerrors.Wrapf(porttypes.ErrInvalidPort, "invalid port: %s, expected %s", portID, boundPort)
 	}
 
 	bandIBCParams := am.keeper.GetBandIBCParams(ctx)
 
 	if version != bandIBCParams.IbcVersion {
-		return sdkerrors.Wrapf(bandoracle.ErrInvalidVersion, "got %s, expected %s", version, bandIBCParams.IbcVersion)
+		return "", sdkerrors.Wrapf(bandoracle.ErrInvalidVersion, "got %s, expected %s", version, bandIBCParams.IbcVersion)
 	}
 
 	// Claim channel capability passed back by IBC module
 	// OpenInit must claim the channelCapability that IBC passes into the callback
-	if err := am.keeper.ClaimCapability(ctx, chanCap, host.ChannelCapabilityPath(portID, channelID)); err != nil {
-		return err
+	if err := am.keeper.ClaimCapability(ctx, channelCap, host.ChannelCapabilityPath(portID, channelID)); err != nil {
+		return "", err
 	}
 
-	return nil
+	return version, nil
 }
 
 // OnChanOpenTry implements the IBCModule interface
@@ -158,7 +158,7 @@ func (am AppModule) OnRecvPacket(
 
 	var data bandPacket.OracleResponsePacketData
 	if err := types.ModuleCdc.UnmarshalJSON(packet.GetData(), &data); err != nil {
-		ack = channeltypes.NewErrorAcknowledgement(fmt.Sprintf("cannot unmarshal Oracle response packet data: %s", err.Error()))
+		ack = channeltypes.NewErrorAcknowledgement(fmt.Errorf("cannot unmarshal Oracle response packet data: %w", err))
 	}
 
 	// only attempt the application logic if the packet data
@@ -167,12 +167,12 @@ func (am AppModule) OnRecvPacket(
 
 		var result bandprice.Output
 		if err := bandobi.Decode(data.Result, &result); err != nil {
-			ack = channeltypes.NewErrorAcknowledgement(fmt.Sprintf("cannot decode oracle result: %s", err.Error()))
+			ack = channeltypes.NewErrorAcknowledgement(fmt.Errorf("cannot decode oracle result: %w", err))
 		}
 
 		clientID, err := strconv.Atoi(data.ClientID)
 		if err != nil {
-			ack = channeltypes.NewErrorAcknowledgement(fmt.Sprintf("cannot parse client id: %s", err.Error()))
+			ack = channeltypes.NewErrorAcknowledgement(fmt.Errorf("cannot parse client id: %w", err))
 		}
 
 		callDataRecord := am.keeper.GetBandIBCCallDataRecord(ctx, uint64(clientID))

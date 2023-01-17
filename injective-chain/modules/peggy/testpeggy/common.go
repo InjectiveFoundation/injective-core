@@ -291,6 +291,7 @@ func CreateTestEnv(t *testing.T) TestInput {
 	keyAcc := sdk.NewKVStoreKey(authtypes.StoreKey)
 	keyStaking := sdk.NewKVStoreKey(stakingtypes.StoreKey)
 	keyBank := sdk.NewKVStoreKey(banktypes.StoreKey)
+	tkeyBank := sdk.NewTransientStoreKey(banktypes.TStoreKey)
 	keyDistro := sdk.NewKVStoreKey(distrtypes.StoreKey)
 	keyParams := sdk.NewKVStoreKey(paramstypes.StoreKey)
 	tkeyParams := sdk.NewTransientStoreKey(paramstypes.TStoreKey)
@@ -312,6 +313,7 @@ func CreateTestEnv(t *testing.T) TestInput {
 	ms.MountStoreWithDB(keyParams, sdk.StoreTypeIAVL, nil)
 	ms.MountStoreWithDB(keyStaking, sdk.StoreTypeIAVL, nil)
 	ms.MountStoreWithDB(keyBank, sdk.StoreTypeIAVL, nil)
+	ms.MountStoreWithDB(tkeyBank, sdk.StoreTypeIAVL, nil)
 	ms.MountStoreWithDB(keyDistro, sdk.StoreTypeIAVL, nil)
 	ms.MountStoreWithDB(tkeyParams, sdk.StoreTypeTransient, nil)
 	ms.MountStoreWithDB(keyGov, sdk.StoreTypeIAVL, nil)
@@ -370,6 +372,7 @@ func CreateTestEnv(t *testing.T) TestInput {
 	bankKeeper := bankkeeper.NewBaseKeeper(
 		marshaler,
 		keyBank,
+		tkeyBank,
 		accountKeeper,
 		getSubspace(paramsKeeper, banktypes.ModuleName),
 		blockedAddr,

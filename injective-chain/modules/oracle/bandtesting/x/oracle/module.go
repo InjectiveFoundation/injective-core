@@ -16,10 +16,10 @@ import (
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/cosmos/cosmos-sdk/types/module"
 	capabilitytypes "github.com/cosmos/cosmos-sdk/x/capability/types"
-	channeltypes "github.com/cosmos/ibc-go/v3/modules/core/04-channel/types"
-	porttypes "github.com/cosmos/ibc-go/v3/modules/core/05-port/types"
-	host "github.com/cosmos/ibc-go/v3/modules/core/24-host"
-	"github.com/cosmos/ibc-go/v3/modules/core/exported"
+	channeltypes "github.com/cosmos/ibc-go/v4/modules/core/04-channel/types"
+	porttypes "github.com/cosmos/ibc-go/v4/modules/core/05-port/types"
+	host "github.com/cosmos/ibc-go/v4/modules/core/24-host"
+	"github.com/cosmos/ibc-go/v4/modules/core/exported"
 	abci "github.com/tendermint/tendermint/abci/types"
 
 	oraclekeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/bandtesting/x/oracle/keeper"
@@ -184,24 +184,24 @@ func (am AppModule) OnChanOpenInit(
 	connectionHops []string,
 	portID string,
 	channelID string,
-	chanCap *capabilitytypes.Capability,
+	channelCap *capabilitytypes.Capability,
 	counterparty channeltypes.Counterparty,
 	version string,
-) error {
+) (string, error) {
 	if err := ValidateOracleChannelParams(ctx, am.keeper, order, portID, channelID); err != nil {
-		return err
+		return "", err
 	}
 
 	if version != bandoracletypes.Version {
-		return fmt.Errorf("got %s, expected %s", version, bandoracletypes.Version)
+		return "", fmt.Errorf("got %s, expected %s", version, bandoracletypes.Version)
 	}
 
 	// Claim channel capability passed back by IBC module
-	if err := am.keeper.ClaimCapability(ctx, chanCap, host.ChannelCapabilityPath(portID, channelID)); err != nil {
-		return err
+	if err := am.keeper.ClaimCapability(ctx, channelCap, host.ChannelCapabilityPath(portID, channelID)); err != nil {
+		return "", err
 	}
 
-	return nil
+	return version, nil
 }
 
 // OnChanOpenTry implements the IBCModule interface
@@ -288,7 +288,7 @@ func (am AppModule) OnRecvPacket(
 
 	var data types.OracleRequestPacketData
 	if err := types.ModuleCdc.UnmarshalJSON(packet.GetData(), &data); err != nil {
-		return channeltypes.NewErrorAcknowledgement(fmt.Sprintf("cannot unmarshal oracle request packet data: %s", err.Error()))
+		return channeltypes.NewErrorAcknowledgement(fmt.Errorf("cannot unmarshal oracle request packet data: %w", err))
 	}
 
 	cacheCtx, writeFn := ctx.CacheContext()
@@ -296,7 +296,7 @@ func (am AppModule) OnRecvPacket(
 
 	var acknowledgement channeltypes.Acknowledgement
 	if err != nil {
-		acknowledgement = channeltypes.NewErrorAcknowledgement(err.Error())
+		acknowledgement = channeltypes.NewErrorAcknowledgement(err)
 	} else {
 		writeFn()
 		ctx.EventManager().EmitEvents(cacheCtx.EventManager().Events())

@@ -2,5 +2,5 @@ package app
 
 // nolint:all
 const (
-	upgradeName = "v1.8"
+	upgradeName = "v1.9"
 )

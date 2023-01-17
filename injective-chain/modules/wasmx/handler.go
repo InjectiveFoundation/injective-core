@@ -4,6 +4,10 @@ import (
 	"fmt"
 	"runtime/debug"
 
+	"github.com/gogo/protobuf/proto"
+
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/types"
+
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	log "github.com/xlab/suplog"
@@ -15,15 +19,24 @@ func NewHandler(k keeper.Keeper) sdk.Handler {
 
 	msgServer := keeper.NewMsgServerImpl(k)
 
-	_ = msgServer
-	return func(ctx sdk.Context, msg sdk.Msg) (res *sdk.Result, err error) {
+	return func(ctx sdk.Context, msg sdk.Msg) (*sdk.Result, error) {
+		var (
+			res proto.Message
+			err error
+		)
+
 		defer Recover(&err) // nolint:all
+		ctx = ctx.WithEventManager(sdk.NewEventManager())
 
 		switch msg := msg.(type) {
+		case *types.MsgExecuteContractCompat:
+			res, err = msgServer.ExecuteContractCompat(sdk.WrapSDKContext(ctx), msg)
 		default:
 			return nil, sdkerrors.Wrap(sdkerrors.ErrUnknownRequest,
 				fmt.Sprintf("Unrecognized wasmx Msg type: %T", msg))
 		}
+
+		return sdk.WrapServiceResult(ctx, res, err)
 	}
 }
 

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"runtime/debug"
 
-	ibckeeper "github.com/cosmos/ibc-go/v3/modules/core/keeper"
+	ibckeeper "github.com/cosmos/ibc-go/v4/modules/core/keeper"
 	log "github.com/xlab/suplog"
 
 	"github.com/cosmos/cosmos-sdk/crypto/keys/ed25519"
@@ -16,7 +16,7 @@ import (
 	authante "github.com/cosmos/cosmos-sdk/x/auth/ante"
 	authsigning "github.com/cosmos/cosmos-sdk/x/auth/signing"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
-	ibcante "github.com/cosmos/ibc-go/v3/modules/core/ante"
+	ibcante "github.com/cosmos/ibc-go/v4/modules/core/ante"
 
 	wasmkeeper "github.com/CosmWasm/wasmd/x/wasm/keeper"
 	wasmTypes "github.com/CosmWasm/wasmd/x/wasm/types"

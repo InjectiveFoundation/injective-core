@@ -518,3 +518,29 @@ func (k *Keeper) GetLastEventByValidator(ctx sdk.Context, validator sdk.ValAddre
 		return
 	}
 }
+
+func (k *Keeper) PruneAttestation7005(ctx sdk.Context) {
+	//	fetch the old key used to set attestation 7005
+	var key7005 []byte
+	k.IterateAttestations(ctx, func(key []byte, att *types.Attestation) (stop bool) {
+		claim, err := k.UnpackAttestationClaim(att)
+		if err != nil {
+			return false
+		}
+
+		if claim.GetEventNonce() != 7005 {
+			return false
+		}
+
+		key7005 = key
+
+		return true
+	})
+
+	if key7005 == nil {
+		return
+	}
+
+	// prune the store (DeleteAttestation won't work)
+	ctx.KVStore(k.storeKey).Delete(key7005)
+}

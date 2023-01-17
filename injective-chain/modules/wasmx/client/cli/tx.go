@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/cosmos/cosmos-sdk/client/flags"
 	"os"
 
 	"github.com/CosmWasm/wasmd/x/wasm/ioutils"
@@ -20,6 +21,7 @@ import (
 )
 
 const (
+	flagAmount                = "amount"
 	FlagContractGasLimit      = "contract-gas-limit"
 	FlagContractGasPrice      = "contract-gas-price"
 	FlagPinContract           = "pin-contract"
@@ -43,6 +45,7 @@ func NewTxCmd() *cobra.Command {
 	txCmd.AddCommand(
 		NewContractRegistrationRequestProposalTxCmd(),
 		NewBatchStoreCodeProposalTxCmd(),
+		ExecuteContractCompatCmd(),
 	)
 	return txCmd
 }
@@ -244,6 +247,36 @@ $ %s tx xwasm "batch-store-code-proposal \
 	return cmd
 }
 
+// ExecuteContractCompatCmd will instantiate a contract from previously uploaded code.
+func ExecuteContractCompatCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "execute-compat [contract_addr_bech32] [json_encoded_send_args] --amount [coins,optional]",
+		Short:   "Execute a command on a wasm contract",
+		Aliases: []string{"run-compat", "call-compat", "exec-compat", "ex-compat", "e-compat"},
+		Args:    cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clientCtx, err := client.GetClientTxContext(cmd)
+			if err != nil {
+				return err
+			}
+
+			msg, err := parseExecuteCompatArgs(args[0], args[1], clientCtx.GetFromAddress(), cmd.Flags())
+			if err != nil {
+				return err
+			}
+			if err := msg.ValidateBasic(); err != nil {
+				return err
+			}
+			return tx.GenerateOrBroadcastTxCLI(clientCtx, cmd.Flags(), &msg)
+		},
+		SilenceUsage: true,
+	}
+
+	cmd.Flags().String(flagAmount, "", "Coins to send to the contract along with command")
+	flags.AddTxFlagsToCmd(cmd)
+	return cmd
+}
+
 func parseBatchStoreCodeProposalFlags(fs *pflag.FlagSet) (*types.BatchStoreCodeProposal, error) {
 	proposal := &types.BatchStoreCodeProposal{}
 
@@ -291,6 +324,22 @@ func parseBatchStoreCodeProposalFlags(fs *pflag.FlagSet) (*types.BatchStoreCodeP
 	}
 
 	return proposal, nil
+}
+
+func parseExecuteCompatArgs(
+	contractAddr string, execMsg string, sender sdk.AccAddress, fs *pflag.FlagSet,
+) (types.MsgExecuteContractCompat, error) {
+	fundsStr, err := fs.GetString(flagAmount)
+	if err != nil {
+		return types.MsgExecuteContractCompat{}, fmt.Errorf("amount: %w", err)
+	}
+
+	return types.MsgExecuteContractCompat{
+		Sender:   sender.String(),
+		Contract: contractAddr,
+		Funds:    fundsStr,
+		Msg:      execMsg,
+	}, nil
 }
 
 func getWasmFile(contractSrc string) ([]byte, error) {

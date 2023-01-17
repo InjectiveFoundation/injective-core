@@ -56,12 +56,13 @@ const (
 	FlagTrace              = "trace"
 	FlagInvCheckPeriod     = "inv-check-period"
 
-	FlagPruning           = "pruning"
-	FlagPruningKeepRecent = "pruning-keep-recent"
-	FlagPruningKeepEvery  = "pruning-keep-every"
-	FlagPruningInterval   = "pruning-interval"
-	FlagIndexEvents       = "index-events"
-	FlagMinRetainBlocks   = "min-retain-blocks"
+	FlagPruning              = "pruning"
+	FlagPruningKeepRecent    = "pruning-keep-recent"
+	FlagPruningKeepEvery     = "pruning-keep-every"
+	FlagPruningInterval      = "pruning-interval"
+	FlagIndexEvents          = "index-events"
+	FlagMinRetainBlocks      = "min-retain-blocks"
+	FlagMultiStoreCommitSync = "multistore-commit-sync"
 )
 
 // GRPC-related flags.
@@ -165,6 +166,9 @@ which accepts a path for the resulting pprof file.
 
 	// add wasm flags
 	wasm.AddModuleInitFlags(cmd)
+
+	// add store commit sync flag
+	cmd.Flags().Bool(FlagMultiStoreCommitSync, false, "Define if commit multistore should use sync mode (false|true)")
 
 	return cmd
 }

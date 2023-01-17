@@ -9,7 +9,6 @@ import (
 	storetypes "github.com/cosmos/cosmos-sdk/store/types"
 	"github.com/cosmos/cosmos-sdk/x/feegrant"
 	feegrantmodule "github.com/cosmos/cosmos-sdk/x/feegrant/module"
-	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/auction"
 	auctionkeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/auction/keeper"
@@ -100,27 +99,30 @@ import (
 	upgradeclient "github.com/cosmos/cosmos-sdk/x/upgrade/client"
 	upgradekeeper "github.com/cosmos/cosmos-sdk/x/upgrade/keeper"
 	upgradetypes "github.com/cosmos/cosmos-sdk/x/upgrade/types"
-	ica "github.com/cosmos/ibc-go/v3/modules/apps/27-interchain-accounts"
-	icahost "github.com/cosmos/ibc-go/v3/modules/apps/27-interchain-accounts/host"
-	icahostkeeper "github.com/cosmos/ibc-go/v3/modules/apps/27-interchain-accounts/host/keeper"
-	icahosttypes "github.com/cosmos/ibc-go/v3/modules/apps/27-interchain-accounts/host/types"
+	ica "github.com/cosmos/ibc-go/v4/modules/apps/27-interchain-accounts"
+	icahost "github.com/cosmos/ibc-go/v4/modules/apps/27-interchain-accounts/host"
+	icahostkeeper "github.com/cosmos/ibc-go/v4/modules/apps/27-interchain-accounts/host/keeper"
+	icahosttypes "github.com/cosmos/ibc-go/v4/modules/apps/27-interchain-accounts/host/types"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/tokenfactory"
 	tokenfactorykeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/tokenfactory/keeper"
 	tokenfactorytypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/tokenfactory/types"
 
-	icacontrollertypes "github.com/cosmos/ibc-go/v3/modules/apps/27-interchain-accounts/controller/types"
-	icatypes "github.com/cosmos/ibc-go/v3/modules/apps/27-interchain-accounts/types"
-	"github.com/cosmos/ibc-go/v3/modules/apps/transfer"
-	ibctransferkeeper "github.com/cosmos/ibc-go/v3/modules/apps/transfer/keeper"
-	ibctransfertypes "github.com/cosmos/ibc-go/v3/modules/apps/transfer/types"
-	ibc "github.com/cosmos/ibc-go/v3/modules/core"
-	ibcclient "github.com/cosmos/ibc-go/v3/modules/core/02-client"
-	ibcclientclient "github.com/cosmos/ibc-go/v3/modules/core/02-client/client"
-	ibcclienttypes "github.com/cosmos/ibc-go/v3/modules/core/02-client/types"
-	porttypes "github.com/cosmos/ibc-go/v3/modules/core/05-port/types"
-	ibchost "github.com/cosmos/ibc-go/v3/modules/core/24-host"
-	ibckeeper "github.com/cosmos/ibc-go/v3/modules/core/keeper"
+	icacontrollertypes "github.com/cosmos/ibc-go/v4/modules/apps/27-interchain-accounts/controller/types"
+	icatypes "github.com/cosmos/ibc-go/v4/modules/apps/27-interchain-accounts/types"
+	ibcfee "github.com/cosmos/ibc-go/v4/modules/apps/29-fee"
+	ibcfeekeeper "github.com/cosmos/ibc-go/v4/modules/apps/29-fee/keeper"
+	ibcfeetypes "github.com/cosmos/ibc-go/v4/modules/apps/29-fee/types"
+	"github.com/cosmos/ibc-go/v4/modules/apps/transfer"
+	ibctransferkeeper "github.com/cosmos/ibc-go/v4/modules/apps/transfer/keeper"
+	ibctransfertypes "github.com/cosmos/ibc-go/v4/modules/apps/transfer/types"
+	ibc "github.com/cosmos/ibc-go/v4/modules/core"
+	ibcclient "github.com/cosmos/ibc-go/v4/modules/core/02-client"
+	ibcclientclient "github.com/cosmos/ibc-go/v4/modules/core/02-client/client"
+	ibcclienttypes "github.com/cosmos/ibc-go/v4/modules/core/02-client/types"
+	porttypes "github.com/cosmos/ibc-go/v4/modules/core/05-port/types"
+	ibchost "github.com/cosmos/ibc-go/v4/modules/core/24-host"
+	ibckeeper "github.com/cosmos/ibc-go/v4/modules/core/keeper"
 
 	// unnamed import of statik for swagger UI support
 	_ "github.com/InjectiveLabs/injective-core/client/docs/statik"
@@ -189,6 +191,7 @@ var (
 		slashing.AppModuleBasic{},
 		ibc.AppModuleBasic{},
 		ica.AppModuleBasic{},
+		ibcfee.AppModuleBasic{},
 		upgrade.AppModuleBasic{},
 		evidence.AppModuleBasic{},
 		transfer.AppModuleBasic{},
@@ -217,6 +220,7 @@ var (
 		stakingtypes.NotBondedPoolName: {authtypes.Burner, authtypes.Staking},
 		govtypes.ModuleName:            {authtypes.Burner},
 		ibctransfertypes.ModuleName:    {authtypes.Minter, authtypes.Burner},
+		ibcfeetypes.ModuleName:         nil,
 		peggytypes.ModuleName:          {authtypes.Minter, authtypes.Burner},
 		exchangetypes.ModuleName:       {authtypes.Minter, authtypes.Burner},
 		auctiontypes.ModuleName:        {authtypes.Burner},
@@ -269,6 +273,7 @@ type InjectiveApp struct {
 	UpgradeKeeper    upgradekeeper.Keeper
 	ParamsKeeper     paramskeeper.Keeper
 	IBCKeeper        *ibckeeper.Keeper // IBC Keeper must be a pointer in the app, so we can SetRouter on it correctly
+	IBCFeeKeeper     ibcfeekeeper.Keeper
 	ICAHostKeeper    icahostkeeper.Keeper
 	EvidenceKeeper   evidencekeeper.Keeper
 	TransferKeeper   ibctransferkeeper.Keeper
@@ -344,7 +349,7 @@ func NewInjectiveApp(
 		minttypes.StoreKey, distrtypes.StoreKey, slashingtypes.StoreKey,
 		govtypes.StoreKey, paramstypes.StoreKey, ibchost.StoreKey, upgradetypes.StoreKey,
 		evidencetypes.StoreKey, ibctransfertypes.StoreKey, capabilitytypes.StoreKey,
-		feegrant.StoreKey, authzkeeper.StoreKey, icahosttypes.StoreKey,
+		feegrant.StoreKey, authzkeeper.StoreKey, icahosttypes.StoreKey, ibcfeetypes.StoreKey,
 		// Injective keys
 		exchangetypes.StoreKey,
 		oracletypes.StoreKey,
@@ -357,7 +362,7 @@ func NewInjectiveApp(
 		wasmxtypes.StoreKey,
 	)
 
-	tkeys := sdk.NewTransientStoreKeys(paramstypes.TStoreKey, exchangetypes.TStoreKey, ocrtypes.TStoreKey)
+	tkeys := sdk.NewTransientStoreKeys(paramstypes.TStoreKey, banktypes.TStoreKey, exchangetypes.TStoreKey, ocrtypes.TStoreKey)
 	memKeys := sdk.NewMemoryStoreKeys(capabilitytypes.MemStoreKey)
 
 	app := &InjectiveApp{
@@ -389,7 +394,7 @@ func NewInjectiveApp(
 		appCodec, keys[authtypes.StoreKey], app.GetSubspace(authtypes.ModuleName), chaintypes.ProtoAccount, maccPerms,
 	)
 	app.BankKeeper = bankkeeper.NewBaseKeeper(
-		appCodec, keys[banktypes.StoreKey], app.AccountKeeper, app.GetSubspace(banktypes.ModuleName), app.BlockedAddrs(),
+		appCodec, keys[banktypes.StoreKey], tkeys[banktypes.TStoreKey], app.AccountKeeper, app.GetSubspace(banktypes.ModuleName), app.BlockedAddrs(),
 	)
 	stakingKeeper := stakingkeeper.NewKeeper(
 		appCodec, keys[stakingtypes.StoreKey], app.AccountKeeper, app.BankKeeper, app.GetSubspace(stakingtypes.ModuleName),
@@ -508,21 +513,26 @@ func NewInjectiveApp(
 		app.DistrKeeper,
 	)
 
+	// IBC Fee Module keeper
+	app.IBCFeeKeeper = ibcfeekeeper.NewKeeper(
+		appCodec, keys[ibcfeetypes.StoreKey], app.GetSubspace(ibcfeetypes.ModuleName),
+		app.IBCKeeper.ChannelKeeper, // may be replaced with IBC middleware
+		app.IBCKeeper.ChannelKeeper,
+		&app.IBCKeeper.PortKeeper, app.AccountKeeper, app.BankKeeper,
+	)
+
 	// Create Transfer Keepers
 	app.TransferKeeper = ibctransferkeeper.NewKeeper(
 		appCodec,
 		keys[ibctransfertypes.StoreKey],
 		app.GetSubspace(ibctransfertypes.ModuleName),
-		app.IBCKeeper.ChannelKeeper,
+		app.IBCFeeKeeper, // ISC4 Wrapper: fee IBC middleware
 		app.IBCKeeper.ChannelKeeper,
 		&app.IBCKeeper.PortKeeper,
 		app.AccountKeeper,
 		app.BankKeeper,
 		scopedTransferKeeper,
 	)
-
-	transferModule := transfer.NewAppModule(app.TransferKeeper)
-	transferIBCModule := transfer.NewIBCModule(app.TransferKeeper)
 
 	// this line is used by starport scaffolding # stargate/app/keeperDefinition
 	wasmDir := filepath.Join(homePath, "wasm")
@@ -594,6 +604,26 @@ func NewInjectiveApp(
 		govRouter.AddRoute(wasm.RouterKey, wasm.NewWasmProposalHandler(app.WasmKeeper, enabledProposals))
 	}
 
+	// Create Transfer Stack
+	var transferStack porttypes.IBCModule
+	transferStack = transfer.NewIBCModule(app.TransferKeeper)
+	transferStack = ibcfee.NewIBCMiddleware(transferStack, app.IBCFeeKeeper)
+
+	// Create Interchain Accounts Stack
+	// SendPacket, since it is originating from the application to core IBC:
+	// icaAuthModuleKeeper.SendTx -> icaController.SendPacket -> fee.SendPacket -> channel.SendPacket
+
+	// RecvPacket, message that originates from core IBC and goes down to app, the flow is:
+	// channel.RecvPacket -> fee.OnRecvPacket -> icaHost.OnRecvPacket
+	var icaHostStack porttypes.IBCModule
+	icaHostStack = icahost.NewIBCModule(app.ICAHostKeeper)
+	icaHostStack = ibcfee.NewIBCMiddleware(icaHostStack, app.IBCFeeKeeper)
+
+	// Create fee enabled wasm ibc Stack
+	var wasmStack porttypes.IBCModule
+	wasmStack = wasm.NewIBCHandler(app.WasmKeeper, app.IBCKeeper.ChannelKeeper, app.IBCFeeKeeper)
+	wasmStack = ibcfee.NewIBCMiddleware(wasmStack, app.IBCFeeKeeper)
+
 	app.GovKeeper = govkeeper.NewKeeper(
 		appCodec, keys[govtypes.StoreKey], app.GetSubspace(govtypes.ModuleName), app.AccountKeeper, app.BankKeeper,
 		&stakingKeeper, govRouter,
@@ -612,15 +642,13 @@ func NewInjectiveApp(
 		app.MsgServiceRouter(),
 	)
 	icaModule := ica.NewAppModule(nil, &app.ICAHostKeeper)
-	icaHostIBCModule := icahost.NewIBCModule(app.ICAHostKeeper)
 
 	// Create static IBC router, add transfer route, then set and seal it
-	ibcRouter := porttypes.NewRouter()
-	ibcRouter.AddRoute(icahosttypes.SubModuleName, icaHostIBCModule)
-	ibcRouter.AddRoute(ibctransfertypes.ModuleName, transferIBCModule)
-	ibcRouter.AddRoute(oracletypes.ModuleName, oracleModule)
-	// this line is used by starport scaffolding # ibc/app/router
-	ibcRouter.AddRoute(wasm.ModuleName, wasm.NewIBCHandler(app.WasmKeeper, app.IBCKeeper.ChannelKeeper))
+	ibcRouter := porttypes.NewRouter().
+		AddRoute(icahosttypes.SubModuleName, icaHostStack).
+		AddRoute(ibctransfertypes.ModuleName, transferStack).
+		AddRoute(oracletypes.ModuleName, oracleModule).
+		AddRoute(wasm.ModuleName, wasmStack)
 
 	// Setting Router will finalize all routes by sealing router
 	// No more routes can be added
@@ -674,7 +702,8 @@ func NewInjectiveApp(
 		authzmodule.NewAppModule(appCodec, app.AuthzKeeper, app.AccountKeeper, app.BankKeeper, app.interfaceRegistry),
 		ibc.NewAppModule(app.IBCKeeper),
 		params.NewAppModule(app.ParamsKeeper),
-		transferModule,
+		transfer.NewAppModule(app.TransferKeeper),
+		ibcfee.NewAppModule(app.IBCFeeKeeper),
 		icaModule,
 		// Injective app modules
 		exchange.NewAppModule(
@@ -729,7 +758,7 @@ func NewInjectiveApp(
 		paramstypes.ModuleName, insurancetypes.ModuleName, authtypes.ModuleName, crisistypes.ModuleName,
 		feegrant.ModuleName, banktypes.ModuleName, authz.ModuleName, ibctransfertypes.ModuleName,
 		capabilitytypes.ModuleName, minttypes.ModuleName, distrtypes.ModuleName, slashingtypes.ModuleName,
-		evidencetypes.ModuleName, stakingtypes.ModuleName, ibchost.ModuleName, icatypes.ModuleName,
+		evidencetypes.ModuleName, stakingtypes.ModuleName, ibchost.ModuleName, icatypes.ModuleName, ibcfeetypes.ModuleName,
 		exchangetypes.ModuleName, oracletypes.ModuleName, ocrtypes.ModuleName, tokenfactorytypes.ModuleName, wasm.ModuleName, wasmxtypes.ModuleName,
 	)
 
@@ -739,7 +768,7 @@ func NewInjectiveApp(
 		paramstypes.ModuleName, authtypes.ModuleName,
 		feegrant.ModuleName, banktypes.ModuleName, authz.ModuleName, ibctransfertypes.ModuleName,
 		oracletypes.ModuleName, minttypes.ModuleName, slashingtypes.ModuleName, ibctransfertypes.ModuleName, evidencetypes.ModuleName,
-		capabilitytypes.ModuleName, distrtypes.ModuleName, ibchost.ModuleName, icatypes.ModuleName,
+		capabilitytypes.ModuleName, distrtypes.ModuleName, ibchost.ModuleName, icatypes.ModuleName, ibcfeetypes.ModuleName,
 		upgradetypes.ModuleName,
 		crisistypes.ModuleName, govtypes.ModuleName, stakingtypes.ModuleName, peggytypes.ModuleName,
 		exchangetypes.ModuleName, auctiontypes.ModuleName, insurancetypes.ModuleName, ocrtypes.ModuleName,
@@ -755,7 +784,7 @@ func NewInjectiveApp(
 		// SDK modules
 		capabilitytypes.ModuleName, authtypes.ModuleName, banktypes.ModuleName, distrtypes.ModuleName, stakingtypes.ModuleName,
 		slashingtypes.ModuleName, govtypes.ModuleName, minttypes.ModuleName,
-		ibchost.ModuleName, icatypes.ModuleName, genutiltypes.ModuleName, evidencetypes.ModuleName, ibctransfertypes.ModuleName,
+		ibchost.ModuleName, icatypes.ModuleName, ibcfeetypes.ModuleName, genutiltypes.ModuleName, evidencetypes.ModuleName, ibctransfertypes.ModuleName,
 		paramstypes.ModuleName, authz.ModuleName, upgradetypes.ModuleName, vestingtypes.ModuleName, feegrant.ModuleName,
 		// Injective modules
 		auctiontypes.ModuleName,
@@ -805,7 +834,7 @@ func NewInjectiveApp(
 		auction.NewAppModule(app.AuctionKeeper, app.AccountKeeper, app.BankKeeper, app.ExchangeKeeper),
 		ocr.NewAppModule(app.OcrKeeper, app.AccountKeeper, app.BankKeeper),
 		tokenfactory.NewAppModule(app.TokenFactoryKeeper, app.AccountKeeper, app.BankKeeper),
-		transferModule,
+		transfer.NewAppModule(app.TransferKeeper),
 		wasmx.NewAppModule(app.WasmxKeeper, app.AccountKeeper, app.BankKeeper, app.ExchangeKeeper),
 	)
 
@@ -971,15 +1000,31 @@ func (app *InjectiveApp) registerUpgradeHandlers() {
 		upgradeName,
 		func(ctx sdk.Context, _ upgradetypes.Plan, fromVM module.VersionMap) (module.VersionMap, error) {
 
-			app.MintKeeper.SetParams(ctx, minttypes.Params{
-				MintDenom:           "inj",
-				InflationRateChange: sdk.MustNewDecFromStr("0.1"),
-				InflationMax:        sdk.MustNewDecFromStr("0.1"),
-				InflationMin:        sdk.MustNewDecFromStr("0.05"),
-				GoalBonded:          sdk.MustNewDecFromStr("0.85"),
-				BlocksPerYear:       28669090, // 365*24*60*60/1.1
+			// Emit bank module EventSetBalances
+			allBalances := app.BankKeeper.GetAccountsBalances(ctx)
+			balanceUpdates := make([]*banktypes.BalanceUpdate, 0, len(allBalances))
+			for idx := range allBalances {
+				addr, err := sdk.AccAddressFromBech32(allBalances[idx].Address)
+				if err != nil {
+					continue
+				}
+
+				for _, coin := range allBalances[idx].Coins {
+					balanceUpdates = append(balanceUpdates, &banktypes.BalanceUpdate{
+						Addr:  addr,
+						Denom: []byte(coin.Denom),
+						Amt:   coin.Amount,
+					})
+				}
+			}
+
+			_ = ctx.EventManager().EmitTypedEvent(&banktypes.EventSetBalances{
+				BalanceUpdates: balanceUpdates,
 			})
-			
+
+			// Prune the unpruned peggy attestation
+			app.PeggyKeeper.PruneAttestation7005(ctx)
+
 			app.ExchangeKeeper.SetParams(ctx, exchangetypes.Params{
 				SpotMarketInstantListingFee:                 sdk.NewCoin("inj", sdk.NewIntWithDecimal(100, 18)),  // 100 INJ
 				DerivativeMarketInstantListingFee:           sdk.NewCoin("inj", sdk.NewIntWithDecimal(1000, 18)), // 1000 INJ
@@ -1003,87 +1048,17 @@ func (app *InjectiveApp) registerUpgradeHandlers() {
 				SpotAtomicMarketOrderFeeMultiplier:          sdk.NewDec(2),
 				DerivativeAtomicMarketOrderFeeMultiplier:    sdk.NewDec(2),
 				BinaryOptionsAtomicMarketOrderFeeMultiplier: sdk.NewDec(2),
-				MinimalProtocolFeeRate:                      sdk.MustNewDecFromStr("0.00005"),
+				MinimalProtocolFeeRate:                      sdk.MustNewDecFromStr("0.00001"),
 			})
 
-			// Set the orderbook levels here, since it's never been done before
-			// Note: we don't need to explicitly emit the EventOrderbookUpdate since the upgrade handler code is executed
-			// in the upgrade module BeginBlocker, so the EventOrderbookUpdate will be emitted by the exchange module Endblocker
-			spotOrderbooks := app.ExchangeKeeper.GetAllSpotLimitOrderbook(ctx)
-			derivativeOrderbooks := app.ExchangeKeeper.GetAllDerivativeAndBinaryOptionsLimitOrderbook(ctx)
+			fromVM[ibcfeetypes.ModuleName] = ibcfee.AppModule{}.ConsensusVersion()
 
-			// Fetch all orders on the chain and increment the price levels for each. Somewhat inefficient, but fine to do
-			// since this code is only run once + the code is simpler this way.
-			for idx := range spotOrderbooks {
-				orderbook := spotOrderbooks[idx]
-				marketID := common.HexToHash(orderbook.MarketId)
-				isBuy := orderbook.IsBuySide
-				for _, order := range orderbook.Orders {
-					app.ExchangeKeeper.IncrementOrderbookPriceLevelQuantity(ctx, marketID, isBuy, true, order.GetPrice(), order.GetFillable())
-				}
-			}
-
-			for idx := range derivativeOrderbooks {
-				orderbook := derivativeOrderbooks[idx]
-				marketID := common.HexToHash(orderbook.MarketId)
-				isBuy := orderbook.IsBuySide
-				for _, order := range orderbook.Orders {
-					app.ExchangeKeeper.IncrementOrderbookPriceLevelQuantity(ctx, marketID, isBuy, false, order.GetPrice(), order.GetFillable())
-				}
-			}
-
-			fromVM[tokenfactorytypes.ModuleName] = tokenfactory.AppModule{}.ConsensusVersion()
-
-			tokenFactoryGenesisState := tokenfactorytypes.DefaultGenesis()
-			tokenFactoryGenesisJSON := app.appCodec.MustMarshalJSON(tokenFactoryGenesisState)
-			app.mm.Modules[tokenfactorytypes.ModuleName].InitGenesis(ctx, app.appCodec, tokenFactoryGenesisJSON)
-
-			// set ICS27 module params
-			hostParams := icahosttypes.Params{
-				HostEnabled: true,
-				AllowMessages: []string{
-					sdk.MsgTypeURL(&authz.MsgExec{}),
-					sdk.MsgTypeURL(&authz.MsgGrant{}),
-					sdk.MsgTypeURL(&authz.MsgRevoke{}),
-					sdk.MsgTypeURL(&banktypes.MsgSend{}),
-					sdk.MsgTypeURL(&banktypes.MsgMultiSend{}),
-					sdk.MsgTypeURL(&distrtypes.MsgSetWithdrawAddress{}),
-					sdk.MsgTypeURL(&distrtypes.MsgWithdrawDelegatorReward{}),
-					sdk.MsgTypeURL(&distrtypes.MsgFundCommunityPool{}),
-					sdk.MsgTypeURL(&distrtypes.MsgWithdrawValidatorCommission{}),
-					sdk.MsgTypeURL(&feegrant.MsgGrantAllowance{}),
-					sdk.MsgTypeURL(&feegrant.MsgRevokeAllowance{}),
-					sdk.MsgTypeURL(&ibctransfertypes.MsgTransfer{}),
-					sdk.MsgTypeURL(&govtypes.MsgVote{}),
-					sdk.MsgTypeURL(&govtypes.MsgVoteWeighted{}),
-					sdk.MsgTypeURL(&stakingtypes.MsgDelegate{}),
-					sdk.MsgTypeURL(&stakingtypes.MsgUndelegate{}),
-					sdk.MsgTypeURL(&stakingtypes.MsgBeginRedelegate{}),
-					sdk.MsgTypeURL(&stakingtypes.MsgCreateValidator{}),
-					sdk.MsgTypeURL(&stakingtypes.MsgEditValidator{}),
-					sdk.MsgTypeURL(&vestingtypes.MsgCreateVestingAccount{}),
-					sdk.MsgTypeURL(&exchangetypes.MsgDeposit{}),
-					sdk.MsgTypeURL(&exchangetypes.MsgWithdraw{}),
-					sdk.MsgTypeURL(&exchangetypes.MsgCreateSpotLimitOrder{}),
-					sdk.MsgTypeURL(&exchangetypes.MsgCreateSpotMarketOrder{}),
-					sdk.MsgTypeURL(&exchangetypes.MsgCancelSpotOrder{}),
-					sdk.MsgTypeURL(&exchangetypes.MsgCreateDerivativeLimitOrder{}),
-					sdk.MsgTypeURL(&exchangetypes.MsgCreateDerivativeMarketOrder{}),
-					sdk.MsgTypeURL(&exchangetypes.MsgCancelDerivativeOrder{}),
-					sdk.MsgTypeURL(&exchangetypes.MsgSubaccountTransfer{}),
-					sdk.MsgTypeURL(&exchangetypes.MsgExternalTransfer{}),
-					sdk.MsgTypeURL(&exchangetypes.MsgIncreasePositionMargin{}),
-					sdk.MsgTypeURL(&exchangetypes.MsgBatchUpdateOrders{}),
-					sdk.MsgTypeURL(&exchangetypes.MsgCreateBinaryOptionsLimitOrder{}),
-					sdk.MsgTypeURL(&exchangetypes.MsgCreateBinaryOptionsMarketOrder{}),
-					sdk.MsgTypeURL(&exchangetypes.MsgCancelBinaryOptionsOrder{}),
-				},
-			}
-
-			app.ICAHostKeeper.SetParams(ctx, hostParams)
+			ibcFeeGenesisState := ibcfeetypes.DefaultGenesisState()
+			ibcFeeGenesisJSON := app.appCodec.MustMarshalJSON(ibcFeeGenesisState)
+			app.mm.Modules[ibcfeetypes.ModuleName].InitGenesis(ctx, app.appCodec, ibcFeeGenesisJSON)
 
 			consensusParams := app.BaseApp.GetConsensusParams(ctx)
-			consensusParams.Block.MaxGas = 85000000 // 85M gas
+			consensusParams.Block.MaxGas = 30000000 // 30M gas
 			app.BaseApp.StoreConsensusParams(ctx, consensusParams)
 
 			return app.mm.RunMigrations(ctx, app.configurator, fromVM)
@@ -1100,7 +1075,7 @@ func (app *InjectiveApp) registerUpgradeHandlers() {
 
 		storeUpgrades := storetypes.StoreUpgrades{
 			Added: []string{
-				tokenfactorytypes.StoreKey,
+				ibcfeetypes.StoreKey,
 			},
 		}
 

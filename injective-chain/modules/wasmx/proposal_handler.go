@@ -155,8 +155,8 @@ func handleBatchStoreCodeProposal(ctx sdk.Context, k keeper.Keeper, p *types.Bat
 
 	proposalHandler := k.GetWasmProposalHandler()
 
-	for _, req := range p.Proposals {
-		if err := proposalHandler(ctx, &req); err != nil {
+	for idx := range p.Proposals {
+		if err := proposalHandler(ctx, &p.Proposals[idx]); err != nil {
 			return err
 		}
 	}
