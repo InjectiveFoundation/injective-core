@@ -1,23 +1,22 @@
 package keeper
 
 import (
-	"fmt"
 	"math"
 	"sort"
 
+	"github.com/InjectiveLabs/metrics"
 	"github.com/cosmos/cosmos-sdk/codec"
 	"github.com/cosmos/cosmos-sdk/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
+	distrtypes "github.com/cosmos/cosmos-sdk/x/distribution/types"
 	paramtypes "github.com/cosmos/cosmos-sdk/x/params/types"
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
-	log "github.com/xlab/suplog"
+	"github.com/tendermint/tendermint/libs/log"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/peggy/types"
-	"github.com/InjectiveLabs/metrics"
-	distrtypes "github.com/cosmos/cosmos-sdk/x/distribution/types"
 
 	exchangekeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/keeper"
 	exchangetypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
@@ -42,7 +41,10 @@ type Keeper struct {
 
 	svcTags  metrics.Tags
 	grpcTags metrics.Tags
-	logger   log.Logger
+}
+
+func (k *Keeper) Logger(ctx sdk.Context) log.Logger {
+	return ctx.Logger().With("module", types.ModuleName)
 }
 
 // NewKeeper returns a new instance of the peggy keeper
@@ -64,7 +66,6 @@ func NewKeeper(cdc codec.Codec, storeKey sdk.StoreKey, paramSpace paramtypes.Sub
 		grpcTags: metrics.Tags{
 			"svc": "peggy_grpc",
 		},
-		logger: log.WithField("module", types.ModuleName),
 	}
 
 	k.AttestationHandler = NewAttestationHandler(bankKeeper, k)
@@ -774,8 +775,6 @@ func (k *Keeper) GetOrchestratorAddresses(ctx sdk.Context) []*types.MsgSetOrches
 			EthAddress:   ethAddress.Hex(),
 		})
 	}
-
-	fmt.Printf("result len: %v\n", len(result))
 
 	// we iterated over a map, so now we have to sort to ensure the
 	// output here is deterministic, eth address chosen for no particular

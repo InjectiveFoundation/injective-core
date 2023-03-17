@@ -1,44 +1,41 @@
-<!--
-layout: home
-title: Injective Documentation
-description: Welcome to Injective - the blockchain built for finance!
-sections:
-  - title: Introduction
-    desc: Read a high-level overview of Injective and its architecture.
-    url: /intro
-    icon: core
-  - title: Injective Hub
-    desc: Use the Injective Hub to interact with Injective.
-    url: /hub
-    icon: basics
-stack:
-  - title: Cosmos SDK
-    desc: The SDK is the world’s most popular framework for building application-specific blockchains.
-    color: "#5064FB"
-    label: sdk
-    url: http://docs.cosmos.network
-  - title: Tendermint Core
-    desc: The leading BFT engine for building blockchains, powering Injective Chain.
-    color: "#00BB00"
-    label: core
-    url: http://docs.tendermint.com
-footer:
-  newsletter: false
-aside: false
--->
+# Website
 
-# Injective Chain Documentation
+Injective Docs is built using [Docusaurus 2](https://docusaurus.io/), a modern static website generator.
 
-## Get Started
+### Installation
 
-- **[Basics](./basics)**: Documentation on the basic concepts of Injective.
+```
+$ yarn
+```
 
-## Other Resources
+### Local Development
 
-- **[Module Directory](./modules)**: Module implementations and their respective documentation.
-- **[Injective Core Code Reference](https://godoc.org/github.com/InjectiveLabs/injective-core)**: Godocs of Injective Core.
-- **[REST API spec](https://cosmos.network/rpc/)**: List of REST endpoints to interact with an full-node through REST.
+```
+$ yarn start
+```
 
-## Contribute
+This command starts a local development server and opens up a browser window. Most changes are reflected live without having to restart the server.
 
-See [this file](https://github.com/InjectiveLabs/injective-core/blob/master/docs/DOCS_README.md) for details of the build process and considerations when making changes.
+### Build
+
+```
+$ yarn build
+```
+
+This command generates static content into the `build` directory and can be served using any static contents hosting service.
+
+### Deployment
+
+Using SSH:
+
+```
+$ USE_SSH=true yarn deploy
+```
+
+Not using SSH:
+
+```
+$ GIT_USER=<Your GitHub username> yarn deploy
+```
+
+If you are using GitHub pages for hosting, this command is a convenient way to build the website and push to the `gh-pages` branch.

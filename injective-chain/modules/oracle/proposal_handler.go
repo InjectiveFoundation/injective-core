@@ -4,6 +4,7 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
+	"github.com/pkg/errors"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/keeper"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/types"
@@ -65,7 +66,7 @@ func handleRevokeBandOraclePrivilegeProposal(ctx sdk.Context, k keeper.Keeper, p
 		}
 
 		if !k.IsBandRelayer(ctx, bandRelayer) {
-			return sdkerrors.Wrap(err, "invalid relayer address")
+			return errors.New("invalid relayer address")
 		} else {
 			k.DeleteBandRelayer(ctx, bandRelayer)
 		}
@@ -108,7 +109,7 @@ func handleRevokePriceFeederPrivilegeProposal(ctx sdk.Context, k keeper.Keeper, 
 		}
 
 		if !k.IsPriceFeedRelayer(ctx, p.Base, p.Quote, priceFeedRelayer) {
-			return sdkerrors.Wrap(err, "invalid price feed relayer address")
+			return errors.New("invalid price feed relayer address")
 		} else {
 			k.DeletePriceFeedRelayer(ctx, p.Base, p.Quote, priceFeedRelayer)
 		}
@@ -152,13 +153,15 @@ func handleEnableBandIBCProposal(ctx sdk.Context, k keeper.Keeper, p *types.Enab
 }
 
 func handleUpdateBandOracleRequestProposal(ctx sdk.Context, k keeper.Keeper, p *types.UpdateBandOracleRequestProposal) error {
-
 	if err := p.ValidateBasic(); err != nil {
 		return err
 	}
 
-	if p.DeleteRequestId > 0 {
-		k.DeleteBandIBCOracleRequest(ctx, p.DeleteRequestId)
+	if len(p.DeleteRequestIds) != 0 {
+		for _, id := range p.DeleteRequestIds {
+			k.DeleteBandIBCOracleRequest(ctx, id)
+		}
+
 		return nil
 	}
 
@@ -193,6 +196,10 @@ func handleUpdateBandOracleRequestProposal(ctx sdk.Context, k keeper.Keeper, p *
 
 	if p.UpdateOracleRequest.ExecuteGas > 0 {
 		request.ExecuteGas = p.UpdateOracleRequest.ExecuteGas
+	}
+
+	if p.UpdateOracleRequest.MinSourceCount > 0 {
+		request.MinSourceCount = p.UpdateOracleRequest.MinSourceCount
 	}
 
 	k.SetBandIBCOracleRequest(ctx, *request)

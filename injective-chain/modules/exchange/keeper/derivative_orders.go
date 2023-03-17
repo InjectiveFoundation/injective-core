@@ -118,14 +118,14 @@ func (k *Keeper) CancelAllRestingDerivativeLimitOrders(
 	for _, buyOrder := range buyOrders {
 		isBuy := true
 		if err := k.CancelRestingDerivativeLimitOrder(ctx, market, buyOrder.SubaccountID(), &isBuy, buyOrder.Hash(), true, true); err != nil {
-			k.logger.Warningln("CancelRestingDerivativeLimitOrder (buy) failed during CancelAllRestingDerivativeLimitOrders:", err)
+			k.Logger(ctx).Error("CancelRestingDerivativeLimitOrder (buy) failed during CancelAllRestingDerivativeLimitOrders:", err)
 		}
 	}
 
 	for _, sellOrder := range sellOrders {
 		isBuy := false
 		if err := k.CancelRestingDerivativeLimitOrder(ctx, market, sellOrder.SubaccountID(), &isBuy, sellOrder.Hash(), true, true); err != nil {
-			k.logger.Warningln("CancelRestingDerivativeLimitOrder (sell) failed during CancelAllRestingDerivativeLimitOrders:", err)
+			k.Logger(ctx).Error("CancelRestingDerivativeLimitOrder (sell) failed during CancelAllRestingDerivativeLimitOrders:", err)
 		}
 	}
 }
@@ -200,7 +200,7 @@ func (k *Keeper) CancelRestingDerivativeLimitOrder(
 	// 1. Add back the margin hold to available balance
 	order := k.GetDerivativeLimitOrderBySubaccountIDAndHash(ctx, marketID, isBuy, subaccountID, orderHash)
 	if order == nil {
-		k.logger.Debugln("Resting Derivative Limit Order doesn't exist to cancel", "marketId", marketID, "subaccountID", subaccountID, "orderHash", orderHash)
+		k.Logger(ctx).Debug("Resting Derivative Limit Order doesn't exist to cancel", "marketId", marketID, "subaccountID", subaccountID, "orderHash", orderHash)
 		metrics.ReportFuncError(k.svcTags)
 		return sdkerrors.Wrap(types.ErrOrderDoesntExist, "Derivative Limit Order doesn't exist")
 	}
@@ -211,8 +211,8 @@ func (k *Keeper) CancelRestingDerivativeLimitOrder(
 	}
 
 	if order.IsVanilla() {
-		depositDelta := order.GetCancelDepositDelta(market.GetMakerFeeRate())
-		k.UpdateDepositWithDelta(ctx, subaccountID, market.GetQuoteDenom(), depositDelta)
+		refundAmount := order.GetCancelRefundAmount(market.GetMakerFeeRate())
+		k.incrementAvailableBalanceOrBank(ctx, subaccountID, market.GetQuoteDenom(), refundAmount)
 	}
 
 	// 2. Delete the order state from ordersStore, ordersIndexStore and subaccountOrderStore

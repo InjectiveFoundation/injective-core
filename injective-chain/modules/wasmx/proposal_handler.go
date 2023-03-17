@@ -10,7 +10,7 @@ import (
 )
 
 // NewWasmxProposalHandler creates a governance handler to manage new wasmx proposal types.
-func NewWasmxProposalHandler(k keeper.Keeper) govtypes.Handler {
+func NewWasmxProposalHandler(k keeper.Keeper, wasmProposalHandler govtypes.Handler) govtypes.Handler {
 	return func(ctx sdk.Context, content govtypes.Content) error {
 		switch c := content.(type) {
 		case *types.ContractRegistrationRequestProposal:
@@ -20,7 +20,7 @@ func NewWasmxProposalHandler(k keeper.Keeper) govtypes.Handler {
 		case *types.BatchContractDeregistrationProposal:
 			return handleBatchContractDeregistrationProposal(ctx, k, c)
 		case *types.BatchStoreCodeProposal:
-			return handleBatchStoreCodeProposal(ctx, k, c)
+			return handleBatchStoreCodeProposal(ctx, k, c, wasmProposalHandler)
 		default:
 			return sdkerrors.Wrapf(sdkerrors.ErrUnknownRequest, "unrecognized wasmx proposal content type: %T", c)
 		}
@@ -40,43 +40,31 @@ func handleContractRegistration(ctx sdk.Context, k keeper.Keeper, params types.P
 		return sdkerrors.Wrapf(types.ErrInvalidGasPrice, "ContractRegistrationRequestProposal: The gasPrice (%d) must be greater than (%d)", req.GasPrice, params.MinGasPrice)
 	}
 
-	// Enforce that the registry contract exists
-	registryContract, err := sdk.AccAddressFromBech32(params.RegistryContract)
-	if err != nil || !k.DoesContractExist(ctx, registryContract) {
-		return sdkerrors.Wrap(types.ErrInvalidContractAddress, "ContractRegistrationRequestProposal: The registry contract address is not set in params.")
-	}
-
-	if contractAddress.Equals(registryContract) {
-		return sdkerrors.Wrapf(types.ErrInvalidContractAddress, "ContractRegistrationRequestProposal: The contract address was the same as registry contract address: %s", contractAddress.String())
-	}
-
-	// Enforce that a contract exists at contractAddress
-	if !k.DoesContractExist(ctx, contractAddress) {
-		return sdkerrors.Wrapf(types.ErrInvalidContractAddress, "ContractRegistrationRequestProposal: The contract address %s does not exist", contractAddress.String())
-	}
-
-	// Obtain the list of RawContractExecutionParams for registered contracts
-	contractExecutionList, err := k.FetchRegisteredContractExecutionList(ctx, registryContract, false)
-	if err != nil {
-		return sdkerrors.Wrapf(err, "ContractRegistrationRequestProposal: Error fetching registered contracts\n")
-	}
-
-	// Enforce that the contract is not already registered
-	for _, registeredContract := range contractExecutionList {
-		registeredContractAddr, _ := sdk.AccAddressFromBech32(registeredContract.Address)
-		if contractAddress.Equals(registeredContractAddr) {
-			return sdkerrors.Wrapf(types.ErrAlreadyRegistered, "ContractRegistrationRequestProposal: contract %s is already registered", registeredContract.Address)
+	// if migrations are not allowed, enforce that a contract exists at contractAddress and that it's code_id matches the one in the proposal
+	if !req.IsMigrationAllowed {
+		contractInfo := k.GetContractInfo(ctx, contractAddress)
+		if contractInfo == nil {
+			return sdkerrors.Wrapf(types.ErrInvalidContractAddress, "ContractRegistrationRequestProposal: The contract address %s does not exist", contractAddress.String())
+		}
+		if contractInfo.CodeID != req.CodeId {
+			return sdkerrors.Wrapf(types.ErrInvalidCodeId, "ContractRegistrationRequestProposal: The codeId of contract at address %s does not match codeId from the proposal", contractAddress.String())
 		}
 	}
 
+	// Enforce that the contract is not already registered
+	registeredContract := k.GetContractByAddress(ctx, contractAddress)
+	if registeredContract != nil {
+		return sdkerrors.Wrapf(types.ErrAlreadyRegistered, "ContractRegistrationRequestProposal: contract %s is already registered", contractAddress.String())
+	}
+
 	// Register the contract execution parameters
-	if err = k.RegisterContract(ctx, registryContract, req); err != nil {
+	if err := k.RegisterContract(ctx, req); err != nil {
 		return sdkerrors.Wrapf(err, "ContractRegistrationRequestProposal: Error while registering the contract")
 	}
 
 	// Pin the contract with Wasmd module to reduce the gas used for contract execution
-	if req.PinContract {
-		if err = k.PinContract(ctx, contractAddress); err != nil {
+	if req.ShouldPinContract {
+		if err := k.PinContract(ctx, contractAddress); err != nil {
 			return sdkerrors.Wrapf(err, "ContractRegistrationRequestProposal: Error while pinning the contract")
 		}
 	}
@@ -114,49 +102,28 @@ func handleBatchContractDeregistrationProposal(ctx sdk.Context, k keeper.Keeper,
 		return err
 	}
 
-	params := k.GetParams(ctx)
-
-	registryContract := sdk.MustAccAddressFromBech32(params.RegistryContract)
-	contractExecutionList, err := k.FetchRegisteredContractExecutionList(ctx, registryContract, false)
-	if err != nil {
-		return sdkerrors.Wrapf(err, "BatchContractDeregistrationProposal: Error fetching registered contracts")
-	}
-
-	activeContracts := make(map[string]struct{})
-
-	for _, c := range contractExecutionList {
-		activeContracts[sdk.MustAccAddressFromBech32(c.Address).String()] = struct{}{}
-	}
-
 	for _, contract := range p.Contracts {
 		contractAddress := sdk.MustAccAddressFromBech32(contract)
 
-		// skip deregistration of contracts that don't exist [or if it's address is the same as registry contract's]
-		if _, ok := activeContracts[contractAddress.String()]; !ok || contractAddress.Equals(registryContract) {
-			continue
-		}
-
-		if err := k.DeregisterContract(ctx, registryContract, contractAddress); err != nil {
-			return err
-		}
-
-		if err := k.UnpinContract(ctx, contractAddress); err != nil {
-			return err
+		if err := k.DeregisterContract(ctx, contractAddress); err != nil {
+			if sdkerrors.ErrNotFound.Is(err) {
+				continue // no need to break processing if contract is not registered, just skip
+			} else {
+				return err
+			}
 		}
 	}
 
 	return nil
 }
 
-func handleBatchStoreCodeProposal(ctx sdk.Context, k keeper.Keeper, p *types.BatchStoreCodeProposal) error {
+func handleBatchStoreCodeProposal(ctx sdk.Context, _ keeper.Keeper, p *types.BatchStoreCodeProposal, wasmProposalHandler govtypes.Handler) error {
 	if err := p.ValidateBasic(); err != nil {
 		return err
 	}
 
-	proposalHandler := k.GetWasmProposalHandler()
-
 	for idx := range p.Proposals {
-		if err := proposalHandler(ctx, &p.Proposals[idx]); err != nil {
+		if err := wasmProposalHandler(ctx, &p.Proposals[idx]); err != nil {
 			return err
 		}
 	}

@@ -1,18 +1,13 @@
 package keeper
 
 import (
-	"bytes"
 	"context"
 
 	"github.com/InjectiveLabs/metrics"
 	sdksecp256k1 "github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	"github.com/cosmos/cosmos-sdk/telemetry"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/ethereum/go-ethereum/common"
-	log "github.com/xlab/suplog"
-
-	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/crypto/ethsecp256k1"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
@@ -31,95 +26,6 @@ func AccountsMsgServerImpl(keeper Keeper) AccountsMsgServer {
 			"svc": "acc_msg_h",
 		},
 	}
-}
-
-func (k AccountsMsgServer) TransferAndExecute(
-	goCtx context.Context,
-	msg *types.MsgTransferAndExecute,
-) (*types.MsgTransferAndExecuteResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
-
-	ctx := sdk.UnwrapSDKContext(goCtx)
-	sender, _ := sdk.AccAddressFromBech32(msg.Sender)
-	defaultSubaccountID := types.SdkAddressToSubaccountID(sender)
-
-	switch msg.FundsDirection {
-	case types.FundsDirection_BANK_TO_SUBACCOUNT:
-		for _, coin := range msg.Funds {
-			if err := k.executeDeposit(ctx, &types.MsgDeposit{
-				Sender:       msg.Sender,
-				SubaccountId: defaultSubaccountID.Hex(),
-				Amount:       coin,
-			}); err != nil {
-				return nil, err
-			}
-
-		}
-
-	case types.FundsDirection_SUBACCOUNT_TO_BANK:
-		for _, coin := range msg.Funds {
-			if err := k.executeWithdraw(ctx, &types.MsgWithdraw{
-				Sender:       msg.Sender,
-				SubaccountId: defaultSubaccountID.Hex(),
-				Amount:       coin,
-			}); err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	if err := k.executeMsg(ctx, msg.Msg); err != nil {
-		return nil, err
-	}
-
-	return &types.MsgTransferAndExecuteResponse{}, nil
-}
-
-func (k AccountsMsgServer) MultiExecute(
-	goCtx context.Context,
-	msg *types.MsgMultiExecute,
-) (*types.MsgMultiExecuteResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
-
-	ctx := sdk.UnwrapSDKContext(goCtx)
-
-	for idx := range msg.Msgs {
-		if err := k.executeMsg(ctx, msg.Msgs[idx]); err != nil {
-			return nil, err
-		}
-	}
-
-	return &types.MsgMultiExecuteResponse{}, nil
-}
-
-func (k AccountsMsgServer) executeMsg(
-	ctx sdk.Context,
-	msg *codectypes.Any,
-) error {
-	wrappedMsg, ok := msg.GetCachedValue().(sdk.Msg)
-	if !ok {
-		return sdkerrors.Wrapf(sdkerrors.ErrInvalidRequest, "message contains %T which is not a sdk.MsgRequest", wrappedMsg)
-	}
-
-	handler := k.router.Handler(wrappedMsg)
-	if handler == nil {
-		return sdkerrors.ErrUnknownRequest.Wrapf("unrecognized message route: %s", sdk.MsgTypeURL(wrappedMsg))
-	}
-
-	msgResp, err := handler(ctx, wrappedMsg)
-	if err != nil {
-		return sdkerrors.Wrapf(err, "failed to execute message; message %v", msg)
-	}
-
-	// emit the events from the dispatched actions
-	events := msgResp.Events
-	sdkEvents := make([]sdk.Event, 0, len(events))
-	for i := 0; i < len(events); i++ {
-		sdkEvents = append(sdkEvents, sdk.Event(events[i]))
-	}
-
-	ctx.EventManager().EmitEvents(sdkEvents)
-	return nil
 }
 
 func (k AccountsMsgServer) BatchUpdateOrders(
@@ -154,42 +60,10 @@ func (k AccountsMsgServer) Deposit(
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
-	logger := k.logger.WithFields(log.WithFn())
 
-	if !k.IsDenomValid(ctx, msg.Amount.Denom) {
-		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.ErrInvalidCoins
+	if err := k.executeDeposit(ctx, msg); err != nil {
+		return nil, err
 	}
-
-	senderAddr, _ := sdk.AccAddressFromBech32(msg.Sender)
-
-	if err := k.bankKeeper.SendCoinsFromAccountToModule(ctx, senderAddr, types.ModuleName, sdk.NewCoins(msg.Amount)); err != nil {
-		metrics.ReportFuncError(k.svcTags)
-		logger.Error("subaccount deposit failed", "senderAddr", senderAddr.String(), "coin", msg.Amount.String())
-		return nil, sdkerrors.Wrap(err, "deposit failed")
-	}
-
-	subaccountID := common.HexToHash(msg.SubaccountId)
-
-	if bytes.Equal(subaccountID.Bytes(), types.ZeroSubaccountID.Bytes()) {
-		subaccountID = types.SdkAddressToSubaccountID(senderAddr)
-	}
-
-	recipientAddr := types.SubaccountIDToSdkAddress(subaccountID)
-
-	// create new account for recipient if it doesn't exist already
-	if !k.AccountKeeper.HasAccount(ctx, recipientAddr) {
-		defer telemetry.IncrCounter(1, "new", "account")
-		k.AccountKeeper.SetAccount(ctx, k.AccountKeeper.NewAccountWithAddress(ctx, recipientAddr))
-	}
-
-	k.IncrementDeposit(ctx, subaccountID, msg.Amount)
-	//nolint:errcheck //ignored on purpose
-	ctx.EventManager().EmitTypedEvent(&types.EventSubaccountDeposit{
-		SrcAddress:   msg.Sender,
-		SubaccountId: subaccountID.Bytes(),
-		Amount:       msg.Amount,
-	})
 
 	return &types.MsgDepositResponse{}, nil
 }
@@ -202,7 +76,7 @@ func (k AccountsMsgServer) Withdraw(
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
-	if err := k.executeWithdraw(ctx, msg); err != nil {
+	if err := k.ExecuteWithdraw(ctx, msg); err != nil {
 		return nil, err
 	}
 	return &types.MsgWithdrawResponse{}, nil
@@ -215,16 +89,22 @@ func (k AccountsMsgServer) SubaccountTransfer(
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
-	logger := k.logger.WithFields(log.WithFn())
 
-	srcSubaccountID := common.HexToHash(msg.SourceSubaccountId)
-	if err := k.Keeper.WithdrawDeposit(ctx, srcSubaccountID, msg.Amount); err != nil {
+	sender := sdk.MustAccAddressFromBech32(msg.Sender)
+	srcSubaccountID := types.MustGetSubaccountIDOrDeriveFromNonce(sender, msg.SourceSubaccountId)
+	dstSubaccountID := types.MustGetSubaccountIDOrDeriveFromNonce(sender, msg.DestinationSubaccountId)
+
+	denom := msg.Amount.Denom
+	amount := msg.Amount.Amount.ToDec()
+
+	if err := k.Keeper.DecrementDeposit(ctx, srcSubaccountID, denom, amount); err != nil {
 		metrics.ReportFuncError(k.svcTags)
 		return nil, err
 	}
 
-	dstSubaccountID := common.HexToHash(msg.DestinationSubaccountId)
-	k.Keeper.IncrementDeposit(ctx, dstSubaccountID, msg.Amount) // convert to hash?
+	if err := k.Keeper.IncrementDepositForNonDefaultSubaccount(ctx, dstSubaccountID, denom, amount); err != nil {
+		return nil, err
+	}
 
 	// nolint:errcheck //ignored on purpose
 	ctx.EventManager().EmitTypedEvent(&types.EventSubaccountBalanceTransfer{
@@ -232,9 +112,6 @@ func (k AccountsMsgServer) SubaccountTransfer(
 		DstSubaccountId: dstSubaccountID.Hex(),
 		Amount:          msg.Amount,
 	})
-
-	logger.Infof("Successfully transferred %s of Coin %s between subaccount %s to %s",
-		msg.Amount.Amount.String(), msg.Amount.Denom, srcSubaccountID.Hex(), dstSubaccountID.Hex())
 
 	return &types.MsgSubaccountTransferResponse{}, nil
 }
@@ -246,17 +123,18 @@ func (k AccountsMsgServer) ExternalTransfer(
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
-	logger := k.logger.WithFields(log.WithFn())
 
-	// default subaccount ID:
-	srcSubaccountID := common.HexToHash(msg.SourceSubaccountId)
-	if err := k.Keeper.WithdrawDeposit(ctx, srcSubaccountID, msg.Amount); err != nil {
+	sender := sdk.MustAccAddressFromBech32(msg.Sender)
+	srcSubaccountID := types.MustGetSubaccountIDOrDeriveFromNonce(sender, msg.SourceSubaccountId)
+	dstSubaccountID := common.HexToHash(msg.DestinationSubaccountId)
+
+	denom := msg.Amount.Denom
+	amount := msg.Amount.Amount.ToDec()
+
+	if err := k.Keeper.DecrementDeposit(ctx, srcSubaccountID, denom, amount); err != nil {
 		metrics.ReportFuncError(k.svcTags)
 		return nil, err
 	}
-
-	// withdraw from default subaccount
-	dstSubaccountID := common.HexToHash(msg.DestinationSubaccountId)
 
 	recipientAddr := types.SubaccountIDToSdkAddress(dstSubaccountID)
 
@@ -266,7 +144,9 @@ func (k AccountsMsgServer) ExternalTransfer(
 		k.AccountKeeper.SetAccount(ctx, k.AccountKeeper.NewAccountWithAddress(ctx, recipientAddr))
 	}
 
-	k.Keeper.IncrementDeposit(ctx, dstSubaccountID, msg.Amount)
+	if err := k.Keeper.IncrementDepositForNonDefaultSubaccount(ctx, dstSubaccountID, denom, amount); err != nil {
+		return nil, err
+	}
 
 	// nolint:errcheck //ignored on purpose
 	ctx.EventManager().EmitTypedEvent(&types.EventSubaccountBalanceTransfer{
@@ -274,9 +154,6 @@ func (k AccountsMsgServer) ExternalTransfer(
 		DstSubaccountId: dstSubaccountID.Hex(),
 		Amount:          msg.Amount,
 	})
-
-	logger.Debugf("Successfully transferred %s of Coin %s to external account %s to %s",
-		msg.Amount.Amount.String(), msg.Amount.Denom, srcSubaccountID.Hex(), dstSubaccountID.Hex())
 
 	return &types.MsgExternalTransferResponse{}, nil
 }

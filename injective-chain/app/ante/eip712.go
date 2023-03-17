@@ -186,8 +186,7 @@ func VerifySignatureEIP712(
 
 						feePayerSig = extOpt.FeePayerSig
 						if len(feePayerSig) == 0 {
-							err = errors.Wrap(err, "no feePayerSig provided in ExtensionOptionsWeb3Tx")
-							return err
+							return errors.New("no feePayerSig provided in ExtensionOptionsWeb3Tx")
 						}
 
 						feeDelegated = true

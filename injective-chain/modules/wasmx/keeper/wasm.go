@@ -1,8 +1,8 @@
 package keeper
 
 import (
-	"encoding/json"
-
+	"errors"
+	wasmtypes "github.com/CosmWasm/wasmd/x/wasm/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 
@@ -11,112 +11,123 @@ import (
 	chaintypes "github.com/InjectiveLabs/injective-core/injective-chain/types"
 )
 
+func (k *Keeper) hasValidCodeId(ctx sdk.Context, addr sdk.AccAddress, contract types.RegisteredContract) bool {
+	contractInfo := k.wasmViewKeeper.GetContractInfo(ctx, addr)
+
+	if contractInfo.CodeID != contract.CodeId {
+		k.Logger(ctx).Error("❌ CodeId for contract doesn't match registered codeId, contract: ", addr)
+
+		// intentionally don't use DeactivateContract as we don't want to call 'deactivate' callback on unknown codeId
+		k.DeleteContract(ctx, addr)
+		return false
+	}
+
+	return true
+}
+
 func (k *Keeper) ExecuteContracts(ctx sdk.Context) {
 	params := k.GetParams(ctx)
 
+	// Execute contracts only if enabled
+	if !params.IsExecutionEnabled {
+		return
+	}
 	defer func() {
 		// This is needed so that the execution can be stopped by parent context if gas consumed exceeds MaxBeginBlockTotalGas
 		if r := recover(); r != nil {
 			switch rType := r.(type) {
 			case sdk.ErrorOutOfGas:
 				err := sdkerrors.Wrapf(sdkerrors.ErrOutOfGas, "out of gas in location: %v", rType.Descriptor)
-				k.logger.Errorln("❌ Error out of gas on parent context", err)
+				k.Logger(ctx).Error("❌ Error out of gas on parent context", err)
 			default:
-				k.logger.Errorln("❌ Unknown Error", r)
+				k.Logger(ctx).Error("❌ Unknown Error", r)
 			}
 		}
 	}()
 
-	// Execute contracts only if enabled
-	if !params.IsExecutionEnabled {
-		return
-	}
-
-	registryContract, err := sdk.AccAddressFromBech32(params.RegistryContract)
-	if err != nil {
-		k.logger.Infoln("❌ Error while parsing registry contract address", err)
-		return
-	}
-
-	rawContractList, err := k.FetchRegisteredContractExecutionList(ctx, registryContract, true)
-	if err != nil {
-		k.logger.Infoln("❌ Error fetching registry contracts", err)
-		return
-	}
-
-	// get sorted list of contract execution params
-	contractExecutionList, err := types.GetSortedContractExecutionParams(rawContractList)
-	if err != nil {
-		k.logger.Infoln("❌ Error getting sorted ContractExecutionParams", err)
-		return
-	}
-
-	ctx = ctx.WithGasMeter(sdk.NewGasMeter(params.MaxBeginBlockTotalGas))
-
-	for _, contract := range contractExecutionList {
-		// Enforce GasPrice ≥ MinGasPrice
-		if contract.GasPrice < params.MinGasPrice {
-			k.logger.Infoln("Skipping contract execution. The gasPrice (%d) must be valid and greater than (%d)", contract.GasPrice, params.MinGasPrice)
-			continue
+	meteredCtx := ctx.WithGasMeter(sdk.NewGasMeter(params.MaxBeginBlockTotalGas))
+	k.IterateContractsByGasPrice(ctx, params.MinGasPrice, func(addr sdk.AccAddress, contract types.RegisteredContract) bool {
+		shouldVerifyCodeId := contract.CodeId > 0
+		if shouldVerifyCodeId && !k.hasValidCodeId(ctx, addr, contract) {
+			return false
 		}
 
-		// Deduct twice the max fee upfront to account for OutOfGas scenarios
-		gasToDeduct := 2 * contract.GasLimit
-		if err = k.DeductFees(ctx, contract.Address, gasToDeduct, contract.GasPrice); err != nil {
-			k.logger.Errorln("❌ Error deducting fees", err)
-			// set the contract status to inactive so we don't execute it again.
-			_, err = k.DeactivateContract(ctx, registryContract, contract.Address)
-			if err != nil {
-				k.logger.Errorln("❌ Error deactivating contract", err)
-			}
-			continue
-		}
-
-		k.logger.Debugln("✅ Deducted fees upfront", "contractAddr", contract.Address, "gasAmount", gasToDeduct, "gasPrice", contract.GasPrice)
+		// Deduct thrice the max fee upfront to account for OutOfGas scenarios - gas limit is never ensured exactly, and also to keep a reserve for deactivate handler
+		gasToDeduct := 3 * contract.GasLimit
 
 		// Execute contract
-		_, err = k.ExecuteContract(ctx, contract, gasToDeduct)
-		if err != nil {
-			k.logger.Errorln("❌ Error executing contract", err)
+		if _, err := k.ExecuteContract(meteredCtx, addr, &contract, gasToDeduct); err != nil {
+			switch {
+			case errors.Is(err, types.ErrDeductingGasFees) || errors.Is(err, sdkerrors.ErrOutOfGas):
+				deactivateMeteredCtx := ctx.WithGasMeter(sdk.NewGasMeter(params.MaxContractGasLimit * 3))
+				deactivateErr := k.DeactivateContract(deactivateMeteredCtx, addr, &contract)
+				if deactivateErr != nil {
+					k.Logger(ctx).Error("❌ Error deactivating contract", deactivateErr)
+				}
+			}
+			k.Logger(ctx).Error("❌ Error executing contract", err)
 		}
-	}
+		return false
+	})
 }
 
 // ExecuteContract executes the contract with the given contract execution params
-func (k *Keeper) ExecuteContract(ctx sdk.Context, contract *types.ContractExecutionParams, gasDeducted uint64) (data []byte, err error) {
-	k.logger.Debug("Executing contract", contract.Address.String())
+func (k *Keeper) ExecuteContract(ctx sdk.Context, contractAddr sdk.AccAddress, contract *types.RegisteredContract, gasDeducted uint64) (data []byte, err error) {
+	return k.executeMetered(ctx, contractAddr, contract, contract.GasLimit, gasDeducted, func(subCtx sdk.Context) ([]byte, error) {
+		execMsg, err := types.NewBeginBlockerExecMsg()
+		if err != nil {
+			k.Logger(ctx).Error("Failed construct contract execution msg", err)
+			return nil, err
+		}
+		return k.wasmContractOpsKeeper.Sudo(subCtx, contractAddr, execMsg)
+	})
+}
+
+// ExecuteContract executes the contract with the given contract execution params
+func (k *Keeper) executeMetered(ctx sdk.Context, contractAddr sdk.AccAddress, contract *types.RegisteredContract, gasLimit, gasToDeduct uint64, executeFunction func(subCtx sdk.Context) ([]byte, error)) (data []byte, err error) {
+	if err = k.DeductFees(ctx, contractAddr, gasToDeduct, contract.GasPrice); err != nil {
+		k.Logger(ctx).Error("❌ Error deducting fees", err)
+		return nil, err
+	}
+	k.Logger(ctx).Debug("Executing contract", contractAddr.String())
 
 	// use cache context so that state is not committed in case of errors.
-	limitedMeter := sdk.NewGasMeter(contract.GasLimit)
+	limitedMeter := sdk.NewGasMeter(gasLimit)
 	subCtx, commit := ctx.CacheContext()
 	subCtx = subCtx.WithGasMeter(limitedMeter)
 
 	defer func() {
 		// Deduct fees
 		gasConsumed := subCtx.GasMeter().GasConsumed()
-		k.logger.Debugln("Gas consumed by contract execution", "address", contract.Address, "gasUsed", gasConsumed, "gasLimit", contract.GasLimit)
+		k.Logger(ctx).Debug("Gas consumed by contract execution", "address", contractAddr, "gasUsed", gasConsumed, "gasLimit", contract.GasLimit)
 
-		if gasConsumed < gasDeducted {
+		if gasConsumed < gasToDeduct {
 			// Use parent context to refund extra fees as subCtx may have consumed gas limit (eg...infinite loop) and no gas left to refund fees.
-			gasToRefund := gasDeducted - gasConsumed
+			gasToRefund := gasToDeduct - gasConsumed
 
-			if err := k.RefundFees(ctx, contract.Address, gasToRefund, contract.GasPrice); err != nil {
-				k.logger.Errorln("❌ Error refunding fees", err)
+			if err = k.RefundFees(ctx, contractAddr, gasToRefund, contract.GasPrice); err != nil {
+				k.Logger(ctx).Error("❌ Error refunding fees", err)
 			}
 		} else {
-			// TODO: how to handle this edge case?
-			k.logger.Errorln("❌ Consumed more gas than was deducted", err)
+			missingGas := gasConsumed - gasToDeduct
+			if missingGas > 0 {
+				k.Logger(ctx).Debug("Contract execution consumed more gas than deducted, will try deduct missing gas", "address", contractAddr, "missingGas", missingGas)
+				if err = k.DeductFees(ctx, contractAddr, missingGas, contract.GasPrice); err != nil {
+					k.Logger(ctx).Error("❌ Error deducting missing fees", err)
+					// probably there's nothing more that we can do about it, should be super uncommon situation though
+				}
+			}
 		}
 
 		// catch out of gas panic
 		if r := recover(); r != nil {
 			switch rType := r.(type) {
 			case sdk.ErrorOutOfGas:
-				err := sdkerrors.Wrapf(sdkerrors.ErrOutOfGas, "out of gas in location: %v", rType.Descriptor)
-				k.logger.Infoln("Error out of gas", err)
+				err = sdkerrors.Wrapf(sdkerrors.ErrOutOfGas, "out of gas in location: %v", rType.Descriptor)
+				k.Logger(ctx).Info("Error out of gas", err)
 			default:
 				err = sdkerrors.Wrapf(sdkerrors.ErrIO, "Unknown error with contract execution: %v", rType)
-				k.logger.Infoln("Unknown Error", err)
+				k.Logger(ctx).Info("Unknown Error", err)
 			}
 		}
 
@@ -124,107 +135,21 @@ func (k *Keeper) ExecuteContract(ctx sdk.Context, contract *types.ContractExecut
 		ctx.GasMeter().ConsumeGas(gasConsumed, "consume gas for contract execution in begin blocker")
 	}()
 
-	execMsg, err := types.NewBeginBlockerExecMsg()
-	if err != nil {
-		k.logger.Errorln("Failed construct contract execution msg", err)
-		return nil, err
-	}
-
-	data, err = k.wasmContractOpsKeeper.Sudo(subCtx, contract.Address, execMsg)
+	data, err = executeFunction(subCtx)
 
 	// if it succeeds, commit state changes from subctx, and pass on events to Event Manager
 	// on failure, revert state from sandbox, and ignore events (just skip doing the commit())
 	if err != nil {
 		// Wasmer runtime error
-		k.logger.Infoln("❌ Error executing contract in BeginBlocker", err)
+		k.Logger(ctx).Info("❌ Error executing contract", err)
 		return nil, err
 	} else {
 		commit()
 		ctx.EventManager().EmitEvents(subCtx.EventManager().Events())
 	}
 
-	k.logger.Debugln("✅ Executed the contract successfully", contract.Address)
+	k.Logger(ctx).Debug("✅ Executed the contract successfully", contractAddr)
 	return data, err
-}
-
-// DeactivateContract sets the contract status to inactive on registry contract and calls the deactivate callback
-func (k *Keeper) DeactivateContract(ctx sdk.Context, registryContract, contractAddress sdk.AccAddress) (data []byte, err error) {
-	k.logger.Debug("Deactivating contract", contractAddress.String())
-
-	defer func() {
-		// catch out of gas panic
-		if r := recover(); r != nil {
-			switch rType := r.(type) {
-			case sdk.ErrorOutOfGas:
-				err := sdkerrors.Wrapf(sdkerrors.ErrOutOfGas, "out of gas in location: %v", rType.Descriptor)
-				k.logger.Errorln("Error out of gas while deactivating the contract", err)
-			default:
-				err = sdkerrors.Wrapf(sdkerrors.ErrIO, "Unknown error with deactivating contract: %v", rType)
-				k.logger.Errorln("Unknown Error", err)
-			}
-		}
-	}()
-
-	execMsg, err := types.NewRegistryDeactivateMsg(contractAddress.String())
-	if err != nil {
-		k.logger.Errorln("Failed construct contract execution msg", err)
-		return nil, err
-	}
-
-	data, err = k.wasmContractOpsKeeper.Sudo(ctx, registryContract, execMsg)
-	if err != nil {
-		// Wasmer runtime error
-		k.logger.Errorln("❌ Error executing contract in BeginBlocker", err)
-		return nil, err
-	}
-
-	k.logger.Debugln("✅ Deactivated the contract successfully", contractAddress)
-
-	if err := k.ExecuteDeactivateCallback(ctx, contractAddress); err != nil {
-		return nil, err
-	}
-
-	return data, err
-}
-
-// FetchRegisteredContractExecutionList returns the list of RawContractExecutionParams for registered contracts
-func (k *Keeper) FetchRegisteredContractExecutionList(
-	ctx sdk.Context,
-	registryContract sdk.AccAddress,
-	onlyActiveContracts bool,
-) (contractExecutionList []types.RawContractExecutionParams, err error) {
-	var queryData []byte
-	if onlyActiveContracts {
-		queryData, err = types.NewRegistryActiveContractQuery()
-		if err != nil {
-			k.logger.Infoln("Failed to construct contracts query msg", err)
-			return nil, err
-		}
-	} else {
-		queryData, err = types.NewRegistryContractQuery()
-		if err != nil {
-			k.logger.Infoln("Failed to construct contracts query msg", err)
-			return nil, err
-		}
-	}
-
-	bz, err := k.wasmViewKeeper.QuerySmart(ctx, registryContract, queryData)
-	if err != nil {
-		k.logger.Errorln("❌ got an error querying the registry contract", err)
-		return nil, err
-	}
-
-	type QueryResp struct {
-		ContractExecutionList []types.RawContractExecutionParams `json:"contracts"`
-	}
-
-	var result QueryResp
-	if err := json.Unmarshal(bz, &result); err != nil {
-		k.logger.Errorln("❌ got an error while unmarshalling the contracts response", err)
-		return nil, err
-	}
-	k.logger.Debugln("✅ Queried and unmarshalled contracts successfully", result.ContractExecutionList)
-	return result.ContractExecutionList, nil
 }
 
 func (k *Keeper) DeductFees(ctx sdk.Context, contractAddr sdk.AccAddress, gasToDeduct, gasPrice uint64) error {
@@ -233,17 +158,17 @@ func (k *Keeper) DeductFees(ctx sdk.Context, contractAddr sdk.AccAddress, gasToD
 	contractAccount := k.accountKeeper.GetAccount(ctx, contractAddr)
 
 	if contractAccount == nil {
-		err := sdkerrors.Wrapf(sdkerrors.ErrUnknownAddress, "fee payer address: %s does not exist", contractAddr)
-		k.logger.Error(err.Error())
+		err := sdkerrors.Wrapf(types.ErrDeductingGasFees, "fee payer address: %s does not exist", contractAddr)
+		k.Logger(ctx).Error(err.Error())
 		return err
 	}
 
 	if err := ante.DeductFees(k.bankKeeper, ctx, contractAccount, sdk.NewCoins(fee)); err != nil {
-		k.logger.Error("Error deducting fees", err.Error())
-		return err
+		k.Logger(ctx).Error("Error deducting fees", err.Error())
+		return sdkerrors.Wrap(types.ErrDeductingGasFees, err.Error())
 	}
 
-	k.logger.Debugln("Deducted fees", "contractAddr", contractAddr.String(), "fee", fee, "gas", gasToDeduct, "gasPrice", gasPrice)
+	k.Logger(ctx).Debug("Deducted fees", "contractAddr", contractAddr.String(), "fee", fee, "gas", gasToDeduct, "gasPrice", gasPrice)
 	return nil
 }
 
@@ -254,21 +179,24 @@ func (k *Keeper) RefundFees(ctx sdk.Context, contractAddr sdk.AccAddress, gasRef
 	contractAccount := k.accountKeeper.GetAccount(ctx, contractAddr)
 	if contractAccount == nil {
 		err := sdkerrors.Wrapf(sdkerrors.ErrUnknownAddress, "refund recipient address: %s does not exist", contractAddr)
-		k.logger.Error(err.Error())
+		k.Logger(ctx).Error(err.Error())
 		return err
 	}
 
 	// refund the fees
 	if !feeToRefund.IsZero() {
-		err := ante.RefundFees(k.bankKeeper, ctx, contractAccount, sdk.NewCoins(feeToRefund))
-		if err != nil {
-			k.logger.Error("Error deducting fees", err.Error())
+		if err := ante.RefundFees(k.bankKeeper, ctx, contractAccount, sdk.NewCoins(feeToRefund)); err != nil {
+			k.Logger(ctx).Error("Error deducting fees", err.Error())
 			return err
 		}
 	}
 
-	k.logger.Debugln("Refunded fees", "contractAddr", contractAddr.String(), "fee", feeToRefund, "gas", gasRefund, "gasPrice", gasPrice)
+	k.Logger(ctx).Debug("Refunded fees", "contractAddr", contractAddr.String(), "fee", feeToRefund, "gas", gasRefund, "gasPrice", gasPrice)
 	return nil
+}
+
+func (k *Keeper) GetContractInfo(ctx sdk.Context, contractAddr sdk.AccAddress) *wasmtypes.ContractInfo {
+	return k.wasmViewKeeper.GetContractInfo(ctx, contractAddr)
 }
 
 func (k *Keeper) DoesContractExist(ctx sdk.Context, contractAddr sdk.AccAddress) bool {

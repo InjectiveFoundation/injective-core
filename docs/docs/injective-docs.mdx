@@ -1,0 +1,109 @@
+---
+sidebar_position: 1
+slug: /
+---
+
+import {
+  HomepageCard as Card,
+  HomepageSection as Section,
+} from "../src/components/HomepageComponents";
+
+import {
+  InjectiveIcon,
+  BuildIcon,
+  CurrencyIcon,
+  NetworkIcon,
+  ConnectedIcon,
+  DistributedIcon,
+  GrowIcon,
+  FarmIcon,
+  ConcentricIcon,
+  DiscordIcon,
+  ForumIcon,
+  IssueIcon,
+} from "../src/icons";
+
+# Injective Docs
+
+Welcome to the official documentation for Injective, learn the basics of what Injective is, understand how it works and start building the most powerful financial dApps.
+
+## Getting Started
+
+<Section
+  title="Read all about Injective Chain or dive straight into the code with guides"
+  id="web-sdks"
+  hasSubSections
+>
+  <Section>
+    <Card
+      title="Dev Tools"
+      description="Set up your tools and build on Injective"
+      to="/develop/tools/"
+      icon={<CurrencyIcon />}
+    />
+    <Card
+      title="Dev Guides"
+      description="Learn by doing, CosmWasm and Exchange guides"
+      to="/develop/guides/"
+      icon={<GrowIcon />}
+    />
+    <Card
+      title="Injective Native Modules"
+      description="Injective is an open, interoperable layer-one blockchain"
+      to="/develop/modules/"
+      icon={<DistributedIcon />}
+    />
+  </Section>
+</Section>
+
+## Explore Injective Chain
+
+<Section title="Get familiar with Injective Chain and explore its main concepts." id="web-explore" hasSubSections >
+  <Section>
+    <Card
+      title="What is Injective?"
+      description="Injective is an open, interoperable layer-one blockchain for building powerful DeFi applications"
+      to="/learn/introduction"
+      icon={<InjectiveIcon />}
+    />
+    <Card
+      title="Injective Hub"
+      description="The platform and gateway that allows you to interact directly with Injective"
+      to="/learn/injective-hub/"
+      icon={<FarmIcon />}
+    />
+    <Card
+      title="Injective Basic Concepts"
+      description="Cover all the Injective main concepts including the INJ Coin, Gas, Fees, Wallets and more"
+      to="/category/basic-concepts"
+      icon={<ConcentricIcon />}
+    />
+
+  </Section>
+</Section>
+
+## Help & Support
+
+<Section title="Get in touch with Injective devs and the builder's community." id="web-explore" hasSubSections >
+  <Section>
+    <Card
+      title="Developer Chat"
+      description="Chat with Injective developers on Discord."
+      to="https://discord.gg/injective"
+      icon={<DiscordIcon />}
+    />
+    <Card
+      title="Found an Issue?"
+      description="Help us improve this page by suggesting edits on GitHub."
+      to="https://docs.google.com/forms/d/e/1FAIpQLSc9LYBdSOd28iwm4CdWsbIt0T6jwzRdlkdrGgfqNu5smWlCkg/viewform"
+      icon={<IssueIcon />}
+    />
+    <Card
+      title="Injective Forum"
+      description="Join the Injective Forum to learn more."
+      to="https://gov.injective.network/"
+      icon={<ForumIcon />}
+    />
+
+  </Section>
+</Section>

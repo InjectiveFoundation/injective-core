@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -12,6 +13,7 @@ import (
 
 	// "github.com/cosmos/cosmos-sdk/client/flags"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/tokenfactory/types"
+	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 )
 
 // GetTxCmd returns the transaction commands for this module
@@ -30,6 +32,7 @@ func GetTxCmd() *cobra.Command {
 		NewBurnCmd(),
 		// NewForceTransferCmd(),
 		NewChangeAdminCmd(),
+		NewSetDenomMetadataCmd(),
 	)
 
 	return cmd
@@ -178,6 +181,52 @@ func NewChangeAdminCmd() *cobra.Command {
 				clientCtx.GetFromAddress().String(),
 				args[0],
 				args[1],
+			)
+
+			return tx.GenerateOrBroadcastTxWithFactory(clientCtx, txf, msg)
+		},
+	}
+
+	flags.AddTxFlagsToCmd(cmd)
+	return cmd
+}
+
+func NewSetDenomMetadataCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "set-denom-metadata [description] [base] [display] [name] [symbol] [denom-unit (json)]",
+		Short: "Changes created denom's metadata. Must have admin authority to do so.",
+		Args:  cobra.ExactArgs(6),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clientCtx, err := client.GetClientTxContext(cmd)
+			if err != nil {
+				return err
+			}
+
+			txf := tx.NewFactoryCLI(clientCtx, cmd.Flags()).WithTxConfig(clientCtx.TxConfig).WithAccountRetriever(clientCtx.AccountRetriever)
+
+			description := args[0]
+			base := args[1]
+			display := args[2]
+			name := args[3]
+			symbol := args[4]
+			denomUnitsJSON := args[5]
+
+			var denomUnits []*banktypes.DenomUnit
+			err = json.Unmarshal([]byte(denomUnitsJSON), &denomUnits)
+			if err != nil {
+				return fmt.Errorf("parse denom unit err: %w", err)
+			}
+
+			msg := types.NewMsgSetDenomMetadata(
+				clientCtx.GetFromAddress().String(),
+				banktypes.Metadata{
+					Description: description,
+					DenomUnits:  denomUnits,
+					Base:        base,
+					Display:     display,
+					Name:        name,
+					Symbol:      symbol,
+				},
 			)
 
 			return tx.GenerateOrBroadcastTxWithFactory(clientCtx, txf, msg)

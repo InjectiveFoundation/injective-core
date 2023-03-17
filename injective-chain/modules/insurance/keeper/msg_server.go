@@ -5,11 +5,10 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
+	"github.com/InjectiveLabs/metrics"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	log "github.com/xlab/suplog"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/insurance/types"
-	"github.com/InjectiveLabs/metrics"
 )
 
 type msgServer struct {
@@ -35,7 +34,6 @@ func (k msgServer) CreateInsuranceFund(goCtx context.Context, msg *types.MsgCrea
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
-	logger := k.logger.WithFields(log.WithFn())
 
 	sender, err := sdk.AccAddressFromBech32(msg.Sender)
 	if err != nil {
@@ -43,18 +41,18 @@ func (k msgServer) CreateInsuranceFund(goCtx context.Context, msg *types.MsgCrea
 		return nil, err
 	}
 
-	if msg.Expiry != -1 && msg.Expiry < ctx.BlockTime().Unix() {
+	isPerpetualOrBinaryOptionsExpirationFlag := msg.Expiry == types.PerpetualExpiryFlag || msg.Expiry == types.BinaryOptionsExpiryFlag
+	if !isPerpetualOrBinaryOptionsExpirationFlag && msg.Expiry < ctx.BlockTime().Unix() {
 		metrics.ReportFuncError(k.svcTags)
 		return nil, types.ErrInvalidExpirationTime
 	}
 
 	if err := k.Keeper.CreateInsuranceFund(ctx, sender, msg.InitialDeposit, msg.Ticker, msg.QuoteDenom, msg.OracleBase, msg.OracleQuote, msg.OracleType, msg.Expiry); err != nil {
 		metrics.ReportFuncError(k.svcTags)
-		logger.Errorln("Insurance fund creation failed", err)
+		k.Logger(ctx).Error("Insurance fund creation failed", err)
 		return nil, err
 	}
 
-	logger.Debugf("successfully created insurance fund for %s", msg.Ticker)
 	return &types.MsgCreateInsuranceFundResponse{}, nil
 }
 
@@ -63,7 +61,6 @@ func (k msgServer) Underwrite(goCtx context.Context, msg *types.MsgUnderwrite) (
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
-	logger := k.logger.WithFields(log.WithFn())
 
 	sender, err := sdk.AccAddressFromBech32(msg.Sender)
 	if err != nil {
@@ -74,11 +71,10 @@ func (k msgServer) Underwrite(goCtx context.Context, msg *types.MsgUnderwrite) (
 	marketID := common.HexToHash(msg.MarketId)
 	if err := k.Keeper.UnderwriteInsuranceFund(ctx, sender, marketID, msg.Deposit); err != nil {
 		metrics.ReportFuncError(k.svcTags)
-		logger.Errorln("underwriting insurance fund failed", err)
+		k.Logger(ctx).Error("underwriting insurance fund failed", err)
 		return nil, err
 	}
 
-	logger.Debugf("successfully underwrote insurance fund for %s market", marketID.Hex())
 	return &types.MsgUnderwriteResponse{}, nil
 }
 
@@ -87,7 +83,6 @@ func (k msgServer) RequestRedemption(goCtx context.Context, msg *types.MsgReques
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
-	logger := k.logger.WithFields(log.WithFn())
 
 	sender, err := sdk.AccAddressFromBech32(msg.Sender)
 	if err != nil {
@@ -98,10 +93,9 @@ func (k msgServer) RequestRedemption(goCtx context.Context, msg *types.MsgReques
 	err = k.Keeper.RequestInsuranceFundRedemption(ctx, sender, marketID, msg.Amount)
 	if err != nil {
 		metrics.ReportFuncError(k.svcTags)
-		logger.Errorln("requesting redemption for insurance fund failed", err)
+		k.Logger(ctx).Error("requesting redemption for insurance fund failed", err)
 		return nil, err
 	}
 
-	logger.Debugf("successfully requested redemption for insurance fund on %s market", marketID.Hex())
 	return &types.MsgRequestRedemptionResponse{}, nil
 }

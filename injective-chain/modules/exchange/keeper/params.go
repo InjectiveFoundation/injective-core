@@ -168,6 +168,14 @@ func (k *Keeper) GetMinimalProtocolFeeRate(ctx sdk.Context) (res sdk.Dec) {
 	return
 }
 
+// GetIsInstantDerivativeMarketLaunchEnabled returns if instant derivative market launch is enabled
+func (k *Keeper) GetIsInstantDerivativeMarketLaunchEnabled(ctx sdk.Context) (res bool) {
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+
+	k.paramSpace.Get(ctx, types.KeyIsInstantDerivativeMarketLaunchEnabled, &res)
+	return
+}
+
 // GetParams returns the total set of exchange parameters.
 func (k *Keeper) GetParams(ctx sdk.Context) (params types.Params) {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()

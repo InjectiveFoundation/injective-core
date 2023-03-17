@@ -3,7 +3,6 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/cosmos/cosmos-sdk/client/flags"
 	"os"
 
 	"github.com/CosmWasm/wasmd/x/wasm/ioutils"
@@ -21,13 +20,17 @@ import (
 )
 
 const (
-	flagAmount                = "amount"
 	FlagContractGasLimit      = "contract-gas-limit"
 	FlagContractGasPrice      = "contract-gas-price"
 	FlagPinContract           = "pin-contract"
 	FlagContractAddress       = "contract-address"
+	FlagContractAdmin         = "contract-admin"
+	FlagMigrationAllowed      = "migration-allowed"
+	FlagCodeId                = "code-id"
 	FlagBatchUploadProposal   = "batch-upload-proposal"
 	FlagContractFiles         = "contract-files"
+	FlagContractAddresses     = "contract-addresses"
+	flagAmount                = "amount"
 	FlagContractCallerAddress = "contract-caller-address"
 	FlagContractExecMsg       = "contract-exec-msg"
 )
@@ -44,7 +47,11 @@ func NewTxCmd() *cobra.Command {
 
 	txCmd.AddCommand(
 		NewContractRegistrationRequestProposalTxCmd(),
+		NewContractDeregistrationRequestProposalTxCmd(),
 		NewBatchStoreCodeProposalTxCmd(),
+		ContractParamsUpdateTxCmd(),
+		ContractActivateTxCmd(),
+		ContractDeactivateTxCmd(),
 		ExecuteContractCompatCmd(),
 	)
 	return txCmd
@@ -98,6 +105,9 @@ func NewContractRegistrationRequestProposalTxCmd() *cobra.Command {
 	cmd.Flags().String(FlagContractAddress, "", "contract address to register")
 	cmd.Flags().Uint64(FlagContractGasPrice, 1000000000, "gas price in inj to use for the contract execution")
 	cmd.Flags().Bool(FlagPinContract, false, "Pin the contract upon registration to reduce the gas usage")
+	cmd.Flags().Uint64(FlagCodeId, 0, "code-id of contract")
+	cmd.Flags().Bool(FlagMigrationAllowed, true, "is contract migration allowed?")
+	cmd.Flags().String(FlagContractAdmin, "", "address of contract admin")
 
 	cmd.Flags().String(govcli.FlagTitle, "", "title of proposal")
 	cmd.Flags().String(govcli.FlagDescription, "", "description of proposal")
@@ -105,6 +115,91 @@ func NewContractRegistrationRequestProposalTxCmd() *cobra.Command {
 
 	cliflags.AddTxFlagsToCmd(cmd)
 	return cmd
+}
+
+func NewContractDeregistrationRequestProposalTxCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "propose-batch-contract-deregistration-request [flags]",
+		Args:  cobra.ExactArgs(0),
+		Short: "Submit a proposal to deregister contract",
+		Long: `Submit a proposal to deregister contract.
+			Example:
+			$ %s tx xwasm propose-batch-contract-deregistration-request --contract-addresses "inj1fpmlw98jka5dc9cjrwurvutz87n87y45skvqkv,inj1dzqd00lfd4y4qy2pxa0dsdwzfnmsu27hgttswz" --from mykey
+		`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clientCtx, err := client.GetClientTxContext(cmd)
+			if err != nil {
+				return err
+			}
+
+			content, err := BatchContractDeregistrationRequestProposalArgsToContent(cmd, args)
+			if err != nil {
+				return err
+			}
+
+			from := clientCtx.GetFromAddress()
+
+			depositStr, err := cmd.Flags().GetString(govcli.FlagDeposit)
+			if err != nil {
+				return err
+			}
+			deposit, err := sdk.ParseCoinsNormalized(depositStr)
+			if err != nil {
+				return err
+			}
+
+			msg, err := govtypes.NewMsgSubmitProposal(content, deposit, from)
+			if err != nil {
+				return err
+			}
+
+			if err := msg.ValidateBasic(); err != nil {
+				return err
+			}
+
+			return tx.GenerateOrBroadcastTxCLI(clientCtx, cmd.Flags(), msg)
+		},
+	}
+
+	cmd.Flags().StringSlice(FlagContractAddresses, []string{}, "Contract addresses to deregister")
+
+	cmd.Flags().String(govcli.FlagTitle, "", "title of proposal")
+	cmd.Flags().String(govcli.FlagDescription, "", "description of proposal")
+	cmd.Flags().String(govcli.FlagDeposit, "", "deposit of proposal")
+
+	cliflags.AddTxFlagsToCmd(cmd)
+	return cmd
+}
+
+func BatchContractDeregistrationRequestProposalArgsToContent(
+	cmd *cobra.Command,
+	args []string,
+) (govtypes.Content, error) {
+
+	title, err := cmd.Flags().GetString(govcli.FlagTitle)
+	if err != nil {
+		return nil, err
+	}
+
+	description, err := cmd.Flags().GetString(govcli.FlagDescription)
+	if err != nil {
+		return nil, err
+	}
+
+	contractAddresses, err := cmd.Flags().GetStringSlice(FlagContractAddresses)
+	if err != nil {
+		return nil, err
+	}
+
+	content := &types.BatchContractDeregistrationProposal{
+		Title:       title,
+		Description: description,
+		Contracts:   contractAddresses,
+	}
+	if err := content.ValidateBasic(); err != nil {
+		return nil, err
+	}
+	return content, nil
 }
 
 func ContractRegistrationRequestProposalArgsToContent(
@@ -142,14 +237,36 @@ func ContractRegistrationRequestProposalArgsToContent(
 		return nil, err
 	}
 
+	codeId, err := cmd.Flags().GetUint64(FlagCodeId)
+	if err != nil {
+		return nil, err
+	}
+
+	if codeId == 0 {
+		return nil, fmt.Errorf("Code id cannot be equal to 0")
+	}
+
+	allowMigration, err := cmd.Flags().GetBool(FlagMigrationAllowed)
+	if err != nil {
+		return nil, err
+	}
+
+	adminAddress, err := cmd.Flags().GetString(FlagContractAdmin)
+	if err != nil {
+		adminAddress = ""
+	}
+
 	content := &types.ContractRegistrationRequestProposal{
 		Title:       title,
 		Description: description,
 		ContractRegistrationRequest: types.ContractRegistrationRequest{
-			ContractAddress: contractAddrStr,
-			GasLimit:        contractGasLimit,
-			GasPrice:        contractGasPrice,
-			PinContract:     pinContract,
+			ContractAddress:    contractAddrStr,
+			GasLimit:           contractGasLimit,
+			GasPrice:           contractGasPrice,
+			ShouldPinContract:  pinContract,
+			CodeId:             codeId,
+			IsMigrationAllowed: allowMigration,
+			AdminAddress:       adminAddress,
 		},
 	}
 	if err := content.ValidateBasic(); err != nil {
@@ -247,6 +364,149 @@ $ %s tx xwasm "batch-store-code-proposal \
 	return cmd
 }
 
+func ContractParamsUpdateTxCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "contract-params-update [flags]",
+		Args:  cobra.ExactArgs(0),
+		Short: "Update registered contract params",
+		Long: `Update registered contract params (gas price, gas limit, admin address).
+			Example:
+			$ %s tx xwasm contract-params-update --contract-gas-limit 20000 --contract-gas-price "1000000000" --contract-address "inj14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9swvf72y" --contract-admin="inj1p7z8p649xspcey7wp5e4leqf7wa39kjjj6wja8" --from mykey
+		`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clientCtx, err := client.GetClientTxContext(cmd)
+			if err != nil {
+				return err
+			}
+
+			contractAddrStr, err := cmd.Flags().GetString(FlagContractAddress)
+			if err != nil {
+				return nil
+			}
+
+			contractGasLimit, err := cmd.Flags().GetUint64(FlagContractGasLimit)
+			if err != nil {
+				return nil
+			}
+
+			contractAdminStr, err := cmd.Flags().GetString(FlagContractAdmin)
+			if err != nil {
+				contractAdminStr = ""
+			}
+			contractGasPrice, err := cmd.Flags().GetUint64(FlagContractGasPrice)
+			if err != nil {
+				return nil
+			}
+
+			fromAddress := clientCtx.GetFromAddress().String()
+
+			msg := &types.MsgUpdateContract{
+				Sender:          fromAddress,
+				ContractAddress: contractAddrStr,
+				GasLimit:        contractGasLimit,
+				GasPrice:        contractGasPrice,
+				AdminAddress:    contractAdminStr,
+			}
+
+			if err := msg.ValidateBasic(); err != nil {
+				return err
+			}
+
+			return tx.GenerateOrBroadcastTxCLI(clientCtx, cmd.Flags(), msg)
+		},
+	}
+
+	cmd.Flags().Uint64(FlagContractGasLimit, 300000, "Maximum gas to use for the contract execution")
+	cmd.Flags().String(FlagContractAddress, "", "contract address ")
+	cmd.Flags().Uint64(FlagContractGasPrice, 1000000000, "gas price in inj to use for the contract execution")
+	cmd.Flags().String(FlagContractAdmin, "", "contract admin allowed to perform changes")
+
+	cliflags.AddTxFlagsToCmd(cmd)
+	return cmd
+}
+
+func ContractActivateTxCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "contract-activate [flags]",
+		Args:  cobra.ExactArgs(0),
+		Short: "Activate registered contract",
+		Long: `Activate registered contract to be executed in begin blocker.
+			Example:
+			$ %s tx xwasm contract-activate --contract-address "inj14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9swvf72y" --from mykey
+		`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clientCtx, err := client.GetClientTxContext(cmd)
+			if err != nil {
+				return err
+			}
+
+			contractAddrStr, err := cmd.Flags().GetString(FlagContractAddress)
+			if err != nil {
+				return nil
+			}
+
+			fromAddress := clientCtx.GetFromAddress().String()
+
+			msg := &types.MsgActivateContract{
+				Sender:          fromAddress,
+				ContractAddress: contractAddrStr,
+			}
+
+			if err := msg.ValidateBasic(); err != nil {
+				return err
+			}
+
+			return tx.GenerateOrBroadcastTxCLI(clientCtx, cmd.Flags(), msg)
+		},
+	}
+
+	cmd.Flags().String(FlagContractAddress, "", "contract address ")
+
+	cliflags.AddTxFlagsToCmd(cmd)
+	return cmd
+}
+
+func ContractDeactivateTxCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "contract-deactivate [flags]",
+		Args:  cobra.ExactArgs(0),
+		Short: "Deactivate registered contract",
+		Long: `Deactivate registered contract (will no longer be executed in begin blocker, but remains registered).
+			Example:
+			$ %s tx xwasm contract-deactivate --contract-address "inj14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9swvf72y" --from mykey
+		`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clientCtx, err := client.GetClientTxContext(cmd)
+			if err != nil {
+				return err
+			}
+
+			contractAddrStr, err := cmd.Flags().GetString(FlagContractAddress)
+			if err != nil {
+				return nil
+			}
+
+			fromAddress := clientCtx.GetFromAddress().String()
+
+			msg := &types.MsgDeactivateContract{
+				Sender:          fromAddress,
+				ContractAddress: contractAddrStr,
+			}
+
+			if err := msg.ValidateBasic(); err != nil {
+				return err
+			}
+
+			return tx.GenerateOrBroadcastTxCLI(clientCtx, cmd.Flags(), msg)
+		},
+	}
+
+	cmd.Flags().String(FlagContractAddress, "", "contract address ")
+
+	cliflags.AddTxFlagsToCmd(cmd)
+	return cmd
+}
+
 // ExecuteContractCompatCmd will instantiate a contract from previously uploaded code.
 func ExecuteContractCompatCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -273,7 +533,7 @@ func ExecuteContractCompatCmd() *cobra.Command {
 	}
 
 	cmd.Flags().String(flagAmount, "", "Coins to send to the contract along with command")
-	flags.AddTxFlagsToCmd(cmd)
+	cliflags.AddTxFlagsToCmd(cmd)
 	return cmd
 }
 

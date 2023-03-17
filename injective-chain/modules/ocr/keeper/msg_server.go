@@ -9,20 +9,20 @@ import (
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	ethsecp256k1 "github.com/ethereum/go-ethereum/crypto/secp256k1"
-	proto "github.com/gogo/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 	log "github.com/xlab/suplog"
 
 	secp256k1 "github.com/InjectiveLabs/injective-core/injective-chain/crypto/ethsecp256k1"
 
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/ocr/types"
 	"github.com/InjectiveLabs/metrics"
+
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/ocr/types"
 )
 
 type msgServer struct {
 	Keeper
 
 	svcTags metrics.Tags
-	logger  log.Logger
 }
 
 // NewMsgServerImpl returns an implementation of the ocr MsgServer interface
@@ -34,7 +34,6 @@ func NewMsgServerImpl(keeper Keeper) types.MsgServer {
 		svcTags: metrics.Tags{
 			"svc": "ocr_h",
 		},
-		logger: log.WithField("module", types.ModuleName),
 	}
 }
 
@@ -44,7 +43,6 @@ func (k msgServer) CreateFeed(goCtx context.Context, msg *types.MsgCreateFeed) (
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
-	logger := k.logger.WithFields(log.WithFn())
 
 	admin := k.ModuleAdmin(ctx)
 
@@ -77,7 +75,6 @@ func (k msgServer) CreateFeed(goCtx context.Context, msg *types.MsgCreateFeed) (
 		k.SetFeedObservationsCount(ctx, feedId, addr, 1)
 	}
 
-	_ = logger
 	return &types.MsgCreateFeedResponse{}, nil
 }
 
@@ -85,7 +82,6 @@ func (k msgServer) UpdateFeed(goCtx context.Context, msg *types.MsgUpdateFeed) (
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
-	logger := k.logger.WithFields(log.WithFn())
 
 	feedId := msg.FeedId
 
@@ -146,7 +142,6 @@ func (k msgServer) UpdateFeed(goCtx context.Context, msg *types.MsgUpdateFeed) (
 		k.SetFeedTransmissionsCount(ctx, feedId, addr, 1)
 		k.SetFeedObservationsCount(ctx, feedId, addr, 1)
 	}
-	_ = logger
 	return &types.MsgUpdateFeedResponse{}, nil
 }
 
@@ -154,7 +149,6 @@ func (k msgServer) Transmit(goCtx context.Context, msg *types.MsgTransmit) (*typ
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
-	logger := k.logger.WithFields(log.WithFn())
 
 	startGas := ctx.GasMeter().GasConsumed()
 	epochAndRound := k.GetLatestEpochAndRound(ctx, msg.FeedId)
@@ -238,7 +232,7 @@ func (k msgServer) Transmit(goCtx context.Context, msg *types.MsgTransmit) (*typ
 			metrics.ReportFuncError(k.svcTags)
 			log.WithError(err).WithField(
 				"sig", hex.EncodeToString(sig),
-			).Warningln("ethsecp256k1.RecoverPubkey failed")
+			).Error("ethsecp256k1.RecoverPubkey failed")
 
 			return nil, sdkerrors.Wrapf(types.ErrIncorrectSignature, "ethsecp256k1.RecoverPubkey failed on signature %d", idx)
 		}
@@ -265,7 +259,7 @@ func (k msgServer) Transmit(goCtx context.Context, msg *types.MsgTransmit) (*typ
 
 	k.IncrementFeedTransmissionCount(ctx, msg.FeedId, transmitter)
 
-	logger.Debugf("transmit accepted from %s", msg.Transmitter)
+	k.Logger(ctx).Debugf("transmit accepted from %s", msg.Transmitter)
 
 	refundAmount := ctx.GasMeter().GasConsumed() - startGas
 	// nolint:all
@@ -278,7 +272,6 @@ func (k msgServer) FundFeedRewardPool(goCtx context.Context, msg *types.MsgFundF
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
-	logger := k.logger.WithFields(log.WithFn())
 
 	sender, _ := sdk.AccAddressFromBech32(msg.Sender)
 
@@ -286,7 +279,7 @@ func (k msgServer) FundFeedRewardPool(goCtx context.Context, msg *types.MsgFundF
 		return nil, err
 	}
 
-	logger.Debugf("successfully funded LINK pool for %s feed", msg.FeedId)
+	k.Logger(ctx).Debugf("successfully funded LINK pool for %s feed", msg.FeedId)
 	return &types.MsgFundFeedRewardPoolResponse{}, nil
 }
 
@@ -294,8 +287,6 @@ func (k msgServer) WithdrawFeedRewardPool(goCtx context.Context, msg *types.MsgW
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
-	logger := k.logger.WithFields(log.WithFn())
-	_, _ = ctx, logger
 
 	feedId := msg.FeedId
 
@@ -326,7 +317,6 @@ func (k msgServer) SetPayees(goCtx context.Context, msg *types.MsgSetPayees) (*t
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
-	logger := k.logger.WithFields(log.WithFn())
 
 	feedId := msg.FeedId
 	feedConfig := k.GetFeedConfig(ctx, feedId)
@@ -351,8 +341,6 @@ func (k msgServer) SetPayees(goCtx context.Context, msg *types.MsgSetPayees) (*t
 		k.SetPayee(ctx, feedId, transmitter, payee)
 	}
 
-	_ = logger
-
 	return &types.MsgSetPayeesResponse{}, nil
 }
 
@@ -360,7 +348,6 @@ func (k msgServer) TransferPayeeship(goCtx context.Context, msg *types.MsgTransf
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
-	logger := k.logger.WithFields(log.WithFn())
 
 	feedId := msg.FeedId
 	feedConfig := k.GetFeedConfig(ctx, feedId)
@@ -375,7 +362,7 @@ func (k msgServer) TransferPayeeship(goCtx context.Context, msg *types.MsgTransf
 
 	sender, _ := sdk.AccAddressFromBech32(msg.Sender)
 	if !sender.Equals(currPayee) {
-		logger.Errorf("current payee %s does not match sender %s", currPayee.String(), sender.String())
+		k.Logger(ctx).Errorf("current payee %s does not match sender %s", currPayee.String(), sender.String())
 		return nil, types.ErrPayeeRestricted
 	}
 
@@ -395,7 +382,6 @@ func (k msgServer) AcceptPayeeship(goCtx context.Context, msg *types.MsgAcceptPa
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
-	logger := k.logger.WithFields(log.WithFn())
 
 	feedId := msg.FeedId
 	feedConfig := k.GetFeedConfig(ctx, feedId)
@@ -410,7 +396,7 @@ func (k msgServer) AcceptPayeeship(goCtx context.Context, msg *types.MsgAcceptPa
 	sender, _ := sdk.AccAddressFromBech32(msg.Payee)
 	pendingPayee := k.GetPendingPayeeshipTransfer(ctx, feedId, transmitter)
 	if !sender.Equals(pendingPayee) {
-		logger.Errorf("current payee %s does not match sender %s", currPayee.String(), sender.String())
+		k.Logger(ctx).Errorf("current payee %s does not match sender %s", currPayee.String(), sender.String())
 		return nil, types.ErrPayeeRestricted
 	}
 

@@ -1,38 +1,53 @@
 ---
 sidebar_position: 4
-title: Messages 
+title: Messages
 ---
 
 ## Messages
 
-### MsgStoreCode
+### MsgUpdateContract
 
-Uploads new code to the blockchain and results in a new code ID, if successful. `WASMByteCode` is accepted as either uncompressed or gzipped binary data encoded as Base64.
+Updates registered contract execution params (gas price, limit). Can also define a new admin account.
+Can be called only by admin (if defined) or contract itself.
 
 ```go
-type MsgStoreCode struct {
-	Sender sdk.AccAddress `json:"sender" yaml:"sender"`
-	// WASMByteCode can be raw or gzip compressed
-	WASMByteCode core.Base64Bytes `json:"wasm_byte_code" yaml:"wasm_byte_code"`
+
+type MsgUpdateContract struct {
+    Sender string `json:"sender,omitempty"`
+    // Unique Identifier for contract instance to be registered.
+    ContractAddress string `json:"contract_address,omitempty"`
+    // Maximum gas to be used for the smart contract execution.
+    GasLimit uint64 `json:"gas_limit,omitempty"`
+    // gas price to be used for the smart contract execution.
+    GasPrice uint64 `json:"gas_price,omitempty"`
+    // optional - admin account that will be allowed to perform any changes
+    AdminAddress string `json:"admin_address,omitempty"`
 }
 ```
 
-### MsgInstantiateContract
+### MsgDeactivateContract
 
-Creates a new instance of a smart contract. Initial configuration is provided in the `InitMsg`, which is a JSON message encoded in Base64. If `Migratable` is set to `true`, the owner of the contract is permitted to reset the contract's code ID to a new one.
+Deactivates a registered contract (it will no longer be executed in begin blocker)
 
 ```go
-type MsgInstantiateContract struct {
-	// Sender is an sender address
-	Sender string `protobuf:"bytes,1,opt,name=sender,proto3" json:"sender,omitempty" yaml:"sender"`
-	// Admin is an optional admin address who can migrate the contract
-	Admin string `protobuf:"bytes,2,opt,name=admin,proto3" json:"admin,omitempty" yaml:"admin"`
-	// CodeID is the reference to the stored WASM code
-	CodeID uint64 `protobuf:"varint,3,opt,name=code_id,json=codeId,proto3" json:"code_id,omitempty" yaml:"code_id"`
-	// InitMsg json encoded message to be passed to the contract on instantiation
-	InitMsg encoding_json.RawMessage `protobuf:"bytes,4,opt,name=init_msg,json=initMsg,proto3,casttype=encoding/json.RawMessage" json:"init_msg,omitempty" yaml:"init_msg"`
-	// InitCoins that are transferred to the contract on execution
-	InitCoins github_com_cosmos_cosmos_sdk_types.Coins `protobuf:"bytes,5,rep,name=init_coins,json=initCoins,proto3,castrepeated=github.com/cosmos/cosmos-sdk/types.Coins" json:"init_coins" yaml:"init_coins"`
+
+type MsgDeactivateContract struct {
+    Sender string `json:"sender,omitempty"`
+    // Unique Identifier for contract instance to be activated.
+    ContractAddress string `json:"contract_address,omitempty"`
+}
+```
+
+### MsgActivateContract
+
+Reactivates a registered contract (it will be executed in begin blocker from now on again)
+
+```go
+
+type MsgActivateContract struct {
+    Sender string `json:"sender,omitempty"`
+    // Unique Identifier for contract instance to be activated.
+    ContractAddress string `json:"contract_address,omitempty"`
 }
 ```
 
@@ -42,10 +57,10 @@ Invokes a function defined within the smart contract. Function and parameters ar
 
 ```go
 type MsgExecuteContract struct {
-	Sender     sdk.AccAddress   `json:"sender" yaml:"sender"`
-	Contract   sdk.AccAddress   `json:"contract" yaml:"contract"`
-	ExecuteMsg core.Base64Bytes `json:"execute_msg" yaml:"execute_msg"`
-	Coins      sdk.Coins        `json:"coins" yaml:"coins"`
+    Sender     sdk.AccAddress   `json:"sender" yaml:"sender"`
+    Contract   sdk.AccAddress   `json:"contract" yaml:"contract"`
+    ExecuteMsg core.Base64Bytes `json:"execute_msg" yaml:"execute_msg"`
+    Coins      sdk.Coins        `json:"coins" yaml:"coins"`
 }
 ```
 
@@ -55,10 +70,10 @@ Can be issued by the owner of a migratable smart contract to reset its code ID t
 
 ```go
 type MsgMigrateContract struct {
-	Owner      sdk.AccAddress   `json:"owner" yaml:"owner"`
-	Contract   sdk.AccAddress   `json:"contract" yaml:"contract"`
-	NewCodeID  uint64           `json:"new_code_id" yaml:"new_code_id"`
-	MigrateMsg core.Base64Bytes `json:"migrate_msg" yaml:"migrate_msg"`
+    Owner      sdk.AccAddress   `json:"owner" yaml:"owner"`
+    Contract   sdk.AccAddress   `json:"contract" yaml:"contract"`
+    NewCodeID  uint64           `json:"new_code_id" yaml:"new_code_id"`
+    MigrateMsg core.Base64Bytes `json:"migrate_msg" yaml:"migrate_msg"`
 }
 ```
 
@@ -68,8 +83,8 @@ Can be issued by the smart contract's owner to transfer ownership.
 
 ```go
 type MsgUpdateContractOwner struct {
-	Owner    sdk.AccAddress `json:"owner" yaml:"owner"`
-	NewOwner sdk.AccAddress `json:"new_owner" yaml:"new_owner"`
-	Contract sdk.AccAddress `json:"contract" yaml:"contract"`
+    Owner    sdk.AccAddress `json:"owner" yaml:"owner"`
+    NewOwner sdk.AccAddress `json:"new_owner" yaml:"new_owner"`
+    Contract sdk.AccAddress `json:"contract" yaml:"contract"`
 }
 ```

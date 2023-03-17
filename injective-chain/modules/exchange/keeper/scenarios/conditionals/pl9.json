@@ -52,31 +52,20 @@
     },
     {
       "actionType": "derivativeLimitOrder",
-      "price": 20,
+      "price": 250,
       "quantity": 100,
-      "accountIndex": 0,
-      "isLong": true,
-      "isReduceOnly": true,
-      "triggerPrice": 120
-    },
-    {
-      "actionType": "derivativeLimitOrder",
-      "price": 200,
-      "quantity": 100,
-      "accountIndex": 0,
+      "accountIndex": 1,
       "isLong": false,
-      "triggerPrice": 199
-    },
+      "triggerPrice": 250
+    },     
     {
-      "actionType": "endblocker"
-    },
-    {
-      "actionType": "withdrawal",
+      "actionType": "removeFunds",
       "denom": "USDT0",
       "toLeave": 0
     },
     {
-      "actionType": "endblocker"
+      "actionType": "endblocker",
+      "actionId": "orders_placed"
     },
     {
       "actionType": "priceOracle",

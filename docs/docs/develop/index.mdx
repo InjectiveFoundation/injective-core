@@ -1,0 +1,44 @@
+import {
+  HomepageCard as Card,
+  HomepageSection as Section,
+} from "../../src/components/HomepageComponents";
+
+import { InjectiveIcon, CoreModulesIcon, NetworkIcon, CurrencyIcon, GrowIcon, DistributedIcon, ConcentricIcon } from "../../src/icons";
+
+# Build on Injective
+
+<Section title="Welcome to the Injective developer documentation." id="web-sdks" hasSubSections >
+  <Section title= "Read all about Injective Chain or dive straight into the code with guides.">
+   <Card
+      title="Tech Concepts"
+      description="Injective tech fundamentals to start building on Injective."
+      to="./tech-concepts/"
+      icon={<ConcentricIcon />}
+   /> 
+    <Card
+      title="Dev Tools"
+      description="Set up your tools and build on Injective"
+      to="./tools/"
+      icon={<CurrencyIcon />}
+    />
+    <Card
+      title="Dev Guides"
+      description="Learn by doing, CosmWasm and Exchange guides"
+      to="./guides/"
+      icon={<GrowIcon />}
+    />              
+  
+  <Card
+      title="Injective Modules"
+      description="The native building blocks of Injective"
+      to="./modules/Injective/auction/"
+      icon={<DistributedIcon />}
+    />  
+    <Card
+      title="Core SDK Modules"
+      description="A reference to Cosmos SDK modules available on Injective"
+      to="./modules/Core/auth/"
+      icon={<CoreModulesIcon />}
+    />  
+    </Section>
+</Section>

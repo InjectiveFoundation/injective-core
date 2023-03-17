@@ -36,6 +36,9 @@ func NewHandler(k keeper.Keeper) sdk.Handler {
 		case *types.MsgRelayProviderPrices:
 			res, err := msgServer.RelayProviderPrices(sdk.WrapSDKContext(ctx), msg)
 			return sdk.WrapServiceResult(ctx, res, err)
+		case *types.MsgRelayPythPrices:
+			res, err := msgServer.RelayPythPrices(sdk.WrapSDKContext(ctx), msg)
+			return sdk.WrapServiceResult(ctx, res, err)
 		default:
 			return nil, sdkerrors.Wrapf(sdkerrors.ErrUnknownRequest, "Unrecognized oracle Msg type: %T", msg)
 		}

@@ -10,8 +10,9 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/peggy/types"
 	"github.com/InjectiveLabs/metrics"
+
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/peggy/types"
 )
 
 var _ types.QueryServer = &Keeper{}
@@ -240,6 +241,11 @@ func (k *Keeper) LastEventByAddr(c context.Context, req *types.QueryLastEventByA
 	}
 
 	lastClaimEvent := k.GetLastEventByValidator(ctx, validator)
+	if lastClaimEvent.EthereumEventNonce == 0 && lastClaimEvent.EthereumEventHeight == 0 {
+		// if peggo happens to query too early without a bonded validator even existing
+		return nil, sdkerrors.Wrapf(types.ErrNoLastClaimForValidator, "ensure validator has bonded: validator=%v", validator.String())
+	}
+
 	ret.LastClaimEvent = &lastClaimEvent
 
 	return &ret, nil

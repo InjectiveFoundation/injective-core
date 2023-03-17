@@ -1,29 +1,41 @@
 #!/usr/bin/env bash
 
-rm -rf modules
-mkdir -p modules
-mkdir -p modules/Core
-mkdir -p modules/Injective
+#rm -rf ./docs/develop/modules/Core
+rm -rf ./docs/develop/modules/Injective
+#mkdir ./docs/develop/modules/Core
+mkdir ./docs/develop/modules/Injective
 
+
+# Get Injective modules specs 
 
 for D in ../injective-chain/modules/*; do
   if [ -d "${D}" ]; then
     #rm -rf "modules/Injective/$(echo $D | awk -F/ '{print $NF}')"
-    mkdir -p "modules/Injective/$(echo $D | awk -F/ '{print $NF}')" && cp -r $D/spec/* "$_"
+    mkdir -p "docs/develop/modules/Injective/$(echo $D | awk -F/ '{print $NF}')" && cp -r $D/spec/* "$_"
   fi
 done
 
-# cat ../modules/README.md | sed 's/\.\/x/\/modules/g' | sed 's/spec\/README.md//g'
+## Include the specs from latest Cosmos SDK
+#git clone --depth 1 https://github.com/cosmos/cosmos-sdk.git
+#
+#for D in ./cosmos-sdk/x/*; do
+#  if [ -d "${D}" ]; then
+#    #rm -rf "modules/Injective/$(echo $D | awk -F/ '{print $NF}')"
+#    mkdir -p "docs/develop/modules/Core/$(echo $D | awk -F/ '{print $NF}')" && cp -r $D/README.md "$_"
+#  fi
+#done
+#
+#rm -rf cosmos-sdk
 
-# Include the specs from Cosmos SDK
-git clone https://github.com/cosmos/cosmos-sdk.git
-mv cosmos-sdk/x/auth/spec/ ./modules/Core/auth
-mv cosmos-sdk/x/bank/spec/ ./modules/Core/bank
-mv cosmos-sdk/x/crisis/spec/ ./modules/Core/crisis
-mv cosmos-sdk/x/distribution/spec/ ./modules/Core/distribution
-mv cosmos-sdk/x/evidence/spec/ ./modules/Core/evidence
-mv cosmos-sdk/x/gov/spec/ ./modules/Core/gov
-mv cosmos-sdk/x/slashing/spec/ ./modules/Core/slashing
-mv cosmos-sdk/x/staking/spec/ ./modules/Core/staking
-mv cosmos-sdk/x/upgrade/spec/ ./modules/Core/upgrade
-rm -rf cosmos-sdk
+# Include the specs from Cosmos SDK v0.45.11
+#git clone --depth 1 --branch v0.45.11 https://github.com/cosmos/cosmos-sdk.git
+#
+#for D in ./cosmos-sdk/x/*; do
+#  if [ -d "${D}" ]; then
+#    #rm -rf "modules/Injective/$(echo $D | awk -F/ '{print $NF}')"
+#    mkdir -p "docs/develop/modules/Core/$(echo $D | awk -F/ '{print $NF}')" && cp -r $D/spec/* "$_"
+#    perl -i -pe 's/simd/injectived/g' docs/develop/modules/Core/$(echo $D | awk -F/ '{print $NF}')/*
+#  fi
+#done
+
+#rm -rf cosmos-sdk

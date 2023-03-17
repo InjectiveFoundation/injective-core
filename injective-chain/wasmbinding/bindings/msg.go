@@ -3,6 +3,9 @@ package bindings
 import (
 	"encoding/json"
 
+	oracletypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/types"
+	wasmxtypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/types"
+
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	exchangetypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
@@ -58,7 +61,9 @@ type InsuranceMsg struct{}
 
 type OcrMsg struct{}
 
-type OracleMsg struct{}
+type OracleMsg struct {
+	RelayPythPrices *oracletypes.MsgRelayPythPrices `json:"relay_pyth_prices,omitempty"`
+}
 
 type PeggyMsg struct{}
 
@@ -75,6 +80,17 @@ type TokenFactoryMsg struct {
 	/// that they are the admin of.
 	/// Currently, the burn from address must be the admin contract.
 	BurnTokens *tokenfactorytypes.MsgBurn `json:"burn,omitempty"`
+	/// Sets metadata for TF denom
+	SetTokenMetadata *TokenMetadata `json:"set_token_metadata,omitempty"`
+}
+
+type WasmxMsg struct {
+	// update contract params (like gas price or gas limit)
+	UpdateContractMsg *wasmxtypes.MsgUpdateContract `json:"update_contract,omitempty"`
+	// Deactivate (pause) contract - won't be executed in begin blocker any longer
+	DeactiveContractMsg *wasmxtypes.MsgDeactivateContract `json:"deactivate_contract,omitempty"`
+	// Reactivate paused contract - will be again executed
+	ActivateContractMsg *wasmxtypes.MsgActivateContract `json:"activate_contract,omitempty"`
 }
 
 type MintTokens struct {
@@ -82,4 +98,9 @@ type MintTokens struct {
 	MintTo string   `json:"mint_to"`
 }
 
-type WasmxMsg struct{}
+type TokenMetadata struct {
+	Denom    string `json:"denom"`
+	Name     string `json:"name"`
+	Symbol   string `json:"symbol"`
+	Decimals uint32 `json:"decimals"`
+}

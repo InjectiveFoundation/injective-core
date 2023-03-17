@@ -86,6 +86,44 @@ type DerivativeMatchingExpansionData struct {
 	NewRestingLimitSellOrders      []*types.DerivativeLimitOrder // transient sell orders that become new resting limit orders
 }
 
+func NewDerivativeMatchingExpansionData(clearingPrice, clearingQuantity sdk.Dec) *DerivativeMatchingExpansionData {
+	return &DerivativeMatchingExpansionData{
+		TransientLimitBuyExpansions:    make([]*DerivativeOrderStateExpansion, 0),
+		TransientLimitSellExpansions:   make([]*DerivativeOrderStateExpansion, 0),
+		RestingLimitBuyExpansions:      make([]*DerivativeOrderStateExpansion, 0),
+		RestingLimitSellExpansions:     make([]*DerivativeOrderStateExpansion, 0),
+		RestingLimitBuyOrderCancels:    make([]*types.DerivativeLimitOrder, 0),
+		RestingLimitSellOrderCancels:   make([]*types.DerivativeLimitOrder, 0),
+		TransientLimitBuyOrderCancels:  make([]*types.DerivativeLimitOrder, 0),
+		TransientLimitSellOrderCancels: make([]*types.DerivativeLimitOrder, 0),
+		ClearingPrice:                  clearingPrice,
+		ClearingQuantity:               clearingQuantity,
+		NewRestingLimitBuyOrders:       make([]*types.DerivativeLimitOrder, 0),
+		NewRestingLimitSellOrders:      make([]*types.DerivativeLimitOrder, 0),
+	}
+}
+
+func (e *DerivativeMatchingExpansionData) AddExpansion(isBuy, isTransient bool, expansion *DerivativeOrderStateExpansion) {
+	switch {
+	case isBuy && isTransient:
+		e.TransientLimitBuyExpansions = append(e.TransientLimitBuyExpansions, expansion)
+	case isBuy && !isTransient:
+		e.RestingLimitBuyExpansions = append(e.RestingLimitBuyExpansions, expansion)
+	case !isBuy && isTransient:
+		e.TransientLimitSellExpansions = append(e.TransientLimitSellExpansions, expansion)
+	case !isBuy && !isTransient:
+		e.RestingLimitSellExpansions = append(e.RestingLimitSellExpansions, expansion)
+	}
+}
+
+func (e *DerivativeMatchingExpansionData) AddNewRestingLimitOrder(isBuy bool, order *types.DerivativeLimitOrder) {
+	if isBuy {
+		e.NewRestingLimitBuyOrders = append(e.NewRestingLimitBuyOrders, order)
+	} else {
+		e.NewRestingLimitSellOrders = append(e.NewRestingLimitSellOrders, order)
+	}
+}
+
 type DerivativeMarketOrderExpansionData struct {
 	MarketBuyExpansions          []*DerivativeOrderStateExpansion
 	MarketSellExpansions         []*DerivativeOrderStateExpansion

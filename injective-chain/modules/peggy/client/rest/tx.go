@@ -28,6 +28,8 @@ type valsetConfirmReq struct {
 // check the ethereum sig on a particular valset and broadcast a transaction containing
 // it if correct. The nonce / block height is used to determine what valset to look up
 // locally and verify
+//
+//nolint:all
 func createValsetConfirmHandler(cliCtx client.Context, storeKey string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req valsetConfirmReq

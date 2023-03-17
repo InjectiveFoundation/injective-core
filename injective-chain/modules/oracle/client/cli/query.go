@@ -3,9 +3,12 @@ package cli
 import (
 	"context"
 
+	"github.com/gogo/protobuf/proto"
+
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/spf13/cobra"
 
+	"github.com/InjectiveLabs/injective-core/cli"
 	cliflags "github.com/InjectiveLabs/injective-core/cli/flags"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/types"
 )
@@ -25,88 +28,43 @@ func GetQueryCmd() *cobra.Command {
 		GetPriceFeedsCmd(),
 		GetProvidersInfo(),
 		GetProvidersPrices(),
+		GetPythPriceFeed(),
 	)
 	return cmd
 }
 
 // GetParamsCmd queries oracle params
 func GetParamsCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "params",
-		Short: "Gets oracle params",
-		Long:  "Gets oracle params. If the height is not provided, it will use the latest height from context.",
-		Args:  cobra.MaximumNArgs(0),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			clientCtx, err := client.GetClientQueryContext(cmd)
-			if err != nil {
-				return err
-			}
-			queryClient := types.NewQueryClient(clientCtx)
-
-			req := &types.QueryParamsRequest{}
-			res, err := queryClient.Params(context.Background(), req)
-			if err != nil {
-				return err
-			}
-			return clientCtx.PrintProto(res)
-		},
-	}
-
-	cliflags.AddQueryFlagsToCmd(cmd)
-	return cmd
+	return cli.QueryCmd(
+		"params",
+		"Gets oracle params",
+		types.NewQueryClient,
+		&types.QueryParamsRequest{}, cli.FlagsMapping{}, cli.ArgsMapping{},
+	)
 }
 
 // GetPriceFeedsCmd queries oracle price feeds
 func GetPriceFeedsCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "price-feeds",
-		Short: "Gets oracle price feeds",
-		Long:  "Gets oracle price feeds. If the height is not provided, it will use the latest height from context.",
-		Args:  cobra.MaximumNArgs(0),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			clientCtx, err := client.GetClientQueryContext(cmd)
-			if err != nil {
-				return err
-			}
-			queryClient := types.NewQueryClient(clientCtx)
+	cmd := cli.QueryCmd(
+		"price-feeds",
+		"Gets oracle price feeds",
+		types.NewQueryClient,
+		&types.QueryPriceFeedPriceStatesRequest{}, cli.FlagsMapping{}, cli.ArgsMapping{},
+	)
 
-			req := &types.QueryPriceFeedPriceStatesRequest{}
-			res, err := queryClient.PriceFeedPriceStates(context.Background(), req)
-			if err != nil {
-				return err
-			}
-			return clientCtx.PrintProto(res)
-		},
-	}
-
-	cliflags.AddQueryFlagsToCmd(cmd)
+	cmd.Long = "Gets oracle price feeds. If the height is not provided, it will use the latest height from context."
 	return cmd
 }
 
 // GetProvidersInfo queries oracle provider info
 func GetProvidersInfo() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "providers-info",
-		Short: "Gets oracle providers info",
-		Long:  "Gets oracle providers info (active relayers).",
-		Args:  cobra.MaximumNArgs(0),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			clientCtx, err := client.GetClientQueryContext(cmd)
-			if err != nil {
-				return err
-			}
-			queryClient := types.NewQueryClient(clientCtx)
-
-			req := &types.QueryOracleProvidersInfoRequest{}
-			res, err := queryClient.OracleProvidersInfo(context.Background(), req)
-			if err != nil {
-				return err
-			}
-			return clientCtx.PrintProto(res)
-		},
-	}
-
-	cliflags.AddQueryFlagsToCmd(cmd)
+	cmd := cli.QueryCmd(
+		"providers-info",
+		"Gets oracle providers info",
+		types.NewQueryClient,
+		&types.QueryOracleProvidersInfoRequest{}, cli.FlagsMapping{}, cli.ArgsMapping{},
+	)
+	cmd.Long = "Gets oracle providers info (active relayers)."
 	return cmd
 }
 
@@ -134,6 +92,40 @@ func GetProvidersPrices() *cobra.Command {
 				Provider: provider,
 			}
 			res, err := queryClient.OracleProviderPrices(context.Background(), req)
+			if err != nil {
+				return err
+			}
+			return clientCtx.PrintProto(res)
+		},
+	}
+
+	cliflags.AddQueryFlagsToCmd(cmd)
+	return cmd
+}
+
+// GetPythPriceFeed queries the state for all pyth price feeds
+func GetPythPriceFeed() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "pyth-price",
+		Short: "Gets Pyth oracle price feeds",
+		Long:  "Gets Pyth oracle price feeds. Optionally can supply price-id, otherwise all prices will be returned",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clientCtx, err := client.GetClientQueryContext(cmd)
+			if err != nil {
+				return err
+			}
+			queryClient := types.NewQueryClient(clientCtx)
+
+			var res proto.Message
+			if len(args) == 1 {
+				priceId := args[0]
+				req := &types.QueryPythPriceRequest{PriceId: priceId}
+				res, err = queryClient.PythPrice(context.Background(), req)
+			} else {
+				req := &types.QueryPythPriceStatesRequest{}
+				res, err = queryClient.PythPriceStates(context.Background(), req)
+			}
 			if err != nil {
 				return err
 			}

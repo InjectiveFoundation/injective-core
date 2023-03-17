@@ -2,6 +2,9 @@ package keeper
 
 import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/ethereum/go-ethereum/common"
+
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 )
 
 type tradeFeeData struct {
@@ -26,14 +29,16 @@ func newEmptyTradeFeeData(discountedTradeFeeRate sdk.Dec) *tradeFeeData {
 
 func (k *Keeper) getTradeDataAndIncrementVolumeContribution(
 	ctx sdk.Context,
-	orderAccAddress sdk.AccAddress,
+	subaccountID common.Hash,
+	marketID common.Hash,
 	fillQuantity, executionPrice sdk.Dec,
 	tradeFeeRate, relayerFeeShareRate sdk.Dec,
 	tradeRewardMultiplier sdk.Dec,
 	feeDiscountConfig *FeeDiscountConfig,
 	isMaker bool,
 ) *tradeFeeData {
-	discountedTradeFeeRate := k.FetchAndUpdateDiscountedTradingFeeRate(ctx, tradeFeeRate, isMaker, orderAccAddress, feeDiscountConfig)
+
+	discountedTradeFeeRate := k.FetchAndUpdateDiscountedTradingFeeRate(ctx, tradeFeeRate, isMaker, types.SubaccountIDToSdkAddress(subaccountID), feeDiscountConfig)
 
 	if fillQuantity.IsZero() {
 		return newEmptyTradeFeeData(discountedTradeFeeRate)
@@ -42,7 +47,7 @@ func (k *Keeper) getTradeDataAndIncrementVolumeContribution(
 	orderFillNotional := fillQuantity.Mul(executionPrice)
 
 	totalTradeFee, traderFee, feeRecipientReward, auctionFeeReward := getOrderFillFeeInfo(orderFillNotional, discountedTradeFeeRate, relayerFeeShareRate)
-	feeDiscountConfig.incrementAccountVolumeContribution(orderAccAddress, orderFillNotional)
+	feeDiscountConfig.incrementAccountVolumeContribution(subaccountID, marketID, orderFillNotional, isMaker)
 
 	tradingRewardPoints := orderFillNotional.Mul(tradeRewardMultiplier).Abs()
 

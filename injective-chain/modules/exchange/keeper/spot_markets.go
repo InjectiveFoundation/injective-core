@@ -1,13 +1,11 @@
 package keeper
 
 import (
+	"github.com/InjectiveLabs/metrics"
 	"github.com/cosmos/cosmos-sdk/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/pkg/errors"
-
-	"github.com/InjectiveLabs/metrics"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 )
@@ -112,13 +110,10 @@ func (k *Keeper) handleSpotMakerFeeDecrease(ctx sdk.Context, _ common.Hash, buyO
 		// nolint:all
 		// FeeRefund = (PreviousMakerFeeRate - NewMakerFeeRate) * FillableQuantity * Price
 		// AvailableBalance += FeeRefund
-		feeRefund := feeRefundRate.Mul(order.Fillable).Mul(order.OrderInfo.Price)
+		feeRefund := feeRefundRate.Mul(order.Fillable).Mul(order.GetPrice())
 		subaccountID := order.SubaccountID()
 
-		k.UpdateDepositWithDelta(ctx, subaccountID, quoteDenom, &types.DepositDelta{
-			AvailableBalanceDelta: feeRefund,
-			TotalBalanceDelta:     sdk.ZeroDec(),
-		})
+		k.incrementAvailableBalanceOrBank(ctx, subaccountID, quoteDenom, feeRefund)
 	}
 }
 
@@ -128,39 +123,32 @@ func (k *Keeper) handleSpotMakerFeeIncrease(ctx sdk.Context, buyOrderbook []*typ
 		return
 	}
 
-	marketID := prevMarket.MarketID()
-
 	feeChargeRate := sdk.MinDec(newMakerFeeRate, newMakerFeeRate.Sub(prevMarket.MakerFeeRate)) // negative prevMarket.MakerFeeRate part is ignored
+	marketID := prevMarket.MarketID()
+	denom := prevMarket.QuoteDenom
+	isBuy := true
 
 	for _, order := range buyOrderbook {
 		// nolint:all
 		// ExtraFee = (NewMakerFeeRate - PreviousMakerFeeRate) * FillableQuantity * Price
 		// AvailableBalance -= ExtraFee
-		// If AvailableBalance < ExtraFee
-		// Cancel the order
+		// If AvailableBalance < ExtraFee, Cancel the order
 		extraFee := feeChargeRate.Mul(order.Fillable).Mul(order.OrderInfo.Price)
 		subaccountID := order.SubaccountID()
-		deposit := k.GetDeposit(ctx, subaccountID, prevMarket.QuoteDenom)
 
-		hasEnoughAvailableBalanceToPayExtraFee := deposit.AvailableBalance.GTE(extraFee)
+		hasSufficientFundsToPayExtraFee := k.HasSufficientFunds(ctx, subaccountID, denom, extraFee)
 
-		if hasEnoughAvailableBalanceToPayExtraFee {
-			k.UpdateDepositWithDelta(ctx, subaccountID, prevMarket.QuoteDenom, &types.DepositDelta{
-				AvailableBalanceDelta: extraFee.Neg(),
-				TotalBalanceDelta:     sdk.ZeroDec(),
-			})
-		} else {
-			marginHold, marginDenom := order.GetUnfilledMarginHoldAndMarginDenom(prevMarket, false)
-			deposit.AvailableBalance = deposit.AvailableBalance.Add(marginHold)
-			k.SetDeposit(ctx, subaccountID, marginDenom, deposit)
-			k.DeleteSpotLimitOrder(ctx, marketID, true, order)
+		if hasSufficientFundsToPayExtraFee {
+			err := k.chargeAccount(ctx, subaccountID, denom, extraFee)
 
-			// nolint:errcheck //ignored on purpose
-			ctx.EventManager().EmitTypedEvent(&types.EventCancelSpotOrder{
-				MarketId: marketID.Hex(),
-				Order:    *order,
-			})
+			// defensive programming: continue to next order if charging the extra fee succeeds
+			// otherwise cancel the order
+			if err == nil {
+				continue
+			}
 		}
+
+		k.CancelSpotLimitOrder(ctx, prevMarket, marketID, subaccountID, isBuy, order)
 	}
 }
 
@@ -170,7 +158,7 @@ func (k *Keeper) ExecuteSpotMarketParamUpdateProposal(ctx sdk.Context, p *types.
 	prevMarket := k.GetSpotMarketByID(ctx, marketID)
 	if prevMarket == nil {
 		metrics.ReportFuncCall(k.svcTags)
-		return errors.Errorf("market is not available, market_id %s", p.MarketId)
+		return sdkerrors.Wrapf(types.ErrMarketInvalid, "market is not available, market_id %s", p.MarketId)
 	}
 
 	if p.Status == types.MarketStatus_Demolished {
@@ -187,7 +175,7 @@ func (k *Keeper) ExecuteSpotMarketParamUpdateProposal(ctx sdk.Context, p *types.
 
 	k.UpdateSpotMarketParam(
 		ctx,
-		common.HexToHash(p.MarketId),
+		marketID,
 		p.MakerFeeRate,
 		p.TakerFeeRate,
 		p.RelayerFeeShareRate,
@@ -480,7 +468,7 @@ func (k *Keeper) ProcessForceClosedSpotMarkets(ctx sdk.Context) {
 		k.CancelAllRestingLimitOrdersFromSpotMarket(ctx, market, marketID)
 		k.DeleteSpotMarketForceCloseInfo(ctx, marketID)
 		if _, err := k.SetSpotMarketStatus(ctx, marketID, types.MarketStatus_Paused); err != nil {
-			k.logger.Warningln("SetSpotMarketStatus during ProcessForceClosedSpotMarkets:", err)
+			k.Logger(ctx).Error("SetSpotMarketStatus during ProcessForceClosedSpotMarkets:", err)
 		}
 	}
 }

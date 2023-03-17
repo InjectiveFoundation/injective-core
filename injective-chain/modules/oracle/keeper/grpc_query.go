@@ -2,6 +2,7 @@ package keeper
 
 import (
 	"context"
+	"github.com/ethereum/go-ethereum/common"
 	"strings"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -85,6 +86,17 @@ func (k *Keeper) CoinbasePriceStates(c context.Context, _ *types.QueryCoinbasePr
 	return res, nil
 }
 
+func (k *Keeper) PythPriceStates(c context.Context, _ *types.QueryPythPriceStatesRequest) (*types.QueryPythPriceStatesResponse, error) {
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+
+	ctx := sdk.UnwrapSDKContext(c)
+	res := &types.QueryPythPriceStatesResponse{
+		PriceStates: k.GetAllPythPriceStates(ctx),
+	}
+
+	return res, nil
+}
+
 func (k *Keeper) HistoricalPriceRecords(c context.Context, req *types.QueryHistoricalPriceRecordsRequest) (*types.QueryHistoricalPriceRecordsResponse, error) {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
@@ -121,22 +133,7 @@ func (k *Keeper) OracleModuleState(c context.Context, req *types.QueryModuleStat
 	ctx := sdk.UnwrapSDKContext(c)
 
 	res := &types.QueryModuleStateResponse{
-		State: &types.GenesisState{
-			Params:                 k.GetParams(ctx),
-			BandRelayers:           k.GetAllBandRelayers(ctx),
-			BandPriceStates:        k.GetAllBandPriceStates(ctx),
-			PriceFeedPriceStates:   k.GetAllPriceFeedStates(ctx),
-			CoinbasePriceStates:    k.GetAllCoinbasePriceStates(ctx),
-			BandIbcPriceStates:     k.GetAllBandIBCPriceStates(ctx),
-			BandIbcOracleRequests:  k.GetAllBandIBCOracleRequests(ctx),
-			BandIbcParams:          k.GetBandIBCParams(ctx),
-			BandIbcLatestClientId:  k.GetBandIBCLatestClientID(ctx),
-			CalldataRecords:        k.GetAllBandCalldataRecords(ctx),
-			BandIbcLatestRequestId: k.GetBandIBCLatestRequestID(ctx),
-			ChainlinkPriceStates:   k.GetAllChainlinkPriceStates(ctx),
-			HistoricalPriceRecords: k.GetAllHistoricalPriceRecords(ctx),
-			ProviderStates:         k.GetAllProviderStates(ctx),
-		},
+		State: k.ExportGenesis(ctx),
 	}
 
 	return res, nil
@@ -204,14 +201,12 @@ func (k *Keeper) ProviderPriceState(c context.Context, req *types.QueryProviderP
 func (k *Keeper) OracleProviderPrices(c context.Context, req *types.QueryOracleProviderPricesRequest) (*types.QueryOracleProviderPricesResponse, error) {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
-	ctx := sdk.UnwrapSDKContext(c)
-
-	provider := req.Provider
-
-	if provider == "" {
-		return nil, nil
+	var provider string
+	if req != nil {
+		provider = req.Provider
 	}
 
+	ctx := sdk.UnwrapSDKContext(c)
 	allStates := k.GetAllProviderStates(ctx)
 	filtered := make([]*types.ProviderState, 0, len(allStates))
 
@@ -228,8 +223,8 @@ func (k *Keeper) OracleProviderPrices(c context.Context, req *types.QueryOracleP
 	return &response, nil
 }
 
-// GetOraclePrice fetches the oracle price for a given oracle type, base and quote symbol
-func (k *Keeper) GetOraclePrice(c context.Context, req *types.QueryOraclePriceRequest) (*types.QueryOraclePriceResponse, error) {
+// OraclePrice fetches the oracle price for a given oracle type, base and quote symbol
+func (k *Keeper) OraclePrice(c context.Context, req *types.QueryOraclePriceRequest) (*types.QueryOraclePriceResponse, error) {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(c)
@@ -245,4 +240,17 @@ func (k *Keeper) GetOraclePrice(c context.Context, req *types.QueryOraclePriceRe
 	}
 
 	return &response, nil
+}
+
+func (k *Keeper) PythPrice(c context.Context, req *types.QueryPythPriceRequest) (*types.QueryPythPriceResponse, error) {
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+
+	ctx := sdk.UnwrapSDKContext(c)
+
+	priceState := k.GetPythPriceState(ctx, common.HexToHash(req.PriceId))
+	if priceState == nil {
+		return nil, nil
+	}
+
+	return &types.QueryPythPriceResponse{PriceState: priceState}, nil
 }

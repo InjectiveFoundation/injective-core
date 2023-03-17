@@ -35,7 +35,6 @@ func (k Keeper) createDenomAfterValidation(ctx sdk.Context, creatorAddr, denom s
 		}},
 		Base: denom,
 	}
-
 	k.bankKeeper.SetDenomMetaData(ctx, denomMetaData)
 
 	authorityMetadata := types.DenomAuthorityMetadata{

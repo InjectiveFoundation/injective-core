@@ -11,10 +11,11 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	db "github.com/tendermint/tm-db"
 
+	"github.com/InjectiveLabs/metrics"
+
 	exchangetypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/insurance/types"
 	oracletypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/types"
-	"github.com/InjectiveLabs/metrics"
 )
 
 func (k *Keeper) unmarshalRedemptionSchedule(bz []byte) *types.RedemptionSchedule {
@@ -258,7 +259,13 @@ func (k *Keeper) CreateInsuranceFund(
 ) error {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
-	marketID := exchangetypes.NewDerivativesMarketID(ticker, quoteDenom, oracleBase, oracleQuote, oracleType, expiry)
+	var marketID common.Hash
+	isBinaryOptions := expiry == types.BinaryOptionsExpiryFlag
+	if isBinaryOptions {
+		marketID = exchangetypes.NewBinaryOptionsMarketID(ticker, quoteDenom, oracleBase, oracleQuote, oracleType)
+	} else {
+		marketID = exchangetypes.NewDerivativesMarketID(ticker, quoteDenom, oracleBase, oracleQuote, oracleType, expiry)
+	}
 
 	// check if insurance already exist and return error if exist
 	fund := k.GetInsuranceFund(ctx, marketID)
@@ -271,8 +278,11 @@ func (k *Keeper) CreateInsuranceFund(
 	shareBaseDenom := types.ShareDenomFromId(k.getNextShareDenomId(ctx))
 
 	// use default RedemptionNoticePeriodDuration from params
-	params := k.GetParams(ctx)
-	fund = types.NewInsuranceFund(marketID, deposit.Denom, shareBaseDenom, params.DefaultRedemptionNoticePeriodDuration, ticker, oracleBase, oracleQuote, oracleType, expiry)
+	redemptionNoticePeriodDuration := k.GetParams(ctx).DefaultRedemptionNoticePeriodDuration
+	if isBinaryOptions {
+		redemptionNoticePeriodDuration = types.DefaultBinaryOptionsInsurancePeriod
+	}
+	fund = types.NewInsuranceFund(marketID, deposit.Denom, shareBaseDenom, redemptionNoticePeriodDuration, ticker, oracleBase, oracleQuote, oracleType, expiry)
 
 	// initial deposit shouldn't be zero always as we mint tokens for the first user that deposits
 	if deposit.Amount.Equal(sdk.ZeroInt()) {

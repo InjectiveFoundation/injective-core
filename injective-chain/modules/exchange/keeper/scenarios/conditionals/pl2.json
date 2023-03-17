@@ -57,12 +57,14 @@
       ]
     },
     {
-      "actionType": "endblocker"
+      "actionType": "endblocker",
+      "actionId" : "before-liq"
     },
     {
       "actionType": "liquidatePosition",
       "marketType" : "derivative",
-      "accountIndex": 0
+      "accountIndex": 0,
+      "liquidatorAccountIndex" : 1
     },
     {
       "actionType": "endblocker"

@@ -3,9 +3,10 @@ package keeper
 import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
+	"github.com/InjectiveLabs/metrics"
+
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 	chaintypes "github.com/InjectiveLabs/injective-core/injective-chain/types"
-	"github.com/InjectiveLabs/metrics"
 )
 
 func (k *Keeper) distributeTradingRewardsForAccount(
@@ -88,8 +89,8 @@ func (k *Keeper) getAvailableRewardsToPayout(
 
 		if err := k.DistributionKeeper.DistributeFromFeePool(ctx, coinsToDistributeFromPool, types.TempRewardsSenderAddress); err != nil {
 			metrics.ReportFuncError(k.svcTags)
-			k.logger.WithError(err).Error(
-				"DistributeFromFeePool failed", "totalCoins: ", coinsToDistributeFromPool.String(), "receiver: ", types.TempRewardsSenderAddress.String(),
+			k.Logger(ctx).Error(
+				"DistributeFromFeePool failed", "totalCoins: ", coinsToDistributeFromPool.String(), "receiver: ", types.TempRewardsSenderAddress.String(), "err", err.Error(),
 			)
 
 			continue
@@ -112,7 +113,6 @@ func (k *Keeper) ProcessTradingRewards(
 	rewardPool := k.GetFirstCampaignRewardPool(ctx)
 
 	shouldEndCurrentCampaign := currentCampaignEndTimestamp != 0 && blockTime >= currentCampaignEndTimestamp
-	campaignInfo := k.GetCampaignInfo(ctx)
 
 	if shouldEndCurrentCampaign {
 		doesCurrentCampaignExist := rewardPool != nil
@@ -120,7 +120,7 @@ func (k *Keeper) ProcessTradingRewards(
 		if !doesCurrentCampaignExist {
 			// should never happen
 			metrics.ReportFuncError(k.svcTags)
-			k.logger.WithError(types.ErrTradingRewardCampaignDistributionError).Error("Ending the current reward token campaign failed")
+			k.Logger(ctx).Error("Ending the current reward token campaign failed")
 			return
 		}
 
@@ -149,7 +149,9 @@ func (k *Keeper) ProcessTradingRewards(
 
 	// Fetch the first campaign start timestamp again since it may have been updated due to the past campaign ending just now
 	rewardPool = k.GetFirstCampaignRewardPool(ctx)
-	shouldStartNextCampaign := rewardPool != nil && rewardPool.StartTimestamp != 0 && blockTime >= rewardPool.StartTimestamp
+
+	campaignInfo := k.GetCampaignInfo(ctx)
+	shouldStartNextCampaign := rewardPool != nil && campaignInfo != nil && rewardPool.StartTimestamp != 0 && blockTime >= rewardPool.StartTimestamp
 
 	if shouldStartNextCampaign {
 		newCampaignEndTimestamp := rewardPool.StartTimestamp + campaignInfo.CampaignDurationSeconds
@@ -178,6 +180,6 @@ func (k *Keeper) DistributeTradingRewards(
 	err := k.bankKeeper.SendCoins(ctx, types.TempRewardsSenderAddress, rewardReceiver, rewards)
 	if err != nil {
 		metrics.ReportFuncError(k.svcTags)
-		k.logger.WithError(err).Error("reward token transfer failed", "rewardReceiver: ", rewardReceiver.String(), "rewards: ", rewards.String())
+		k.Logger(ctx).Error("reward token transfer failed", "rewardReceiver", rewardReceiver.String(), "rewards", rewards.String(), "err", err.Error())
 	}
 }

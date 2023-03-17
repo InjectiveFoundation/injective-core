@@ -5,6 +5,17 @@ title: State
 
 # State
 
+## Params
+The oracle module parameters. 
+```protobuf
+message Params {
+  option (gogoproto.equal) = true;
+
+  string pyth_contract = 1;
+}
+```
+
+
 ## PriceState
 
 PriceState is common type to manage cumulative price and latest price along with timestamp for all oracle types.
@@ -201,3 +212,37 @@ message PriceFeedState {
 - PriceFeedRelayer: `0x13 + Keccak256Hash(base + quote) + relayerAddr -> relayerAddr`
 
 ## Provider 
+Provider price feeds are represented and stored as follows:
+
+- ProviderInfo: `0x61 + provider + @@@ -> ProviderInfo`
+```protobuf
+message ProviderInfo {
+  string provider = 1;
+  repeated string relayers = 2;
+}
+```
+
+- ProviderIndex: `0x62 + relayerAddress -> provider`
+
+- ProviderPrices: `0x63 + provider + @@@ + symbol -> ProviderPriceState`
+```protobuf
+message ProviderPriceState {
+  string symbol = 1;
+  PriceState state = 2;
+}
+```
+
+## Pyth
+
+Pyth prices are represented and stored as follows:
+- PythPriceState: `0x71 + priceID -> PythPriceState`
+```protobuf
+message PythPriceState {
+  bytes price_id = 1;
+  string ema_price = 2 [(gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Dec", (gogoproto.nullable) = false];
+  string ema_conf = 3 [(gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Dec", (gogoproto.nullable) = false];
+  string conf = 4 [(gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Dec", (gogoproto.nullable) = false];
+  uint64 publish_time = 5;
+  PriceState price_state = 6 [(gogoproto.nullable) = false];
+}
+```

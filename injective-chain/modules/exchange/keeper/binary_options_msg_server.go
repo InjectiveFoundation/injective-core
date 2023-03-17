@@ -31,14 +31,13 @@ func (k BinaryOptionsMsgServer) InstantBinaryOptionsMarketLaunch(goCtx context.C
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
-	logger := k.logger.WithFields(log.WithFn())
 
 	senderAddr, _ := sdk.AccAddressFromBech32(msg.Sender)
 	fee := k.GetParams(ctx).BinaryOptionsMarketInstantListingFee
 	err := k.DistributionKeeper.FundCommunityPool(ctx, sdk.Coins{fee}, senderAddr)
 	if err != nil {
 		metrics.ReportFuncError(k.svcTags)
-		logger.Error("failed launching binary options market", err)
+		k.Logger(ctx).Error("failed launching binary options market", err)
 		return nil, err
 	}
 
@@ -68,7 +67,7 @@ func (k BinaryOptionsMsgServer) InstantBinaryOptionsMarketLaunch(goCtx context.C
 	)
 	if err != nil {
 		metrics.ReportFuncError(k.svcTags)
-		logger.Error("failed launching binary options market", err)
+		k.Logger(ctx).Error("failed launching binary options market", err)
 		return nil, err
 	}
 
@@ -79,13 +78,12 @@ func (k BinaryOptionsMsgServer) CreateBinaryOptionsLimitOrder(goCtx context.Cont
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
-	logger := k.logger.WithFields(log.WithFn())
 
 	account, _ := sdk.AccAddressFromBech32(msg.Sender)
 
 	market := k.GetBinaryOptionsMarket(ctx, msg.Order.MarketID(), true)
 	if market == nil {
-		logger.Error("active binary options market doesn't exist", "marketId", msg.Order.MarketId)
+		k.Logger(ctx).Error("active binary options market doesn't exist", "marketId", msg.Order.MarketId)
 		metrics.ReportFuncError(k.svcTags)
 		return nil, sdkerrors.Wrapf(types.ErrBinaryOptionsMarketNotFound, "marketID %s", msg.Order.MarketId)
 	}
@@ -112,12 +110,12 @@ func (k BinaryOptionsMsgServer) CreateBinaryOptionsMarketOrder(goCtx context.Con
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
-	logger := k.logger.WithFields(log.WithFn())
+
 	account, _ := sdk.AccAddressFromBech32(msg.Sender)
 
 	market := k.GetBinaryOptionsMarket(ctx, msg.Order.MarketID(), true)
 	if market == nil {
-		logger.Error("active binary options market doesn't exist", "marketId", msg.Order.MarketId)
+		k.Logger(ctx).Error("active binary options market doesn't exist", "marketId", msg.Order.MarketId)
 		metrics.ReportFuncError(k.svcTags)
 		return nil, sdkerrors.Wrapf(types.ErrBinaryOptionsMarketNotFound, "marketID %s", msg.Order.MarketId)
 	}
@@ -150,7 +148,8 @@ func (k BinaryOptionsMsgServer) CancelBinaryOptionsOrder(goCtx context.Context, 
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
 	var (
-		subaccountID = common.HexToHash(msg.SubaccountId)
+		sender       = sdk.MustAccAddressFromBech32(msg.Sender)
+		subaccountID = types.MustGetSubaccountIDOrDeriveFromNonce(sender, msg.SubaccountId)
 		marketID     = common.HexToHash(msg.MarketId)
 		orderHash    = common.HexToHash(msg.OrderHash)
 	)
@@ -166,19 +165,18 @@ func (k BinaryOptionsMsgServer) AdminUpdateBinaryOptionsMarket(goCtx context.Con
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
-	logger := k.logger.WithFields(log.WithFn())
 
 	marketID := common.HexToHash(msg.MarketId)
 
 	market := k.GetBinaryOptionsMarketByID(ctx, marketID)
 	if market == nil {
-		logger.Error("binary options market doesn't exist", "marketID", msg.MarketId)
+		k.Logger(ctx).Error("binary options market doesn't exist", "marketID", msg.MarketId)
 		metrics.ReportFuncError(k.svcTags)
 		return nil, sdkerrors.Wrapf(types.ErrBinaryOptionsMarketNotFound, "marketID %s", msg.MarketId)
 	}
 
 	if market.Admin != msg.Sender {
-		logger.Error("message sender is not an admin of binary options market", "sender", msg.Sender, "admin", market.Admin)
+		k.Logger(ctx).Error("message sender is not an admin of binary options market", "sender", msg.Sender, "admin", market.Admin)
 		metrics.ReportFuncError(k.svcTags)
 		return nil, sdkerrors.Wrapf(types.ErrSenderIsNotAnAdmin, "sender %s, admin %s", msg.Sender, market.Admin)
 	}

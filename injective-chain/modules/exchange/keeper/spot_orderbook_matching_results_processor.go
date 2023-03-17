@@ -34,7 +34,7 @@ func (k *Keeper) processBothRestingSpotLimitOrderbookMatchingResults(
 
 	if o.RestingBuyOrderbookFills != nil {
 		orderbookFills := o.GetOrderbookFills(ordermatching.RestingLimitBuy)
-		spotLimitBuyOrderStateExpansions = k.processRestingSpotLimitOrderExpansions(ctx, orderbookFills, true, clearingPrice, tradeFeeRate, relayerFeeShareRate, pointsMultiplier, feeDiscountConfig)
+		spotLimitBuyOrderStateExpansions = k.processRestingSpotLimitOrderExpansions(ctx, marketID, orderbookFills, true, clearingPrice, tradeFeeRate, relayerFeeShareRate, pointsMultiplier, feeDiscountConfig)
 		// Process limit order events and filledDeltas
 		limitBuyRestingOrderBatchEvent, currFilledDeltas, buyTradingRewards = GetBatchExecutionEventsFromSpotLimitOrderStateExpansions(
 			true,
@@ -48,7 +48,7 @@ func (k *Keeper) processBothRestingSpotLimitOrderbookMatchingResults(
 
 	if o.RestingSellOrderbookFills != nil {
 		orderbookFills := o.GetOrderbookFills(ordermatching.RestingLimitSell)
-		spotLimitSellOrderStateExpansions = k.processRestingSpotLimitOrderExpansions(ctx, orderbookFills, false, clearingPrice, tradeFeeRate, relayerFeeShareRate, pointsMultiplier, feeDiscountConfig)
+		spotLimitSellOrderStateExpansions = k.processRestingSpotLimitOrderExpansions(ctx, marketID, orderbookFills, false, clearingPrice, tradeFeeRate, relayerFeeShareRate, pointsMultiplier, feeDiscountConfig)
 		// Process limit order events and filledDeltas
 		limitSellRestingOrderBatchEvent, currFilledDeltas, sellTradingRewards = GetBatchExecutionEventsFromSpotLimitOrderStateExpansions(
 			false,
@@ -88,7 +88,7 @@ func (k *Keeper) processBothTransientSpotLimitOrderbookMatchingResults(
 	var sellTradingRewards types.TradingRewardPoints
 
 	if o.TransientBuyOrderbookFills != nil {
-		expansions, newRestingBuySpotLimitOrders = k.processTransientSpotLimitBuyOrderbookMatchingResults(ctx, o, clearingPrice, makerFeeRate, takerFeeRate, relayerFeeShareRate, pointsMultiplier, feeDiscountConfig)
+		expansions, newRestingBuySpotLimitOrders = k.processTransientSpotLimitBuyOrderbookMatchingResults(ctx, marketID, o, clearingPrice, makerFeeRate, takerFeeRate, relayerFeeShareRate, pointsMultiplier, feeDiscountConfig)
 		limitBuyNewOrderBatchEvent, _, buyTradingRewards = GetBatchExecutionEventsFromSpotLimitOrderStateExpansions(
 			true,
 			marketID,
@@ -99,7 +99,7 @@ func (k *Keeper) processBothTransientSpotLimitOrderbookMatchingResults(
 	}
 
 	if o.TransientSellOrderbookFills != nil {
-		expansions, newRestingSellSpotLimitOrders = k.processTransientSpotLimitSellOrderbookMatchingResults(ctx, o, clearingPrice, takerFeeRate, relayerFeeShareRate, pointsMultiplier, feeDiscountConfig)
+		expansions, newRestingSellSpotLimitOrders = k.processTransientSpotLimitSellOrderbookMatchingResults(ctx, marketID, o, clearingPrice, takerFeeRate, relayerFeeShareRate, pointsMultiplier, feeDiscountConfig)
 		limitSellNewOrderBatchEvent, _, sellTradingRewards = GetBatchExecutionEventsFromSpotLimitOrderStateExpansions(
 			false,
 			marketID,
@@ -115,6 +115,7 @@ func (k *Keeper) processBothTransientSpotLimitOrderbookMatchingResults(
 // TODO: refactor to merge processTransientSpotLimitBuyOrderbookMatchingResults and processTransientSpotLimitSellOrderbookMatchingResults
 func (k *Keeper) processTransientSpotLimitBuyOrderbookMatchingResults(
 	ctx sdk.Context,
+	marketID common.Hash,
 	o *ordermatching.SpotOrderbookMatchingResults,
 	clearingPrice sdk.Dec,
 	makerFeeRate, takerFeeRate, relayerFeeShare sdk.Dec,
@@ -132,6 +133,7 @@ func (k *Keeper) processTransientSpotLimitBuyOrderbookMatchingResults(
 		}
 		stateExpansions[idx] = k.getTransientSpotLimitBuyStateExpansion(
 			ctx,
+			marketID,
 			order,
 			common.BytesToHash(order.OrderHash),
 			clearingPrice, fillQuantity,
@@ -151,6 +153,7 @@ func (k *Keeper) processTransientSpotLimitBuyOrderbookMatchingResults(
 // Note: clearingPrice should be set to sdk.Dec{} for normal fills
 func (k *Keeper) processTransientSpotLimitSellOrderbookMatchingResults(
 	ctx sdk.Context,
+	marketID common.Hash,
 	o *ordermatching.SpotOrderbookMatchingResults,
 	clearingPrice sdk.Dec,
 	takerFeeRate, relayerFeeShare sdk.Dec,
@@ -169,6 +172,7 @@ func (k *Keeper) processTransientSpotLimitSellOrderbookMatchingResults(
 		}
 		stateExpansions[idx] = k.getSpotLimitSellStateExpansion(
 			ctx,
+			marketID,
 			order,
 			false,
 			fillQuantity,

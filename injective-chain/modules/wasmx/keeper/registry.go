@@ -2,133 +2,113 @@ package keeper
 
 import (
 	"encoding/json"
-
-	sdk "github.com/cosmos/cosmos-sdk/types"
-	"github.com/cosmos/cosmos-sdk/types/errors"
-
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/types"
+	chaintypes "github.com/InjectiveLabs/injective-core/injective-chain/types"
+	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
 func (k *Keeper) RegisterContract(
 	ctx sdk.Context,
-	registryContract sdk.AccAddress,
 	req types.ContractRegistrationRequest,
 ) (err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			switch rType := r.(type) {
-			case sdk.ErrorOutOfGas:
-				err = errors.Wrapf(errors.ErrOutOfGas, "out of gas in location: %v", rType.Descriptor)
-				k.logger.Errorln("Error out of gas", err)
-			default:
-				err = errors.Wrapf(errors.ErrIO, "Unknown error with contract execution: %v", rType)
-				k.logger.Errorln("Unknown Error", err)
-			}
-		}
-	}()
-
-	registerMsg := types.NewRegistryRegisterMsg(&req)
-	execMsg, err := json.Marshal(registerMsg)
+	contract := types.RegisteredContract{
+		GasLimit:     req.GasLimit,
+		GasPrice:     req.GasPrice,
+		IsExecutable: true,
+		AdminAddress: req.AdminAddress,
+	}
+	contractAddr, err := sdk.AccAddressFromBech32(req.ContractAddress)
 	if err != nil {
-		k.logger.Errorln("Register marshal failed", err)
+		k.Logger(ctx).Error("Register contract address not correct", err)
 		return err
 	}
 
-	_, err = k.wasmContractOpsKeeper.Sudo(ctx, registryContract, execMsg)
-	if err != nil {
-		// Wasmer runtime error
-		k.logger.Errorln("❌ Error while executing the register call on registry contract", err)
-		return err
+	if !req.IsMigrationAllowed {
+		contractInfo := k.wasmViewKeeper.GetContractInfo(ctx, contractAddr)
+		contract.CodeId = contractInfo.CodeID
 	}
 
-	k.logger.Debugln("✅ Registered the contract successfully", req.ContractAddress)
+	k.SetContract(ctx, contractAddr, contract)
+
+	k.Logger(ctx).Debug("✅ Registered the contract successfully", req.ContractAddress)
 	return nil
 }
 
 func (k *Keeper) DeregisterContract(
 	ctx sdk.Context,
-	registryContract sdk.AccAddress,
-	contract sdk.AccAddress,
+	contractAddress sdk.AccAddress,
 ) (err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			switch rType := r.(type) {
-			case sdk.ErrorOutOfGas:
-				err = errors.Wrapf(errors.ErrOutOfGas, "out of gas in location: %v", rType.Descriptor)
-				k.logger.Errorln("Error out of gas", err)
-			default:
-				err = errors.Wrapf(errors.ErrIO, "Unknown error with contract execution: %v", rType)
-				k.logger.Errorln("Unknown Error", err)
-			}
+	k.Logger(ctx).Debug("Deregistering contract", contractAddress.String())
+	registeredContract := k.GetContractByAddress(ctx, contractAddress)
+	if registeredContract == nil {
+		k.Logger(ctx).Debug("Contract not registered", contractAddress.String())
+		return nil
+	}
+
+	if err := k.UnpinContract(ctx, contractAddress); err != nil {
+		return err
+	}
+	k.DeleteContract(ctx, contractAddress)
+	k.Logger(ctx).Debug("✅ Deregistered the contract successfully", contractAddress.String())
+
+	contractBalance := k.bankKeeper.GetBalance(ctx, contractAddress, chaintypes.InjectiveCoin)
+	maxAvailableGas := contractBalance.Amount.QuoRaw(int64(registeredContract.GasPrice)).Uint64()
+
+	params := k.GetParams(ctx)
+	deregisterHookGas := params.MaxContractGasLimit
+	if maxAvailableGas < deregisterHookGas {
+		deregisterHookGas = maxAvailableGas
+	}
+
+	_, err = k.executeMetered(ctx, contractAddress, registeredContract, deregisterHookGas*8/10, deregisterHookGas, func(subCtx sdk.Context) ([]byte, error) {
+		deregisterCallbackMsg := types.NewRegistryDeregisterCallbackMsg()
+		deregisterCallbackExecMsg, err := json.Marshal(deregisterCallbackMsg)
+		if err != nil {
+			k.Logger(ctx).Error("DeregisterCallback marshal failed", err)
+			return nil, err
 		}
-	}()
 
-	deregisterMsg := types.NewRegistryDeregisterMsg(contract)
-	deregisterExecMsg, err := json.Marshal(deregisterMsg)
-
-	if err != nil {
-		k.logger.Errorln("Deregister marshal failed", err)
-		return err
-	}
-
-	_, err = k.wasmContractOpsKeeper.Sudo(ctx, registryContract, deregisterExecMsg)
-	if err != nil {
-		// Wasmer runtime error
-		k.logger.Errorln("❌ Error while executing the deregister call on registry contract", err)
-		return err
-	}
-
-	k.logger.Debugln("✅ Deregistered the contract successfully", contract.String())
-
-	if err := k.ExecuteDeregisterCallback(ctx, contract); err != nil {
-		return err
-	}
-
-	return nil
+		if _, ignoredErr := k.wasmContractOpsKeeper.Sudo(subCtx, contractAddress, deregisterCallbackExecMsg); ignoredErr != nil {
+			// Wasmer runtime error, e.g. because contract has no deactivate hook defined
+			k.Logger(ctx).Debug("Executing the DeregisterCallback call on contract to deregister failed", err)
+		} else {
+			k.Logger(ctx).Debug("DeregisterCallback of the contract executed successfully", contractAddress.String())
+		}
+		return nil, nil
+	})
+	return err
 }
 
-func (k *Keeper) ExecuteDeregisterCallback(
-	ctx sdk.Context,
-	contract sdk.AccAddress,
-) (err error) {
-	deregisterCallbackMsg := types.NewRegistryDeregisterCallbackMsg()
-	deregisterCallbackExecMsg, err := json.Marshal(deregisterCallbackMsg)
+// DeactivateContract sets the contract status to inactive on registry contract and calls the deactivate callback
+func (k *Keeper) DeactivateContract(ctx sdk.Context, contractAddress sdk.AccAddress, registeredContract *types.RegisteredContract) (err error) {
+	k.Logger(ctx).Debug("Deactivating contract", contractAddress.String())
 
-	if err != nil {
-		k.logger.Errorln("DeregisterCallback marshal failed", err)
-		return err
+	registeredContract.IsExecutable = false
+	k.SetContract(ctx, contractAddress, *registeredContract)
+	contractBalance := k.bankKeeper.GetBalance(ctx, contractAddress, chaintypes.InjectiveCoin)
+	maxAvailableGas := contractBalance.Amount.QuoRaw(int64(registeredContract.GasPrice)).Uint64()
+	params := k.GetParams(ctx)
+	deactivateHookGas := params.MaxContractGasLimit
+	if maxAvailableGas < deactivateHookGas {
+		deactivateHookGas = maxAvailableGas
 	}
 
-	_, ignoredErr := k.wasmContractOpsKeeper.Sudo(ctx, contract, deregisterCallbackExecMsg)
-	if ignoredErr != nil {
-		// Wasmer runtime error, e.g. because contract has no deregister hook defined
-		k.logger.Debugln("Executing the DeregisterCallback call on contract to deregister failed", err)
-	} else {
-		k.logger.Debugln("DeregisterCallback of the contract executed successfully", contract.String())
-	}
+	_, err = k.executeMetered(ctx, contractAddress, registeredContract, deactivateHookGas*8/10, deactivateHookGas, func(subCtx sdk.Context) ([]byte, error) {
+		deactivateCallbackMsg := types.NewRegistryDeactivateCallbackMsg()
+		deactivateCallbackExecMsg, mErr := json.Marshal(deactivateCallbackMsg)
+		if mErr != nil {
+			k.Logger(ctx).Error("DeactivateCallback marshal failed", mErr)
+			return nil, mErr
+		}
 
-	return nil
-}
+		if _, ignoredErr := k.wasmContractOpsKeeper.Sudo(subCtx, contractAddress, deactivateCallbackExecMsg); ignoredErr != nil {
+			// Wasmer runtime error, e.g. because contract has no deactivate hook defined
+			k.Logger(ctx).Debug("Executing the DeactivateCallback call on contract to deregister failed", ignoredErr)
+		} else {
+			k.Logger(ctx).Debug("DeactivateCallback of the contract executed successfully", contractAddress.String())
+		}
 
-func (k *Keeper) ExecuteDeactivateCallback(
-	ctx sdk.Context,
-	contract sdk.AccAddress,
-) (err error) {
-	deactivateCallbackMsg := types.NewRegistryDeactivateCallbackMsg()
-	deactivateCallbackExecMsg, err := json.Marshal(deactivateCallbackMsg)
-
-	if err != nil {
-		k.logger.Errorln("DeactivateCallback marshal failed", err)
-		return err
-	}
-
-	_, ignoredErr := k.wasmContractOpsKeeper.Sudo(ctx, contract, deactivateCallbackExecMsg)
-	if ignoredErr != nil {
-		// Wasmer runtime error, e.g. because contract has no deactivate hook defined
-		k.logger.Debugln("Executing the DeactivateCallback call on contract to deregister failed", err)
-	} else {
-		k.logger.Debugln("DeactivateCallback of the contract executed successfully", contract.String())
-	}
-
-	return nil
+		return nil, nil
+	})
+	return err
 }

@@ -9,6 +9,7 @@ ignore:
   - "**/*.pb.go"
   - "**/*.gw.go"
   - "**/*_test.go"
+  - "**/testexchange/**"
 
 fixes:
   - "/injective-core::"

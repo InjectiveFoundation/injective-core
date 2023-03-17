@@ -8,10 +8,13 @@ import (
 	"path/filepath"
 
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog"
 	"github.com/spf13/cast"
 	"github.com/spf13/cobra"
+	tmcfg "github.com/tendermint/tendermint/config"
 
 	tmcmd "github.com/tendermint/tendermint/cmd/tendermint/commands"
+	tmdebug "github.com/tendermint/tendermint/cmd/tendermint/commands/debug"
 	tmcli "github.com/tendermint/tendermint/libs/cli"
 	"github.com/tendermint/tendermint/libs/log"
 	dbm "github.com/tendermint/tm-db"
@@ -108,9 +111,10 @@ func Execute(rootCmd *cobra.Command) error {
 	ctx = context.WithValue(ctx, client.ClientContextKey, &client.Context{})
 	ctx = context.WithValue(ctx, sdkserver.ServerContextKey, sdkserver.NewDefaultContext())
 
-	executor := tmcli.PrepareBaseCmd(rootCmd, "", app.DefaultNodeHome)
-	rootCmd.PersistentFlags().String("log-level", "info", "Sets the level of the logger (error, warn, info, debug | or <module>:<level>)")
+	rootCmd.PersistentFlags().String("log-level", zerolog.InfoLevel.String(), "The logging level (trace|debug|info|warn|error|fatal|panic)")
+	rootCmd.PersistentFlags().String("log-format", tmcfg.LogFormatPlain, "The logging format (json|plain)")
 
+	executor := tmcli.PrepareBaseCmd(rootCmd, "", app.DefaultNodeHome)
 	return executor.ExecuteContext(ctx)
 }
 
@@ -143,6 +147,7 @@ func initRootCmd(rootCmd *cobra.Command, encodingConfig params.EncodingConfig) {
 		sdkserver.VersionCmd(),
 		tmcmd.ResetAllCmd,
 		tmcmd.ResetStateCmd,
+		tmdebug.DebugCmd,
 	)
 
 	a := appCreator{encodingConfig}
@@ -273,6 +278,8 @@ func (a appCreator) newApp(logger log.Logger, db dbm.DB, traceStore io.Writer, a
 		baseapp.SetSnapshotInterval(cast.ToUint64(appOpts.Get(sdkserver.FlagStateSyncSnapshotInterval))),
 		baseapp.SetSnapshotKeepRecent(cast.ToUint32(appOpts.Get(sdkserver.FlagStateSyncSnapshotKeepRecent))),
 		baseapp.SetCommitSync(cast.ToBool(appOpts.Get(FlagMultiStoreCommitSync))),
+		baseapp.SetIAVLCacheSize(cast.ToInt(appOpts.Get(FlagIAVLCacheSize))),
+		baseapp.SetIAVLDisableFastNode(cast.ToBool(appOpts.Get(sdkserver.FlagDisableIAVLFastNode))),
 	)
 }
 

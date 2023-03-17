@@ -55,7 +55,7 @@ func (k *Keeper) ensureValidDerivativeOrder(
 	// check that market exists and has mark price (except for non-conditional binary options)
 	isMissingRequiredMarkPrice := (!marketType.IsBinaryOptions() || derivativeOrder.IsConditional()) && markPrice.IsNil()
 	if market == nil || isMissingRequiredMarkPrice {
-		k.logger.Debugln("active market with valid mark price doesn't exist", "marketId", derivativeOrder.MarketId, "mark price", markPrice)
+		k.Logger(ctx).Debug("active market with valid mark price doesn't exist", "marketId", derivativeOrder.MarketId, "mark price", markPrice)
 		return orderHash, sdkerrors.Wrapf(types.ErrDerivativeMarketNotFound, "active derivative market for marketID %s not found", derivativeOrder.MarketId)
 	}
 
@@ -90,7 +90,6 @@ func (k *Keeper) ensureValidDerivativeOrder(
 	}
 
 	position := k.GetPosition(ctx, marketID, subaccountID)
-	deposit := k.GetDeposit(ctx, subaccountID, market.GetQuoteDenom())
 
 	var tradeFeeRate sdk.Dec
 	if isMaker {
@@ -160,19 +159,15 @@ func (k *Keeper) ensureValidDerivativeOrder(
 			return orderHash, err
 		}
 
-		if deposit.AvailableBalance.LT(marginHold) {
-			metrics.ReportFuncError(k.svcTags)
-			return orderHash, sdkerrors.Wrapf(types.ErrInsufficientDeposit, "Insufficient Deposits for subaccountID %s asset %s. Margin Hold increment %s exceeds Available Balance %s ", subaccountID, market.GetQuoteDenom(), marginHold.String(), deposit.AvailableBalance.String())
+		// Decrement the available balance by the funds amount needed to fund the order
+		if err := k.chargeAccount(ctx, subaccountID, market.GetQuoteDenom(), marginHold); err != nil {
+			return orderHash, err
 		}
 
-		// Decrement the available balance by the funds amount needed to fund the order
-		deposit.AvailableBalance = deposit.AvailableBalance.Sub(marginHold)
 		// set back order margin hold
 		if orderMarginHold != nil {
 			*orderMarginHold = marginHold
 		}
-		// update deposit
-		k.SetDeposit(ctx, subaccountID, market.GetQuoteDenom(), deposit)
 	}
 
 	if !derivativeOrder.IsConditional() {

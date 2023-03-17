@@ -6,48 +6,84 @@ title: Events
 
 The oracle module emits the following events:
 ## Band
-### Msg/RelayBandRates
-| Type              | Attribute Key | Attribute Value |
-| ----------------- | ------------- | --------------- |
-| SetBandPriceEvent | module        | oracle          |
-| SetBandPriceEvent | relayer       | {relayer}       |
-| SetBandPriceEvent | symbol        | {symbol}        |
-| SetBandPriceEvent | price         | {price}         |
-| SetBandPriceEvent | resolve_time  | {resolve_time}  |
-| SetBandPriceEvent | request_id    | {request_id}    |
+```protobuf
+message SetBandPriceEvent {
+  string relayer = 1;
+  string symbol = 2;
+  string price = 3 [(gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Dec", (gogoproto.nullable) = false];
+  uint64 resolve_time = 4;
+  uint64 request_id = 5;
+}
 
-## Msg/MsgRequestBandIBCRates
+message SetBandIBCPriceEvent {
+  string relayer = 1;
+  repeated string symbols = 2;
+  repeated string prices = 3 [(gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Dec", (gogoproto.nullable) = false];
+  uint64 resolve_time = 4;
+  uint64 request_id = 5;
+  int64 client_id = 6;
+}
 
-| Type        | Attribute Key            | Attribute Value      |
-| ----------- | ------------------------ | -------------------- |
-| send_packet | packet_data              | {data}               |
-| send_packet | packet_timeout_height    | {timeoutHeight}      |
-| send_packet | packet_timeout_timestamp | {timeoutTimestamp}   |
-| send_packet | packet_sequence          | {sequence}           |
-| send_packet | packet_src_port          | {sourcePort}         |
-| send_packet | packet_src_channel       | {sourceChannel}      |
-| send_packet | packet_dst_port          | {destinationPort}    |
-| send_packet | packet_dst_channel       | {destinationChannel} |
-| send_packet | packet_channel_ordering  | {channel.Ordering}   |
-| message     | action                   | requestBandIBCRates  |
-| message     | module                   | oracle               |
+message EventBandIBCAckSuccess {
+  string ack_result = 1;
+  int64 client_id = 2;
+}
+
+message EventBandIBCAckError {
+  string ack_error = 1;
+  int64 client_id = 2;
+}
+
+message EventBandIBCResponseTimeout {
+  int64 client_id = 1;
+}
+```
+
+## Chainlink 
+```protobuf
+message SetChainlinkPriceEvent {
+  string feed_id = 1;
+  string answer = 2 [(gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Dec", (gogoproto.nullable) = false];
+  uint64 timestamp = 3;
+}
+```
 
 ## Coinbase
 
-### Msg/RelayCoinbaseMessages
-| Type                  | Attribute Key | Attribute Value |
-| --------------------- | ------------- | --------------- |
-| SetCoinbasePriceEvent | module        | oracle          |
-| SetCoinbasePriceEvent | symbol        | {symbol}        |
-| SetCoinbasePriceEvent | price         | {price}         |
-| SetCoinbasePriceEvent | timestamp     | {timestamp}     |
+```protobuf
+message SetCoinbasePriceEvent {
+  string symbol = 1;
+  string price = 2 [(gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Dec", (gogoproto.nullable) = false];
+  uint64 timestamp = 3;
+}
+```
 
+## Provider
+```protobuf
+message SetProviderPriceEvent {
+  string provider = 1;
+  string relayer = 2;
+  string symbol = 3;
+  string price = 4 [(gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Dec", (gogoproto.nullable) = false];
+}
+```
 
-## PriceFeed
-### Msg/RelayPriceFeedPrice
-| Type                   | Attribute Key | Attribute Value |
-| ---------------------- | ------------- | --------------- |
-| SetPriceFeedPriceEvent | module        | oracle          |
-| SetPriceFeedPriceEvent | relayer       | {relayer}       |
-| SetPriceFeedPriceEvent | base          | {base}          |
-| SetPriceFeedPriceEvent | quote         | {quote}         |
+## Pricefeed
+```protobuf
+message SetPriceFeedPriceEvent {
+  string relayer = 1;
+
+  string base = 2;
+  string quote = 3;
+
+  // price defines the price of the oracle base and quote
+  string price = 4 [(gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Dec", (gogoproto.nullable) = false];
+}
+```
+
+## Pyth
+```protobuf
+message EventSetPythPrices {
+  repeated PythPriceState prices = 1;
+}
+```

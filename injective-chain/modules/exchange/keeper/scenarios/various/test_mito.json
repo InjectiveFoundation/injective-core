@@ -1,0 +1,18 @@
+{
+  "numAccounts": 2,
+  "numDerivativeMarkets": 1,
+  "seed": 1658339268842048001,
+  "config": {
+    "initMarketMaking": true
+  },
+  "actions": [
+    {
+      "actionType": "endblocker",
+      "actionId": "block-1"
+    },
+    {
+      "actionType": "endblocker",
+      "actionId": "block-2"
+    }
+  ]
+}

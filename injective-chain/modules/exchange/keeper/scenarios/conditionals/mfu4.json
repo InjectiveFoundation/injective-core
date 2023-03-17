@@ -1,5 +1,5 @@
 {
-  "numAccounts": 1,
+  "numAccounts": 2,
   "numDerivativeMarkets": 1,
   "seed": 1658339268842048000,
   "actions": [
@@ -35,6 +35,12 @@
       "actionType": "withdrawal",
       "denom": "USDT0",
       "toLeave": 0
+    },
+    {
+      "actionType": "send",
+      "denom": "USDT0",
+      "toLeave": 0,
+      "recipientIndex": 1
     },
     {
       "actionType": "endblocker",

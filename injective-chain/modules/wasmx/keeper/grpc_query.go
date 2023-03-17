@@ -31,9 +31,7 @@ func (k *Keeper) WasmxModuleState(c context.Context, _ *types.QueryModuleStateRe
 	ctx := sdk.UnwrapSDKContext(c)
 
 	res := &types.QueryModuleStateResponse{
-		State: &types.GenesisState{
-			Params: k.GetParams(ctx),
-		},
+		State: k.ExportGenesis(ctx),
 	}
 	return res, nil
 }

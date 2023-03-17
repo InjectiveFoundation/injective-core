@@ -30,6 +30,18 @@ func (k *Keeper) PersistFeeDiscountStakingInfoUpdates(
 	for _, accountContribution := range accountContributions {
 		k.UpdateFeeDiscountAccountVolumeInBucket(ctx, accountContribution.Account, bucketStartTimestamp, accountContribution.Amount)
 	}
+
+	subaccountVolumeContributions, marketVolumeContributions := stakingInfo.getSortedSubaccountAndMarketVolumes()
+
+	for idx := range subaccountVolumeContributions {
+		contribution := subaccountVolumeContributions[idx]
+		k.IncrementSubaccountMarketAggregateVolume(ctx, contribution.SubaccountID, contribution.MarketID, contribution.Volume)
+	}
+
+	for idx := range marketVolumeContributions {
+		contribution := marketVolumeContributions[idx]
+		k.IncrementMarketAggregateVolume(ctx, contribution.MarketID, contribution.Volume)
+	}
 }
 
 func (k *Keeper) FetchAndUpdateDiscountedTradingFeeRate(
@@ -68,22 +80,20 @@ func (k *Keeper) getFeeDiscountConfigAndStakingInfoForMarket(ctx sdk.Context, ma
 	var stakingInfo *FeeDiscountStakingInfo
 
 	schedule := k.GetFeeDiscountSchedule(ctx)
-	if schedule != nil {
-		currBucketStartTimestamp := k.GetFeeDiscountCurrentBucketStartTimestamp(ctx)
-		oldestBucketStartTimestamp := k.GetOldestBucketStartTimestamp(ctx)
-		isFirstFeeCycleFinished := k.GetIsFirstFeeCycleFinished(ctx)
-		maxTTLTimestamp := currBucketStartTimestamp
-		nextTTLTimestamp := maxTTLTimestamp + k.GetFeeDiscountBucketDuration(ctx)
+	currBucketStartTimestamp := k.GetFeeDiscountCurrentBucketStartTimestamp(ctx)
+	oldestBucketStartTimestamp := k.GetOldestBucketStartTimestamp(ctx)
+	isFirstFeeCycleFinished := k.GetIsFirstFeeCycleFinished(ctx)
+	maxTTLTimestamp := currBucketStartTimestamp
+	nextTTLTimestamp := maxTTLTimestamp + k.GetFeeDiscountBucketDuration(ctx)
 
-		stakingInfo = NewFeeDiscountStakingInfo(
-			schedule,
-			currBucketStartTimestamp,
-			oldestBucketStartTimestamp,
-			maxTTLTimestamp,
-			nextTTLTimestamp,
-			isFirstFeeCycleFinished,
-		)
-	}
+	stakingInfo = NewFeeDiscountStakingInfo(
+		schedule,
+		currBucketStartTimestamp,
+		oldestBucketStartTimestamp,
+		maxTTLTimestamp,
+		nextTTLTimestamp,
+		isFirstFeeCycleFinished,
+	)
 
 	feeDiscountConfig := k.getFeeDiscountConfigForMarket(ctx, marketID, stakingInfo)
 	return stakingInfo, feeDiscountConfig
@@ -105,10 +115,6 @@ func (k *Keeper) InitialFetchAndUpdateActiveAccountFeeDiscountStakingInfo(ctx sd
 
 	accounts := k.GetAllAccountsActivelyTradingQualifiedMarketsInBlockForFeeDiscounts(ctx)
 	schedule := k.GetFeeDiscountSchedule(ctx)
-
-	if len(accounts) == 0 || schedule == nil {
-		return nil
-	}
 
 	currBucketStartTimestamp := k.GetFeeDiscountCurrentBucketStartTimestamp(ctx)
 	oldestBucketStartTimestamp := k.GetOldestBucketStartTimestamp(ctx)

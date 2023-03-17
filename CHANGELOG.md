@@ -1,13 +1,17 @@
 <a name="unreleased"></a>
+
 ## [Unreleased]
 
-
 <a name="v"></a>
+
 ## [v] - 0001-01-01
 
 <a name="v1.7"></a>
+
 ## [v1.7] - 2022-08-27
+
 ### Chore
+
 - bump mainnet release workflow version
 - remove random docs
 - add release-staging workflow
@@ -19,7 +23,7 @@
 - use info instead of error level for common error logs ([#876](https://github.com/InjectiveLabs/injective-core/issues/876))
 - update upgrade tests
 - remove unused ica arg for upgrade handler
-- update to latest Ninja contracts ([#844](https://github.com/InjectiveLabs/injective-core/issues/844))
+- update to latest Mito contracts ([#844](https://github.com/InjectiveLabs/injective-core/issues/844))
 - add node version name ([#846](https://github.com/InjectiveLabs/injective-core/issues/846))
 - upgrade third party packages to latest versions ([#833](https://github.com/InjectiveLabs/injective-core/issues/833))
 - exclude huge upgrade test dir from docker build
@@ -29,6 +33,7 @@
 - add version LDFLAGS ([#799](https://github.com/InjectiveLabs/injective-core/issues/799))
 
 ### Feat
+
 - rename RegisterAsDMM to RewardsOptOut
 - refactor of RO logic ([#886](https://github.com/InjectiveLabs/injective-core/issues/886))
 - implement up to cancel amount query ([#864](https://github.com/InjectiveLabs/injective-core/issues/864))
@@ -40,6 +45,7 @@
 - Fixtures invariant checks
 
 ### Fix
+
 - add missing event emit
 - try emitting cacheCtx's event manager events
 - emit events in cache context
@@ -58,18 +64,23 @@
 - chain stresser fixes ([#823](https://github.com/InjectiveLabs/injective-core/issues/823))
 
 ### Refactor
+
 - remove unnecessary separate event manager
 
 ### Test
+
 - fuzz tests additions + improvements ([#789](https://github.com/InjectiveLabs/injective-core/issues/789))
 
 ### Update
+
 - golang version
 
-
 <a name="v1.6"></a>
+
 ## [v1.6] - 2022-07-01
+
 ### Added
+
 - main file to run tests
 - more cases for common exchange authz
 - erious case for common authz, spots
@@ -87,6 +98,7 @@
 - casess BatchUpdateOrdersAuthz
 
 ### Chore
+
 - add version LDFLAGS ([#799](https://github.com/InjectiveLabs/injective-core/issues/799)) ([#821](https://github.com/InjectiveLabs/injective-core/issues/821)) ([#822](https://github.com/InjectiveLabs/injective-core/issues/822))
 - fix deactivate capitalization ([#815](https://github.com/InjectiveLabs/injective-core/issues/815))
 - add force settlement subcommand to command handler
@@ -99,7 +111,7 @@
 - add copy proto file script to sdk-go script
 - minor refactor to use GetDerivativeOrBinaryOptionsMarketWithMarkPrice
 - return err
-- + [@injectivelabs](https://github.com/injectivelabs)/chain-api[@1](https://github.com/1).8.0-rc2
+- - [@injectivelabs](https://github.com/injectivelabs)/chain-api[@1](https://github.com/1).8.0-rc2
 - add provider type to exchange
 - bump wasmd v0.27.0-inj, wasmvm v1.0.0
 - rename wasm vault script
@@ -116,14 +128,17 @@
 - import exchange types only once in test
 
 ### Docs
+
 - add CHANGELOG file ([#800](https://github.com/InjectiveLabs/injective-core/issues/800))
 - fixes
 - update dev to latest ([#677](https://github.com/InjectiveLabs/injective-core/issues/677))
 
 ### Feat
+
 - Add MsgRegisterAsDMM ([#662](https://github.com/InjectiveLabs/injective-core/issues/662))
 
 ### Feat
+
 - add license for open sourcing ([#814](https://github.com/InjectiveLabs/injective-core/issues/814))
 - add binary options launch/update and denom update in BatchExchangeModificationProposal
 - add denom decimals ([#781](https://github.com/InjectiveLabs/injective-core/issues/781))
@@ -143,7 +158,7 @@
 - add inj-to-subaccount CLI method
 - change midprice to midprice and tob query ([#736](https://github.com/InjectiveLabs/injective-core/issues/736))
 - Added CLI methods for oracle providers ([#734](https://github.com/InjectiveLabs/injective-core/issues/734))
-- Add new Ninja grpc query to show all contracts ([#731](https://github.com/InjectiveLabs/injective-core/issues/731))
+- Add new Mito grpc query to show all contracts ([#731](https://github.com/InjectiveLabs/injective-core/issues/731))
 - Oracle Provider - unit tests, fixed some bugs ([#721](https://github.com/InjectiveLabs/injective-core/issues/721))
 - improve spot matching algorithm ([#713](https://github.com/InjectiveLabs/injective-core/issues/713))
 - add oracle wasm query capability (only volatility)
@@ -152,14 +167,16 @@
 - add wasm spot orders query
 - add mid price queries ([#703](https://github.com/InjectiveLabs/injective-core/issues/703))
 - new synthetic derivative trade flow ([#683](https://github.com/InjectiveLabs/injective-core/issues/683))
-- Update maker pools with NINJA master functionality ([#680](https://github.com/InjectiveLabs/injective-core/issues/680))
+- Update maker pools with MITO master functionality ([#680](https://github.com/InjectiveLabs/injective-core/issues/680))
 - Cosmwasm integration ([#607](https://github.com/InjectiveLabs/injective-core/issues/607))
 - add rollback capabilities
 
 ### Feature
+
 - Use new FBA limit clearing price ([#646](https://github.com/InjectiveLabs/injective-core/issues/646))
 
 ### Fix
+
 - release GH workflow
 - add nil check in matching
 - add ICA controller and host storekey + migration code ([#805](https://github.com/InjectiveLabs/injective-core/issues/805))
@@ -197,15 +214,19 @@
 - use InjectiveLabs/cosmos-sdk v0.45.0-inj-2 ([#636](https://github.com/InjectiveLabs/injective-core/issues/636))
 
 ### Test
+
 - add binary options fixture invariance check
 
 ### Tmp
+
 - re-enable kovan ([#804](https://github.com/InjectiveLabs/injective-core/issues/804))
 
-
 <a name="v1.1.3-test"></a>
+
 ## [v1.1.3-test] - 2022-02-16
+
 ### Chore
+
 - write key as hex id and put higher to avoid future potential collisions
 - dont import same package twice
 - cleanup raw json string manipulation
@@ -213,7 +234,7 @@
 - refactor wasm mm code
 - nuke old code
 - renames
-- migrate wasm stuff from exchange to  wasmx module
+- migrate wasm stuff from exchange to wasmx module
 - register codec + separate WasmMsgServer
 - add cosmwasm proto files and swagger
 - bump CosmWasm/wasmd v0.23.0 + regen
@@ -255,6 +276,7 @@
 - bump ibc-go
 
 ### Feat
+
 - finish wasm querier integration with batch update response
 - call mm contract from begin blocker
 - add subscribe and redeem mm pool functions and testing script
@@ -283,11 +305,13 @@
 - emit EventAuctionStart
 
 ### Feat
+
 - Add fee discount tier stats GRPC query ([#626](https://github.com/InjectiveLabs/injective-core/issues/626))
 - Implement vested trading rewards ([#610](https://github.com/InjectiveLabs/injective-core/issues/610))
 - Add new grpc balance queries ([#601](https://github.com/InjectiveLabs/injective-core/issues/601))
 
 ### Fix
+
 - fix the proof of concept market making integration
 - add wasm module to begin, end block order
 - correctly iterate over pending pools in grpc query ([#620](https://github.com/InjectiveLabs/injective-core/issues/620))
@@ -319,11 +343,13 @@
 - add additional validators for batch Msgs
 
 ### Fix
+
 - Add fix for fee discount proposal bug ([#615](https://github.com/InjectiveLabs/injective-core/issues/615))
 - Add some minor edge case liquidation fixes ([#614](https://github.com/InjectiveLabs/injective-core/issues/614))
 - Add fixes for GRPC balance mismatch queries ([#609](https://github.com/InjectiveLabs/injective-core/issues/609))
 
 ### Refactor
+
 - emit new claim event only once
 - add BatchTimeout to EventOutgoingBatch
 - always emit claim events regardless of attestation
@@ -332,6 +358,7 @@
 - rename amt to amount
 
 ### Test
+
 - finish batch update tests ([#600](https://github.com/InjectiveLabs/injective-core/issues/600))
 - add transient order tests for batch update tests
 - add batch order cancellation tests
@@ -353,34 +380,43 @@
 - add fee discount test with caching and TTL expiry edge case
 
 ### Wip
+
 - add MsgBatchUpdateOrders skeleton
 
-
 <a name="v1.1.2"></a>
+
 ## [v1.1.2] - 2021-11-12
+
 ### Chore
+
 - don't introduce potentially consensus breaking change
 - rename test function
 - DRY up derivative order fee calculations
 - minor style nit
 
 ### Feat
+
 - add new SubaccountPositions grpc query
 
 ### Fix
+
 - use correct clearing price for edge case with far off-priced limit orders
 - refund correct amount for negative maker fee derivative markets upon order cancellations ([#544](https://github.com/InjectiveLabs/injective-core/issues/544))
 
 ### Test
+
 - add fixture test for out of range clearing price
 
-
 <a name="v1.1.1"></a>
+
 ## [v1.1.1] - 2021-11-08
+
 ### Build
+
 - yarn
 
 ### Chore
+
 - add OCR tests to CI
 - remove accidentally added comment
 - update github workflow go version
@@ -389,15 +425,17 @@
 - fix oracle tests
 - bump cosmos-sdk
 - fix comments, closes https://github.com/InjectiveLabs/injective-core/issues/496
-- Add minor reduce only cancellation and fuzz test refactors  ([#489](https://github.com/InjectiveLabs/injective-core/issues/489))
+- Add minor reduce only cancellation and fuzz test refactors ([#489](https://github.com/InjectiveLabs/injective-core/issues/489))
 - add liquitity mining reward distribution tests
 - bump ibc-go
 - remove old genesis dir
 
 ### Docs
+
 - fix typo
 
 ### Feat
+
 - allow for changing oracle params in deriv markets, nuke Derivat… ([#520](https://github.com/InjectiveLabs/injective-core/issues/520))
 - BatchExchangeModificationProposal ([#519](https://github.com/InjectiveLabs/injective-core/issues/519))
 - add events for fee discounts and trading rewards
@@ -407,21 +445,24 @@
 - return useful order info upon sending exchange Msg ([#468](https://github.com/InjectiveLabs/injective-core/issues/468))
 
 ### Feature
+
 - Only check past fees paid when first period has passed ([#513](https://github.com/InjectiveLabs/injective-core/issues/513))
 - Add liquidity mining scheduling system ([#500](https://github.com/InjectiveLabs/injective-core/issues/500))
 - Send market launch fees to Community Spend Pool ([#486](https://github.com/InjectiveLabs/injective-core/issues/486))
 - implement derivative transient order cancels ([#483](https://github.com/InjectiveLabs/injective-core/issues/483))
 
 ### Fix
+
 - Set past trading fees for fee discounts correctly ([#527](https://github.com/InjectiveLabs/injective-core/issues/527))
 
 ### Fix
+
 - allow derivative market launches with negative maker fee ([#539](https://github.com/InjectiveLabs/injective-core/issues/539))
 - count negative maker fees with negative multiplier in spot ([#534](https://github.com/InjectiveLabs/injective-core/issues/534))
 - add IsFirstCycle to genesis and refactor to TrueByte in keeper
 - add missing set for market fee discount qualification upon launch
 - set flag once first fee cycle is finished instead of using bucket timestamps
-- cap insurance fund underwriting to 1T *  1e18 for overflow protection ([#532](https://github.com/InjectiveLabs/injective-core/issues/532))
+- cap insurance fund underwriting to 1T \* 1e18 for overflow protection ([#532](https://github.com/InjectiveLabs/injective-core/issues/532))
 - show correct tier when first bucket period is not over
 - FeeDiscountAccountInfo query
 - FeeDiscountAccountInfo query
@@ -429,8 +470,8 @@
 - use copy of value in closure
 - add nil check in ExecuteDerivativeMarketOrderMatching
 - all scripts should use externally available bins via $PATH, including protoc-gen-ts
-- + [@injectivelabs](https://github.com/injectivelabs)/chain-api[@1](https://github.com/1).4.16
-- + [@injectivelabs](https://github.com/injectivelabs)/chain-api[@1](https://github.com/1).4.15
+- - [@injectivelabs](https://github.com/injectivelabs)/chain-api[@1](https://github.com/1).4.16
+- - [@injectivelabs](https://github.com/injectivelabs)/chain-api[@1](https://github.com/1).4.15
 - gen script + [@injectivelabs](https://github.com/injectivelabs)/chain-api[@1](https://github.com/1).4.14
 - replaced new logo
 - exchange CLI fix
@@ -441,72 +482,90 @@
 - missing legacy amino codec hooks
 
 ### OCR
+
 - fix onchain config ([#535](https://github.com/InjectiveLabs/injective-core/issues/535))
 
 ### Refactor
+
 - use sdk.AccAddress ([#524](https://github.com/InjectiveLabs/injective-core/issues/524))
 - added favicon
 
 ### Test
+
 - make market param updates valid for fuzz tests ([#543](https://github.com/InjectiveLabs/injective-core/issues/543))
 - adapt fee discount tests to new fee cycle mechanism
 - fix test for multiple funding epochs
 
-
 <a name="v1.1.0"></a>
+
 ## [v1.1.0] - 2021-11-06
 
 <a name="v1.0.7"></a>
+
 ## [v1.0.7] - 2021-08-30
 
 <a name="v1.0.6"></a>
+
 ## [v1.0.6] - 2021-08-27
 
 <a name="v1.0.5"></a>
+
 ## [v1.0.5] - 2021-07-30
 
 <a name="v1.0.4"></a>
+
 ## [v1.0.4] - 2021-07-30
 
 <a name="v1.0.3"></a>
+
 ## [v1.0.3] - 2021-07-30
+
 ### Chore
+
 - update the CanaryV2Block height
 - cleanup dead peggy key code
 - test entire module instead of just keeper ([#422](https://github.com/InjectiveLabs/injective-core/issues/422))
 
 ### Fix
+
 - use notional in funding payment calculation ([#433](https://github.com/InjectiveLabs/injective-core/issues/433))
 - log level, closes https://github.com/InjectiveLabs/injective-core/issues/419 ([#425](https://github.com/InjectiveLabs/injective-core/issues/425))
 - re-enable fuzz tests
 - use correct Bech32 fee recipient while supporting legacy canary chain misimplementation ([#420](https://github.com/InjectiveLabs/injective-core/issues/420))
 
-
 <a name="v1.0.2"></a>
+
 ## [v1.0.2] - 2021-07-13
 
 <a name="v1.0.1"></a>
+
 ## [v1.0.1] - 2021-06-29
 
 <a name="v1.0.0"></a>
+
 ## [v1.0.0] - 2021-06-27
 
 <a name="v1.0"></a>
+
 ## v1.0 - 2021-06-27
+
 ### Ante
+
 - update nonce check
 
 ### Evm
+
 - implement Homestead / EIP155 fallback for externally singed txs
 
 ### Keys
+
 - fix privkey derivation
 
 ### Peggy
+
 - MsgSubmitBadSignatureEvidence - no signer [#366](https://github.com/InjectiveLabs/injective-core/issues/366)
 
-
-[Unreleased]: https://github.com/InjectiveLabs/injective-core/compare/v...HEAD
+[unreleased]: https://github.com/InjectiveLabs/injective-core/compare/v...HEAD
 [v]: https://github.com/InjectiveLabs/injective-core/compare/v1.7...v
 [v1.7]: https://github.com/InjectiveLabs/injective-core/compare/v1.6...v1.7
 [v1.6]: https://github.com/InjectiveLabs/injective-core/compare/v1.1.3-test...v1.6

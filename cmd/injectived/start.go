@@ -63,6 +63,7 @@ const (
 	FlagIndexEvents          = "index-events"
 	FlagMinRetainBlocks      = "min-retain-blocks"
 	FlagMultiStoreCommitSync = "multistore-commit-sync"
+	FlagIAVLCacheSize        = "iavl-cache-size"
 )
 
 // GRPC-related flags.
@@ -170,6 +171,10 @@ which accepts a path for the resulting pprof file.
 	// add store commit sync flag
 	cmd.Flags().Bool(FlagMultiStoreCommitSync, false, "Define if commit multistore should use sync mode (false|true)")
 
+	// add iavl flag
+	cmd.Flags().Int(FlagIAVLCacheSize, 500000, "Configure IAVL cache size for app")
+
+	cmd.Flags().Bool(server.FlagDisableIAVLFastNode, true, "Define if fast node IAVL should be disabled (default true)")
 	return cmd
 }
 
@@ -333,7 +338,7 @@ func startInProcess(ctx *server.Context, clientCtx client.Context, appCreator ty
 			defer cancelFn()
 
 			if err := grpcWebSrv.Shutdown(shutdownCtx); err != nil {
-				log.WithError(err).Warningln("GRPC Web server shutdown produced a warning")
+				log.WithError(err).Error("GRPC Web server shutdown produced a warning")
 			} else {
 				log.Infoln("GRPC Web server shut down, waiting 5 sec")
 				select {

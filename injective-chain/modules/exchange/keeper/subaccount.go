@@ -537,10 +537,10 @@ func (k *Keeper) IsMetadataInvariantValid(ctx sdk.Context) bool {
 		fmt.Println("1️⃣ SubaccountMetadata", m1)
 		fmt.Println("2️⃣ Metadata from LimitOrders", m2)
 
-		k.logger.Println("❌ SubaccountOrderbook metadata doesnt equal metadata derived from limit orders")
-		k.logger.Println("📢 DIFF: ", diff)
-		k.logger.Println("1️⃣ SubaccountMetadata", m1)
-		k.logger.Println("2️⃣ Metadata from LimitOrders", m2)
+		k.Logger(ctx).Error("❌ SubaccountOrderbook metadata doesnt equal metadata derived from limit orders")
+		k.Logger(ctx).Error("📢 DIFF: ", diff)
+		k.Logger(ctx).Error("1️⃣ SubaccountMetadata", m1)
+		k.Logger(ctx).Error("2️⃣ Metadata from LimitOrders", m2)
 		isValid = false
 	}
 	if diff := deep.Equal(m2, m3); diff != nil {
@@ -549,10 +549,10 @@ func (k *Keeper) IsMetadataInvariantValid(ctx sdk.Context) bool {
 		fmt.Println("2️⃣ Metadata from LimitOrders", m2)
 		fmt.Println("3️⃣ Metadata from SubaccountOrders", m3)
 
-		k.logger.Println("❌ Metadata derived from limit orders doesnt equal metadata derived from subaccount orders")
-		k.logger.Println("📢 DIFF: ", diff)
-		k.logger.Println("2️⃣ Metadata from LimitOrders", m2)
-		k.logger.Println("3️⃣ Metadata from SubaccountOrders", m3)
+		k.Logger(ctx).Error("❌ Metadata derived from limit orders doesnt equal metadata derived from subaccount orders")
+		k.Logger(ctx).Error("📢 DIFF: ", diff)
+		k.Logger(ctx).Error("2️⃣ Metadata from LimitOrders", m2)
+		k.Logger(ctx).Error("3️⃣ Metadata from SubaccountOrders", m3)
 		isValid = false
 	}
 	if diff := deep.Equal(m1, m3); diff != nil {
@@ -561,14 +561,16 @@ func (k *Keeper) IsMetadataInvariantValid(ctx sdk.Context) bool {
 		fmt.Println("1️⃣ SubaccountMetadata", m1)
 		fmt.Println("3️⃣ Metadata from SubaccountOrders", m3)
 
-		k.logger.Println("❌ SubaccountOrderbook metadata doesnt equal metadata derived from subaccount orders")
-		k.logger.Println("📢 DIFF: ", diff)
-		k.logger.Println("1️⃣ SubaccountMetadata", m1)
-		k.logger.Println("3️⃣ Metadata from SubaccountOrders", m3)
+		k.Logger(ctx).Error("❌ SubaccountOrderbook metadata doesnt equal metadata derived from subaccount orders")
+		k.Logger(ctx).Error("📢 DIFF: ", diff)
+		k.Logger(ctx).Error("1️⃣ SubaccountMetadata", m1)
+		k.Logger(ctx).Error("3️⃣ Metadata from SubaccountOrders", m3)
 		isValid = false
 	}
 
-	return isValid
+	isMarketAggregateVolumeValid := k.IsMarketAggregateVolumeValid(ctx)
+
+	return isValid && isMarketAggregateVolumeValid
 }
 
 // getAllSubaccountOrderbookMetadata is a helper method only used by tests to verify data integrity

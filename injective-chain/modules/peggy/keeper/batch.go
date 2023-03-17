@@ -154,6 +154,13 @@ func (k *Keeper) StoreBatchUnsafe(ctx sdk.Context, batch *types.OutgoingTxBatch)
 
 	blockKey := types.GetOutgoingTxBatchBlockKey(batch.Block)
 	store.Set(blockKey, k.cdc.MustMarshal(batch))
+
+	// make sure transactions are indexed with OutgoingTXPoolKey
+	for _, tx := range batch.Transactions {
+		if err := k.setPoolEntry(ctx, tx); err != nil {
+			panic("cannot index batch tx")
+		}
+	}
 }
 
 // DeleteBatch deletes an outgoing transaction batch

@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"runtime/debug"
 
-	"github.com/gogo/protobuf/proto"
-
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/types"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -19,24 +17,27 @@ func NewHandler(k keeper.Keeper) sdk.Handler {
 
 	msgServer := keeper.NewMsgServerImpl(k)
 
-	return func(ctx sdk.Context, msg sdk.Msg) (*sdk.Result, error) {
-		var (
-			res proto.Message
-			err error
-		)
-
+	return func(ctx sdk.Context, msg sdk.Msg) (res *sdk.Result, err error) {
 		defer Recover(&err) // nolint:all
-		ctx = ctx.WithEventManager(sdk.NewEventManager())
 
+		ctx = ctx.WithEventManager(sdk.NewEventManager())
 		switch msg := msg.(type) {
+		case *types.MsgUpdateContract:
+			res, err := msgServer.UpdateRegistryContractParams(sdk.WrapSDKContext(ctx), msg)
+			return sdk.WrapServiceResult(ctx, res, err)
+		case *types.MsgActivateContract:
+			res, err := msgServer.ActivateRegistryContract(sdk.WrapSDKContext(ctx), msg)
+			return sdk.WrapServiceResult(ctx, res, err)
+		case *types.MsgDeactivateContract:
+			res, err := msgServer.DeactivateRegistryContract(sdk.WrapSDKContext(ctx), msg)
+			return sdk.WrapServiceResult(ctx, res, err)
 		case *types.MsgExecuteContractCompat:
-			res, err = msgServer.ExecuteContractCompat(sdk.WrapSDKContext(ctx), msg)
+			res, err := msgServer.ExecuteContractCompat(sdk.WrapSDKContext(ctx), msg)
+			return sdk.WrapServiceResult(ctx, res, err)
 		default:
 			return nil, sdkerrors.Wrap(sdkerrors.ErrUnknownRequest,
 				fmt.Sprintf("Unrecognized wasmx Msg type: %T", msg))
 		}
-
-		return sdk.WrapServiceResult(ctx, res, err)
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 // NOTE: clearingPrice may be Nil
 func (k *Keeper) processSpotMarketOrderStateExpansions(
 	ctx sdk.Context,
+	marketID common.Hash,
 	isMarketBuy bool,
 	marketOrders []*types.SpotMarketOrder,
 	marketFillQuantities []sdk.Dec,
@@ -24,6 +25,7 @@ func (k *Keeper) processSpotMarketOrderStateExpansions(
 	for idx := range marketOrders {
 		stateExpansions[idx] = k.getSpotMarketOrderStateExpansion(
 			ctx,
+			marketID,
 			marketOrders[idx],
 			isMarketBuy,
 			marketFillQuantities[idx],
@@ -39,6 +41,7 @@ func (k *Keeper) processSpotMarketOrderStateExpansions(
 
 func (k *Keeper) getSpotMarketOrderStateExpansion(
 	ctx sdk.Context,
+	marketID common.Hash,
 	order *types.SpotMarketOrder,
 	isMarketBuy bool,
 	fillQuantity, clearingPrice sdk.Dec,
@@ -56,12 +59,12 @@ func (k *Keeper) getSpotMarketOrderStateExpansion(
 		orderNotional = fillQuantity.Mul(clearingPrice)
 	}
 
-	accAddress := order.SdkAccAddress()
 	isMaker := false
 
 	feeData := k.getTradeDataAndIncrementVolumeContribution(
 		ctx,
-		accAddress,
+		order.SubaccountID(),
+		marketID,
 		fillQuantity,
 		clearingPrice,
 		takerFeeRate,
@@ -115,7 +118,7 @@ func (k *Keeper) getSpotMarketOrderStateExpansion(
 		OrderHash:               common.BytesToHash(order.OrderHash),
 		OrderPrice:              order.OrderInfo.Price,
 		SubaccountID:            order.SubaccountID(),
-		TraderAddress:           accAddress.String(),
+		TraderAddress:           order.SdkAccAddress().String(),
 	}
 	return &stateExpansion
 }

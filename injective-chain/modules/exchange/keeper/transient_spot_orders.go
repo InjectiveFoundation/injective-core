@@ -173,11 +173,9 @@ func (k *Keeper) CancelTransientSpotLimitOrder(
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 	// 1. Add back the margin hold to available balance
 	marginHold, marginDenom := order.GetUnfilledMarginHoldAndMarginDenom(market, true)
-	deposit := k.GetDeposit(ctx, subaccountID, marginDenom)
 
 	// 2. Increment the available balance margin hold
-	deposit.AvailableBalance = deposit.AvailableBalance.Add(marginHold)
-	k.SetDeposit(ctx, subaccountID, marginDenom, deposit)
+	k.incrementAvailableBalanceOrBank(ctx, subaccountID, marginDenom, marginHold)
 
 	// 3. Delete the order state from ordersStore and ordersIndexStore
 	k.DeleteTransientSpotLimitOrder(ctx, marketID, order)

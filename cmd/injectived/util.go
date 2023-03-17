@@ -64,18 +64,18 @@ func InterceptConfigsPreRunHandler(cmd *cobra.Command) error {
 	serverCtx.Config = interceptedConfig
 	bindFlags(basename, cmd, serverCtx.Viper)
 
-	if ll := serverCtx.Viper.GetString("log-level"); len(ll) > 0 {
-		interceptedConfig.LogLevel = ll
-	} else if interceptedConfig.LogLevel == "" {
+	logLevel := serverCtx.Viper.GetString("log-level")
+	switch {
+	case len(logLevel) > 0:
+		interceptedConfig.LogLevel = logLevel
+	case interceptedConfig.LogLevel == "":
 		interceptedConfig.LogLevel = "main:info,state:info,statesync:info,*:error"
+	default:
+		logLevel = "info"
 	}
 
 	useJSON := strings.ToLower(serverCtx.Viper.GetString(flags.FlagLogFormat)) != tmcfg.LogFormatPlain
 
-	logLevel := serverCtx.Viper.GetString(flags.FlagLogLevel)
-	if logLevel == "" {
-		logLevel = "info"
-	}
 	logger := logging.NewWrappedSuplog(logLevel, interceptedConfig.LogLevel, useJSON)
 
 	if serverCtx.Viper.GetBool(server.FlagTrace) {

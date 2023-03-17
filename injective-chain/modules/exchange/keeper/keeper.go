@@ -7,7 +7,7 @@ import (
 	authkeeper "github.com/cosmos/cosmos-sdk/x/auth/keeper"
 	bankkeeper "github.com/cosmos/cosmos-sdk/x/bank/keeper"
 	paramtypes "github.com/cosmos/cosmos-sdk/x/params/types"
-	log "github.com/xlab/suplog"
+	"github.com/tendermint/tendermint/libs/log"
 
 	"github.com/InjectiveLabs/metrics"
 
@@ -32,7 +32,6 @@ type Keeper struct {
 	wasmViewKeeper        types.WasmViewKeeper
 	wasmContractOpsKeeper types.WasmContractOpsKeeper
 	wasmxExecutionKeeper  types.WasmxExecutionKeeper
-	logger                log.Logger
 
 	svcTags metrics.Tags
 }
@@ -73,8 +72,11 @@ func NewKeeper(
 		insuranceKeeper:    ik,
 		DistributionKeeper: dk,
 		StakingKeeper:      sk,
-		logger:             log.WithField("module", types.ModuleName),
 	}
+}
+
+func (k *Keeper) Logger(ctx sdk.Context) log.Logger {
+	return ctx.Logger().With("module", types.ModuleName)
 }
 
 func (k *Keeper) SetGovKeeper(gk types.GovKeeper) {

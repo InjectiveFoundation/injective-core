@@ -81,10 +81,10 @@ func (k *Keeper) getMatchedSpotLimitOrderClearingResults(
 		matchQuantityIncrement := sdk.MinDec(buyOrder.Quantity, sellOrder.Quantity)
 
 		if err := buyOrderbook.Fill(matchQuantityIncrement); err != nil {
-			k.logger.Warningln("Fill buyOrderbook failed during getMatchedSpotLimitOrderClearingResults:", err)
+			k.Logger(ctx).Error("Fill buyOrderbook failed during getMatchedSpotLimitOrderClearingResults:", err)
 		}
 		if err := sellOrderbook.Fill(matchQuantityIncrement); err != nil {
-			k.logger.Warningln("Fill sellOrderbook failed during getMatchedSpotLimitOrderClearingResults:", err)
+			k.Logger(ctx).Error("Fill sellOrderbook failed during getMatchedSpotLimitOrderClearingResults:", err)
 		}
 	}
 
@@ -137,7 +137,7 @@ func (k *Keeper) getMarketOrderStateExpansionsAndClearingPrice(
 	if limitOrderbook != nil {
 		defer limitOrderbook.Close()
 	} else {
-		spotMarketOrderStateExpansions = k.processSpotMarketOrderStateExpansions(ctx, isMarketBuy, marketOrders, make([]sdk.Dec, len(marketOrders)), sdk.Dec{}, takerFeeRate, market.RelayerFeeShareRate, pointsMultiplier, feeDiscountConfig)
+		spotMarketOrderStateExpansions = k.processSpotMarketOrderStateExpansions(ctx, market.MarketID(), isMarketBuy, marketOrders, make([]sdk.Dec, len(marketOrders)), sdk.Dec{}, takerFeeRate, market.RelayerFeeShareRate, pointsMultiplier, feeDiscountConfig)
 		return
 	}
 
@@ -169,10 +169,10 @@ func (k *Keeper) getMarketOrderStateExpansionsAndClearingPrice(
 		}
 
 		if err := marketOrderbook.Fill(matchQuantityIncrement); err != nil {
-			k.logger.Warningln("Fill marketOrderbook failed during getMarketOrderStateExpansionsAndClearingPrice:", err)
+			k.Logger(ctx).Error("Fill marketOrderbook failed during getMarketOrderStateExpansionsAndClearingPrice:", err)
 		}
 		if err := limitOrderbook.Fill(matchQuantityIncrement); err != nil {
-			k.logger.Warningln("Fill limitOrderbook failed during getMarketOrderStateExpansionsAndClearingPrice:", err)
+			k.Logger(ctx).Error("Fill limitOrderbook failed during getMarketOrderStateExpansionsAndClearingPrice:", err)
 		}
 	}
 
@@ -183,8 +183,8 @@ func (k *Keeper) getMarketOrderStateExpansionsAndClearingPrice(
 		clearingPrice = limitOrderbook.GetNotional().Quo(clearingQuantity)
 	}
 
-	spotLimitOrderStateExpansions = k.processRestingSpotLimitOrderExpansions(ctx, limitOrderbook.GetRestingOrderbookFills(), !isMarketBuy, sdk.Dec{}, market.MakerFeeRate, market.RelayerFeeShareRate, pointsMultiplier, feeDiscountConfig)
-	spotMarketOrderStateExpansions = k.processSpotMarketOrderStateExpansions(ctx, isMarketBuy, marketOrders, marketOrderbook.GetOrderbookFillQuantities(), clearingPrice, takerFeeRate, market.RelayerFeeShareRate, pointsMultiplier, feeDiscountConfig)
+	spotLimitOrderStateExpansions = k.processRestingSpotLimitOrderExpansions(ctx, market.MarketID(), limitOrderbook.GetRestingOrderbookFills(), !isMarketBuy, sdk.Dec{}, market.MakerFeeRate, market.RelayerFeeShareRate, pointsMultiplier, feeDiscountConfig)
+	spotMarketOrderStateExpansions = k.processSpotMarketOrderStateExpansions(ctx, market.MarketID(), isMarketBuy, marketOrders, marketOrderbook.GetOrderbookFillQuantities(), clearingPrice, takerFeeRate, market.RelayerFeeShareRate, pointsMultiplier, feeDiscountConfig)
 	return
 }
 

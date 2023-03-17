@@ -3,13 +3,12 @@ package keeper
 import (
 	"context"
 
+	"github.com/InjectiveLabs/metrics"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
-	log "github.com/xlab/suplog"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/auction/types"
 	chaintypes "github.com/InjectiveLabs/injective-core/injective-chain/types"
-	"github.com/InjectiveLabs/metrics"
 )
 
 type msgServer struct {
@@ -35,7 +34,6 @@ func (k msgServer) Bid(goCtx context.Context, msg *types.MsgBid) (*types.MsgBidR
 
 	// prepare context
 	ctx := sdk.UnwrapSDKContext(goCtx)
-	logger := k.logger.WithFields(log.WithFn())
 
 	round := k.GetAuctionRound(ctx)
 	if msg.Round != round {
@@ -67,7 +65,7 @@ func (k msgServer) Bid(goCtx context.Context, msg *types.MsgBid) (*types.MsgBidR
 	newBidAmount := sdk.NewCoins(msg.BidAmount)
 	if err := k.bankKeeper.SendCoinsFromAccountToModule(ctx, senderAddr, types.ModuleName, newBidAmount); err != nil {
 		metrics.ReportFuncError(k.svcTags)
-		logger.Error("Bidder deposit failed", "senderAddr", senderAddr.String(), "coin", msg.BidAmount.String())
+		k.Logger(ctx).Error("Bidder deposit failed", "senderAddr", senderAddr.String(), "coin", msg.BidAmount.String())
 		return nil, sdkerrors.Wrap(err, "deposit failed")
 	}
 
@@ -97,20 +95,19 @@ func (k msgServer) Bid(goCtx context.Context, msg *types.MsgBid) (*types.MsgBidR
 func (k msgServer) refundLastBidder(ctx sdk.Context) error {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
-	logger := k.logger.WithFields(log.WithFn())
 	lastBid := k.GetHighestBid(ctx)
 	lastBidAmount := lastBid.Amount.Amount
 	lastBidder, err := sdk.AccAddressFromBech32(lastBid.Bidder)
 	if err != nil {
 		metrics.ReportFuncError(k.svcTags)
-		logger.Error(err.Error())
+		k.Logger(ctx).Error(err.Error())
 		return err
 	}
 
 	bidAmount := sdk.NewCoins(sdk.NewCoin(chaintypes.InjectiveCoin, lastBidAmount))
 	if err := k.bankKeeper.SendCoinsFromModuleToAccount(ctx, types.ModuleName, lastBidder, bidAmount); err != nil {
 		metrics.ReportFuncError(k.svcTags)
-		logger.Error("Bidder refund failed", "lastBidderAddr", lastBidder.String(), "coin", bidAmount.String())
+		k.Logger(ctx).Error("Bidder refund failed", "lastBidderAddr", lastBidder.String(), "coin", bidAmount.String())
 		return sdkerrors.Wrap(err, "deposit failed")
 	}
 

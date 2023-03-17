@@ -22,39 +22,31 @@
       "amount": 10000000
     },
     {
-      "actionType": "send",
+      "actionType": "sendFunds",
       "denom": "$tf(0)",
       "amount": 1000,
       "recipientIndex": 1
     },
     {
-      "actionType": "send",
+      "actionType": "sendFunds",
+      "denom": "$tf(0)",
+      "amount": 1000,
+      "recipientIndex": 0,
+      "comment": "needed so that in case of non-default subaccount user has required funds there"
+    },        
+    {
+      "actionType": "sendFunds",
       "denom": "$tf(1)",
       "amount": 1000,
       "recipientIndex": 1
     },
     {
-      "actionType": "deposit",
-      "denom": "$tf(0)",
-      "amount": 1000
-    },
-    {
-      "actionType": "deposit",
-      "denom": "$tf(0)",
-      "amount": 1000,
-      "accountIndex": 1
-    },
-    {
-      "actionType": "deposit",
-      "denom": "$tf(1)",
-      "amount": 1000
-    },
-    {
-      "actionType": "deposit",
+      "actionType": "sendFunds",
       "denom": "$tf(1)",
       "amount": 1000,
-      "accountIndex": 1
-    },
+      "recipientIndex": 0,
+      "comment": "needed so that in case of non-default subaccount user has required funds there"
+    },        
     {
       "actionType": "launchMarket",
       "marketType": "spot",

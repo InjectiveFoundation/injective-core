@@ -6,8 +6,9 @@ import (
 	paramtypes "github.com/cosmos/cosmos-sdk/x/params/types"
 	log "github.com/xlab/suplog"
 
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/ocr/types"
 	"github.com/InjectiveLabs/metrics"
+
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/ocr/types"
 )
 
 type Keeper interface {
@@ -21,6 +22,7 @@ type Keeper interface {
 	FeedTransmissions
 	OcrHooks
 
+	Logger(ctx sdk.Context) log.Logger
 	GetTransientStoreKey() sdk.StoreKey
 }
 
@@ -33,7 +35,6 @@ type keeper struct {
 	paramSpace paramtypes.Subspace
 	hooks      types.OcrHooks
 
-	logger  log.Logger
 	svcTags metrics.Tags
 }
 
@@ -61,8 +62,11 @@ func NewKeeper(
 		svcTags: metrics.Tags{
 			"svc": "ocr_k",
 		},
-		logger: log.WithField("module", types.ModuleName),
 	}
+}
+
+func (k *keeper) Logger(ctx sdk.Context) log.Logger {
+	return log.WithField("module", types.ModuleName).WithContext(ctx.Context())
 }
 
 func (k *keeper) getStore(ctx sdk.Context) sdk.KVStore {

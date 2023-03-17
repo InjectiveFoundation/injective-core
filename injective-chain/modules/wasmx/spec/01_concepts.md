@@ -1,77 +1,38 @@
 ---
 sidebar_position: 1
-title: Concepts 
+title: Concepts
 ---
 
 ## Concepts
 
-### Smart contracts
+### Begin blocker execution
 
-Smart contracts are autonomous agents that can interact with other entities on the Injective blockchain, such as human-owned accounts, validators, and other smart contracts. Each smart contract has:
+Smart contracts can only respond to incoming messages and do not have the ability to execute actions on their own schedule. The Wasmx module allows contracts to be registered and called in the begin blockers section of each block.
+To be eligible for this, each registered contract must respond to the sudo message called "begin_blocker," which can only be called by the chain itself and not directly by any user or other contract. This ensures that the "begin_blocker" message can be trusted.
 
-- A unique **contract address** with an account that holds funds.
-- A **code ID**, where its logic is defined.
-- Its own **key-value store**, where it can persist and retrieve data.
+### Registration
 
-#### Contract address
+Upon registering a contract, the user must declare a gas price, which is the amount they are willing to pay for contract execution, as well as a gas limit, which is the maximum amount of gas that can be consumed during the execution of the contract.
 
-Upon instantiation, each contract is automatically assigned an Injective account address, called the contract address. The address is procedurally generated on-chain without an accompanying private and public key pair, and it can be completely determined by the contract's number order of existence. For instance, on two separate Injective networks, the first contract will always be assigned the address `inj14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9swvf72y`, and similarly for the second, third, and so on.
+Currently, contract registration can only be done through a governance proposal. This proposal, if approved, will add the contract at a specific address to the list of contracts that are run during each "begin blockers" period.
 
-#### Code ID
+For security reasons, the proposer must specify a code_id for the contract, which will be verified upon registration and each time the contract is executed. This is to prevent an attacker from registering a benign contract but later upgrading it to a malicious one. The proposer can request to be exempt from this check when registering the contract to avoid delays when a new version of the contract is released, but this may affect the voting results depending on the trustworthiness of the proposer.
 
-On Injective, code upload and contract creation are separate events. A smart contract writer first uploads WASM bytecode onto the blockchain to obtain a code ID, which they then can use to initialize an instance of that contract. This scheme promotes efficient storage because most contracts share the same underlying logic and vary only in their initial configuration. Vetted, high-quality contracts for common use cases like fungible tokens and multisig wallets can be easily reused without the need to upload new code.
+The proposer can also request for the contract to be "pinned," meaning it is loaded and kept in memory, which can greatly improve the performance of the contract.
 
-#### Key-value store
+### Deregistration
 
-Each smart contract is given its own dedicated keyspace in LevelDB, prefixed by the contract address. Contract code is safely sandboxed and can only set and delete new keys and values within its assigned keyspace.
+A contract can be deregistered through a governance proposal, which can be initiated by anyone, including the contract owner if they no longer require the contract or by any other individual if the contract is found to be malicious.
 
-### Interaction
+If contract fails to execute due to insufficient gas it will be automatically deregistered.
 
-You can interact with smart contracts in several ways.
+When contract is deregistered, wasmx will call special deregister callback (if present).
 
-#### Instantiation
+### Pausing, params update
 
-You can instantiate a new smart contract by sending a `MsgInstantiateContract`. In it, you can:
+The owner of a contract has the ability to deactivate or activate the contract at any time without requiring a governance vote. They can also update the parameters for contract execution, such as the gas price or gas limit, at any time.
 
-- Assign an owner to the contract.
-- Specify code will be used for the contract via a code ID.
-- Define the initial parameters / configuration through an `InitMsg`.
-- Provide the new contract's account with some initial funds.
-- Denote whether the contract is migratable (i.e. can change code IDs).
 
-The `InitMsg` is a JSON message whose expected format is defined in the contract's code. Every contract contains a section that defines how to set up the initial state depending on the provided `InitMsg`.
+### Batch methods
 
-#### Execution
-
-You can execute a smart contract to invoke one of its defined functions by sending a `MsgExecuteContract`. In it, you can:
-
-- Specify which function to call with a `HandleMsg`.
-- Send funds to the contract, which may be expected during execution.
-
-The `HandleMsg` is a JSON message that contains function call arguments and gets routed to the appropriate handling logic. From there, the contract executes the function's instructions during which the contract's own state can be modified. The contract can only modify outside state, such as state in other contracts or modules, after its own execution has ended, by returning a list of blockchain messages, such as `MsgSend` and `MsgSwap`. These messages are appended to the same transaction as the `MsgExecuteContract`, and, if any of the messages are invalid, the whole transaction is invalidated.
-
-#### Migration
-
-If a user is the contract's owner, and a contract is instantiated as migratable, they can issue a `MsgMigrateContract` to reset its code ID to a new one. The migration can be parameterized with a `MigrateMsg`, a JSON message.
-
-#### Transfer of ownership
-
-The current owner of the smart contract can reassign a new owner to the contract with `MsgUpdateContractOwner`.
-
-#### Query
-
-Contracts can define query functions, or read-only operations meant for data-retrieval. Doing so allows contracts to expose rich, custom data endpoints with JSON responses instead of raw bytes from the low-level key-value store. Because the blockchain state cannot be changed, the node can directly run the query without a transaction.
-
-Users can specify which query function alongside any arguments with a JSON `QueryMsg`. Even though there is no gas fee, the query function's execution is capped by gas determined by metered execution, which is not charged, as a form of spam protection.
-
-### Wasmer VM
-
-The actual execution of WASM bytecode is performed by [wasmer](https://github.com/wasmerio/wasmer), which provides a lightweight, sandboxed runtime with metered execution to account for the resource cost of computation.
-
-#### Gas meter
-
-In addition to the regular gas fees incurred from creating the transaction, Injective also calculates a separate gas when executing smart contract code. This is tracked by the **gas meter**, which is during the execution of every opcode and gets translated back to native Injective gas via a constant multiplier (currently set to 100).
-
-### Gas fees
-
-WASM data and event spend gas up to `1 * bytes`. Passing the event and data to another contract also spends gas in reply.
+For convenience, the Wasmx module provides batch versions of some of the previously mentioned proposals, such as batch registration and deregistration, as well as a batch version of the StoreCodeProposal. These batch versions allow multiple proposals to be processed at the same time, rather than individually.

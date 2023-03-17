@@ -4,9 +4,10 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	abci "github.com/tendermint/tendermint/abci/types"
 
+	"github.com/InjectiveLabs/metrics"
+
 	auctiontypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/auction/types"
 	chaintypes "github.com/InjectiveLabs/injective-core/injective-chain/types"
-	"github.com/InjectiveLabs/metrics"
 )
 
 func (am AppModule) EndBlocker(ctx sdk.Context, block abci.RequestEndBlock) {
@@ -54,7 +55,7 @@ func (am AppModule) EndBlocker(ctx sdk.Context, block abci.RequestEndBlock) {
 			// send tokens to winner or append to next auction round
 			if err := am.bankKeeper.SendCoinsFromModuleToAccount(ctx, auctiontypes.ModuleName, lastBidder, sdk.NewCoins(coin)); err != nil {
 				metrics.ReportFuncError(am.svcTags)
-				logger.Error("Transferring coins to winner failed")
+				am.keeper.Logger(ctx).Error("Transferring coins to winner failed")
 				return
 			}
 		}

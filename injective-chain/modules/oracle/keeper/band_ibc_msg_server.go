@@ -3,12 +3,11 @@ package keeper
 import (
 	"context"
 
+	"github.com/InjectiveLabs/metrics"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
-	log "github.com/xlab/suplog"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/types"
-	"github.com/InjectiveLabs/metrics"
 )
 
 type BandIBCMsgServer struct {
@@ -28,13 +27,12 @@ func NewBandIBCMsgServerImpl(keeper Keeper) BandIBCMsgServer {
 
 func (k Keeper) RequestBandIBCRates(goCtx context.Context, msg *types.MsgRequestBandIBCRates) (*types.MsgRequestBandIBCRatesResponse, error) {
 	ctx := sdk.UnwrapSDKContext(goCtx)
-	logger := k.logger.WithFields(log.WithFn())
 
 	// cannot process ibc request if band ibc is disabled.
 	bandIBCParams := k.GetBandIBCParams(ctx)
 
 	if !bandIBCParams.BandIbcEnabled {
-		logger.Error("Cannot process new band ibc request. BandIBC is disabled.")
+		k.Logger(ctx).Error("Cannot process new band ibc request. BandIBC is disabled.")
 		return nil, sdkerrors.Wrapf(types.ErrInvalidBandIBCRequest, "BandIBC is disabled")
 	}
 
@@ -44,7 +42,7 @@ func (k Keeper) RequestBandIBCRates(goCtx context.Context, msg *types.MsgRequest
 	}
 
 	if err := k.RequestBandIBCOraclePrices(ctx, bandIBCOracleRequest); err != nil {
-		logger.Error(err.Error())
+		k.Logger(ctx).Error(err.Error())
 		metrics.ReportFuncError(k.svcTags)
 		return nil, err
 	}

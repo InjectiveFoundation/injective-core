@@ -10,7 +10,7 @@ import (
 )
 
 type DeficitPositions struct {
-	DerivativePosition types.DerivativePosition
+	DerivativePosition *types.DerivativePosition
 	DeficitAmountAbs   sdk.Dec
 }
 
@@ -24,7 +24,12 @@ func (k *Keeper) ProcessMarketsScheduledToSettle(ctx sdk.Context) {
 		marketID := common.HexToHash(marketSettlementInfo.MarketId)
 		market := k.GetDerivativeMarketByID(ctx, marketID)
 
-		k.SettleMarket(ctx, market, marketSettlementInfo.StartingDeficit, zeroClosingFeeRateWhenForciblyClosing, &marketSettlementInfo.SettlementPrice)
+		if marketSettlementInfo.SettlementPrice.IsZero() {
+			latestPrice := k.OracleKeeper.GetPrice(ctx, market.OracleType, market.OracleBase, market.OracleQuote)
+			marketSettlementInfo.SettlementPrice = *latestPrice
+		}
+
+		k.SettleMarket(ctx, market, zeroClosingFeeRateWhenForciblyClosing, &marketSettlementInfo.SettlementPrice)
 
 		if market.IsTimeExpiry() {
 			marketInfo := k.GetExpiryFuturesMarketInfo(ctx, marketID)
@@ -127,9 +132,8 @@ func (k *Keeper) ProcessMatureExpiryFutureMarkets(ctx sdk.Context) {
 		marketID := common.HexToHash(marketInfo.MarketId)
 		market := markets[marketID]
 
-		zeroStartingDeficitAmount := sdk.ZeroDec() // no positions closed yet
 		closingFeeWhenSettlingTimeExpiryMarket := market.TakerFeeRate
-		k.SettleMarket(ctx, market, zeroStartingDeficitAmount, closingFeeWhenSettlingTimeExpiryMarket, &marketInfo.SettlementPrice)
+		k.SettleMarket(ctx, market, closingFeeWhenSettlingTimeExpiryMarket, &marketInfo.SettlementPrice)
 
 		market.Status = types.MarketStatus_Expired
 		k.SetDerivativeMarketWithInfo(ctx, market, nil, nil, marketInfo)
@@ -139,7 +143,7 @@ func (k *Keeper) ProcessMatureExpiryFutureMarkets(ctx sdk.Context) {
 	}
 }
 
-func getPositionFundsStatus(position *types.Position, settlementPrice, closingFeeRate sdk.Dec) (isProfitable bool, profitAmount, deficitAmountAbs sdk.Dec) {
+func getPositionFundsStatus(position *types.Position, settlementPrice, closingFeeRate sdk.Dec) (isProfitable bool, profitAmount, deficitAmountAbs, payout sdk.Dec) {
 	profitAmount, deficitAmountAbs = sdk.ZeroDec(), sdk.ZeroDec()
 
 	positionPayout := position.GetPayoutIfFullyClosing(settlementPrice, closingFeeRate)
@@ -147,35 +151,47 @@ func getPositionFundsStatus(position *types.Position, settlementPrice, closingFe
 
 	if isProfitable {
 		profitAmount = positionPayout.PnlNotional
+		if position.Margin.IsNegative() {
+			profitAmount = profitAmount.Add(position.Margin)
+		}
 	} else if positionPayout.Payout.IsNegative() {
 		deficitAmountAbs = positionPayout.Payout.Abs()
 	}
 
-	return isProfitable, profitAmount, deficitAmountAbs
+	return isProfitable, profitAmount, deficitAmountAbs, positionPayout.Payout
 }
 
-func (k *Keeper) executeSocializedLoss(
-	ctx sdk.Context,
-	market MarketI,
-	marketFunding *types.PerpetualMarketFunding,
-	positions []types.DerivativePosition,
-	settlementPrice sdk.Dec,
-	startingDeficitAmount sdk.Dec,
-	closingFeeRate sdk.Dec,
-) []DeficitPositions {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+type SocializedLossData struct {
+	PositionsReceivingHaircut []*types.Position
+	DeficitPositions          []DeficitPositions
+	DeficitAmountAbs          sdk.Dec
+	SurplusAmount             sdk.Dec
+	TotalProfits              sdk.Dec
+	TotalPositivePayouts      sdk.Dec
+}
 
+func getDerivativeSocializedLossData(
+	marketFunding *types.PerpetualMarketFunding,
+	positions []*types.DerivativePosition,
+	settlementPrice sdk.Dec,
+	closingFeeRate sdk.Dec,
+) SocializedLossData {
 	profitablePositions := make([]*types.Position, 0)
 	deficitPositions := make([]DeficitPositions, 0)
-	totalProfits := sdk.NewDec(0)
-	deficitAmountAbs := startingDeficitAmount
+	totalProfits := sdk.ZeroDec()
+	deficitAmountAbs := sdk.ZeroDec()
+	totalPositivePayouts := sdk.ZeroDec()
 
 	for _, position := range positions {
 		ApplyFundingAndGetUpdatedPositionState(position.Position, marketFunding)
 
-		isProfitable, positionProfit, positionDeficitAbs := getPositionFundsStatus(position.Position, settlementPrice, closingFeeRate)
+		isProfitable, positionProfit, positionDeficitAbs, payout := getPositionFundsStatus(position.Position, settlementPrice, closingFeeRate)
 		totalProfits = totalProfits.Add(positionProfit)
 		deficitAmountAbs = deficitAmountAbs.Add(positionDeficitAbs)
+
+		if payout.IsPositive() {
+			totalPositivePayouts = totalPositivePayouts.Add(payout)
+		}
 
 		if isProfitable {
 			profitablePositions = append(profitablePositions, position.Position)
@@ -187,41 +203,186 @@ func (k *Keeper) executeSocializedLoss(
 		}
 	}
 
-	deficitAmountAfterInsuranceFunds, err := k.PayDeficitFromInsuranceFund(ctx, market.MarketID(), deficitAmountAbs)
+	return SocializedLossData{
+		PositionsReceivingHaircut: profitablePositions,
+		DeficitPositions:          deficitPositions,
+		DeficitAmountAbs:          deficitAmountAbs,
+		SurplusAmount:             sdk.ZeroDec(),
+		TotalProfits:              totalProfits,
+		TotalPositivePayouts:      totalPositivePayouts,
+	}
+}
+
+func getTotalMarginAndQuantity(positions []*types.DerivativePosition) (sdk.Dec, sdk.Dec) {
+	totalMargin := sdk.ZeroDec()
+	totalQuantity := sdk.ZeroDec()
+
+	for idx := range positions {
+		totalMargin = totalMargin.Add(positions[idx].Position.Margin)
+		totalQuantity = totalQuantity.Add(positions[idx].Position.Quantity)
+	}
+
+	return totalMargin, totalQuantity
+}
+
+func getBinaryOptionsSocializedLossData(positions []*types.DerivativePosition, market MarketI) SocializedLossData {
+	// liabilities =  ∑ (margin)
+	// assets = 10^oracleScaleFactor * ∑ (quantity) / 2
+	totalMarginLiabilities, totalQuantity := getTotalMarginAndQuantity(positions)
+	assets := types.GetScaledPrice(totalQuantity, market.GetOracleScaleFactor()).Quo(sdk.NewDec(2))
+
+	// all positions receive haircut in BO refunds
+	positionsReceivingHaircut := make([]*types.Position, len(positions))
+	for i, position := range positions {
+		positionsReceivingHaircut[i] = position.Position
+	}
+
+	// if assets ≥ liabilities, then no haircut. Refund position margins directly. Remaining assets go to insurance fund.
+	// if assets < liabilities, then haircut. Haircut percentage = (liabilities - assets) / liabilities
+	// haircutPercentage := totalMarginLiabilities.Sub(assets).Quo(totalMarginLiabilities)
+
+	deficitAmountAbs := sdk.MaxDec(totalMarginLiabilities.Sub(assets), sdk.ZeroDec())
+	surplus := sdk.MaxDec(assets.Sub(totalMarginLiabilities), sdk.ZeroDec())
+
+	return SocializedLossData{
+		PositionsReceivingHaircut: positionsReceivingHaircut,
+		DeficitPositions:          make([]DeficitPositions, 0),
+		DeficitAmountAbs:          deficitAmountAbs,
+		SurplusAmount:             surplus,
+		TotalProfits:              assets,
+		TotalPositivePayouts:      sdk.ZeroDec(),
+	}
+}
+
+func (k *Keeper) executeSocializedLoss(
+	ctx sdk.Context,
+	market MarketI,
+	marketFunding *types.PerpetualMarketFunding,
+	positions []*types.DerivativePosition,
+	settlementPrice sdk.Dec,
+	closingFeeRate sdk.Dec,
+) []DeficitPositions {
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+
+	marketID := market.MarketID()
+	marketType := market.GetMarketType()
+
+	hasPotentialDeficit := len(positions) > 0 &&
+		(!marketType.IsBinaryOptions() || settlementPrice == types.BinaryOptionsMarketRefundFlagPrice)
+
+	if !hasPotentialDeficit {
+		return make([]DeficitPositions, 0)
+	}
+
+	var socializedLossData SocializedLossData
+
+	if marketType.IsBinaryOptions() {
+		socializedLossData = getBinaryOptionsSocializedLossData(positions, market)
+	} else {
+		socializedLossData = getDerivativeSocializedLossData(
+			marketFunding,
+			positions,
+			settlementPrice,
+			closingFeeRate,
+		)
+	}
+
+	surplusAmount := socializedLossData.SurplusAmount.TruncateInt()
+	if surplusAmount.IsPositive() {
+		if err := k.moveCoinsIntoInsuranceFund(ctx, market, surplusAmount); err != nil {
+			_ = k.IncrementDepositForNonDefaultSubaccount(ctx, types.AuctionSubaccountID, market.GetQuoteDenom(), socializedLossData.SurplusAmount)
+		}
+		return socializedLossData.DeficitPositions
+	}
+
+	deficitAmountAfterInsuranceFunds, err := k.PayDeficitFromInsuranceFund(ctx, marketID, socializedLossData.DeficitAmountAbs)
 
 	if err != nil {
 		metrics.ReportFuncError(k.svcTags)
-		k.logger.Error("Retrieving from insurance fund upon settling failed for amount", deficitAmountAbs.String(), " with error", err)
+		k.Logger(ctx).Error("Retrieving from insurance fund upon settling failed for amount", socializedLossData.DeficitAmountAbs.String(), " with error", err)
 	}
 
 	doesMarketHaveDeficit := deficitAmountAfterInsuranceFunds.IsPositive()
 
-	// totalProfits 0 should imply market has deficit, just added as extra safety
-	if !doesMarketHaveDeficit || totalProfits.IsZero() {
-		return deficitPositions
+	if !doesMarketHaveDeficit {
+		return socializedLossData.DeficitPositions
 	}
 
-	for _, profitablePosition := range profitablePositions {
-		profitablePosition.ApplyProfitHaircut(deficitAmountAfterInsuranceFunds, totalProfits, settlementPrice)
+	canTakeHaircutFromProfits := socializedLossData.TotalProfits.IsPositive()
+	canProfitsCoverDeficit := socializedLossData.TotalProfits.GTE(deficitAmountAfterInsuranceFunds) || marketType.IsBinaryOptions()
+
+	if canTakeHaircutFromProfits {
+		var deficitTakenFromProfits sdk.Dec
+
+		if canProfitsCoverDeficit {
+			deficitTakenFromProfits = deficitAmountAfterInsuranceFunds
+		} else {
+			deficitTakenFromProfits = socializedLossData.TotalProfits
+		}
+
+		for _, positionsReceivingHaircut := range socializedLossData.PositionsReceivingHaircut {
+			if marketType.IsBinaryOptions() {
+				positionsReceivingHaircut.ApplyProfitHaircutForBinaryOptions(deficitTakenFromProfits, socializedLossData.TotalProfits, market.GetOracleScaleFactor())
+			} else {
+				positionsReceivingHaircut.ApplyProfitHaircutForDerivatives(deficitTakenFromProfits, socializedLossData.TotalProfits, settlementPrice)
+			}
+		}
+
+		haircutPercentage := deficitAmountAfterInsuranceFunds.Quo(socializedLossData.TotalProfits)
+
+		// nolint:errcheck //ignored on purpose
+		ctx.EventManager().EmitTypedEvent(&types.EventDerivativeMarketPaused{
+			MarketId:          marketID.Hex(),
+			SettlePrice:       settlementPrice.String(),
+			TotalMissingFunds: deficitAmountAfterInsuranceFunds.String(),
+			MissingFundsRate:  haircutPercentage.String(),
+		})
 	}
 
-	haircutPercentage := deficitAmountAfterInsuranceFunds.Quo(totalProfits)
+	if !canProfitsCoverDeficit {
+		remainingDeficit := deficitAmountAfterInsuranceFunds.Sub(socializedLossData.TotalProfits)
+		remainingPayouts := socializedLossData.TotalPositivePayouts.Sub(socializedLossData.TotalProfits)
 
-	// nolint:errcheck //ignored on purpose
-	ctx.EventManager().EmitTypedEvent(&types.EventDerivativeMarketPaused{
-		MarketId:          market.MarketID().Hex(),
-		SettlePrice:       settlementPrice.String(),
-		TotalMissingFunds: deficitAmountAfterInsuranceFunds.String(),
-		MissingFundsRate:  haircutPercentage.String(),
-	})
+		canTotalPositivePayoutsCoverDeficit := remainingPayouts.GTE(remainingDeficit)
 
-	return deficitPositions
+		if !canTotalPositivePayoutsCoverDeficit {
+			for _, position := range positions {
+				if position.Position.GetPayoutIfFullyClosing(settlementPrice, closingFeeRate).Payout.IsPositive() {
+					position.Position.ClosePositionWithoutPayouts()
+				}
+			}
+
+			// nolint:errcheck //ignored on purpose
+			ctx.EventManager().EmitTypedEvent(&types.EventMarketBeyondBankruptcy{
+				MarketId:           marketID.Hex(),
+				SettlePrice:        settlementPrice.String(),
+				MissingMarketFunds: remainingDeficit.Sub(remainingPayouts).String(),
+			})
+		} else {
+			for _, position := range positions {
+				if position.Position.GetPayoutIfFullyClosing(settlementPrice, closingFeeRate).Payout.IsPositive() {
+					position.Position.ApplyTotalPositionPayoutHaircut(remainingDeficit, remainingPayouts, settlementPrice)
+				}
+			}
+
+			allPositionsHaircutPercentage := remainingDeficit.Quo(remainingPayouts)
+
+			// nolint:errcheck //ignored on purpose
+			ctx.EventManager().EmitTypedEvent(&types.EventAllPositionsHaircut{
+				MarketId:         marketID.Hex(),
+				SettlePrice:      settlementPrice.String(),
+				MissingFundsRate: allPositionsHaircutPercentage.String(),
+			})
+		}
+	}
+
+	return socializedLossData.DeficitPositions
 }
 
 func (k *Keeper) closeAllPositionsWithSettlePrice(
 	ctx sdk.Context,
 	market MarketI,
-	positions []types.DerivativePosition,
+	positions []*types.DerivativePosition,
 	settlementPrice sdk.Dec,
 	closingFeeRate sdk.Dec,
 	marketFunding *types.PerpetualMarketFunding,
@@ -326,7 +487,6 @@ func (k *Keeper) closeAllPositionsWithSettlePrice(
 func (k *Keeper) SettleMarket(
 	ctx sdk.Context,
 	market MarketI,
-	startingDeficitAmount sdk.Dec,
 	closingFeeRate sdk.Dec,
 	settlementPrice *sdk.Dec,
 ) {
@@ -340,10 +500,6 @@ func (k *Keeper) SettleMarket(
 	k.CancelAllRestingDerivativeLimitOrders(ctx, market)
 	k.CancelAllConditionalDerivativeOrders(ctx, market)
 
-	marketType := market.GetMarketType()
-	var deficitPositions []DeficitPositions
-	if marketType != types.MarketType_BinaryOption {
-		deficitPositions = k.executeSocializedLoss(ctx, market, marketFunding, derivativePositions, *settlementPrice, startingDeficitAmount, closingFeeRate)
-	}
+	deficitPositions := k.executeSocializedLoss(ctx, market, marketFunding, derivativePositions, *settlementPrice, closingFeeRate)
 	k.closeAllPositionsWithSettlePrice(ctx, market, derivativePositions, *settlementPrice, closingFeeRate, marketFunding, deficitPositions)
 }

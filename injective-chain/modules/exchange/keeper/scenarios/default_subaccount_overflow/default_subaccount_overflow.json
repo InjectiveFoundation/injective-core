@@ -1,0 +1,49 @@
+{
+  "numAccounts": 2,
+  "numSpotMarkets": 1,
+  "seed": 1,
+  "actions": [          
+    {
+      "actionType": "endblocker",
+      "actionId": "post-setup"
+    },
+    {
+      "actionType": "spotLimitOrder",
+      "price": 11,
+      "quantity": 5,
+      "isLong": true,
+      "accountIndex": 0
+    },
+    {
+      "actionType": "spotLimitOrder",
+      "price": 10,
+      "quantity": 5,
+      "isLong": false,
+      "accountIndex": 1
+    },
+    {
+      "actionType": "endblocker",
+      "actionId": "limit-trade"
+    },
+    {
+      "actionType": "spotLimitOrder",
+      "price": 11,
+      "quantity": 5,
+      "isLong": true,
+      "accountIndex": 1
+    },
+    {
+      "actionType": "endblocker"
+    },
+    {
+      "actionType": "spotMarketOrder",
+      "price": 10,
+      "quantity": 5,
+      "isLong": false,
+      "accountIndex": 0
+    },
+    {
+      "actionType": "endblocker"
+    }
+  ]
+}

@@ -9,7 +9,6 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/ethereum/go-ethereum/common"
-	log "github.com/xlab/suplog"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 )
@@ -30,8 +29,6 @@ func (k *Keeper) ExecuteBatchUpdateOrders(
 ) (*types.MsgBatchUpdateOrdersResponse, error) {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
-	logger := k.logger.WithFields(log.WithFn())
-
 	var (
 		spotMarkets          = make(map[common.Hash]*types.SpotMarket)
 		derivativeMarkets    = make(map[common.Hash]*types.DerivativeMarket)
@@ -45,9 +42,14 @@ func (k *Keeper) ExecuteBatchUpdateOrders(
 		binaryOptionsOrderHashes     = make([]string, len(binaryOptionsOrdersToCreate))
 	)
 
-	if subaccountId != "" {
-		subaccountIDForCancelAll := common.HexToHash(subaccountId)
+	//  Derive the subaccountID.
+	subaccountIDForCancelAll := types.MustGetSubaccountIDOrDeriveFromNonce(sender, subaccountId)
 
+	// NOTE: if the subaccountID is empty, subaccountIDForCancelAll will be the default subaccount, so we must check
+	// that its initial value is not empty
+	shouldExecuteCancelAlls := subaccountId != ""
+
+	if shouldExecuteCancelAlls {
 		for _, spotMarketIdToCancelAll := range spotMarketIdsToCancelAll {
 			marketID := common.HexToHash(spotMarketIdToCancelAll)
 			market := k.GetSpotMarketByID(ctx, marketID)
@@ -57,7 +59,7 @@ func (k *Keeper) ExecuteBatchUpdateOrders(
 			spotMarkets[marketID] = market
 
 			if !market.StatusSupportsOrderCancellations() {
-				logger.Debugln("failed to cancel all spot limit orders", "marketID", marketID.Hex())
+				k.Logger(ctx).Debug("failed to cancel all spot limit orders", "marketID", marketID.Hex())
 				continue
 			}
 
@@ -68,18 +70,18 @@ func (k *Keeper) ExecuteBatchUpdateOrders(
 			marketID := common.HexToHash(derivativeMarketIdToCancelAll)
 			market := k.GetDerivativeMarketByID(ctx, marketID)
 			if market == nil {
-				logger.Debugln("failed to cancel all derivative limit orders for non-existent market", "marketID", marketID.Hex())
+				k.Logger(ctx).Debug("failed to cancel all derivative limit orders for non-existent market", "marketID", marketID.Hex())
 				continue
 			}
 			derivativeMarkets[marketID] = market
 
 			if !market.StatusSupportsOrderCancellations() {
-				logger.Debugln("failed to cancel all derivative limit orders for market whose status doesnt support cancellations", "marketID", marketID.Hex())
+				k.Logger(ctx).Debug("failed to cancel all derivative limit orders for market whose status doesnt support cancellations", "marketID", marketID.Hex())
 				continue
 			}
 
 			if err := k.CancelAllRestingDerivativeLimitOrdersForSubaccount(ctx, market, subaccountIDForCancelAll, true, true); err != nil {
-				logger.Debugln("failed to cancel all derivative limit orders", "marketID", marketID.Hex())
+				k.Logger(ctx).Debug("failed to cancel all derivative limit orders", "marketID", marketID.Hex())
 			}
 
 			k.CancelAllTransientDerivativeLimitOrdersBySubaccountID(ctx, market, subaccountIDForCancelAll)
@@ -90,18 +92,18 @@ func (k *Keeper) ExecuteBatchUpdateOrders(
 			marketID := common.HexToHash(binaryOptionsMarketIdToCancelAll)
 			market := k.GetBinaryOptionsMarketByID(ctx, marketID)
 			if market == nil {
-				logger.Debugln("failed to cancel all binary options limit orders for non-existent market", "marketID", marketID.Hex())
+				k.Logger(ctx).Debug("failed to cancel all binary options limit orders for non-existent market", "marketID", marketID.Hex())
 				continue
 			}
 			binaryOptionsMarkets[marketID] = market
 
 			if !market.StatusSupportsOrderCancellations() {
-				logger.Debugln("failed to cancel all binary options limit orders for market whose status doesnt support cancellations", "marketID", marketID.Hex())
+				k.Logger(ctx).Debug("failed to cancel all binary options limit orders for market whose status doesnt support cancellations", "marketID", marketID.Hex())
 				continue
 			}
 
 			if err := k.CancelAllRestingDerivativeLimitOrdersForSubaccount(ctx, market, subaccountIDForCancelAll, true, true); err != nil {
-				logger.Debugln("failed to cancel all derivative limit orders", "marketID", marketID.Hex())
+				k.Logger(ctx).Debug("failed to cancel all derivative limit orders", "marketID", marketID.Hex())
 			}
 
 			k.CancelAllTransientDerivativeLimitOrdersBySubaccountID(ctx, market, subaccountIDForCancelAll)
@@ -120,11 +122,11 @@ func (k *Keeper) ExecuteBatchUpdateOrders(
 			spotMarkets[marketID] = market
 		}
 
-		subaccountId := common.HexToHash(spotOrderToCancel.SubaccountId)
+		subaccountID := types.MustGetSubaccountIDOrDeriveFromNonce(sender, spotOrderToCancel.SubaccountId)
 		orderHash := common.HexToHash(spotOrderToCancel.OrderHash)
-		if err := k.cancelSpotLimitOrder(ctx, subaccountId, orderHash, market, marketID); err != nil {
-			logger.Debugln("failed to cancel spot limit order", "orderHash", orderHash.Hex())
-		} else {
+
+		err := k.cancelSpotLimitOrder(ctx, subaccountID, orderHash, market, marketID)
+		if err == nil {
 			spotCancelSuccesses[idx] = true
 		}
 	}
@@ -139,7 +141,7 @@ func (k *Keeper) ExecuteBatchUpdateOrders(
 			market = k.GetDerivativeMarketByID(ctx, marketID)
 			derivativeMarkets[marketID] = market
 		}
-		subaccountID := common.HexToHash(derivativeOrderToCancel.SubaccountId)
+		subaccountID := types.MustGetSubaccountIDOrDeriveFromNonce(sender, derivativeOrderToCancel.SubaccountId)
 		orderHash := common.HexToHash(derivativeOrderToCancel.OrderHash)
 
 		if err := k.cancelDerivativeOrder(ctx, subaccountID, orderHash, market, marketID, derivativeOrderToCancel.OrderMask); err != nil {
@@ -158,7 +160,7 @@ func (k *Keeper) ExecuteBatchUpdateOrders(
 			market = k.GetBinaryOptionsMarketByID(ctx, marketID)
 			binaryOptionsMarkets[marketID] = market
 		}
-		subaccountID := common.HexToHash(binaryOptionsOrderToCancel.SubaccountId)
+		subaccountID := types.MustGetSubaccountIDOrDeriveFromNonce(sender, binaryOptionsOrderToCancel.SubaccountId)
 		orderHash := common.HexToHash(binaryOptionsOrderToCancel.OrderHash)
 
 		if err := k.cancelDerivativeOrder(ctx, subaccountID, orderHash, market, marketID, binaryOptionsOrderToCancel.OrderMask); err != nil {
@@ -184,7 +186,7 @@ func (k *Keeper) ExecuteBatchUpdateOrders(
 		}
 
 		if !market.IsActive() {
-			logger.Debugln("failed to create spot limit order for non-active market", "marketID", marketID.Hex())
+			k.Logger(ctx).Debug("failed to create spot limit order for non-active market", "marketID", marketID.Hex())
 			continue
 		}
 
@@ -215,14 +217,14 @@ func (k *Keeper) ExecuteBatchUpdateOrders(
 		}
 
 		if !market.IsActive() {
-			logger.Debugln("failed to create derivative limit orders for non-active market", "marketID", marketID.Hex())
+			k.Logger(ctx).Debug("failed to create derivative limit orders for non-active market", "marketID", marketID.Hex())
 			continue
 		}
 
 		if _, ok := markPrices[marketID]; !ok {
 			price, err := k.GetDerivativeMarketPrice(ctx, market.OracleBase, market.OracleQuote, market.OracleScaleFactor, market.OracleType)
 			if err != nil {
-				logger.Debugln("failed to create derivative limit order for market with no mark price", "marketID", marketID.Hex())
+				k.Logger(ctx).Debug("failed to create derivative limit order for market with no mark price", "marketID", marketID.Hex())
 				metrics.ReportFuncError(k.svcTags)
 				continue
 			}
@@ -253,7 +255,7 @@ func (k *Keeper) ExecuteBatchUpdateOrders(
 		}
 
 		if !market.IsActive() {
-			logger.Debugln("failed to create binary options limit orders for non-active market", "marketID", marketID.Hex())
+			k.Logger(ctx).Debug("failed to create binary options limit orders for non-active market", "marketID", marketID.Hex())
 			continue
 		}
 

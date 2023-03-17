@@ -2,7 +2,6 @@ package ante
 
 import (
 	"fmt"
-	"runtime/debug"
 
 	ibckeeper "github.com/cosmos/ibc-go/v4/modules/core/keeper"
 	log "github.com/xlab/suplog"
@@ -82,8 +81,6 @@ func NewAnteHandler(
 	) (newCtx sdk.Context, err error) {
 		var anteHandler sdk.AnteHandler
 
-		defer Recover(&err)
-
 		txWithExtensions, ok := tx.(authante.HasExtensionOptionsTx)
 		if ok {
 			opts := txWithExtensions.GetExtensionOptions()
@@ -152,19 +149,6 @@ func NewAnteHandler(
 		}
 
 		return anteHandler(ctx, tx, sim)
-	}
-}
-
-func Recover(err *error) { // nolint:all
-	if r := recover(); r != nil {
-		*err = sdkerrors.Wrapf(sdkerrors.ErrPanic, "%v", r) // nolint:all
-
-		if e, ok := r.(error); ok {
-			log.WithError(e).Errorln("ante handler panicked with an error")
-			log.Debugln(string(debug.Stack()))
-		} else {
-			log.Errorln(r)
-		}
 	}
 }
 

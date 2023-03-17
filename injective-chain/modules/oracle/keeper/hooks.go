@@ -1,10 +1,10 @@
 package keeper
 
 import (
+	sdk "github.com/cosmos/cosmos-sdk/types"
+
 	ocrtypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/ocr/types"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/types"
-	sdk "github.com/cosmos/cosmos-sdk/types"
-	log "github.com/xlab/suplog"
 )
 
 // Wrapper struct
@@ -51,19 +51,11 @@ func (h Hooks) AfterTransmit(ctx sdk.Context, feedId string, answer sdk.Dec, tim
 	// if previous price state exists, make necessary precaution threshold checks
 
 	if answer.IsZero() {
-		h.k.logger.WithFields(log.Fields{
-			"feedId": feedId,
-			"old":    chainlinkPriceState.Answer.String(),
-		}).Warningln("refusing to set oracle-provided price to feed - new price is zero")
+		h.k.Logger(ctx).Error("refusing to set oracle-provided price to feed - new price is zero", "feedId", feedId, "old", chainlinkPriceState.Answer.String())
 
 		return
-	} else if checkPriceFeedThreshold(chainlinkPriceState.Answer, answer) {
-		h.k.logger.WithFields(log.Fields{
-			"feedId": feedId,
-			"old":    chainlinkPriceState.Answer.String(),
-			"new":    answer.String(),
-		}).Warningln("refusing to set oracle-provided price to feed - deviation is too high")
-
+	} else if types.CheckPriceFeedThreshold(chainlinkPriceState.Answer, answer) {
+		h.k.Logger(ctx).Error("refusing to set oracle-provided price to feed - deviation is too high", "feedId", feedId, "old", chainlinkPriceState.Answer.String(), "new", answer.String())
 		return
 	}
 
@@ -79,11 +71,6 @@ func (h Hooks) AfterTransmit(ctx sdk.Context, feedId string, answer sdk.Dec, tim
 	})
 
 	h.k.SetChainlinkPriceState(ctx, feedId, chainlinkPriceState)
-}
-
-// checkPriceFeedThreshold is true when price changes beyond 100x or less than 1% of the last price
-func checkPriceFeedThreshold(lastPrice, newPrice sdk.Dec) bool {
-	return newPrice.GT(lastPrice.Mul(sdk.NewDec(100))) || newPrice.LT(lastPrice.Quo(sdk.NewDec(100)))
 }
 
 // SetChainlinkPriceEvent

@@ -6,7 +6,7 @@ title: Messages
 # Messages
 
 In this section we describe the processing of the exchange messages and the corresponding updates to the state. All
-created/modified state objects specified by each message are defined within the [state](./02_state_transitions.md)
+created/modified state objects specified by each message are defined within the [State Transitions](./04_state_transitions.md)
 section.
 
 ## Msg/Deposit

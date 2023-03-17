@@ -84,3 +84,47 @@ message MsgRequestBandIBCRates {
 
 Anyone can broadcast this message and no specific authorization is needed.
 The handler checks if `BandIbcEnabled` flag is true and go ahead sending a request.
+
+## MsgRelayPythPrices
+
+`MsgRelayPythPrices` is a message for the Pyth contract relay prices to the oracle module.  
+
+```protobuf
+// MsgRelayPythPrices defines a SDK message for updating Pyth prices
+message MsgRelayPythPrices {
+  option (gogoproto.equal) = false;
+  option (gogoproto.goproto_getters) = false;
+
+  string sender = 1;
+  repeated PriceAttestation price_attestations = 2;
+}
+
+message PriceAttestation {
+  string product_id = 1;
+  bytes price_id = 2;
+  int64 price = 3;
+  uint64 conf = 4;
+  int32 expo = 5;
+  int64 ema_price = 6;
+  uint64 ema_conf = 7;
+  PythStatus status = 8;
+  uint32 num_publishers = 9;
+  uint32 max_num_publishers = 10;
+  int64 attestation_time = 11;
+  int64 publish_time = 12;
+}
+
+enum PythStatus {
+  // The price feed is not currently updating for an unknown reason.
+  Unknown = 0;
+  // The price feed is updating as expected.
+  Trading = 1;
+  // The price feed is not currently updating because trading in the product has been halted.
+  Halted = 2;
+  // The price feed is not currently updating because an auction is setting the price.
+  Auction = 3;
+}
+```
+
+This message is expected to fail if the Relayer (`sender`) does not equal the Pyth contract address as defined in the 
+oracle module Params. 

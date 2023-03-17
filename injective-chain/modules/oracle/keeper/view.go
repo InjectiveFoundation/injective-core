@@ -2,6 +2,7 @@ package keeper
 
 import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/InjectiveLabs/metrics"
 
@@ -37,7 +38,7 @@ func (k *Keeper) GetPrice(ctx sdk.Context, oracletype types.OracleType, base, qu
 	case types.OracleType_Uma:
 		return nil
 	case types.OracleType_Pyth:
-		return nil
+		return k.GetPythPrice(ctx, base, quote)
 	case types.OracleType_BandIBC:
 		return k.GetBandIBCReferencePrice(ctx, base, quote)
 	case types.OracleType_Provider:
@@ -166,7 +167,19 @@ func (k *Keeper) GetCumulativePrice(ctx sdk.Context, oracleType types.OracleType
 	case types.OracleType_Uma:
 		return nil
 	case types.OracleType_Pyth:
-		return nil
+		basePythPriceState := k.GetPythPriceState(ctx, common.HexToHash(base))
+		if basePythPriceState == nil {
+			return nil
+		}
+		basePriceState = &basePythPriceState.PriceState
+
+		if quote != types.QuoteUSD {
+			quotePythPriceState := k.GetPythPriceState(ctx, common.HexToHash(quote))
+			if quotePythPriceState == nil {
+				return nil
+			}
+			quotePriceState = &quotePythPriceState.PriceState
+		}
 	case types.OracleType_BandIBC:
 		baseBandIBCPriceState := k.GetBandIBCPriceState(ctx, base)
 		if baseBandIBCPriceState == nil {

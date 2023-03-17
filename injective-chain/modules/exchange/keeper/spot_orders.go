@@ -136,7 +136,7 @@ func (k *Keeper) CancelAllRestingLimitOrdersFromSpotMarket(
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	cancelFunc := func(order *types.SpotLimitOrder) bool {
-		err := k.cancelSpotLimitOrder(ctx, common.HexToHash(order.OrderInfo.SubaccountId), order.Hash(), market, marketID)
+		err := k.cancelSpotLimitOrder(ctx, order.SubaccountID(), order.Hash(), market, marketID)
 		return err != nil
 	}
 
@@ -297,11 +297,9 @@ func (k *Keeper) CancelSpotLimitOrder(
 
 	// 1. Add back the margin hold to available balance
 	marginHold, marginDenom := order.GetUnfilledMarginHoldAndMarginDenom(market, false)
-	deposit := k.GetDeposit(ctx, subaccountID, marginDenom)
 
 	// 2. Increment the available balance margin hold
-	deposit.AvailableBalance = deposit.AvailableBalance.Add(marginHold)
-	k.SetDeposit(ctx, subaccountID, marginDenom, deposit)
+	k.incrementAvailableBalanceOrBank(ctx, subaccountID, marginDenom, marginHold)
 
 	// 3. Delete the order state from ordersStore and ordersIndexStore
 	k.DeleteSpotLimitOrder(ctx, marketID, isBuy, order)

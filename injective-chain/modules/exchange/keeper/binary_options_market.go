@@ -220,7 +220,7 @@ func (k *Keeper) ProcessBinaryOptionsMarketsToExpireAndSettle(ctx sdk.Context) {
 			market.SettlementPrice = &types.BinaryOptionsMarketRefundFlagPrice
 		}
 		// closingFeeRate is zero as losing side doesn't have margin to pay for fees
-		k.SettleMarket(ctx, market, sdk.ZeroDec(), sdk.ZeroDec(), market.SettlementPrice)
+		k.SettleMarket(ctx, market, sdk.ZeroDec(), market.SettlementPrice)
 
 		market.Status = types.MarketStatus_Demolished
 		k.SetBinaryOptionsMarket(ctx, market)

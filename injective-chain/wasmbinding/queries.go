@@ -9,6 +9,9 @@ import (
 	bankkeeper "github.com/cosmos/cosmos-sdk/x/bank/keeper"
 	"github.com/ethereum/go-ethereum/common"
 
+	wasmxkeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/keeper"
+	wasmxtypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/types"
+
 	exchangekeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/keeper"
 	exchangetypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 	oraclekeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/keeper"
@@ -23,15 +26,23 @@ type QueryPlugin struct {
 	oracleKeeper       *oraclekeeper.Keeper
 	bankKeeper         *bankkeeper.BaseKeeper
 	tokenFactoryKeeper *tokenfactorykeeper.Keeper
+	wasmxKeeper        *wasmxkeeper.Keeper
 }
 
 // NewQueryPlugin returns a reference to a new QueryPlugin.
-func NewQueryPlugin(ek *exchangekeeper.Keeper, ok *oraclekeeper.Keeper, bk *bankkeeper.BaseKeeper, tfk *tokenfactorykeeper.Keeper) *QueryPlugin {
+func NewQueryPlugin(
+	ek *exchangekeeper.Keeper,
+	ok *oraclekeeper.Keeper,
+	bk *bankkeeper.BaseKeeper,
+	tfk *tokenfactorykeeper.Keeper,
+	wk *wasmxkeeper.Keeper,
+) *QueryPlugin {
 	return &QueryPlugin{
 		exchangeKeeper:     ek,
 		oracleKeeper:       ok,
 		bankKeeper:         bk,
 		tokenFactoryKeeper: tfk,
+		wasmxKeeper:        wk,
 	}
 }
 
@@ -53,6 +64,22 @@ func (qp QueryPlugin) HandleOracleQuery(ctx sdk.Context, queryData json.RawMessa
 			Volatility:      vol,
 			RawHistory:      raw,
 			HistoryMetadata: meta,
+		})
+	case query.OraclePrice != nil:
+		req := query.OraclePrice
+
+		if req.GetOracleType() == oracletypes.OracleType_Provider {
+			return nil, wasmvmtypes.UnsupportedRequest{Kind: "provider oracle is not supported"}
+		}
+
+		price := qp.oracleKeeper.GetPrice(ctx, req.GetOracleType(), req.GetBase(), req.GetQuote())
+
+		if price == nil {
+			return nil, oracletypes.ErrOraclePriceNotFound
+		}
+
+		bz, err = json.Marshal(oracletypes.PriceFeedPrice{
+			Price: *price,
 		})
 	default:
 		return nil, wasmvmtypes.UnsupportedRequest{Kind: "unknown oracle query variant"}
@@ -302,6 +329,46 @@ func (qp QueryPlugin) HandleExchangeQuery(ctx sdk.Context, queryData json.RawMes
 		bz, err = json.Marshal(exchangetypes.QueryMarketAtomicExecutionFeeMultiplierResponse{
 			Multiplier: multiplier,
 		})
+	case query.AggregateMarketVolume != nil:
+		req := query.AggregateMarketVolume
+		marketID := common.HexToHash(req.MarketId)
+		volume := qp.exchangeKeeper.GetMarketAggregateVolume(ctx, marketID)
+		res := &exchangetypes.QueryAggregateMarketVolumeResponse{
+			Volume: volume,
+		}
+		bz, err = json.Marshal(res)
+	case query.AggregateAccountVolume != nil:
+		req := query.AggregateAccountVolume
+		if exchangetypes.IsHexHash(req.Account) {
+			subaccountID := common.HexToHash(req.Account)
+			volumes := qp.exchangeKeeper.GetAllSubaccountMarketAggregateVolumesBySubaccount(ctx, subaccountID)
+			res := &exchangetypes.QueryAggregateVolumeResponse{AggregateVolumes: volumes}
+			bz, err = json.Marshal(res)
+		} else {
+			accAddress, err2 := sdk.AccAddressFromBech32(req.Account)
+			if err2 != nil {
+				return nil, err2
+			}
+			volumes := qp.exchangeKeeper.GetAllSubaccountMarketAggregateVolumesByAccAddress(ctx, accAddress)
+			res := &exchangetypes.QueryAggregateVolumeResponse{
+				AggregateVolumes: volumes,
+			}
+			bz, err = json.Marshal(res)
+		}
+	case query.DenomDecimal != nil:
+		var res *exchangetypes.QueryDenomDecimalResponse
+		res, err = qp.exchangeKeeper.DenomDecimal(sdk.WrapSDKContext(ctx), query.DenomDecimal)
+		if err != nil {
+			return nil, err
+		}
+		bz, err = json.Marshal(res)
+	case query.DenomDecimals != nil:
+		var res *exchangetypes.QueryDenomDecimalsResponse
+		res, err = qp.exchangeKeeper.DenomDecimals(sdk.WrapSDKContext(ctx), query.DenomDecimals)
+		if err != nil {
+			return nil, err
+		}
+		bz, err = json.Marshal(res)
 	default:
 		return nil, wasmvmtypes.UnsupportedRequest{Kind: "unknown exchange query variant"}
 	}
@@ -345,6 +412,36 @@ func (qp QueryPlugin) HandleTokenFactoryQuery(ctx sdk.Context, queryData json.Ra
 		})
 	default:
 		return nil, wasmvmtypes.UnsupportedRequest{Kind: "unknown tokenfactory query variant"}
+	}
+
+	if err != nil {
+		return nil, sdkerrors.Wrap(sdkerrors.ErrJSONMarshal, err.Error())
+	}
+
+	return bz, nil
+}
+
+func (qp QueryPlugin) HandleWasmxQuery(ctx sdk.Context, queryData json.RawMessage) ([]byte, error) {
+	var query bindings.WasmxQuery
+	if err := json.Unmarshal(queryData, &query); err != nil {
+		return nil, sdkerrors.Wrap(err, "Error parsing Injective WasmxQuery")
+	}
+
+	var bz []byte
+	var err error
+
+	switch {
+	case query.RegisteredContractInfo != nil:
+		var contractAddress sdk.AccAddress
+		contractAddress, err = sdk.AccAddressFromBech32(query.RegisteredContractInfo.ContractAddress)
+		if err != nil {
+			return nil, sdkerrors.Wrap(err, "Error parsing contract address")
+		}
+
+		contract := qp.wasmxKeeper.GetContractByAddress(ctx, contractAddress)
+		bz, err = json.Marshal(wasmxtypes.QueryContractRegistrationInfoResponse{Contract: contract})
+	default:
+		return nil, wasmvmtypes.UnsupportedRequest{Kind: "unknown wasmx query variant"}
 	}
 
 	if err != nil {

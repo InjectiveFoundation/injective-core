@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
+	"strconv"
 	"strings"
 
 	ethCrypto "github.com/ethereum/go-ethereum/crypto"
@@ -38,6 +39,7 @@ func GetTxCmd(storeKey string) *cobra.Command {
 		GetUnsafeTestingCmd(),
 		NewBlacklistEthereumAddressesProposalTxCmd(),
 		NewRevokeEthereumBlacklistProposalCmd(),
+		NewCancelSendToEth(),
 	}...)
 
 	return peggyTxCmd
@@ -130,6 +132,35 @@ func CmdSendToEth() *cobra.Command {
 				EthDest:   args[0],
 				Amount:    amount[0],
 				BridgeFee: bridgeFee[0],
+			}
+			if err := msg.ValidateBasic(); err != nil {
+				return err
+			}
+			// Send it
+			return tx.GenerateOrBroadcastTxCLI(cliCtx, cmd.Flags(), &msg)
+		},
+	}
+	cliflags.AddTxFlagsToCmd(cmd)
+	return cmd
+}
+
+func NewCancelSendToEth() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "cancel-send-to-eth [id]",
+		Short: "Cancels send to eth",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cliCtx, err := client.GetClientTxContext(cmd)
+			if err != nil {
+				return err
+			}
+			cosmosAddr := cliCtx.GetFromAddress()
+
+			id, _ := strconv.Atoi(args[0])
+			// Make the message
+			msg := types.MsgCancelSendToEth{
+				TransactionId: uint64(id),
+				Sender:        cosmosAddr.String(),
 			}
 			if err := msg.ValidateBasic(); err != nil {
 				return err

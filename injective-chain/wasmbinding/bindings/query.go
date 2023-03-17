@@ -46,6 +46,10 @@ type ExchangeQuery struct {
 	DerivativeMarketMidPriceAndTOB                  *exchangetypes.QueryDerivativeMidPriceAndTOBRequest                 `json:"derivative_market_mid_price_and_tob,omitempty"`
 	MarketVolatility                                *exchangetypes.QueryMarketVolatilityRequest                         `json:"market_volatility,omitempty"`
 	MarketAtomicExecutionFeeMultiplier              *exchangetypes.QueryMarketAtomicExecutionFeeMultiplierRequest       `json:"market_atomic_execution_fee_multiplier"`
+	AggregateMarketVolume                           *exchangetypes.QueryAggregateMarketVolumeRequest                    `json:"aggregate_market_volume"`
+	AggregateAccountVolume                          *exchangetypes.QueryAggregateVolumeRequest                          `json:"aggregate_account_volume"`
+	DenomDecimal                                    *exchangetypes.QueryDenomDecimalRequest                             `json:"denom_decimal"`
+	DenomDecimals                                   *exchangetypes.QueryDenomDecimalsRequest                            `json:"denom_decimals"`
 }
 
 type SubaccountDepositQueryResponse struct {
@@ -67,6 +71,7 @@ type InsuranceQuery struct{}
 type OcrQuery struct{}
 
 type OracleQuery struct {
+	OracleParams     *oracletypes.QueryParamsRequest           `json:"oracle_params,omitempty"`
 	OracleVolatility *oracletypes.QueryOracleVolatilityRequest `json:"oracle_volatility,omitempty"`
 	OraclePrice      *oracletypes.QueryOraclePriceRequest      `json:"oracle_price,omitempty"`
 }
@@ -80,6 +85,10 @@ type TokenfactoryQuery struct {
 	DenomTotalSupply *TotalSupply `json:"token_factory_denom_total_supply"`
 	/// Returns a fee required to create a new denom
 	DenomCreationFee *DenomCreationFee `json:"token_factory_denom_creation_fee"`
+}
+
+type WasmxQuery struct {
+	RegisteredContractInfo *RegisteredContractInfo `json:"wasmx_registered_contract_info"`
 }
 
 type DenomAdmin struct {
@@ -104,4 +113,6 @@ type DenomCreationFeeResponse struct {
 	Fee sdk.Coins `json:"fee"`
 }
 
-type WasmxQuery struct{}
+type RegisteredContractInfo struct {
+	ContractAddress string `json:"contract_address"`
+}

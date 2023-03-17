@@ -39,3 +39,8 @@ tests-solidity/**/artifacts
 tests-solidity/**/cache
 
 /injective-chain/modules/old_exchange/
+**/ginkgo.report
+injective-chain/modules/exchange/testexchange/test.properties
+
+# Go
+*.coverprofile

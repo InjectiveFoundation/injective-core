@@ -83,14 +83,14 @@ func (k *Keeper) DeletePosition(
 }
 
 // GetAllPositionsByMarket returns all positions in a given derivative market
-func (k *Keeper) GetAllPositionsByMarket(ctx sdk.Context, marketID common.Hash) []types.DerivativePosition {
+func (k *Keeper) GetAllPositionsByMarket(ctx sdk.Context, marketID common.Hash) []*types.DerivativePosition {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
-	positions := make([]types.DerivativePosition, 0)
+	positions := make([]*types.DerivativePosition, 0)
 	appendPosition := func(p *types.Position, key []byte) (stop bool) {
 		subaccountID := types.GetSubaccountIDFromPositionKey(key)
 
-		derivativePosition := types.DerivativePosition{
+		derivativePosition := &types.DerivativePosition{
 			SubaccountId: subaccountID.Hex(),
 			MarketId:     marketID.Hex(),
 			Position:     p,

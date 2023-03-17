@@ -4,8 +4,9 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	abci "github.com/tendermint/tendermint/abci/types"
 
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/keeper"
 	"github.com/InjectiveLabs/metrics"
+
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/keeper"
 )
 
 type BlockHandler struct {
@@ -37,6 +38,11 @@ func (h *BlockHandler) BeginBlocker(ctx sdk.Context) {
 
 	if ctx.BlockHeight()%100000 == 0 {
 		h.k.CleanupHistoricalPriceRecords(ctx)
+	}
+
+	// todo: default cleanup interval (1 day)
+	if ctx.BlockHeight()%24*60*60 == 0 {
+		h.k.CleanUpStaleBandIBCCalldataRecords(ctx)
 	}
 }
 

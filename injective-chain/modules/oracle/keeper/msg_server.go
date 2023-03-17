@@ -12,6 +12,7 @@ type MsgServer struct {
 	PricefeedMsgServer
 	CoinbaseMsgServer
 	ProviderMsgServer
+	PythMsgServer
 
 	Keeper
 	svcTags metrics.Tags
@@ -27,6 +28,7 @@ func NewMsgServerImpl(keeper Keeper) types.MsgServer {
 		PricefeedMsgServer: NewPricefeedMsgServerImpl(keeper),
 		CoinbaseMsgServer:  NewCoinbaseMsgServerImpl(keeper),
 		ProviderMsgServer:  NewProviderMsgServerImpl(keeper),
+		PythMsgServer:      NewPythMsgServerImpl(keeper),
 		Keeper:             keeper,
 		svcTags: metrics.Tags{
 			"svc": "oracle_h",

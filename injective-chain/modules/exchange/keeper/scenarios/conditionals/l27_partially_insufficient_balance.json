@@ -4,7 +4,7 @@
   "seed": 1658339268842048000,
   "actions": [
     {
-      "actionType": "withdrawal",
+      "actionType": "removeFunds",
       "denom": "USDT0",
       "toLeave": 120
     },

@@ -1,14 +1,10 @@
 package keeper
 
 import (
-	"fmt"
-
+	"github.com/InjectiveLabs/metrics"
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
-	log "github.com/xlab/suplog"
-
-	"github.com/InjectiveLabs/metrics"
 
 	exchangetypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/peggy/types"
@@ -189,11 +185,11 @@ func (k *Keeper) processAttestation(ctx sdk.Context, claim types.EthereumClaim) 
 		// If the attestation fails, something has gone wrong and we can't recover it. Log and move on
 		// The attestation will still be marked "Observed", and validators can still be slashed for not
 		// having voted for it.
-		k.logger.WithError(err).WithFields(log.Fields{
-			"claim_type": claim.GetType(),
-			"id":         types.GetAttestationKey(claim.GetEventNonce(), claim.ClaimHash()),
-			"nonce":      fmt.Sprint(claim.GetEventNonce()),
-		}).Warningln("attestation failed")
+		k.Logger(ctx).Error("attestation failed",
+			"claim_type", claim.GetType().String(),
+			"id", types.GetAttestationKey(claim.GetEventNonce(), claim.ClaimHash()),
+			"nonce", claim.GetEventNonce(),
+		)
 	} else {
 		commit() // persist transient storage
 	}
@@ -226,7 +222,7 @@ func (k *Keeper) ProcessClaimData(ctx sdk.Context, claim types.EthereumClaim) {
 			ethereumSenderInjAccAddr := sdk.AccAddress(common.FromHex(claim.EthereumSender))
 			claimDataMsg, err := k.ValidateClaimData(ctx, claim.Data, ethereumSenderInjAccAddr)
 			if err != nil {
-				log.Infoln("claim data is not a valid sdk.Msg", err)
+				k.Logger(ctx).Info("claim data is not a valid sdk.Msg", err)
 				return
 			}
 
@@ -241,24 +237,24 @@ func (k *Keeper) ProcessClaimData(ctx sdk.Context, claim types.EthereumClaim) {
 				// Enforce the deposit amount is not greater than the deposit claim amount
 				_, denom := k.ERC20ToDenomLookup(xCtx, common.HexToAddress(claim.TokenContract))
 				if msg.Amount.Denom != denom {
-					k.logger.WithFields(log.Fields{
-						"deposit_denom": msg.Amount.Denom,
-						"claim_denom":   denom,
-					}).Warningln("deposit denom should be same as deposit claim amount denom")
+					k.Logger(ctx).Error("deposit denom should be same as deposit claim amount denom", "deposit_denom", msg.Amount.Denom, "claim_denom", denom)
 					return
 				}
 
 				claimAmount := sdk.NewCoin(denom, claim.Amount)
 				if claimAmount.IsLT(msg.Amount) {
-					k.logger.WithFields(log.Fields{
-						"deposit_amount": msg.Amount,
-						"claim_amount":   claimAmount,
-					}).Warningln("deposit amount exceeds deposit claim amount")
+					k.Logger(ctx).Error("deposit amount exceeds deposit claim amount", "deposit_amount", msg.Amount.String(), "claim_amount", claimAmount.String())
 					return
 				}
 
 				// Execute the message
 				_, err := k.exchangeMsgServer.Deposit(wrappedCacheCtx, msg)
+				if err == nil {
+					commit() // persist transient storage
+				}
+			case *exchangetypes.MsgCreateSpotMarketOrder:
+				// Execute the message
+				_, err := k.exchangeMsgServer.CreateSpotMarketOrder(wrappedCacheCtx, msg)
 				if err == nil {
 					commit() // persist transient storage
 				}
@@ -448,75 +444,19 @@ func (k *Keeper) setLastEventByValidator(ctx sdk.Context, validator sdk.ValAddre
 }
 
 // GetLastEventByValidator returns the latest event for a given validator
-func (k *Keeper) GetLastEventByValidator(ctx sdk.Context, validator sdk.ValAddress) (lastEvent types.LastClaimEvent) {
+func (k *Keeper) GetLastEventByValidator(ctx sdk.Context, validator sdk.ValAddress) types.LastClaimEvent {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
-	store := ctx.KVStore(k.storeKey)
-	bytes := store.Get(types.GetLastEventByValidatorKey(validator))
-
-	if len(bytes) == 0 {
-		// in the case that we have no existing value this is the first
-		// time a validator is submitting a claim. Since we don't want to force
-		// them to replay the entire history of all events ever we can't start
-		// at zero
-		//
-		// We could start at the LastObservedEventNonce but if we do that this
-		// validator will be slashed, because they are responsible for making a claim
-		// on any attestation that has not yet passed the slashing window.
-		//
-		// Therefore we need to return to them the lowest attestation that is still within
-		// the slashing window. Since we delete attestations after the slashing window that's
-		// just the lowest observed event in the store. If no claims have been submitted in for
-		// params.SignedClaimsWindow we may have no attestations in our nonce. At which point
-		// the last observed which is a persistent and never cleaned counter will suffice.
-		lowestObservedNonce := k.GetLastObservedEventNonce(ctx)
-		lowestObservedHeight := k.GetLastObservedEthereumBlockHeight(ctx)
-		peggyParams := k.GetParams(ctx)
-		attmap := k.GetAttestationMapping(ctx)
-
-		// when the chain starts from genesis state, as there are no events broadcasted, lowest_observed_nonce will be zero.
-		// Bridge relayer has to scan the events from the height at which bridge contract is deployed on ethereum.
-		if lowestObservedNonce == 0 {
-			lastEvent = types.LastClaimEvent{
-				EthereumEventNonce:  lowestObservedNonce,
-				EthereumEventHeight: peggyParams.BridgeContractStartHeight,
-			}
-			return
-		}
-
-		// no new claims in params.SignedClaimsWindow, we can return the current value
-		// because the validator can't be slashed for an event that has already passed.
-		// so they only have to worry about the *next* event to occur
-		if len(attmap) == 0 {
-			lastEvent = types.LastClaimEvent{
-				EthereumEventNonce:  lowestObservedNonce,
-				EthereumEventHeight: lowestObservedHeight.EthereumBlockHeight,
-			}
-			return
-		}
-
-		for nonce, atts := range attmap {
-			for att := range atts {
-				if atts[att].Observed && nonce < lowestObservedNonce {
-					claim, err := k.UnpackAttestationClaim(atts[att])
-					if err != nil {
-						metrics.ReportFuncError(k.svcTags)
-						panic("could not cast to claim")
-					}
-					lastEvent = types.LastClaimEvent{
-						EthereumEventNonce:  nonce,
-						EthereumEventHeight: claim.GetBlockHeight(),
-					}
-				}
-			}
-		}
-
-		return
-	} else {
-		// Unmarshall last observed event by validator
-		k.cdc.MustUnmarshal(bytes, &lastEvent)
-		return
+	rawEvent := ctx.KVStore(k.storeKey).Get(types.GetLastEventByValidatorKey(validator))
+	if len(rawEvent) == 0 {
+		return types.LastClaimEvent{}
 	}
+
+	// Unmarshall last observed event by validator
+	var lastEvent types.LastClaimEvent
+	k.cdc.MustUnmarshal(rawEvent, &lastEvent)
+
+	return lastEvent
 }
 
 func (k *Keeper) PruneAttestation7005(ctx sdk.Context) {

@@ -241,8 +241,12 @@ func scheduleSpotMarketForceClosure(ctx sdk.Context, k keeper.Keeper, spotMarket
 }
 
 func scheduleDerivativeMarketSettlement(ctx sdk.Context, k keeper.Keeper, derivativeMarket *types.DerivativeMarket, settlementPrice *sdk.Dec) error {
-	if settlementPrice == nil || !types.SafeIsPositiveDec(*settlementPrice) {
-		return sdkerrors.Wrap(types.ErrInvalidSettlement, "settlement price must be defined and positive for derivative markets")
+	if settlementPrice == nil {
+		// zero is a reserved value for fetching the latest price from oracle
+		zeroDec := sdk.ZeroDec()
+		settlementPrice = &zeroDec
+	} else if !types.SafeIsPositiveDec(*settlementPrice) {
+		return sdkerrors.Wrap(types.ErrInvalidSettlement, "settlement price must be positive for derivative markets")
 	}
 
 	settlementInfo := k.GetDerivativesMarketScheduledSettlementInfo(ctx, common.HexToHash(derivativeMarket.MarketId))
@@ -253,7 +257,6 @@ func scheduleDerivativeMarketSettlement(ctx sdk.Context, k keeper.Keeper, deriva
 	marketSettlementInfo := types.DerivativeMarketSettlementInfo{
 		MarketId:        derivativeMarket.MarketId,
 		SettlementPrice: *settlementPrice,
-		StartingDeficit: sdk.ZeroDec(),
 	}
 	k.SetDerivativesMarketScheduledSettlementInfo(ctx, &marketSettlementInfo)
 	return nil

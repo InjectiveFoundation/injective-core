@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 
-	storetypes "github.com/cosmos/cosmos-sdk/store/types"
 	"github.com/cosmos/cosmos-sdk/x/feegrant"
 	feegrantmodule "github.com/cosmos/cosmos-sdk/x/feegrant/module"
 
@@ -546,7 +546,7 @@ func NewInjectiveApp(
 	// if we want to allow any custom callbacks
 	supportedFeatures := "iterator,staking,stargate,injective"
 	wasmOpts := GetWasmOpts(appOpts)
-	wasmOpts = append(wasmOpts, wasmbinding.RegisterCustomPlugins(app.BankKeeper.(bankkeeper.BaseKeeper), &app.ExchangeKeeper, &app.OracleKeeper, &app.TokenFactoryKeeper, app.MsgServiceRouter())...)
+	wasmOpts = append(wasmOpts, wasmbinding.RegisterCustomPlugins(app.BankKeeper.(bankkeeper.BaseKeeper), &app.ExchangeKeeper, &app.OracleKeeper, &app.TokenFactoryKeeper, &app.WasmxKeeper, app.MsgServiceRouter())...)
 
 	app.WasmKeeper = wasm.NewKeeper(
 		appCodec,
@@ -568,7 +568,6 @@ func NewInjectiveApp(
 		wasmOpts...,
 	)
 
-	// TODO: Injective team, check if this the correct way to do things! Might have some security risks
 	wasmContractOpsKeeper := wasmkeeper.NewDefaultPermissionKeeper(app.WasmKeeper)
 
 	app.WasmxKeeper.SetWasmKeepers(app.WasmKeeper, wasmContractOpsKeeper)
@@ -595,7 +594,7 @@ func NewInjectiveApp(
 		AddRoute(oracletypes.RouterKey, oracle.NewOracleProposalHandler(app.OracleKeeper)).
 		AddRoute(auctiontypes.RouterKey, auction.NewAuctionProposalHandler(app.AuctionKeeper)).
 		AddRoute(ocrtypes.RouterKey, ocr.NewOcrProposalHandler(app.OcrKeeper)).
-		AddRoute(wasmxtypes.RouterKey, wasmx.NewWasmxProposalHandler(app.WasmxKeeper)).
+		AddRoute(wasmxtypes.RouterKey, wasmx.NewWasmxProposalHandler(app.WasmxKeeper, wasm.NewWasmProposalHandler(app.WasmKeeper, GetEnabledProposals()))).
 		AddRoute(peggytypes.RouterKey, peggy.NewPeggyProposalHandler(app.PeggyKeeper))
 
 	// register wasm gov proposal types
@@ -603,6 +602,16 @@ func NewInjectiveApp(
 	if len(enabledProposals) != 0 {
 		govRouter.AddRoute(wasm.RouterKey, wasm.NewWasmProposalHandler(app.WasmKeeper, enabledProposals))
 	}
+
+	app.ICAHostKeeper = icahostkeeper.NewKeeper(
+		appCodec, keys[icahosttypes.StoreKey],
+		app.GetSubspace(icahosttypes.SubModuleName),
+		app.IBCKeeper.ChannelKeeper,
+		&app.IBCKeeper.PortKeeper,
+		app.AccountKeeper,
+		scopedICAHostKeeper,
+		app.MsgServiceRouter(),
+	)
 
 	// Create Transfer Stack
 	var transferStack porttypes.IBCModule
@@ -632,17 +641,6 @@ func NewInjectiveApp(
 	app.ExchangeKeeper.SetWasmKeepers(app.WasmKeeper, wasmContractOpsKeeper, app.WasmxKeeper)
 	app.ExchangeKeeper.SetGovKeeper(&app.GovKeeper)
 
-	app.ICAHostKeeper = icahostkeeper.NewKeeper(
-		appCodec, keys[icahosttypes.StoreKey],
-		app.GetSubspace(icahosttypes.SubModuleName),
-		app.IBCKeeper.ChannelKeeper,
-		&app.IBCKeeper.PortKeeper,
-		app.AccountKeeper,
-		scopedICAHostKeeper,
-		app.MsgServiceRouter(),
-	)
-	icaModule := ica.NewAppModule(nil, &app.ICAHostKeeper)
-
 	// Create static IBC router, add transfer route, then set and seal it
 	ibcRouter := porttypes.NewRouter().
 		AddRoute(icahosttypes.SubModuleName, icaHostStack).
@@ -667,7 +665,7 @@ func NewInjectiveApp(
 	app.FeeGrantKeeper = feegrantKeeper
 
 	authzKeeper := authzkeeper.NewKeeper(
-		keys[authzkeeper.StoreKey], appCodec, app.MsgServiceRouter(),
+		keys[authzkeeper.StoreKey], appCodec, app.MsgServiceRouter(), app.AccountKeeper,
 	)
 	app.AuthzKeeper = authzKeeper
 
@@ -704,7 +702,7 @@ func NewInjectiveApp(
 		params.NewAppModule(app.ParamsKeeper),
 		transfer.NewAppModule(app.TransferKeeper),
 		ibcfee.NewAppModule(app.IBCFeeKeeper),
-		icaModule,
+		ica.NewAppModule(nil, &app.ICAHostKeeper),
 		// Injective app modules
 		exchange.NewAppModule(
 			app.ExchangeKeeper,
@@ -762,17 +760,17 @@ func NewInjectiveApp(
 		exchangetypes.ModuleName, oracletypes.ModuleName, ocrtypes.ModuleName, tokenfactorytypes.ModuleName, wasm.ModuleName, wasmxtypes.ModuleName,
 	)
 
-	// NOTE: exchange endblocker must occur after gov endblocker
+	// NOTE: exchange endblocker must occur after gov endblocker and bank endblocker must be last
 	app.mm.SetOrderEndBlockers(
 		genutiltypes.ModuleName, vestingtypes.ModuleName,
 		paramstypes.ModuleName, authtypes.ModuleName,
-		feegrant.ModuleName, banktypes.ModuleName, authz.ModuleName, ibctransfertypes.ModuleName,
+		feegrant.ModuleName, authz.ModuleName, ibctransfertypes.ModuleName,
 		oracletypes.ModuleName, minttypes.ModuleName, slashingtypes.ModuleName, ibctransfertypes.ModuleName, evidencetypes.ModuleName,
 		capabilitytypes.ModuleName, distrtypes.ModuleName, ibchost.ModuleName, icatypes.ModuleName, ibcfeetypes.ModuleName,
 		upgradetypes.ModuleName,
 		crisistypes.ModuleName, govtypes.ModuleName, stakingtypes.ModuleName, peggytypes.ModuleName,
 		exchangetypes.ModuleName, auctiontypes.ModuleName, insurancetypes.ModuleName, ocrtypes.ModuleName,
-		tokenfactorytypes.ModuleName, wasm.ModuleName, wasmxtypes.ModuleName,
+		tokenfactorytypes.ModuleName, wasm.ModuleName, wasmxtypes.ModuleName, banktypes.ModuleName,
 	)
 
 	// NOTE: The genutils module must occur after staking so that pools are
@@ -1000,34 +998,29 @@ func (app *InjectiveApp) registerUpgradeHandlers() {
 		upgradeName,
 		func(ctx sdk.Context, _ upgradetypes.Plan, fromVM module.VersionMap) (module.VersionMap, error) {
 
-			// Emit bank module EventSetBalances
-			allBalances := app.BankKeeper.GetAccountsBalances(ctx)
-			balanceUpdates := make([]*banktypes.BalanceUpdate, 0, len(allBalances))
-			for idx := range allBalances {
-				addr, err := sdk.AccAddressFromBech32(allBalances[idx].Address)
-				if err != nil {
-					continue
-				}
-
-				for _, coin := range allBalances[idx].Coins {
-					balanceUpdates = append(balanceUpdates, &banktypes.BalanceUpdate{
-						Addr:  addr,
-						Denom: []byte(coin.Denom),
-						Amt:   coin.Amount,
-					})
-				}
+			spotMarketInstantListingFeeAmount, ok := sdk.NewIntFromString("100000000000000000000")
+			if !ok {
+				panic("bad spotMarketInstantListingFeeAmount")
 			}
 
-			_ = ctx.EventManager().EmitTypedEvent(&banktypes.EventSetBalances{
-				BalanceUpdates: balanceUpdates,
-			})
+			derivativeMarketInstantListingFee, ok := sdk.NewIntFromString("1000000000000000000000")
+			if !ok {
+				panic("bad derivativeMarketInstantListingFee")
+			}
 
-			// Prune the unpruned peggy attestation
-			app.PeggyKeeper.PruneAttestation7005(ctx)
+			injRewardStakedRequirementThreshold, ok := sdk.NewIntFromString("25000000000000000000")
+			if !ok {
+				panic("bad injRewardStakedRequirementThreshold")
+			}
+
+			binaryOptionsMarketInstantListingFee, ok := sdk.NewIntFromString("20000000000000000000")
+			if !ok {
+				panic("bad binaryOptionsMarketInstantListingFee")
+			}
 
 			app.ExchangeKeeper.SetParams(ctx, exchangetypes.Params{
-				SpotMarketInstantListingFee:                 sdk.NewCoin("inj", sdk.NewIntWithDecimal(100, 18)),  // 100 INJ
-				DerivativeMarketInstantListingFee:           sdk.NewCoin("inj", sdk.NewIntWithDecimal(1000, 18)), // 1000 INJ
+				SpotMarketInstantListingFee:                 sdk.NewCoin("inj", spotMarketInstantListingFeeAmount),
+				DerivativeMarketInstantListingFee:           sdk.NewCoin("inj", derivativeMarketInstantListingFee),
 				DefaultSpotMakerFeeRate:                     sdk.MustNewDecFromStr("-0.0001"),
 				DefaultSpotTakerFeeRate:                     sdk.MustNewDecFromStr("0.001"),
 				DefaultDerivativeMakerFeeRate:               sdk.MustNewDecFromStr("-0.0001"),
@@ -1040,26 +1033,52 @@ func (app *InjectiveApp) registerUpgradeHandlers() {
 				DefaultHourlyFundingRateCap:                 sdk.MustNewDecFromStr("0.000625"),
 				DefaultHourlyInterestRate:                   sdk.MustNewDecFromStr("0.00000416666"),
 				MaxDerivativeOrderSideCount:                 20,
-				InjRewardStakedRequirementThreshold:         sdk.NewIntWithDecimal(25, 18), // 25 INJ
+				InjRewardStakedRequirementThreshold:         injRewardStakedRequirementThreshold,
 				TradingRewardsVestingDuration:               1209600,
 				LiquidatorRewardShareRate:                   sdk.MustNewDecFromStr("0.05"),
-				BinaryOptionsMarketInstantListingFee:        sdk.NewCoin("inj", sdk.NewIntWithDecimal(20, 18)), // 20 INJ
+				BinaryOptionsMarketInstantListingFee:        sdk.NewCoin("inj", binaryOptionsMarketInstantListingFee),
 				AtomicMarketOrderAccessLevel:                exchangetypes.AtomicMarketOrderAccessLevel_SmartContractsOnly,
-				SpotAtomicMarketOrderFeeMultiplier:          sdk.NewDec(2),
-				DerivativeAtomicMarketOrderFeeMultiplier:    sdk.NewDec(2),
-				BinaryOptionsAtomicMarketOrderFeeMultiplier: sdk.NewDec(2),
+				SpotAtomicMarketOrderFeeMultiplier:          sdk.MustNewDecFromStr("2"),
+				DerivativeAtomicMarketOrderFeeMultiplier:    sdk.MustNewDecFromStr("2"),
+				BinaryOptionsAtomicMarketOrderFeeMultiplier: sdk.MustNewDecFromStr("2"),
 				MinimalProtocolFeeRate:                      sdk.MustNewDecFromStr("0.00001"),
+				IsInstantDerivativeMarketLaunchEnabled:      false,
 			})
 
-			fromVM[ibcfeetypes.ModuleName] = ibcfee.AppModule{}.ConsensusVersion()
+			app.OracleKeeper.SetParams(ctx, oracletypes.Params{
+				PythContract: "",
+			})
 
-			ibcFeeGenesisState := ibcfeetypes.DefaultGenesisState()
-			ibcFeeGenesisJSON := app.appCodec.MustMarshalJSON(ibcFeeGenesisState)
-			app.mm.Modules[ibcfeetypes.ModuleName].InitGenesis(ctx, app.appCodec, ibcFeeGenesisJSON)
+			// migrate exchange balances for default subaccounts
+			exchangeBalances := app.ExchangeKeeper.GetAllExchangeBalances(ctx)
+			for idx := range exchangeBalances {
+				app.ExchangeKeeper.MigrateExchangeBalances(ctx, exchangeBalances[idx])
+			}
 
-			consensusParams := app.BaseApp.GetConsensusParams(ctx)
-			consensusParams.Block.MaxGas = 30000000 // 30M gas
-			app.BaseApp.StoreConsensusParams(ctx, consensusParams)
+			slashingParams := app.SlashingKeeper.GetParams(ctx)
+			slashingParams.SignedBlocksWindow = 100000
+			app.SlashingKeeper.SetParams(ctx, slashingParams)
+
+			// migrate existing script IDs as legacy
+			ibcParams := app.OracleKeeper.GetBandIBCParams(ctx)
+			oracleRequests := app.OracleKeeper.GetAllBandIBCOracleRequests(ctx)
+
+			existingIDs := make(map[int64]bool)
+			for _, req := range oracleRequests {
+				existingIDs[req.OracleScriptId] = true
+			}
+
+			legacyIDs := make([]int64, 0, len(existingIDs))
+			for id := range existingIDs {
+				legacyIDs = append(legacyIDs, id)
+			}
+
+			sort.SliceStable(legacyIDs, func(i, j int) bool {
+				return legacyIDs[i] < legacyIDs[j]
+			})
+
+			ibcParams.LegacyOracleIds = legacyIDs
+			app.OracleKeeper.SetBandIBCParams(ctx, ibcParams)
 
 			return app.mm.RunMigrations(ctx, app.configurator, fromVM)
 		},
@@ -1072,15 +1091,14 @@ func (app *InjectiveApp) registerUpgradeHandlers() {
 	// nolint:all
 	if upgradeInfo.Name == upgradeName && !app.UpgradeKeeper.IsSkipHeight(upgradeInfo.Height) {
 		// add any store upgrades here
-
-		storeUpgrades := storetypes.StoreUpgrades{
-			Added: []string{
-				ibcfeetypes.StoreKey,
-			},
-		}
-
-		// configure store loader that checks if version == upgradeHeight and applies store upgrades
-		app.SetStoreLoader(upgradetypes.UpgradeStoreLoader(upgradeInfo.Height, &storeUpgrades))
+		//storeUpgrades := storetypes.StoreUpgrades{
+		//	Added: []string{
+		//		ibcfeetypes.StoreKey,
+		//	},
+		//}
+		//
+		//// configure store loader that checks if version == upgradeHeight and applies store upgrades
+		//app.SetStoreLoader(upgradetypes.UpgradeStoreLoader(upgradeInfo.Height, &storeUpgrades))
 	}
 }
 

@@ -12,19 +12,14 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
+	"github.com/InjectiveLabs/injective-core/cli"
 	cliflags "github.com/InjectiveLabs/injective-core/cli/flags"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 )
 
 // GetQueryCmd returns the parent command for all modules/bank CLi query commands.
 func GetQueryCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:                        types.ModuleName,
-		Short:                      "Querying commands for the exchange module",
-		DisableFlagParsing:         true,
-		SuggestionsMinimumDistance: 2,
-		RunE:                       client.ValidateCmd,
-	}
+	cmd := cli.ModuleRootCommand(types.ModuleName, true)
 
 	cmd.AddCommand(
 		GetAllSpotMarkets(),
@@ -44,59 +39,23 @@ func GetQueryCmd() *cobra.Command {
 
 // GetAllSpotMarkets queries all active spot markets
 func GetAllSpotMarkets() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "spot-markets ",
-		Short: "Gets all active spot markets",
-		Long:  "Gets all active spot markets. If the height is not provided, it will use the latest height from context.",
-		Args:  cobra.MaximumNArgs(0),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			clientCtx, err := client.GetClientQueryContext(cmd)
-			if err != nil {
-				return err
-			}
-			queryClient := types.NewQueryClient(clientCtx)
-
-			req := &types.QuerySpotMarketsRequest{
-				Status: "Active",
-			}
-			res, err := queryClient.SpotMarkets(context.Background(), req)
-			if err != nil {
-				return err
-			}
-			return clientCtx.PrintProto(res)
-		},
-	}
-
-	cliflags.AddQueryFlagsToCmd(cmd)
+	cmd := cli.QueryCmd("spot-markets",
+		"Gets all active spot markets",
+		types.NewQueryClient,
+		&types.QuerySpotMarketsRequest{
+			Status: "Active",
+		}, cli.FlagsMapping{}, cli.ArgsMapping{})
+	cmd.Long = "Gets all active spot markets. If the height is not provided, it will use the latest height from context."
 	return cmd
 }
 
 // GetSpotMarket queries a single spot market
 func GetSpotMarket() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "spot-market <market_id>",
-		Short: "Gets a single spot market",
-		Long:  "Gets a single spot market by ID. If the height is not provided, it will use the latest height from context.",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			clientCtx, err := client.GetClientQueryContext(cmd)
-			if err != nil {
-				return err
-			}
-			queryClient := types.NewQueryClient(clientCtx)
-
-			req := &types.QuerySpotMarketRequest{
-				MarketId: args[0],
-			}
-			res, err := queryClient.SpotMarket(context.Background(), req)
-			if err != nil {
-				return err
-			}
-			return clientCtx.PrintProto(res)
-		},
-	}
-
-	cliflags.AddQueryFlagsToCmd(cmd)
+	cmd := cli.QueryCmd("spot-market <market_id>",
+		"Gets a single spot market",
+		types.NewQueryClient,
+		&types.QuerySpotMarketRequest{}, cli.FlagsMapping{}, cli.ArgsMapping{})
+	cmd.Long = "Gets a single spot market by ID. If the height is not provided, it will use the latest height from context."
 	return cmd
 }
 
@@ -140,7 +99,7 @@ func GetSubaccountDeposits() *cobra.Command {
 // GetSubaccountDeposit queries a subaccount's deposits for a given denomination
 func GetSubaccountDeposit() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "deposits [subaccount_id] [denom]",
+		Use:   "deposit [subaccount_id] [denom]",
 		Short: "Gets the deposits of a given subaccount for a given denomination",
 		Long:  "Gets the deposits of a given subaccount. If the height is not provided, it will use the latest height from context.",
 		Args:  cobra.ExactArgs(2),

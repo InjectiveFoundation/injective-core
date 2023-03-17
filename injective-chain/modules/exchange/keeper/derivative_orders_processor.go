@@ -64,10 +64,8 @@ func (k *Keeper) GetDerivativeMatchingExecutionData(
 	transientBuyOrders, transientSellOrders []*types.DerivativeLimitOrder,
 	positionStates map[common.Hash]*PositionState,
 	feeDiscountConfig *FeeDiscountConfig,
-) (executionData *DerivativeMatchingExpansionData) {
+) *DerivativeMatchingExpansionData {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
-
-	executionData = &DerivativeMatchingExpansionData{}
 
 	var (
 		buyOrderbook  = k.NewDerivativeLimitOrderbook(ctx, true, transientBuyOrders, market, markPrice, funding, positionStates)
@@ -122,80 +120,86 @@ func (k *Keeper) GetDerivativeMatchingExecutionData(
 		}
 	}
 
-	executionData.ClearingPrice = clearingPrice
-	executionData.ClearingQuantity = clearingQuantity
-
 	tradeRewardsMultiplierConfig := k.GetEffectiveTradingRewardsMarketPointsMultiplierConfig(ctx, market.MarketID())
+	expansionData := NewDerivativeMatchingExpansionData(clearingPrice, clearingQuantity)
 
 	if buyOrderbook != nil {
-		if transientOrderbookFills := buyOrderbook.GetTransientOrderbookFills(); transientOrderbookFills != nil {
-			executionData.TransientLimitBuyExpansions, executionData.NewRestingLimitBuyOrders = k.processTransientDerivativeLimitOrderExpansions(
-				ctx,
-				market,
-				funding,
-				transientOrderbookFills,
-				true,
-				positionStates,
-				clearingPrice,
-				tradeRewardsMultiplierConfig,
-				feeDiscountConfig,
-			)
-		}
+		isBuy := true
+		mergedOrderbookFills := NewMergedDerivativeOrderbookFills(isBuy, buyOrderbook.GetTransientOrderbookFills(), buyOrderbook.GetRestingOrderbookFills())
 
-		if restingOrderbookFills := buyOrderbook.GetRestingOrderbookFills(); restingOrderbookFills != nil {
-			executionData.RestingLimitBuyExpansions = k.processRestingDerivativeLimitOrderbookMatchingResults(
+		for {
+			fill := mergedOrderbookFills.Next()
+
+			if fill == nil {
+				break
+			}
+
+			expansion := k.applyPositionDeltaAndGetDerivativeLimitOrderStateExpansion(
 				ctx,
 				market,
 				funding,
-				restingOrderbookFills,
-				true,
+				isBuy,
+				fill.IsTransient,
+				fill.Order,
 				positionStates,
+				fill.FillQuantity,
 				clearingPrice,
 				tradeRewardsMultiplierConfig,
 				feeDiscountConfig,
 				false,
 			)
+
+			expansionData.AddExpansion(isBuy, fill.IsTransient, expansion)
+
+			// add partially filled transient order to the soon-to-be new resting orders
+			if fill.IsTransient && expansion.LimitOrderFilledDelta.FillableQuantity().IsPositive() {
+				expansionData.AddNewRestingLimitOrder(isBuy, fill.Order)
+			}
 		}
 
-		executionData.RestingLimitBuyOrderCancels = buyOrderbook.GetRestingOrderbookCancels()
-		executionData.TransientLimitBuyOrderCancels = buyOrderbook.GetTransientOrderbookCancels()
+		expansionData.RestingLimitBuyOrderCancels = buyOrderbook.GetRestingOrderbookCancels()
+		expansionData.TransientLimitBuyOrderCancels = buyOrderbook.GetTransientOrderbookCancels()
 	}
 
 	if sellOrderbook != nil {
-		if transientOrderbookFills := sellOrderbook.GetTransientOrderbookFills(); transientOrderbookFills != nil {
-			executionData.TransientLimitSellExpansions, executionData.NewRestingLimitSellOrders = k.processTransientDerivativeLimitOrderExpansions(
-				ctx,
-				market,
-				funding,
-				transientOrderbookFills,
-				false,
-				positionStates,
-				clearingPrice,
-				tradeRewardsMultiplierConfig,
-				feeDiscountConfig,
-			)
-		}
+		isBuy := false
+		mergedOrderbookFills := NewMergedDerivativeOrderbookFills(isBuy, sellOrderbook.GetTransientOrderbookFills(), sellOrderbook.GetRestingOrderbookFills())
 
-		if restingOrderbookFills := sellOrderbook.GetRestingOrderbookFills(); restingOrderbookFills != nil {
-			executionData.RestingLimitSellExpansions = k.processRestingDerivativeLimitOrderbookMatchingResults(
+		for {
+			fill := mergedOrderbookFills.Next()
+
+			if fill == nil {
+				break
+			}
+
+			expansion := k.applyPositionDeltaAndGetDerivativeLimitOrderStateExpansion(
 				ctx,
 				market,
 				funding,
-				restingOrderbookFills,
-				false,
+				isBuy,
+				fill.IsTransient,
+				fill.Order,
 				positionStates,
+				fill.FillQuantity,
 				clearingPrice,
 				tradeRewardsMultiplierConfig,
 				feeDiscountConfig,
 				false,
 			)
+
+			expansionData.AddExpansion(isBuy, fill.IsTransient, expansion)
+
+			// add partially filled transient order to the soon-to-be new resting orders
+			if fill.IsTransient && expansion.LimitOrderFilledDelta.FillableQuantity().IsPositive() {
+				expansionData.AddNewRestingLimitOrder(isBuy, fill.Order)
+			}
 		}
 
-		executionData.RestingLimitSellOrderCancels = sellOrderbook.GetRestingOrderbookCancels()
-		executionData.TransientLimitSellOrderCancels = sellOrderbook.GetTransientOrderbookCancels()
+		expansionData.RestingLimitSellOrderCancels = sellOrderbook.GetRestingOrderbookCancels()
+		expansionData.TransientLimitSellOrderCancels = sellOrderbook.GetTransientOrderbookCancels()
 	}
 
-	return executionData
+	return expansionData
 }
 
 // ExecuteDerivativeMarketOrderImmediately executes market order immediately (without waiting for end-blocker). Used for atomic orders execution by smart contract, and for liquidations
@@ -258,7 +262,7 @@ func (k *Keeper) ExecuteDerivativeMarketOrderImmediately(
 	batchExecutionData := derivativeMarketOrderExecution.getMarketDerivativeBatchExecutionData(market, markPrice, funding, positionStates, isLiquidation)
 	modifiedPositionCache := NewModifiedPositionCache()
 	derivativeVwapData := NewDerivativeVwapInfo()
-	tradingRewards = k.PersistSingleDerivativeMarketOrderExecution(ctx, batchExecutionData, derivativeVwapData, tradingRewards, modifiedPositionCache)
+	tradingRewards = k.PersistSingleDerivativeMarketOrderExecution(ctx, batchExecutionData, derivativeVwapData, tradingRewards, modifiedPositionCache, isLiquidation)
 
 	sortedSubaccountIDs := modifiedPositionCache.GetSortedSubaccountIDsByMarket(marketID)
 	k.AppendModifiedSubaccountsByMarket(ctx, marketID, sortedSubaccountIDs)
@@ -345,7 +349,7 @@ func (k *Keeper) GetDerivativeMarketOrderExecutionData(
 		if m.limitOrderbook != nil {
 			restingOrderFills := m.limitOrderbook.GetRestingOrderbookFills()
 			limitOrderClearingPrice := sdk.Dec{} // no clearing price for limit orders when executed against market orders
-			restingLimitOrderStateExpansions = k.processRestingDerivativeLimitOrderbookMatchingResults(
+			restingLimitOrderStateExpansions = k.processRestingDerivativeLimitOrderbookFills(
 				ctx,
 				market,
 				funding,
@@ -522,10 +526,9 @@ func getDerivativeOrderFeesAndRefunds(
 	unmatchedFeeRefund = unfilledQuantity.Mul(orderPrice).Mul(unmatchedFeeRefundRate)
 
 	// for a buy order, priceDelta >= 0, so get a fee refund for the matching, since the margin assumed a higher price
-	// for a sell order, priceDelta <= 0, so pay extra trading fee, note that in this case, trader's balances can theoretically become negative,
-	// but only when creating a new position where the margin would balance out the negative balance later upon closing
+	// for a sell order, priceDelta <= 0, so pay extra trading fee
 
-	// matched fee refund or charge = Quantity * ΔPrice * γ_discounted
+	// matched fee refund or charge = FillQuantity * ΔPrice * Rate
 	// this is the fee refund or charge resulting from the order being executed at a better price
 	matchedFeePriceDeltaRefundOrCharge := fillQuantity.Mul(priceDelta).Mul(positiveDiscountedFeeRatePart)
 
@@ -605,7 +608,8 @@ func (k *Keeper) applyPositionDeltaAndGetDerivativeMarketOrderStateExpansion(
 	isMaker := false
 	feeData := k.getTradeDataAndIncrementVolumeContribution(
 		ctx,
-		order.SdkAccAddress(),
+		order.SubaccountID(),
+		market.MarketID(),
 		fillQuantity,
 		clearingPrice,
 		takerFeeRate,
@@ -659,6 +663,15 @@ func (k *Keeper) applyPositionDeltaAndGetDerivativeMarketOrderStateExpansion(
 	totalBalanceChange := payout.Sub(collateralizationMargin.Add(feeCharge))
 	availableBalanceChange := payout.Add(closeExecutionMargin).Add(unusedExecutionMarginRefund).Add(matchedFeeRefundOrCharge).Add(unmatchedFeeRefund)
 
+	availableBalanceChange, totalBalanceChange = k.adjustPositionMarginIfNecessary(
+		ctx,
+		market,
+		order.SubaccountID(),
+		position,
+		availableBalanceChange,
+		totalBalanceChange,
+	)
+
 	stateExpansion := DerivativeOrderStateExpansion{
 		SubaccountID:          order.SubaccountID(),
 		PositionDelta:         positionDelta,
@@ -679,50 +692,9 @@ func (k *Keeper) applyPositionDeltaAndGetDerivativeMarketOrderStateExpansion(
 	return &stateExpansion
 }
 
-func (k *Keeper) processTransientDerivativeLimitOrderExpansions(
-	ctx sdk.Context,
-	market MarketI,
-	funding *types.PerpetualMarketFunding,
-	fills *DerivativeOrderbookFills,
-	isBuy bool,
-	positionStates map[common.Hash]*PositionState,
-	clearingPrice sdk.Dec,
-	multiplier types.PointsMultiplier,
-	feeDiscountConfig *FeeDiscountConfig,
-) ([]*DerivativeOrderStateExpansion, []*types.DerivativeLimitOrder) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
-
-	stateExpansions := make([]*DerivativeOrderStateExpansion, len(fills.Orders))
-	newRestingLimitOrders := make([]*types.DerivativeLimitOrder, 0, len(fills.Orders))
-
-	for idx := range fills.Orders {
-		order := fills.Orders[idx]
-		stateExpansions[idx] = k.applyPositionDeltaAndGetDerivativeLimitOrderStateExpansion(
-			ctx,
-			market,
-			funding,
-			isBuy,
-			true,
-			order,
-			positionStates,
-			fills.FillQuantities[idx],
-			clearingPrice,
-			multiplier,
-			feeDiscountConfig,
-			false,
-		)
-
-		if stateExpansions[idx].LimitOrderFilledDelta.FillableQuantity().IsPositive() {
-			newRestingLimitOrders = append(newRestingLimitOrders, order)
-		}
-	}
-
-	return stateExpansions, newRestingLimitOrders
-}
-
-// processRestingDerivativeLimitOrderbookMatchingResults processes the resting derivative limit order execution.
+// processRestingDerivativeLimitOrderbookFills processes the resting derivative limit order execution.
 // NOTE: clearingPrice may be Nil
-func (k *Keeper) processRestingDerivativeLimitOrderbookMatchingResults(
+func (k *Keeper) processRestingDerivativeLimitOrderbookFills(
 	ctx sdk.Context,
 	market MarketI,
 	funding *types.PerpetualMarketFunding,
@@ -796,7 +768,8 @@ func (k *Keeper) applyPositionDeltaAndGetDerivativeLimitOrderStateExpansion(
 	isMaker := !isTransient
 	feeData := k.getTradeDataAndIncrementVolumeContribution(
 		ctx,
-		order.SdkAccAddress(),
+		order.SubaccountID(),
+		market.MarketID(),
 		fillQuantity,
 		executionPrice,
 		tradeFeeRate,
@@ -863,7 +836,6 @@ func (k *Keeper) applyPositionDeltaAndGetDerivativeLimitOrderStateExpansion(
 	order.Fillable = order.Fillable.Sub(fillQuantity)
 
 	totalBalanceChange := payout.Sub(collateralizationMargin.Add(feeCharge))
-
 	availableBalanceChange := payout.Add(closeExecutionMargin).Add(matchedFeeRefundOrCharge).Add(unmatchedFeeRefund).Add(unusedExecutionMarginRefund)
 
 	hasTradingFeeInPayout := order.IsReduceOnly()
@@ -872,6 +844,15 @@ func (k *Keeper) applyPositionDeltaAndGetDerivativeLimitOrderStateExpansion(
 	if isFeeRebateForAvailableBalanceRequired {
 		availableBalanceChange = availableBalanceChange.Add(feeData.traderFee.Abs())
 	}
+
+	availableBalanceChange, totalBalanceChange = k.adjustPositionMarginIfNecessary(
+		ctx,
+		market,
+		order.SubaccountID(),
+		position,
+		availableBalanceChange,
+		totalBalanceChange,
+	)
 
 	stateExpansion := DerivativeOrderStateExpansion{
 		SubaccountID:          order.SubaccountID(),
@@ -892,4 +873,52 @@ func (k *Keeper) applyPositionDeltaAndGetDerivativeLimitOrderStateExpansion(
 	}
 
 	return &stateExpansion
+}
+
+func (k *Keeper) adjustPositionMarginIfNecessary(
+	ctx sdk.Context,
+	market MarketI,
+	subaccountID common.Hash,
+	position *types.Position,
+	availableBalanceChange, totalBalanceChange sdk.Dec,
+) (sdk.Dec, sdk.Dec) {
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+
+	// if available balance delta is negative, it means sell order was matched at better price implying a higher fee
+	// we need to charge trader for the higher fee
+	hasPositiveAvailableBalanceDelta := !availableBalanceChange.IsNegative()
+	if hasPositiveAvailableBalanceDelta {
+		return availableBalanceChange, totalBalanceChange
+	}
+
+	// for binary options:
+	// 	we can safely reduce from balances, because his margin was adjusted meaning he has enough balance to cover it
+	// 	and we shouldn't adjust the margin anyways
+	isBinaryOptions := market.GetMarketType().IsBinaryOptions()
+	if isBinaryOptions {
+		return availableBalanceChange, totalBalanceChange
+	}
+
+	// check if position has sufficient margin to deduct from, may not be the case during liquidations beyond bankruptcy
+	hasSufficientMarginToCharge := position.Margin.GT(availableBalanceChange.Abs())
+	if !hasSufficientMarginToCharge {
+		return availableBalanceChange, totalBalanceChange
+	}
+
+	spendableFunds := k.GetSpendableFunds(ctx, subaccountID, market.GetQuoteDenom())
+	isTraderMissingFunds := spendableFunds.Add(availableBalanceChange).IsNegative()
+
+	if !isTraderMissingFunds {
+		return availableBalanceChange, totalBalanceChange
+	}
+
+	// trader has **not** have enough funds to cover additional fee
+	// for derivatives: we can instead safely reduce his position margin
+	position.Margin = position.Margin.Add(availableBalanceChange)
+
+	// charging from margin, so give back to available and total balance
+	modifiedTotalBalanceChange := totalBalanceChange.Sub(availableBalanceChange)
+	modifiedAvailableBalanceChange := sdk.ZeroDec() // available - available becomes 0
+
+	return modifiedAvailableBalanceChange, modifiedTotalBalanceChange
 }

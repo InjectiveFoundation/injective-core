@@ -32,9 +32,9 @@ func (k WasmMsgServer) PrivilegedExecuteContract(
 ) (*types.MsgPrivilegedExecuteContractResponse, error) {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
-	k.logger.Debugln("=============== ⭐️ [Start] PrivilegedExecuteContract ⭐️ ===============")
-
 	ctx := sdk.UnwrapSDKContext(goCtx)
+	k.Logger(ctx).Debug("=============== ⭐️ [Start] PrivilegedExecuteContract ⭐️ ===============")
+
 	sender, _ := sdk.AccAddressFromBech32(msg.Sender)
 	contract, _ := sdk.AccAddressFromBech32(msg.ContractAddress)
 
@@ -92,10 +92,10 @@ func (k WasmMsgServer) PrivilegedExecuteContract(
 	filteredFundsDiff := filterNonPositiveCoins(fundsDiff)
 
 	if err != nil {
-		k.logger.Errorln("PrivilegedExecuteContract: Unable to parse coins", err)
+		k.Logger(ctx).Error("PrivilegedExecuteContract: Unable to parse coins", err)
 	}
 
-	k.logger.Debugln("=============== 🛏️ [End] Exec 🛏️ ===============")
+	k.Logger(ctx).Debug("=============== 🛏️ [End] Exec 🛏️ ===============")
 	return &types.MsgPrivilegedExecuteContractResponse{
 		FundsDiff: filteredFundsDiff,
 	}, nil

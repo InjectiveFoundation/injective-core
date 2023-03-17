@@ -12,9 +12,9 @@
   },
   "actions": [
     {
-      "actionType": "withdrawal",
+      "actionType": "removeFunds",
       "denom": "USDT0",
-      "toLeave": 100.3
+      "toLeave": 101
     },
     {
       "actionType": "endblocker"

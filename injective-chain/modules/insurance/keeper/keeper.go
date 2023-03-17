@@ -1,14 +1,14 @@
 package keeper
 
 import (
+	"github.com/InjectiveLabs/metrics"
 	"github.com/cosmos/cosmos-sdk/codec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authkeeper "github.com/cosmos/cosmos-sdk/x/auth/keeper"
 	paramtypes "github.com/cosmos/cosmos-sdk/x/params/types"
-	log "github.com/xlab/suplog"
+	"github.com/tendermint/tendermint/libs/log"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/insurance/types"
-	"github.com/InjectiveLabs/metrics"
 )
 
 // Keeper of this module maintains collections of insurance.
@@ -20,7 +20,6 @@ type Keeper struct {
 	accountKeeper authkeeper.AccountKeeper
 	bankKeeper    types.BankKeeper
 
-	logger  log.Logger
 	svcTags metrics.Tags
 }
 
@@ -47,10 +46,13 @@ func NewKeeper(
 		cdc:           cdc,
 		accountKeeper: ak,
 		bankKeeper:    bk,
-		logger:        log.WithField("module", types.ModuleName),
 	}
 }
 
 func (k *Keeper) GetStore(ctx sdk.Context) sdk.KVStore {
 	return ctx.KVStore(k.storeKey)
+}
+
+func (k *Keeper) Logger(ctx sdk.Context) log.Logger {
+	return ctx.Logger().With("module", types.ModuleName)
 }

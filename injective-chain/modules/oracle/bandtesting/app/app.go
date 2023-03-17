@@ -228,7 +228,7 @@ func NewBandApp(
 		ibchost.StoreKey,
 		ibctransfertypes.ModuleName,
 	)
-	tkeys := sdk.NewTransientStoreKeys(paramstypes.TStoreKey)
+	tkeys := sdk.NewTransientStoreKeys(paramstypes.TStoreKey, banktypes.TStoreKey)
 	memKeys := sdk.NewMemoryStoreKeys(capabilitytypes.MemStoreKey)
 
 	app := &BandApp{
@@ -302,7 +302,7 @@ func NewBandApp(
 	app.FeeGrantKeeper = feegrantKeeper
 
 	authzKeeper := authzkeeper.NewKeeper(
-		keys[authzkeeper.StoreKey], appCodec, app.MsgServiceRouter(),
+		keys[authzkeeper.StoreKey], appCodec, app.MsgServiceRouter(), app.AccountKeeper,
 	)
 	app.AuthzKeeper = authzKeeper
 

@@ -1,9 +1,11 @@
 package keeper
 
 import (
+	"fmt"
 	"strconv"
 	"time"
 
+	bandPacket "github.com/bandprotocol/bandchain-packet/packet"
 	"github.com/cosmos/cosmos-sdk/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
@@ -281,7 +283,7 @@ func (k *Keeper) RequestBandIBCOraclePrices(
 	sourcePortID := bandIBCParams.IbcPortId
 	sourceChannel := bandIBCParams.IbcSourceChannel
 
-	calldata := req.GetCalldata()
+	calldata := req.GetCalldata(types.IsLegacySchemeOracleScript(req.OracleScriptId, bandIBCParams))
 
 	sourceChannelEnd, found := k.channelKeeper.GetChannel(ctx, sourcePortID, sourceChannel)
 	if !found {
@@ -333,4 +335,153 @@ func (k *Keeper) RequestBandIBCOraclePrices(
 	k.SetBandIBCLatestClientID(ctx, clientID)
 
 	return
+}
+
+func (k *Keeper) ProcessBandIBCOraclePrices(
+	ctx sdk.Context,
+	relayer sdk.Address,
+	packet bandPacket.OracleResponsePacketData,
+) error {
+	clientID, err := strconv.Atoi(packet.ClientID)
+	if err != nil {
+		return fmt.Errorf("failed to parse client ID: %w", err)
+	}
+
+	callRecord := k.GetBandIBCCallDataRecord(ctx, uint64(clientID))
+	if callRecord == nil {
+		// todo: should this be an error?
+		return nil
+	}
+
+	input, err := types.DecodeOracleInput(callRecord.Calldata)
+	if err != nil {
+		return err
+	}
+
+	output, err := types.DecodeOracleOutput(packet.Result)
+	if err != nil {
+		return err
+	}
+
+	k.updateBandIBCPriceStates(ctx, input, output, packet, relayer, clientID)
+
+	// Delete the calldata corresponding to the sequence number
+	k.DeleteBandIBCCallDataRecord(ctx, uint64(clientID))
+
+	return nil
+}
+
+func (k *Keeper) updateBandIBCPriceStates(
+	ctx sdk.Context,
+	input types.OracleInput,
+	output types.OracleOutput,
+	packet bandPacket.OracleResponsePacketData,
+	relayer sdk.Address,
+	clientID int,
+) {
+	var (
+		inputSymbols = input.PriceSymbols()
+		requestID    = packet.RequestID
+		resolveTime  = uint64(packet.ResolveTime)
+		symbols      = make([]string, 0, len(inputSymbols))
+		prices       = make([]sdk.Dec, 0, len(inputSymbols))
+	)
+
+	// loop SetBandPriceState for all symbols
+	for idx, symbol := range inputSymbols {
+		if !output.Valid(idx) {
+			//	failed response for given symbol, skip it
+			continue
+		}
+
+		var (
+			rate       = output.Rate(idx)
+			multiplier = input.PriceMultiplier()
+			price      = sdk.NewDec(int64(rate)).Quo(sdk.NewDec(int64(multiplier)))
+		)
+
+		if price.IsZero() {
+			continue
+		}
+
+		bandPriceState := k.GetBandIBCPriceState(ctx, symbol)
+
+		// don't update band prices with an older price
+		if bandPriceState != nil && bandPriceState.ResolveTime > resolveTime {
+			continue
+		}
+
+		// skip price update if the price changes beyond 100x or less than 1% of the last price
+		if bandPriceState != nil && types.CheckPriceFeedThreshold(bandPriceState.PriceState.Price, price) {
+			continue
+		}
+
+		blockTime := ctx.BlockTime().Unix()
+		if bandPriceState == nil {
+			bandPriceState = &types.BandPriceState{
+				Symbol:      symbol,
+				Rate:        sdk.NewInt(int64(rate)),
+				ResolveTime: resolveTime,
+				Request_ID:  requestID,
+				PriceState:  *types.NewPriceState(price, blockTime),
+			}
+		} else {
+			bandPriceState.Rate = sdk.NewInt(int64(rate))
+			bandPriceState.ResolveTime = resolveTime
+			bandPriceState.Request_ID = requestID
+			bandPriceState.PriceState.UpdatePrice(price, blockTime)
+		}
+
+		k.SetBandIBCPriceState(ctx, symbol, bandPriceState)
+
+		symbols = append(symbols, symbol)
+		prices = append(prices, price)
+	}
+
+	if len(symbols) == 0 {
+		return
+	}
+
+	// emit SetBandPriceEvent event
+	// nolint:errcheck //ignored on purpose
+	ctx.EventManager().EmitTypedEvent(&types.SetBandIBCPriceEvent{
+		Relayer:     relayer.String(),
+		Symbols:     symbols,
+		Prices:      prices,
+		ResolveTime: uint64(packet.ResolveTime),
+		RequestId:   packet.RequestID,
+		ClientId:    int64(clientID),
+	})
+}
+
+func (k *Keeper) CleanUpStaleBandIBCCalldataRecords(ctx sdk.Context) {
+	var (
+		latestClientID         = k.GetBandIBCLatestClientID(ctx)
+		earliestToKeepClientID = latestClientID - 1000 // todo: default max records to keep (1000)
+	)
+
+	if earliestToKeepClientID > latestClientID {
+		// underflow
+		return
+	}
+
+	for _, id := range k.getPreviousRecordIDs(ctx, earliestToKeepClientID) {
+		k.DeleteBandIBCCallDataRecord(ctx, id)
+	}
+}
+
+func (k *Keeper) getPreviousRecordIDs(ctx sdk.Context, clientID uint64) []uint64 {
+	recordStore := prefix.NewStore(ctx.KVStore(k.storeKey), types.BandIBCCallDataRecordKey)
+	iter := recordStore.Iterator(nil, sdk.Uint64ToBigEndian(clientID))
+	defer iter.Close()
+
+	staleIDs := make([]uint64, 0)
+	for ; iter.Valid(); iter.Next() {
+		var record types.CalldataRecord
+		k.cdc.MustUnmarshal(iter.Value(), &record)
+
+		staleIDs = append(staleIDs, record.ClientId)
+	}
+
+	return staleIDs
 }

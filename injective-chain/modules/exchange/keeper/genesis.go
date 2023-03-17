@@ -236,6 +236,18 @@ func (k *Keeper) InitGenesis(ctx sdk.Context, data types.GenesisState) {
 		marketID := common.HexToHash(orderbookSequence.MarketId)
 		k.SetOrderbookSequence(ctx, marketID, orderbookSequence.Sequence)
 	}
+
+	for _, record := range data.SubaccountVolumes {
+		subaccountID := common.HexToHash(record.SubaccountId)
+
+		for _, v := range record.MarketVolumes {
+			k.SetSubaccountMarketAggregateVolume(ctx, subaccountID, common.HexToHash(v.MarketId), v.Volume)
+		}
+	}
+
+	for _, record := range data.MarketVolumes {
+		k.SetMarketAggregateVolume(ctx, common.HexToHash(record.MarketId), record.Volume)
+	}
 }
 
 func (k *Keeper) ExportGenesis(ctx sdk.Context) *types.GenesisState {
@@ -272,5 +284,7 @@ func (k *Keeper) ExportGenesis(ctx sdk.Context) *types.GenesisState {
 		ConditionalDerivativeOrderbooks:              k.GetAllConditionalDerivativeOrderbooks(ctx),
 		MarketFeeMultipliers:                         k.GetAllMarketAtomicExecutionFeeMultipliers(ctx),
 		OrderbookSequences:                           k.GetAllOrderbookSequences(ctx),
+		SubaccountVolumes:                            k.GetAllSubaccountMarketAggregateVolumes(ctx),
+		MarketVolumes:                                k.GetAllMarketAggregateVolumes(ctx),
 	}
 }

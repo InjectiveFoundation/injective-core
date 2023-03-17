@@ -1,13 +1,12 @@
 package keeper
 
 import (
+	"github.com/InjectiveLabs/metrics"
 	"github.com/cosmos/cosmos-sdk/codec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authkeeper "github.com/cosmos/cosmos-sdk/x/auth/keeper"
 	paramtypes "github.com/cosmos/cosmos-sdk/x/params/types"
-	log "github.com/xlab/suplog"
-
-	"github.com/InjectiveLabs/metrics"
+	"github.com/tendermint/tendermint/libs/log"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/types"
 
@@ -37,7 +36,6 @@ type Keeper struct {
 
 	ocrKeeper types.OcrKeeper
 
-	logger  log.Logger
 	svcTags metrics.Tags
 }
 
@@ -77,8 +75,11 @@ func NewKeeper(
 		scopedKeeper:  scopedKeeper,
 
 		ocrKeeper: ocrKeeper,
-		logger:    log.WithField("module", types.ModuleName),
 	}
+}
+
+func (k *Keeper) Logger(ctx sdk.Context) log.Logger {
+	return ctx.Logger().With("module", types.ModuleName)
 }
 
 func (k *Keeper) getStore(ctx sdk.Context) sdk.KVStore {

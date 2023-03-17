@@ -4,6 +4,7 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
+	"github.com/pkg/errors"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/peggy/keeper"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/peggy/types"
@@ -52,7 +53,7 @@ func handleRevokeEthereumBlacklistProposal(ctx sdk.Context, k keeper.Keeper, p *
 		}
 
 		if !k.IsOnBlacklist(ctx, *blacklistAddr) {
-			return sdkerrors.Wrap(err, "invalid blacklist address")
+			return errors.New("invalid blacklist address")
 		} else {
 			k.DeleteEthereumBlacklistAddress(ctx, *blacklistAddr)
 		}

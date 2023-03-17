@@ -12,6 +12,7 @@ const (
 	OracleRoute       = "oracle"
 	ExchangeRoute     = "exchange"
 	TokenFactoryRoute = "tokenfactory"
+	WasmxRoute        = "wasmx"
 )
 
 type InjectiveQueryWrapper struct {
@@ -29,15 +30,22 @@ func CustomQuerier(qp *QueryPlugin) func(ctx sdk.Context, request json.RawMessag
 			return nil, sdkerrors.Wrap(err, "Error parsing request data")
 		}
 
+		var bz []byte
+		var err error
+
 		switch contractQuery.Route {
 		case OracleRoute:
-			return qp.HandleOracleQuery(ctx, contractQuery.QueryData)
+			bz, err = qp.HandleOracleQuery(ctx, contractQuery.QueryData)
 		case ExchangeRoute:
-			return qp.HandleExchangeQuery(ctx, contractQuery.QueryData)
+			bz, err = qp.HandleExchangeQuery(ctx, contractQuery.QueryData)
 		case TokenFactoryRoute:
-			return qp.HandleTokenFactoryQuery(ctx, contractQuery.QueryData)
+			bz, err = qp.HandleTokenFactoryQuery(ctx, contractQuery.QueryData)
+		case WasmxRoute:
+			bz, err = qp.HandleWasmxQuery(ctx, contractQuery.QueryData)
 		default:
 			return nil, wasmvmtypes.UnsupportedRequest{Kind: "Unknown Injective Query Route"}
 		}
+
+		return bz, err
 	}
 }

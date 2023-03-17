@@ -9,11 +9,19 @@
       "toLeave": 0
     },
     {
+      "actionType": "send",
+      "denom": "USDT0",
+      "toLeave": 0,
+      "recipientIndex": 1
+    },
+    {
       "actionType": "endblocker"
     },
     {
       "actionType": "priceOracle",
-      "perpsPrices": [11]
+      "perpsPrices": [
+        11
+      ]
     },
     {
       "actionType": "derivativeLimitOrder",
@@ -29,7 +37,9 @@
     },
     {
       "actionType": "priceOracle",
-      "perpsPrices": [12]
+      "perpsPrices": [
+        12
+      ]
     },
     {
       "actionType": "endblocker"

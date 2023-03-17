@@ -116,9 +116,10 @@ func (h *BlockHandler) slashing(ctx sdk.Context, params *types.Params) {
 	h.valsetSlashing(ctx, params)
 	h.batchSlashing(ctx, params)
 
-	if params.ClaimSlashingEnabled {
-		h.claimsSlashing(ctx, params)
-	}
+	// See https://github.com/Gravity-Bridge/Gravity-Bridge/blob/main/spec/slashing-spec.md#gravslash-05-failure-to-submit-eth-oracle-claims---intentionally-not-implemented
+	// if params.ClaimSlashingEnabled {
+	//	h.claimsSlashing(ctx, params)
+	//}
 }
 
 // Iterate over all attestations currently being voted on in order of nonce and
@@ -369,93 +370,6 @@ func (h *BlockHandler) batchSlashing(ctx sdk.Context, params *types.Params) {
 
 		// then we set the latest slashed batch block
 		h.k.SetLastSlashedBatchBlock(ctx, batch.Block)
-	}
-}
-
-func (h *BlockHandler) claimsSlashing(ctx sdk.Context, params *types.Params) {
-	metrics.ReportFuncCall(h.svcTags)
-	doneFn := metrics.ReportFuncTiming(h.svcTags)
-	defer doneFn()
-
-	// #3 condition
-	// Oracle events MsgDepositClaim, MsgWithdrawClaim
-
-	attmap := h.k.GetAttestationMapping(ctx)
-	for _, attestations := range attmap {
-		currentBondedSet := h.k.StakingKeeper.GetBondedValidatorsByPower(ctx)
-
-		// slash conflicting votes
-		if len(attestations) > 1 {
-			var unObs []*types.Attestation
-			oneObserved := false
-			for _, attestation := range attestations {
-				if attestation.Observed {
-					oneObserved = true
-					continue
-				}
-
-				unObs = append(unObs, attestation)
-			}
-
-			// if one is observed delete the *other* attestations, do not delete
-			// the original as we will need it later.
-			if oneObserved {
-				for _, attestation := range unObs {
-					for _, valaddr := range attestation.Votes {
-						validator, _ := sdk.ValAddressFromBech32(valaddr)
-						val := h.k.StakingKeeper.Validator(ctx, validator)
-						cons, _ := val.GetConsAddr()
-						consPower := h.k.StakingKeeper.GetLastValidatorPower(ctx, validator)
-
-						h.k.StakingKeeper.Slash(
-							ctx, cons, ctx.BlockHeight(),
-							consPower,
-							params.SlashFractionConflictingClaim,
-						)
-
-						h.k.StakingKeeper.Jail(ctx, cons)
-					}
-
-					h.k.DeleteAttestation(ctx, attestation)
-				}
-			}
-		}
-
-		if len(attestations) == 1 {
-			attestation := attestations[0]
-			windowPassed := uint64(ctx.BlockHeight()) > params.SignedClaimsWindow &&
-				uint64(ctx.BlockHeight())-params.SignedClaimsWindow > attestation.Height
-
-			// if the signing window has passed and the attestation is still unobserved wait.
-			if windowPassed && attestation.Observed {
-				for i := range currentBondedSet {
-					found := false
-					for _, val := range attestation.Votes {
-						confVal, _ := sdk.ValAddressFromBech32(val)
-						if confVal.Equals(currentBondedSet[i].GetOperator()) {
-							found = true
-							break
-						}
-					}
-
-					if !found {
-						cons, _ := currentBondedSet[i].GetConsAddr()
-						consPower := h.k.StakingKeeper.GetLastValidatorPower(ctx, currentBondedSet[i].GetOperator())
-
-						h.k.StakingKeeper.Slash(
-							ctx, cons, ctx.BlockHeight(),
-							consPower, params.SlashFractionClaim,
-						)
-
-						if !currentBondedSet[i].IsJailed() {
-							h.k.StakingKeeper.Jail(ctx, cons)
-						}
-					}
-				}
-
-				h.k.DeleteAttestation(ctx, attestation)
-			}
-		}
 	}
 }
 

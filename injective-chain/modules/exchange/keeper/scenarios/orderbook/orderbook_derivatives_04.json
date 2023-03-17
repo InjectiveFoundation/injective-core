@@ -2,6 +2,13 @@
   "numAccounts": 2,
   "numDerivativeMarkets": 1,
   "seed": 1658339268842048000,
+  "config": {
+    "perpMarkets": [
+      {
+        "insuranceFund" : 8000
+      }
+    ]
+  },  
   "actions": [
     {
       "actionType": "priceOracle",

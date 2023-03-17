@@ -38,11 +38,6 @@
       "isLong": false
     },
     {
-      "actionType": "withdrawal",
-      "amount": 10075,
-      "denom": "USDT0"
-    },
-    {
       "actionType": "endblocker",
       "actionId": "post-setup"
     },

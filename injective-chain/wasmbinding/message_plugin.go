@@ -8,6 +8,7 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	bankkeeper "github.com/cosmos/cosmos-sdk/x/bank/keeper"
+	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 
 	exchangekeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/keeper"
 
@@ -95,6 +96,30 @@ func (m *CustomMessenger) DispatchMsg(ctx sdk.Context, contractAddr sdk.AccAddre
 	case contractMsg.BurnTokens != nil:
 		contractMsg.BurnTokens.Sender = contractAddr.String()
 		sdkMsg = contractMsg.BurnTokens
+	case contractMsg.SetTokenMetadata != nil:
+		mt := contractMsg.SetTokenMetadata
+		sdkMsg = &tokenfactorytypes.MsgSetDenomMetadata{
+			Sender: contractAddr.String(),
+			Metadata: banktypes.Metadata{
+				Base:    mt.Denom,
+				Display: mt.Symbol,
+				Name:    mt.Name,
+				Symbol:  mt.Symbol,
+				DenomUnits: []*banktypes.DenomUnit{
+					{
+						Denom:    mt.Denom,
+						Exponent: 0,
+					},
+					{
+						Denom:    mt.Symbol,
+						Exponent: mt.Decimals,
+					},
+				},
+			},
+		}
+	/// oracle msgs
+	case contractMsg.RelayPythPrices != nil:
+		sdkMsg = contractMsg.RelayPythPrices
 	/// exchange msgs
 	case contractMsg.BatchUpdateOrders != nil:
 		sdkMsg = contractMsg.BatchUpdateOrders
@@ -138,6 +163,13 @@ func (m *CustomMessenger) DispatchMsg(ctx sdk.Context, contractAddr sdk.AccAddre
 		sdkMsg = contractMsg.InstantPerpetualMarketLaunch
 	case contractMsg.InstantExpiryFuturesMarketLaunch != nil:
 		sdkMsg = contractMsg.InstantExpiryFuturesMarketLaunch
+	// wasmx messages
+	case contractMsg.UpdateContractMsg != nil:
+		sdkMsg = contractMsg.UpdateContractMsg
+	case contractMsg.DeactiveContractMsg != nil:
+		sdkMsg = contractMsg.DeactiveContractMsg
+	case contractMsg.ActivateContractMsg != nil:
+		sdkMsg = contractMsg.ActivateContractMsg
 	default:
 		return nil, nil, wasmvmtypes.UnsupportedRequest{Kind: "Unknown Injective Wasm Message"}
 	}

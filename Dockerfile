@@ -22,14 +22,14 @@ RUN go mod download
 COPY . .
 
 #build binary
-RUN LEDGER_ENABLED=false BUILD_TAGS=muslc LINK_STATICALLY=true make install
+RUN LEDGER_ENABLED=false BUILD_TAGS=muslc LINK_STATICALLY=true make install-ci
 
 #build main container
 FROM alpine:latest
 RUN apk add --no-cache ca-certificates curl tree python3 py3-pip
 RUN pip3 install --upgrade pip && \
-pip3 install --no-cache-dir awscli && \
-rm -rf /var/cache/apk/*
+    pip3 install --no-cache-dir awscli && \
+    rm -rf /var/cache/apk/*
 COPY --from=builder /go/bin/* /usr/local/bin/
 COPY --from=builder /src/injectived.sh .
 

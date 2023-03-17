@@ -42,9 +42,37 @@ func (h Hooks) AfterValidatorBeginUnbonding(ctx sdk.Context, _ sdk.ConsAddress, 
 
 func (h Hooks) BeforeDelegationCreated(_ sdk.Context, delAddr sdk.AccAddress, valAddr sdk.ValAddress) {
 }
-func (h Hooks) AfterValidatorCreated(ctx sdk.Context, valAddr sdk.ValAddress)           {}
-func (h Hooks) BeforeValidatorModified(_ sdk.Context, _ sdk.ValAddress)                 {}
-func (h Hooks) AfterValidatorBonded(_ sdk.Context, _ sdk.ConsAddress, _ sdk.ValAddress) {}
+func (h Hooks) AfterValidatorCreated(ctx sdk.Context, valAddr sdk.ValAddress) {}
+func (h Hooks) BeforeValidatorModified(_ sdk.Context, _ sdk.ValAddress)       {}
+func (h Hooks) AfterValidatorBonded(ctx sdk.Context, _ sdk.ConsAddress, validator sdk.ValAddress) {
+	metrics.ReportFuncCall(h.svcTags)
+	defer metrics.ReportFuncTiming(h.svcTags)()
+
+	ev := h.k.GetLastEventByValidator(ctx, validator)
+
+	isFirstTimeValidator := ev.EthereumEventHeight == 0 && ev.EthereumEventNonce == 0
+	if !isFirstTimeValidator {
+		// no need to do anything, not a first time validator
+		return
+	}
+
+	lowestObservedNonce := h.k.GetLastObservedEventNonce(ctx)
+
+	// when the chain starts from genesis state, as there are no events broadcasted, lowest_observed_nonce will be zero.
+	// Bridge relayer has to scan the events from the height at which bridge contract is deployed on ethereum.
+	// So, if lowest_observed_nonce is zero, we don't need to do anything.
+	if lowestObservedNonce == 0 {
+		return
+	}
+	// otherwise, set the last event to the current last observed event nonce and ethereum block height so the validator
+	// can begin attesting starting from the next event after the last observed event nonce.
+	h.k.setLastEventByValidator(
+		ctx,
+		validator,
+		lowestObservedNonce,
+		h.k.GetLastObservedEthereumBlockHeight(ctx).EthereumBlockHeight,
+	)
+}
 
 func (h Hooks) BeforeDelegationRemoved(_ sdk.Context, _ sdk.AccAddress, _ sdk.ValAddress)        {}
 func (h Hooks) AfterValidatorRemoved(ctx sdk.Context, _ sdk.ConsAddress, valAddr sdk.ValAddress) {}

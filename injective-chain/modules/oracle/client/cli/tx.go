@@ -27,12 +27,14 @@ const (
 	flagIBCVersion               = "ibc-version"
 	flagRequestedValidatorCount  = "requested-validator-count"
 	flagSufficientValidatorCount = "sufficient-validator-count"
+	flagMinSourceCount           = "min-source-count"
 	flagIBCPortID                = "port-id"
 	flagChannel                  = "channel"
 	flagPrepareGas               = "prepare-gas"
 	flagExecuteGas               = "execute-gas"
 	flagFeeLimit                 = "fee-limit"
 	flagPacketTimeoutTimestamp   = "packet-timeout-timestamp"
+	flagLegacyOracleScriptIDs    = "legacy-oracle-script-ids"
 )
 
 // NewTxCmd returns a root CLI command handler for certain modules/oracle transaction commands.
@@ -534,6 +536,7 @@ func NewEnableBandIBCProposalTxCmd() *cobra.Command {
 	cmd.Flags().String(flagIBCPortID, "oracle", "The IBC Port ID.")
 	cmd.Flags().String(flagIBCVersion, "bandchain-1", "The IBC Version.")
 	cmd.Flags().String(flagChannel, "", "The channel id.")
+	cmd.Flags().Int64Slice(flagLegacyOracleScriptIDs, []int64{}, "The IDs of oracle scripts which use the legacy scheme")
 	err := cmd.MarkFlagRequired(flagChannel)
 	if err != nil {
 		panic(err)
@@ -550,7 +553,7 @@ func NewAuthorizeBandOracleRequestProposalTxCmd() *cobra.Command {
 		Short: "Submit a proposal to authorize a Band Oracle IBC Request.",
 		Long: `Submit a proposal to authorize a Band Oracle IBC Request.
 			Example:
-			$ %s tx oracle authorize-band-oracle-request-proposal 23 --symbols "BTC,ETH,USDT,USDC" --requested-validator-count 4 --sufficient-validator-count 3 --prepare-gas 20000 --fee-limit "1000uband" --execute-gas 400000 --from mykey
+			$ %s tx oracle authorize-band-oracle-request-proposal 23 --symbols "BTC,ETH,USDT,USDC" --requested-validator-count 4 --sufficient-validator-count 3 --min-source-count 3 --prepare-gas 20000 --fee-limit "1000uband" --execute-gas 400000 --from mykey
 		`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clientCtx, err := client.GetClientTxContext(cmd)
@@ -593,6 +596,7 @@ func NewAuthorizeBandOracleRequestProposalTxCmd() *cobra.Command {
 	cmd.Flags().String(flagFeeLimit, "", "the maximum tokens that will be paid to all data source providers")
 	cmd.Flags().Uint64(flagRequestedValidatorCount, 4, "Requested Validator Count")
 	cmd.Flags().Uint64(flagSufficientValidatorCount, 10, "Sufficient Validator Count")
+	cmd.Flags().Uint64(flagMinSourceCount, 3, "Min Source Count")
 	cmd.Flags().String(govcli.FlagTitle, "", "title of proposal")
 	cmd.Flags().String(govcli.FlagDescription, "", "description of proposal")
 	cmd.Flags().String(govcli.FlagDeposit, "", "deposit of proposal")
@@ -608,7 +612,7 @@ func NewUpdateBandOracleRequestProposalTxCmd() *cobra.Command {
 		Short: "Submit a proposal to update a Band Oracle IBC Request.",
 		Long: `Submit a proposal to update a Band Oracle IBC Request.
 			Example:
-			$ %s tx oracle update-band-oracle-request-proposal 1 37 --port-id "oracle" --ibc-version "bandchain-1" --symbols "BTC,ETH,USDT,USDC" --requested-validator-count 4 --sufficient-validator-count 3 --expiration 20 --prepare-gas 50 --execute-gas 5000 --from mykey
+			$ %s tx oracle update-band-oracle-request-proposal 1 37 --port-id "oracle" --ibc-version "bandchain-1" --symbols "BTC,ETH,USDT,USDC" --requested-validator-count 4 --sufficient-validator-count 3 --min-source-count 3 --expiration 20 --prepare-gas 50 --execute-gas 5000 --from mykey
 		`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clientCtx, err := client.GetClientTxContext(cmd)
@@ -651,6 +655,7 @@ func NewUpdateBandOracleRequestProposalTxCmd() *cobra.Command {
 	cmd.Flags().String(flagFeeLimit, "", "the maximum tokens that will be paid to all data source providers")
 	cmd.Flags().Uint64(flagRequestedValidatorCount, 0, "Requested Validator Count")
 	cmd.Flags().Uint64(flagSufficientValidatorCount, 0, "Sufficient Validator Count")
+	cmd.Flags().Uint64(flagMinSourceCount, 3, "Min Source Count")
 	cmd.Flags().String(govcli.FlagTitle, "", "title of proposal")
 	cmd.Flags().String(govcli.FlagDescription, "", "description of proposal")
 	cmd.Flags().String(govcli.FlagDeposit, "", "deposit of proposal")
@@ -662,7 +667,7 @@ func NewUpdateBandOracleRequestProposalTxCmd() *cobra.Command {
 func NewDeleteBandOracleRequestProposalTxCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "delete-band-oracle-request-proposal 1 [flags]",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.MinimumNArgs(1),
 		Short: "Submit a proposal to Delete a Band Oracle IBC Request.",
 		Long: `Submit a proposal to Delete a Band Oracle IBC Request.
 			Example:
@@ -1003,6 +1008,11 @@ func authorizeBandOracleRequestProposalArgsToContent(
 		return nil, err
 	}
 
+	minSourceCount, err := cmd.Flags().GetUint64(flagMinSourceCount)
+	if err != nil {
+		return nil, err
+	}
+
 	symbols, err := cmd.Flags().GetStringSlice(flagSymbols)
 	if err != nil {
 		return nil, err
@@ -1039,6 +1049,7 @@ func authorizeBandOracleRequestProposalArgsToContent(
 			FeeLimit:       feeLimit,
 			PrepareGas:     prepareGas,
 			ExecuteGas:     executeGas,
+			MinSourceCount: minSourceCount,
 		},
 	}
 	if err := content.ValidateBasic(); err != nil {
@@ -1080,6 +1091,10 @@ func updateBandOracleRequestProposalArgsToContent(
 	if err != nil {
 		return nil, err
 	}
+	minSourceCount, err := cmd.Flags().GetUint64(flagMinSourceCount)
+	if err != nil {
+		return nil, err
+	}
 
 	symbols, err := cmd.Flags().GetStringSlice(flagSymbols)
 	if err != nil {
@@ -1118,6 +1133,7 @@ func updateBandOracleRequestProposalArgsToContent(
 			FeeLimit:       feeLimit,
 			PrepareGas:     prepareGas,
 			ExecuteGas:     executeGas,
+			MinSourceCount: minSourceCount,
 		},
 	}
 	if err := content.ValidateBasic(); err != nil {
@@ -1141,15 +1157,20 @@ func deleteBandOracleRequestProposalArgsToContent(
 		return nil, err
 	}
 
-	requestID, err := strconv.ParseInt(args[0], 10, 64)
-	if err != nil {
-		return nil, err
+	requestIDs := make([]uint64, 0, len(args))
+	for _, arg := range args {
+		id, err := strconv.ParseInt(arg, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+
+		requestIDs = append(requestIDs, uint64(id))
 	}
 
 	content := &types.UpdateBandOracleRequestProposal{
-		Title:           title,
-		Description:     description,
-		DeleteRequestId: uint64(requestID),
+		Title:            title,
+		Description:      description,
+		DeleteRequestIds: requestIDs,
 	}
 
 	if err := content.ValidateBasic(); err != nil {
@@ -1185,6 +1206,11 @@ func enableBandIBCProposalArgsToContent(cmd *cobra.Command, shouldEnable bool, i
 		return nil, err
 	}
 
+	legacyOracleScriptIDs, err := cmd.Flags().GetInt64Slice(flagLegacyOracleScriptIDs)
+	if err != nil {
+		return nil, err
+	}
+
 	content := &types.EnableBandIBCProposal{
 		Title:       title,
 		Description: description,
@@ -1194,6 +1220,7 @@ func enableBandIBCProposalArgsToContent(cmd *cobra.Command, shouldEnable bool, i
 			IbcSourceChannel:   channel,
 			IbcVersion:         ibcVersion,
 			IbcPortId:          portID,
+			LegacyOracleIds:    legacyOracleScriptIDs,
 		},
 	}
 

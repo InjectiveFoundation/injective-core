@@ -428,8 +428,3 @@ type DerivativeOrderbook interface {
 	Fill(fillQuantity sdk.Dec)
 	Close()
 }
-
-type DerivativeOrderbookFills struct {
-	Orders         []*types.DerivativeLimitOrder
-	FillQuantities []sdk.Dec
-}

@@ -378,10 +378,7 @@ func (k *Keeper) handleDerivativeFeeDecrease(ctx sdk.Context, orderbook []*types
 		feeRefund := feeRefundRate.Mul(order.GetFillable()).Mul(order.GetPrice())
 		subaccountID := order.GetSubaccountID()
 
-		k.UpdateDepositWithDelta(ctx, subaccountID, quoteDenom, &types.DepositDelta{
-			AvailableBalanceDelta: feeRefund,
-			TotalBalanceDelta:     sdk.ZeroDec(),
-		})
+		k.incrementAvailableBalanceOrBank(ctx, subaccountID, quoteDenom, feeRefund)
 	}
 }
 
@@ -401,12 +398,7 @@ func (k *Keeper) handleDerivativeFeeDecreaseForConditionals(ctx sdk.Context, ord
 		// FeeRefund = (PreviousMakerFeeRate - NewMakerFeeRate) * FillableQuantity * Price
 		// AvailableBalance += FeeRefund
 		feeRefund := feeRefundRate.Mul(order.GetFillable()).Mul(order.GetPrice())
-		subaccountID := order.GetSubaccountID()
-
-		k.UpdateDepositWithDelta(ctx, subaccountID, quoteDenom, &types.DepositDelta{
-			AvailableBalanceDelta: feeRefund,
-			TotalBalanceDelta:     sdk.ZeroDec(),
-		})
+		k.incrementAvailableBalanceOrBank(ctx, order.GetSubaccountID(), quoteDenom, feeRefund)
 	}
 
 	for _, order := range orderbook.GetMarketOrders() {
@@ -425,6 +417,7 @@ func (k *Keeper) handleDerivativeFeeIncrease(ctx sdk.Context, orderbook []*types
 	}
 
 	feeChargeRate := sdk.MinDec(newMakerFeeRate, newMakerFeeRate.Sub(prevMarket.GetMakerFeeRate())) // negative prevMarket.MakerFeeRate part is ignored
+	denom := prevMarket.GetQuoteDenom()
 
 	for _, order := range orderbook {
 		if order.IsReduceOnly() {
@@ -433,32 +426,33 @@ func (k *Keeper) handleDerivativeFeeIncrease(ctx sdk.Context, orderbook []*types
 
 		// ExtraFee = (NewMakerFeeRate - PreviousMakerFeeRate) * FillableQuantity * Price
 		// AvailableBalance -= ExtraFee
-		// If AvailableBalance < ExtraFee
-		// Cancel the order
+		// If AvailableBalance < ExtraFee, Cancel the order
 		extraFee := feeChargeRate.Mul(order.Fillable).Mul(order.OrderInfo.Price)
 		subaccountID := order.SubaccountID()
-		deposit := k.GetDeposit(ctx, subaccountID, prevMarket.GetQuoteDenom())
 
-		hasEnoughAvailableBalanceToPayExtraFee := deposit.AvailableBalance.GTE(extraFee)
+		hasSufficientFundsToPayExtraFee := k.HasSufficientFunds(ctx, subaccountID, denom, extraFee)
 
-		if hasEnoughAvailableBalanceToPayExtraFee {
-			k.UpdateDepositWithDelta(ctx, subaccountID, prevMarket.GetQuoteDenom(), &types.DepositDelta{
-				AvailableBalanceDelta: extraFee.Neg(),
-				TotalBalanceDelta:     sdk.ZeroDec(),
-			})
-		} else {
-			isBuy := order.IsBuy()
-			if err := k.CancelRestingDerivativeLimitOrder(
-				ctx,
-				prevMarket,
-				subaccountID,
-				&isBuy,
-				common.BytesToHash(order.OrderHash),
-				true,
-				true,
-			); err != nil {
-				k.logger.Warningf("CancelRestingDerivativeLimitOrder failed during handleDerivativeFeeIncrease, orderHash: %s, error: %v", common.BytesToHash(order.OrderHash).Hex(), err)
+		if hasSufficientFundsToPayExtraFee {
+			err := k.chargeAccount(ctx, subaccountID, denom, extraFee)
+
+			// defensive programming: continue to next order if charging the extra fee succeeds
+			// otherwise cancel the order
+			if err == nil {
+				continue
 			}
+		}
+
+		isBuy := order.IsBuy()
+		if err := k.CancelRestingDerivativeLimitOrder(
+			ctx,
+			prevMarket,
+			subaccountID,
+			&isBuy,
+			common.BytesToHash(order.OrderHash),
+			true,
+			true,
+		); err != nil {
+			k.Logger(ctx).Error("CancelRestingDerivativeLimitOrder failed during handleDerivativeFeeIncrease", "orderHash", common.BytesToHash(order.OrderHash).Hex(), "err", err.Error())
 		}
 	}
 }
@@ -468,44 +462,48 @@ func (k *Keeper) handleDerivativeFeeIncreaseForConditionals(ctx sdk.Context, ord
 	if !isExtraFeeChargeRequired {
 		return
 	}
-	feeChargeRate := sdk.MinDec(newFeeRate, newFeeRate.Sub(prevFeeRate)) // negative prevFeeRate part is ignored
 
-	var lockDepositIfPossible = func(order types.IDerivativeOrder, subaccountID common.Hash) bool {
+	feeChargeRate := sdk.MinDec(newFeeRate, newFeeRate.Sub(prevFeeRate)) // negative prevFeeRate part is ignored
+	denom := prevMarket.GetQuoteDenom()
+
+	var didExtraChargeSucceed = func(order types.IDerivativeOrder, subaccountID common.Hash) bool {
 		if order.IsReduceOnly() {
 			return true
 		}
 
 		// ExtraFee = (newFeeRate - prevFeeRate) * FillableQuantity * Price
 		// AvailableBalance -= ExtraFee
-		// If AvailableBalance < ExtraFee
-		// Cancel the order
+		// If AvailableBalance < ExtraFee, cancel the order
 		extraFee := feeChargeRate.Mul(order.GetFillable()).Mul(order.GetPrice())
-		deposit := k.GetDeposit(ctx, subaccountID, prevMarket.GetQuoteDenom())
 
-		hasEnoughAvailableBalanceToPayExtraFee := deposit.AvailableBalance.GTE(extraFee)
+		hasSufficientFundsToPayExtraFee := k.HasSufficientFunds(ctx, subaccountID, denom, extraFee)
 
-		if hasEnoughAvailableBalanceToPayExtraFee {
-			k.UpdateDepositWithDelta(ctx, subaccountID, prevMarket.GetQuoteDenom(), &types.DepositDelta{
-				AvailableBalanceDelta: extraFee.Neg(),
-				TotalBalanceDelta:     sdk.ZeroDec(),
-			})
-			return true
-		} else {
-			return false
+		if hasSufficientFundsToPayExtraFee {
+			err := k.chargeAccount(ctx, subaccountID, denom, extraFee)
+			// defensive programming: continue to next order if charging the extra fee succeeds
+			// otherwise cancel the order
+			if err == nil {
+				return true
+			}
+
+			k.Logger(ctx).Error("handleDerivativeFeeIncreaseForConditionals chargeAccount fail:", err)
 		}
+
+		return false
 	}
 
 	for _, order := range orderbook.GetMarketOrders() {
-		if !lockDepositIfPossible(order, order.SubaccountID()) {
+		if !didExtraChargeSucceed(order, order.SubaccountID()) {
 			if err := k.CancelConditionalDerivativeMarketOrder(ctx, prevMarket, order.SubaccountID(), nil, order.Hash()); err != nil {
-				k.logger.Warningf("CancelConditionalDerivativeMarketOrder failed during handleDerivativeFeeIncreaseForConditionals, orderHash: %s, error: %v", common.BytesToHash(order.OrderHash).Hex(), err)
+				k.Logger(ctx).Info("CancelConditionalDerivativeMarketOrder failed during handleDerivativeFeeIncreaseForConditionals", "orderHash", common.BytesToHash(order.OrderHash).Hex(), "err", err)
 			}
 		}
 	}
+
 	for _, order := range orderbook.GetLimitOrders() {
-		if !lockDepositIfPossible(order, order.SubaccountID()) {
+		if !didExtraChargeSucceed(order, order.SubaccountID()) {
 			if err := k.CancelConditionalDerivativeLimitOrder(ctx, prevMarket, order.SubaccountID(), nil, order.Hash()); err != nil {
-				k.logger.Warningf("CancelConditionalDerivativeLimitOrder failed during handleDerivativeFeeIncreaseForConditionals, orderHash: %s, error: %v", common.BytesToHash(order.OrderHash).Hex(), err)
+				k.Logger(ctx).Info("CancelConditionalDerivativeLimitOrder failed during handleDerivativeFeeIncreaseForConditionals", "orderHash", common.BytesToHash(order.OrderHash).Hex(), "err", err)
 			}
 		}
 	}

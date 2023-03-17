@@ -58,6 +58,7 @@ func (k *Keeper) PersistSingleDerivativeMarketOrderExecution(
 	derivativeVwapData DerivativeVwapInfo,
 	tradingRewardPoints types.TradingRewardPoints,
 	modifiedPositionCache ModifiedPositionCache,
+	isLiquidation bool,
 ) types.TradingRewardPoints {
 	if execution == nil {
 		return tradingRewardPoints
@@ -71,7 +72,12 @@ func (k *Keeper) PersistSingleDerivativeMarketOrderExecution(
 	}
 
 	for _, subaccountID := range execution.DepositSubaccountIDs {
-		k.UpdateDepositWithDelta(ctx, subaccountID, execution.Market.GetQuoteDenom(), execution.DepositDeltas[subaccountID])
+		if isLiquidation {
+			// in liquidations beyond bankruptcy we shall not charge from bank to avoid rugging from bank balances
+			k.UpdateDepositWithDeltaWithoutBankCharge(ctx, subaccountID, execution.Market.GetQuoteDenom(), execution.DepositDeltas[subaccountID])
+		} else {
+			k.UpdateDepositWithDelta(ctx, subaccountID, execution.Market.GetQuoteDenom(), execution.DepositDeltas[subaccountID])
+		}
 	}
 
 	k.UpdateDerivativeLimitOrdersFromFilledDeltas(ctx, marketID, true, execution.RestingLimitOrderFilledDeltas)
@@ -124,7 +130,7 @@ func (k *Keeper) PersistDerivativeMarketOrderExecution(
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	for _, derivativeExecutionData := range batchDerivativeExecutionData {
-		tradingRewardPoints = k.PersistSingleDerivativeMarketOrderExecution(ctx, derivativeExecutionData, derivativeVwapData, tradingRewardPoints, modifiedPositionCache)
+		tradingRewardPoints = k.PersistSingleDerivativeMarketOrderExecution(ctx, derivativeExecutionData, derivativeVwapData, tradingRewardPoints, modifiedPositionCache, false)
 	}
 
 	return tradingRewardPoints

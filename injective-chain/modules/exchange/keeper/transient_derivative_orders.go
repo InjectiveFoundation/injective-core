@@ -278,13 +278,13 @@ func (k *Keeper) CancelAllTransientDerivativeLimitOrdersBySubaccountID(
 
 	for _, buyOrder := range buyOrders {
 		if err := k.CancelTransientDerivativeLimitOrder(ctx, market, buyOrder); err != nil {
-			k.logger.Warningln("CancelTransientDerivativeLimitOrder for buyOrder %s failed during CancelAllTransientDerivativeLimitOrdersBySubaccountID:", common.BytesToHash(buyOrder.OrderHash).Hex(), err)
+			k.Logger(ctx).Error("CancelTransientDerivativeLimitOrder for buyOrder %s failed during CancelAllTransientDerivativeLimitOrdersBySubaccountID:", common.BytesToHash(buyOrder.OrderHash).Hex(), err)
 		}
 	}
 
 	for _, sellOrder := range sellOrders {
 		if err := k.CancelTransientDerivativeLimitOrder(ctx, market, sellOrder); err != nil {
-			k.logger.Warningln("CancelTransientDerivativeLimitOrder for sellOrder %s failed during CancelAllTransientDerivativeLimitOrdersBySubaccountID:", common.BytesToHash(sellOrder.OrderHash).Hex(), err)
+			k.Logger(ctx).Error("CancelTransientDerivativeLimitOrder for sellOrder %s failed during CancelAllTransientDerivativeLimitOrdersBySubaccountID:", common.BytesToHash(sellOrder.OrderHash).Hex(), err)
 		}
 	}
 }
@@ -350,13 +350,13 @@ func (k *Keeper) CancelAllTransientDerivativeLimitOrders(
 
 	for _, buyOrder := range buyOrders {
 		if err := k.CancelTransientDerivativeLimitOrder(ctx, market, buyOrder); err != nil {
-			k.logger.Warningf("CancelTransientDerivativeLimitOrder for buyOrder %s failed during CancelAllTransientDerivativeLimitOrders: %v", common.BytesToHash(buyOrder.OrderHash).Hex(), err)
+			k.Logger(ctx).Error("CancelTransientDerivativeLimitOrder for buyOrder failed during CancelAllTransientDerivativeLimitOrders", "orderHash", common.BytesToHash(buyOrder.OrderHash).Hex(), "err", err.Error())
 		}
 	}
 
 	for _, sellOrder := range sellOrders {
 		if err := k.CancelTransientDerivativeLimitOrder(ctx, market, sellOrder); err != nil {
-			k.logger.Warningf("CancelTransientDerivativeLimitOrder for sellOrder %s failed during CancelAllTransientDerivativeLimitOrders: %v", common.BytesToHash(sellOrder.OrderHash).Hex(), err)
+			k.Logger(ctx).Error("CancelTransientDerivativeLimitOrder for sellOrder failed during CancelAllTransientDerivativeLimitOrders", "orderHash", common.BytesToHash(sellOrder.OrderHash).Hex(), "err", err.Error())
 		}
 	}
 }
@@ -478,12 +478,12 @@ func (k *Keeper) CancelTransientDerivativeLimitOrder(
 	subaccountID := order.SubaccountID()
 
 	if order.IsVanilla() {
-		depositDelta := order.GetCancelDepositDelta(market.GetTakerFeeRate())
-		k.UpdateDepositWithDelta(ctx, subaccountID, market.GetQuoteDenom(), depositDelta)
+		refundAmount := order.GetCancelRefundAmount(market.GetTakerFeeRate())
+		k.incrementAvailableBalanceOrBank(ctx, subaccountID, market.GetQuoteDenom(), refundAmount)
 	} else if order.IsReduceOnly() {
 		position := k.GetPosition(ctx, marketID, subaccountID)
 		if position == nil {
-			k.logger.Error("Derivative Position doesn't exist", "marketId", marketID, "subaccountID", subaccountID, "orderHash", order.Hash().Hex())
+			k.Logger(ctx).Error("Derivative Position doesn't exist", "marketId", marketID, "subaccountID", subaccountID, "orderHash", order.Hash().Hex())
 			metrics.ReportFuncError(k.svcTags)
 			return sdkerrors.Wrapf(types.ErrPositionNotFound, "marketId %s subaccountID %s orderHash %s", marketID, subaccountID.Hex(), order.Hash().Hex())
 		}
@@ -643,24 +643,20 @@ func (k *Keeper) CancelDerivativeMarketOrder(
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	marketID := market.MarketID()
-
 	subaccountID := order.SubaccountID()
-	depositDeltas := types.NewDepositDeltas()
+	refundAmount := order.GetCancelRefundAmount()
 
-	orderCancel := types.DerivativeMarketOrderCancel{
-		MarketOrder:    order,
-		CancelQuantity: order.OrderInfo.Quantity,
-	}
-	orderCancel.ApplyDerivativeMarketCancellation(depositDeltas)
-
-	k.UpdateDepositWithDelta(ctx, subaccountID, market.QuoteDenom, depositDeltas[subaccountID])
+	k.incrementAvailableBalanceOrBank(ctx, subaccountID, market.QuoteDenom, refundAmount)
 	k.DeleteDerivativeMarketOrder(ctx, order, marketID)
 
 	// nolint:errcheck //ignored on purpose
 	ctx.EventManager().EmitTypedEvent(&types.EventCancelDerivativeOrder{
-		MarketId:          marketID.Hex(),
-		IsLimitCancel:     false,
-		MarketOrderCancel: &orderCancel,
+		MarketId:      marketID.Hex(),
+		IsLimitCancel: false,
+		MarketOrderCancel: &types.DerivativeMarketOrderCancel{
+			MarketOrder:    order,
+			CancelQuantity: order.OrderInfo.Quantity,
+		},
 	})
 }
 

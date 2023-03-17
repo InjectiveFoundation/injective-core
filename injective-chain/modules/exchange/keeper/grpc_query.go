@@ -2,6 +2,7 @@ package keeper
 
 import (
 	"context"
+	"errors"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -93,6 +94,177 @@ func (k *Keeper) ExchangeBalances(c context.Context, _ *types.QueryExchangeBalan
 		Balances: balances,
 	}
 
+	return res, nil
+}
+
+func (k *Keeper) AggregateVolume(c context.Context, req *types.QueryAggregateVolumeRequest) (*types.QueryAggregateVolumeResponse, error) {
+	ctx := sdk.UnwrapSDKContext(c)
+
+	if types.IsHexHash(req.Account) {
+		subaccountID := common.HexToHash(req.Account)
+		volumes := k.GetAllSubaccountMarketAggregateVolumesBySubaccount(ctx, subaccountID)
+		return &types.QueryAggregateVolumeResponse{AggregateVolumes: volumes}, nil
+	}
+
+	accAddress, err := sdk.AccAddressFromBech32(req.Account)
+	if err != nil {
+		return nil, err
+	}
+
+	volumes := k.GetAllSubaccountMarketAggregateVolumesByAccAddress(ctx, accAddress)
+
+	resp := &types.QueryAggregateVolumeResponse{
+		AggregateVolumes: volumes,
+	}
+	return resp, nil
+}
+
+func (k *Keeper) AggregateVolumes(c context.Context, req *types.QueryAggregateVolumesRequest) (*types.QueryAggregateVolumesResponse, error) {
+	ctx := sdk.UnwrapSDKContext(c)
+
+	marketVolumes := make([]*types.MarketVolume, 0, len(req.MarketIds))
+	marketIDs := make([]common.Hash, 0, len(req.MarketIds))
+	marketIDMap := make(map[common.Hash]struct{})
+
+	for _, marketId := range req.MarketIds {
+		marketID := common.HexToHash(marketId)
+
+		// skip duplicate marketIDs
+		if _, found := marketIDMap[marketID]; found {
+			continue
+		}
+
+		volume := k.GetMarketAggregateVolume(ctx, marketID)
+		marketVolumes = append(marketVolumes, &types.MarketVolume{
+			MarketId: marketID.Hex(),
+			Volume:   volume,
+		})
+
+		// minor optimization so we don't check account volumes for markets that have 0 volume
+		if !volume.IsZero() {
+			marketIDs = append(marketIDs, marketID)
+		}
+		marketIDMap[marketID] = struct{}{}
+	}
+
+	accountVolumes := make([]*types.AggregateAccountVolumeRecord, 0, len(req.Accounts))
+
+	for _, account := range req.Accounts {
+		accAddress, err := sdk.AccAddressFromBech32(account)
+		if err != nil && !types.IsHexHash(account) {
+			return nil, err
+		}
+
+		var volumes []*types.MarketVolume
+		var accountStr string
+
+		// still return the volumes if the input account is a subaccountID
+		if types.IsHexHash(account) {
+			subaccountID := common.HexToHash(account)
+			accountStr = subaccountID.Hex()
+
+			for _, marketID := range marketIDs {
+				volume := k.GetSubaccountMarketAggregateVolume(ctx, subaccountID, marketID)
+				volumes = append(volumes, &types.MarketVolume{
+					MarketId: marketID.Hex(),
+					Volume:   volume,
+				})
+			}
+		} else {
+			accountStr = accAddress.String()
+			volumes = k.GetAllSubaccountMarketAggregateVolumesByAccAddress(ctx, accAddress)
+			filteredVolumes := make([]*types.MarketVolume, 0, len(volumes))
+
+			// only include volumes for marketIDs requested
+			for _, volume := range volumes {
+				if _, ok := marketIDMap[common.HexToHash(volume.MarketId)]; ok {
+					filteredVolumes = append(filteredVolumes, volume)
+				}
+			}
+			volumes = filteredVolumes
+		}
+
+		accountVolumes = append(accountVolumes, &types.AggregateAccountVolumeRecord{
+			Account:       accountStr,
+			MarketVolumes: volumes,
+		})
+	}
+
+	res := &types.QueryAggregateVolumesResponse{
+		AggregateAccountVolumes: accountVolumes,
+		AggregateMarketVolumes:  marketVolumes,
+	}
+	return res, nil
+}
+
+func (k *Keeper) AggregateMarketVolume(c context.Context, req *types.QueryAggregateMarketVolumeRequest) (*types.QueryAggregateMarketVolumeResponse, error) {
+	ctx := sdk.UnwrapSDKContext(c)
+
+	marketID := common.HexToHash(req.MarketId)
+	volume := k.GetMarketAggregateVolume(ctx, marketID)
+
+	res := &types.QueryAggregateMarketVolumeResponse{
+		Volume: volume,
+	}
+	return res, nil
+}
+
+func (k *Keeper) AggregateMarketVolumes(c context.Context, req *types.QueryAggregateMarketVolumesRequest) (*types.QueryAggregateMarketVolumesResponse, error) {
+	ctx := sdk.UnwrapSDKContext(c)
+
+	volumes := make([]*types.MarketVolume, 0, len(req.MarketIds))
+
+	// get all the market aggregate volumes if unspecified
+	if len(req.MarketIds) == 0 {
+		volumes = k.GetAllMarketAggregateVolumes(ctx)
+	} else {
+		for _, marketId := range req.MarketIds {
+			marketID := common.HexToHash(marketId)
+			volume := k.GetMarketAggregateVolume(ctx, marketID)
+			volumes = append(volumes, &types.MarketVolume{
+				MarketId: marketID.Hex(),
+				Volume:   volume,
+			})
+		}
+	}
+
+	res := &types.QueryAggregateMarketVolumesResponse{
+		Volumes: volumes,
+	}
+	return res, nil
+}
+
+func (k *Keeper) DenomDecimal(c context.Context, req *types.QueryDenomDecimalRequest) (*types.QueryDenomDecimalResponse, error) {
+	ctx := sdk.UnwrapSDKContext(c)
+
+	if req.Denom == "" {
+		return nil, errors.New("denom is required")
+	}
+
+	res := &types.QueryDenomDecimalResponse{
+		Decimal: k.GetDenomDecimals(ctx, req.Denom),
+	}
+	return res, nil
+}
+
+func (k *Keeper) DenomDecimals(c context.Context, req *types.QueryDenomDecimalsRequest) (*types.QueryDenomDecimalsResponse, error) {
+	ctx := sdk.UnwrapSDKContext(c)
+
+	denomDecimals := make([]types.DenomDecimals, 0, len(req.Denoms))
+	if len(req.Denoms) == 0 {
+		denomDecimals = k.GetAllDenomDecimals(ctx)
+	} else {
+		for _, denom := range req.Denoms {
+			denomDecimals = append(denomDecimals, types.DenomDecimals{
+				Denom:    denom,
+				Decimals: k.GetDenomDecimals(ctx, denom),
+			})
+		}
+	}
+
+	res := &types.QueryDenomDecimalsResponse{
+		DenomDecimals: denomDecimals,
+	}
 	return res, nil
 }
 
@@ -919,7 +1091,7 @@ func (k *Keeper) FeeDiscountTierStatistics(c context.Context, req *types.QueryFe
 }
 
 // TODO add back in? @markus
-// func (k *Keeper) NinjaVaultInfo(c context.Context, req *types.NinjaVaultInfosRequest) (*types.NinjaVaultInfosResponse, error) {
+// func (k *Keeper) MitoVaultInfo(c context.Context, req *types.MitoVaultInfosRequest) (*types.MitoVaultInfosResponse, error) {
 // 	masterWasmContract, err := sdk.AccAddressFromBech32(req.ContractAddress)
 // 	if err != nil {
 // 		metrics.ReportFuncError(k.svcTags)
@@ -963,7 +1135,7 @@ func (k *Keeper) FeeDiscountTierStatistics(c context.Context, req *types.QueryFe
 // 			lpTokenQuoteValue = vaultQuoteDeposits.TotalBalance.Quo(totalLPTokenSupply.ToDec())
 // 		}
 // 	}
-// res := &types.NinjaVaultInfosResponse{
+// res := &types.MitoVaultInfosResponse{
 // 	PoolPosition:       vaultPosition,
 // 	LpTokenTotalSupply: totalLPTokenSupply,
 // 	LpTokenQuoteValue:  lpTokenQuoteValue,
@@ -974,7 +1146,7 @@ func (k *Keeper) FeeDiscountTierStatistics(c context.Context, req *types.QueryFe
 // return res, nil
 // }
 
-func (k *Keeper) NinjaVaultInfos(c context.Context, req *types.NinjaVaultInfosRequest) (*types.NinjaVaultInfosResponse, error) {
+func (k *Keeper) MitoVaultInfos(c context.Context, req *types.MitoVaultInfosRequest) (*types.MitoVaultInfosResponse, error) {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(c)
@@ -1009,7 +1181,7 @@ func (k *Keeper) NinjaVaultInfos(c context.Context, req *types.NinjaVaultInfosRe
 		return false
 	})
 
-	res := &types.NinjaVaultInfosResponse{
+	res := &types.MitoVaultInfosResponse{
 		MasterAddresses:     masterContractAddresses,
 		DerivativeAddresses: derivativeContractAddresses,
 		SpotAddresses:       spotContractAddresses,

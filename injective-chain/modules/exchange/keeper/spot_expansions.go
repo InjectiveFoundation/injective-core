@@ -87,6 +87,7 @@ func (e *spotOrderStateExpansion) UpdateFromDepositDeltas(
 
 func (k *Keeper) processRestingSpotLimitOrderExpansions(
 	ctx sdk.Context,
+	marketID common.Hash,
 	fills *ordermatching.OrderbookFills,
 	isLimitBuy bool,
 	clearingPrice sdk.Dec,
@@ -104,6 +105,7 @@ func (k *Keeper) processRestingSpotLimitOrderExpansions(
 		if isLimitBuy {
 			stateExpansions[idx] = k.getRestingSpotLimitBuyStateExpansion(
 				ctx,
+				marketID,
 				order,
 				order.Hash(),
 				fillQuantity,
@@ -116,6 +118,7 @@ func (k *Keeper) processRestingSpotLimitOrderExpansions(
 		} else {
 			stateExpansions[idx] = k.getSpotLimitSellStateExpansion(
 				ctx,
+				marketID,
 				order,
 				true,
 				fillQuantity,
@@ -132,6 +135,7 @@ func (k *Keeper) processRestingSpotLimitOrderExpansions(
 
 func (k *Keeper) getSpotLimitSellStateExpansion(
 	ctx sdk.Context,
+	marketID common.Hash,
 	order *types.SpotLimitOrder,
 	isMaker bool,
 	fillQuantity, fillPrice, tradeFeeRate, relayerFeeShareRate sdk.Dec,
@@ -139,8 +143,6 @@ func (k *Keeper) getSpotLimitSellStateExpansion(
 	feeDiscountConfig *FeeDiscountConfig,
 ) *spotOrderStateExpansion {
 	orderNotional := fillQuantity.Mul(fillPrice)
-
-	accAddress := order.SdkAccAddress()
 
 	var tradeRewardMultiplier sdk.Dec
 	if isMaker {
@@ -150,7 +152,8 @@ func (k *Keeper) getSpotLimitSellStateExpansion(
 	}
 	feeData := k.getTradeDataAndIncrementVolumeContribution(
 		ctx,
-		accAddress,
+		order.SubaccountID(),
+		marketID,
 		fillQuantity,
 		fillPrice,
 		tradeFeeRate,
@@ -182,13 +185,14 @@ func (k *Keeper) getSpotLimitSellStateExpansion(
 		OrderPrice:             order.OrderInfo.Price,
 		OrderHash:              order.Hash(),
 		SubaccountID:           order.SubaccountID(),
-		TraderAddress:          accAddress.String(),
+		TraderAddress:          order.SdkAccAddress().String(),
 	}
 	return &stateExpansion
 }
 
 func (k *Keeper) getRestingSpotLimitBuyStateExpansion(
 	ctx sdk.Context,
+	marketID common.Hash,
 	order *types.SpotLimitOrder,
 	orderHash common.Hash,
 	fillQuantity, fillPrice, makerFeeRate, relayerFeeShareRate sdk.Dec,
@@ -197,11 +201,11 @@ func (k *Keeper) getRestingSpotLimitBuyStateExpansion(
 ) *spotOrderStateExpansion {
 	var baseChangeAmount, quoteChangeAmount sdk.Dec
 
-	accAddress := order.SdkAccAddress()
 	isMaker := true
 	feeData := k.getTradeDataAndIncrementVolumeContribution(
 		ctx,
-		accAddress,
+		order.SubaccountID(),
+		marketID,
 		fillQuantity,
 		fillPrice,
 		makerFeeRate,
@@ -269,13 +273,14 @@ func (k *Keeper) getRestingSpotLimitBuyStateExpansion(
 		OrderPrice:             order.OrderInfo.Price,
 		OrderHash:              orderHash,
 		SubaccountID:           order.SubaccountID(),
-		TraderAddress:          accAddress.String(),
+		TraderAddress:          order.SdkAccAddress().String(),
 	}
 	return &stateExpansion
 }
 
 func (k *Keeper) getTransientSpotLimitBuyStateExpansion(
 	ctx sdk.Context,
+	marketID common.Hash,
 	order *types.SpotLimitOrder,
 	orderHash common.Hash,
 	clearingPrice, fillQuantity,
@@ -285,11 +290,11 @@ func (k *Keeper) getTransientSpotLimitBuyStateExpansion(
 ) *spotOrderStateExpansion {
 	orderNotional, clearingChargeOrRefund, matchedFeeRefund := sdk.ZeroDec(), sdk.ZeroDec(), sdk.ZeroDec()
 
-	accAddress := order.SdkAccAddress()
 	isMaker := false
 	feeData := k.getTradeDataAndIncrementVolumeContribution(
 		ctx,
-		accAddress,
+		order.SubaccountID(),
+		marketID,
 		fillQuantity,
 		clearingPrice,
 		takerFeeRate,
@@ -343,7 +348,7 @@ func (k *Keeper) getTransientSpotLimitBuyStateExpansion(
 		OrderPrice:             order.OrderInfo.Price,
 		OrderHash:              orderHash,
 		SubaccountID:           order.SubaccountID(),
-		TraderAddress:          accAddress.String(),
+		TraderAddress:          order.SdkAccAddress().String(),
 	}
 	return &stateExpansion
 }

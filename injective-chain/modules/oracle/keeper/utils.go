@@ -1,9 +1,11 @@
 package keeper
 
 import (
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/types"
 	"github.com/InjectiveLabs/metrics"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/ethereum/go-ethereum/common"
+
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/types"
 )
 
 func (k *Keeper) GetPricePairStateForUSD(ctx sdk.Context, basePriceState types.PriceState, baseRate sdk.Dec) *types.PricePairState {
@@ -43,7 +45,7 @@ func (k *Keeper) GetPriceState(ctx sdk.Context, key string, oracletype types.Ora
 	case types.OracleType_Uma:
 		return nil
 	case types.OracleType_Pyth:
-		return nil
+		return &k.GetPythPriceState(ctx, common.HexToHash(key)).PriceState
 	case types.OracleType_BandIBC:
 		return &k.GetBandIBCPriceState(ctx, key).PriceState
 	case types.OracleType_Provider:

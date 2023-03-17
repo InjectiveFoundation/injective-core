@@ -279,6 +279,58 @@ func SetupFiveValChain(t *testing.T) (TestInput, sdk.Context) {
 	return input, input.Context
 }
 
+type ValidatorInfo struct {
+	AccAddr sdk.AccAddress
+	ValAddr sdk.ValAddress
+	ConsKey,
+	PubKey ccrypto.PubKey
+}
+
+func GenerateNewValidatorInfo() ValidatorInfo {
+	privKey := secp256k1.GenPrivKey()
+
+	return ValidatorInfo{
+		AccAddr: sdk.AccAddress(privKey.PubKey().Address()),
+		ValAddr: sdk.ValAddress(privKey.PubKey().Address()),
+		ConsKey: ed25519.GenPrivKey().PubKey(),
+		PubKey:  privKey.PubKey(),
+	}
+}
+
+func AddAnotherValidator(t *testing.T, input TestInput, valInfo ValidatorInfo) TestInput {
+	t.Helper()
+
+	sh := staking.NewHandler(input.StakingKeeper)
+
+	// Initialize the account for the key
+	acc := input.AccountKeeper.NewAccount(
+		input.Context,
+		authtypes.NewBaseAccount(valInfo.AccAddr, valInfo.PubKey, 0, 0),
+	)
+
+	// Set the balance for the account
+	input.BankKeeper.MintCoins(input.Context, minttypes.ModuleName, InitCoins)
+	input.BankKeeper.SendCoinsFromModuleToAccount(input.Context, minttypes.ModuleName, acc.GetAddress(), InitCoins)
+
+	// Set the account in state
+	input.AccountKeeper.SetAccount(input.Context, acc)
+
+	// Create a validator for that account using some of the tokens in the account
+	// and the staking handler
+	_, err := sh(
+		input.Context,
+		NewTestMsgCreateValidator(valInfo.ValAddr, valInfo.ConsKey, StakingAmount),
+	)
+
+	// Return error if one exists
+	require.NoError(t, err)
+
+	// Run the staking endblocker to ensure valset is correct in state
+	staking.EndBlocker(input.Context, input.StakingKeeper)
+
+	return input
+}
+
 // CreateTestEnv creates the keeper testing environment for peggy
 func CreateTestEnv(t *testing.T) TestInput {
 	t.Helper()
@@ -749,7 +801,7 @@ func (s AlwaysPanicStakingMock) Jail(sdk.Context, sdk.ConsAddress) {
 }
 
 func NewTestMsgCreateValidator(address sdk.ValAddress, pubKey ccrypto.PubKey, amt sdk.Int) *stakingtypes.MsgCreateValidator {
-	commission := stakingtypes.NewCommissionRates(sdk.ZeroDec(), sdk.ZeroDec(), sdk.ZeroDec())
+	commission := stakingtypes.NewCommissionRates(sdk.MustNewDecFromStr("0.02"), sdk.MustNewDecFromStr("0.02"), sdk.MustNewDecFromStr("0.02"))
 	out, err := stakingtypes.NewMsgCreateValidator(
 		address, pubKey, sdk.NewCoin("stake", amt),
 		stakingtypes.Description{}, commission, sdk.OneInt(),
@@ -762,5 +814,10 @@ func NewTestMsgCreateValidator(address sdk.ValAddress, pubKey ccrypto.PubKey, am
 
 func NewTestMsgUnDelegateValidator(address sdk.ValAddress, amt sdk.Int) *stakingtypes.MsgUndelegate {
 	msg := stakingtypes.NewMsgUndelegate(sdk.AccAddress(address), address, sdk.NewCoin("stake", amt))
+	return msg
+}
+
+func NewTestMsgDelegateValidator(address sdk.ValAddress, amt sdk.Int) *stakingtypes.MsgDelegate {
+	msg := stakingtypes.NewMsgDelegate(sdk.AccAddress(address), address, sdk.NewCoin("stake", amt))
 	return msg
 }

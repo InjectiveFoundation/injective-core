@@ -8,6 +8,7 @@ cp injective-chain/modules/peggy/types/*.go ../sdk-go/chain/peggy/types/
 cp injective-chain/modules/wasmx/types/*.go ../sdk-go/chain/wasmx/types/
 cp injective-chain/modules/insurance/types/*.go ../sdk-go/chain/insurance/types/
 cp injective-chain/modules/oracle/types/*.go ../sdk-go/chain/oracle/types/
+cp injective-chain/modules/tokenfactory/types/*.go ../sdk-go/chain/tokenfactory/types/
 cp -r proto/ ../sdk-go/proto
 
 
@@ -42,6 +43,11 @@ rm -f *gw.go
 gsed -i "s/github.com\/InjectiveLabs\/injective-core\/injective-chain\/modules/github.com\/InjectiveLabs\/sdk-go\/chain/g" *.go
 
 cd ../../oracle/types/
+rm -f *test.go
+rm -f *gw.go
+gsed -i "s/github.com\/InjectiveLabs\/injective-core\/injective-chain\/modules/github.com\/InjectiveLabs\/sdk-go\/chain/g" *.go
+
+cd ../../tokenfactory/types/
 rm -f *test.go
 rm -f *gw.go
 gsed -i "s/github.com\/InjectiveLabs\/injective-core\/injective-chain\/modules/github.com\/InjectiveLabs\/sdk-go\/chain/g" *.go

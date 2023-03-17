@@ -26,13 +26,13 @@ func (k *Keeper) CancelAllConditionalDerivativeOrders(
 
 	for _, limitOrder := range orderbook.GetLimitOrders() {
 		if err := k.CancelConditionalDerivativeLimitOrder(ctx, market, limitOrder.SubaccountID(), nil, limitOrder.Hash()); err != nil {
-			k.logger.Warningln("CancelConditionalDerivativeLimitOrder failed during CancelAllConditionalDerivativeOrders:", err)
+			k.Logger(ctx).Error("CancelConditionalDerivativeLimitOrder failed during CancelAllConditionalDerivativeOrders:", err)
 		}
 	}
 
 	for _, marketOrder := range orderbook.GetMarketOrders() {
 		if err := k.CancelConditionalDerivativeMarketOrder(ctx, market, marketOrder.SubaccountID(), nil, marketOrder.Hash()); err != nil {
-			k.logger.Warningln("CancelConditionalDerivativeMarketOrder failed during CancelAllConditionalDerivativeOrders:", err)
+			k.Logger(ctx).Error("CancelConditionalDerivativeMarketOrder failed during CancelAllConditionalDerivativeOrders:", err)
 		}
 	}
 }
@@ -139,22 +139,14 @@ func (k *Keeper) CancelConditionalDerivativeMarketOrder(
 
 	order, direction := k.GetConditionalDerivativeMarketOrderBySubaccountIDAndHash(ctx, marketID, isTriggerPriceHigher, subaccountID, orderHash)
 	if order == nil {
-		k.logger.Debugln("Conditional Derivative Market Order doesn't exist to cancel", "marketId", marketID, "subaccountID", subaccountID, "orderHash", orderHash.Hex())
+		k.Logger(ctx).Debug("Conditional Derivative Market Order doesn't exist to cancel", "marketId", marketID, "subaccountID", subaccountID, "orderHash", orderHash.Hex())
 		metrics.ReportFuncError(k.svcTags)
 		return sdkerrors.Wrap(types.ErrOrderDoesntExist, "Conditional Derivative Market Order doesn't exist")
 	}
 
 	if order.IsVanilla() {
-		subaccountID := order.SubaccountID()
-		depositDeltas := types.NewDepositDeltas()
-
-		orderCancel := types.DerivativeMarketOrderCancel{
-			MarketOrder:    order,
-			CancelQuantity: order.OrderInfo.Quantity,
-		}
-		orderCancel.ApplyDerivativeMarketCancellation(depositDeltas)
-
-		k.UpdateDepositWithDelta(ctx, subaccountID, market.GetQuoteDenom(), depositDeltas[subaccountID])
+		refundAmount := order.GetCancelRefundAmount()
+		k.incrementAvailableBalanceOrBank(ctx, order.SubaccountID(), market.GetQuoteDenom(), refundAmount)
 	}
 
 	// 2. Delete the order state from ordersStore and ordersIndexStore
@@ -193,15 +185,13 @@ func (k *Keeper) CancelConditionalDerivativeLimitOrder(
 
 	order, direction := k.GetConditionalDerivativeLimitOrderBySubaccountIDAndHash(ctx, marketID, isTriggerPriceHigher, subaccountID, orderHash)
 	if order == nil {
-		k.logger.Debugln("Conditional Derivative Limit Order doesn't exist to cancel", "marketId", marketID, "subaccountID", subaccountID, "orderHash", orderHash)
+		k.Logger(ctx).Debug("Conditional Derivative Limit Order doesn't exist to cancel", "marketId", marketID, "subaccountID", subaccountID, "orderHash", orderHash)
 		metrics.ReportFuncError(k.svcTags)
 		return sdkerrors.Wrap(types.ErrOrderDoesntExist, "Conditional Derivative Limit Order doesn't exist")
 	}
 
-	if order.IsVanilla() {
-		depositDelta := order.GetCancelDepositDelta(market.GetTakerFeeRate())
-		k.UpdateDepositWithDelta(ctx, subaccountID, market.GetQuoteDenom(), depositDelta)
-	}
+	refundAmount := order.GetCancelRefundAmount(market.GetTakerFeeRate())
+	k.incrementAvailableBalanceOrBank(ctx, subaccountID, market.GetQuoteDenom(), refundAmount)
 
 	// 2. Delete the order state from ordersStore and ordersIndexStore
 	k.DeleteConditionalDerivativeOrder(ctx, true, marketID, order.SubaccountID(), direction, *order.TriggerPrice, order.Hash())

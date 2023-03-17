@@ -58,6 +58,11 @@ install: export VERSION_FLAGS="-X $(VERSION_PKG).AppVersion=$(APP_VERSION) -X $(
 install:
 	cd cmd/injectived/ && go install -tags $(build_tags_comma_sep) $(BUILD_FLAGS) -ldflags $(VERSION_FLAGS)
 
+install-ci: export GOPROXY=https://goproxy.injective.dev,direct
+install-ci: export VERSION_FLAGS="-X $(VERSION_PKG).AppVersion=$(APP_VERSION) -X $(VERSION_PKG).GitCommit=$(GIT_COMMIT)  -X $(VERSION_PKG).BuildDate=$(BUILD_DATE) -X $(COSMOS_VERSION_PKG).Version=$(APP_VERSION) -X $(COSMOS_VERSION_PKG).Name=$(COSMOS_VERSION_NAME) -X $(COSMOS_VERSION_PKG).AppName=injectived -X $(COSMOS_VERSION_PKG).Commit=$(GIT_COMMIT)"
+install-ci:
+	cd cmd/injectived/ && go install -tags $(build_tags_comma_sep) $(BUILD_FLAGS) -ldflags $(VERSION_FLAGS)
+
 .PHONY: install image push gen lint test mock cover
 
 mock: export GOPROXY=direct
@@ -69,6 +74,9 @@ PKGS_TO_COVER := $(shell go list ./injective-chain/modules/exchange | paste -sd 
 
 deploy:
 	./deploy_contracts.sh
+
+fuzz:
+	go test -fuzz FuzzTest ./injective-chain/modules/exchange/testexchange/fuzztesting
 
 test: export GOPROXY=direct
 test:
@@ -87,7 +95,6 @@ test-rpc:
 
 lint: export GOPROXY=direct
 lint:
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint
 	golangci-lint run
 
 cover:
@@ -133,12 +140,16 @@ gen:
 
 gen-all:
 	@./scripts/protocgen.sh
-	@./scripts/gen-injectived-grpc-ts.sh
-	@./scripts/ts-ignore-injective-grpc-ts.sh
 	@./scripts/protoc-swagger-gen.sh
 
-publish:
-	cd ./client/gen/grpc/web/ && npm publish
+gen-ts:
+	@./client/proto-ts/scripts/gen-proto-ts.sh
+	@./client/proto-ts/scripts/gen-proto-ts-types-ignore.sh
+	@./client/proto-ts/scripts/gen-proto-grpc-web-package.sh
+
+publish-ts:
+	@./client/proto-ts/scripts/gen-proto-ts-publish.sh
+	@./client/proto-ts/scripts/gen-proto-ts-publish-esm.sh
 
 grpc-ui:
 	grpcui -plaintext -protoset ./injectived.protoset localhost:9900
