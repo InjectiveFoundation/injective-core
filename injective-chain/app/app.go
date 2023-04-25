@@ -485,7 +485,7 @@ func NewInjectiveApp(
 
 	app.WasmxKeeper = wasmxkeeper.NewKeeper(
 		appCodec,
-		keys[auctiontypes.StoreKey],
+		keys[wasmxtypes.StoreKey],
 		app.GetSubspace(wasmxtypes.ModuleName),
 		app.AccountKeeper,
 		app.BankKeeper,
