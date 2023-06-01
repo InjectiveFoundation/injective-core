@@ -114,13 +114,12 @@
       "executionType": "injective",
       "accountIndex": 1,
       "message": {
-        "Subscribe": {
-          "args": {
-            "margin_ratio": "1.0",
-            "vault_subaccount_id": "$contractAddress(scMaster).sub(1)",
-            "subscriber_subaccount_id": "$subaccount(0)",
-            "subscription_type": {
-              "DerivativeSubscriptionType": "WithoutPosition"
+        "vault_subaccount_id": "$contractAddress(scMaster).sub(1)",
+        "trader_subaccount_id": "$subaccount(0)",
+        "msg": {
+          "subscribe": {
+            "slippage": {
+              "max_penalty": "0.1"
             }
           }
         }
@@ -138,7 +137,7 @@
     },
     {
       "actionType": "derivativeLimitOrder",
-      "price": 85000,
+      "price": 8500,
       "quantity": 20,
       "orderType": "sell",
       "accountIndex": 2
@@ -151,11 +150,11 @@
     {
       "actionType": "priceOracle",
       "perpsPrices": [82000]
-    },    
+    },
     {
       "actionType": "endblocker",
       "blockInterval": 16
-    },    
+    },
     {
       "actionType": "derivativeLimitOrder",
       "price": 80000,
@@ -171,7 +170,7 @@
       "orderType": "sell",
       "accountIndex": 1,
       "isReduceOnly": true
-    },     
+    },
     {
       "actionType": "endblocker",
       "blockInterval": 16

@@ -8,14 +8,15 @@ import (
 	"strings"
 	"time"
 
+	sdkconfig "github.com/cosmos/cosmos-sdk/server/config"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
+	tmcfg "github.com/cometbft/cometbft/config"
+	"github.com/cometbft/cometbft/libs/log"
 	"github.com/cosmos/cosmos-sdk/client/flags"
 	"github.com/cosmos/cosmos-sdk/server"
-	tmcfg "github.com/tendermint/tendermint/config"
-	"github.com/tendermint/tendermint/libs/log"
 
 	"github.com/InjectiveLabs/injective-core/cmd/injectived/config"
 	"github.com/InjectiveLabs/injective-core/logging"
@@ -143,7 +144,7 @@ func interceptConfigs(rootViper *viper.Viper) (*tmcfg.Config, error) {
 			return nil, fmt.Errorf("failed to parse %s: %w", appCfgFilePath, err)
 		}
 
-		config.WriteConfigFile(appCfgFilePath, appConf)
+		sdkconfig.WriteConfigFile(appCfgFilePath, appConf)
 	}
 
 	rootViper.SetConfigType("toml")

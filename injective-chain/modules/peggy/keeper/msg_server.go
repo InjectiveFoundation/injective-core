@@ -5,6 +5,9 @@ import (
 	"encoding/hex"
 	"fmt"
 
+	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
+
+	"cosmossdk.io/errors"
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
@@ -57,10 +60,10 @@ func (k msgServer) SetOrchestratorAddresses(c context.Context, msg *types.MsgSet
 	// ensure that the validator exists
 	if k.Keeper.StakingKeeper.Validator(ctx, validatorAddr) == nil {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrap(stakingtypes.ErrNoValidatorFound, validatorAddr.String())
+		return nil, errors.Wrap(stakingtypes.ErrNoValidatorFound, validatorAddr.String())
 	} else if foundExistingOrchestratorKey || foundExistingEthAddress {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrap(types.ErrResetDelegateKeys, validatorAddr.String())
+		return nil, errors.Wrap(types.ErrResetDelegateKeys, validatorAddr.String())
 	}
 
 	// set the orchestrator address
@@ -87,7 +90,7 @@ func (k msgServer) ValsetConfirm(c context.Context, msg *types.MsgValsetConfirm)
 	valset := k.GetValset(ctx, msg.Nonce)
 	if valset == nil {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrap(types.ErrInvalid, "couldn't find valset")
+		return nil, errors.Wrap(types.ErrInvalid, "couldn't find valset")
 	}
 
 	peggyID := k.GetPeggyID(ctx)
@@ -96,19 +99,19 @@ func (k msgServer) ValsetConfirm(c context.Context, msg *types.MsgValsetConfirm)
 	sigBytes, err := hex.DecodeString(msg.Signature)
 	if err != nil {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrap(types.ErrInvalid, "signature decoding")
+		return nil, errors.Wrap(types.ErrInvalid, "signature decoding")
 	}
 	orchaddr, _ := sdk.AccAddressFromBech32(msg.Orchestrator)
 	validator, found := k.GetOrchestratorValidator(ctx, orchaddr)
 	if !found {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrap(types.ErrUnknown, "validator")
+		return nil, errors.Wrap(types.ErrUnknown, "validator")
 	}
 
 	ethAddress, found := k.GetEthAddressByValidator(ctx, validator)
 	if !found {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrap(types.ErrEmpty, "no eth address found")
+		return nil, errors.Wrap(types.ErrEmpty, "no eth address found")
 	}
 
 	if err = types.ValidateEthereumSignature(checkpoint, sigBytes, ethAddress); err != nil {
@@ -118,13 +121,13 @@ func (k msgServer) ValsetConfirm(c context.Context, msg *types.MsgValsetConfirm)
 		)
 
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrap(types.ErrInvalid, description)
+		return nil, errors.Wrap(types.ErrInvalid, description)
 	}
 
 	// persist signature
 	if k.GetValsetConfirm(ctx, msg.Nonce, orchaddr) != nil {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrap(types.ErrDuplicate, "signature duplicate")
+		return nil, errors.Wrap(types.ErrDuplicate, "signature duplicate")
 	}
 	k.SetValsetConfirm(ctx, msg)
 
@@ -149,7 +152,7 @@ func (k msgServer) SendToEth(c context.Context, msg *types.MsgSendToEth) (*types
 
 	dest := common.HexToAddress(msg.EthDest)
 	if k.InvalidSendToEthAddress(ctx, dest) {
-		return nil, sdkerrors.Wrap(types.ErrInvalidEthDestination, "destination address is invalid or blacklisted")
+		return nil, errors.Wrap(types.ErrInvalidEthDestination, "destination address is invalid or blacklisted")
 	}
 
 	txID, err := k.AddToOutgoingPool(ctx, sender, common.HexToAddress(msg.EthDest), msg.Amount, msg.BridgeFee)
@@ -217,7 +220,7 @@ func (k msgServer) ConfirmBatch(c context.Context, msg *types.MsgConfirmBatch) (
 	batch := k.GetOutgoingTXBatch(ctx, tokenContract, msg.Nonce)
 	if batch == nil {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrap(types.ErrInvalid, "couldn't find batch")
+		return nil, errors.Wrap(types.ErrInvalid, "couldn't find batch")
 	}
 
 	peggyID := k.GetPeggyID(ctx)
@@ -226,20 +229,20 @@ func (k msgServer) ConfirmBatch(c context.Context, msg *types.MsgConfirmBatch) (
 	sigBytes, err := hex.DecodeString(msg.Signature)
 	if err != nil {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrap(types.ErrInvalid, "signature decoding")
+		return nil, errors.Wrap(types.ErrInvalid, "signature decoding")
 	}
 
 	orchaddr, _ := sdk.AccAddressFromBech32(msg.Orchestrator)
 	validator, found := k.GetOrchestratorValidator(ctx, orchaddr)
 	if !found {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrap(types.ErrUnknown, "validator")
+		return nil, errors.Wrap(types.ErrUnknown, "validator")
 	}
 
 	ethAddress, found := k.GetEthAddressByValidator(ctx, validator)
 	if !found {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrap(types.ErrEmpty, "eth address not found")
+		return nil, errors.Wrap(types.ErrEmpty, "eth address not found")
 	}
 
 	err = types.ValidateEthereumSignature(checkpoint, sigBytes, ethAddress)
@@ -250,13 +253,13 @@ func (k msgServer) ConfirmBatch(c context.Context, msg *types.MsgConfirmBatch) (
 		)
 
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrap(types.ErrInvalid, description)
+		return nil, errors.Wrap(types.ErrInvalid, description)
 	}
 
 	// check if we already have this confirm
 	if k.GetBatchConfirm(ctx, msg.Nonce, tokenContract, orchaddr) != nil {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrap(types.ErrDuplicate, "duplicate signature")
+		return nil, errors.Wrap(types.ErrDuplicate, "duplicate signature")
 	}
 	k.SetBatchConfirm(ctx, msg)
 
@@ -282,14 +285,14 @@ func (k msgServer) DepositClaim(c context.Context, msg *types.MsgDepositClaim) (
 	validator, found := k.GetOrchestratorValidator(ctx, orchestrator)
 	if !found {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrap(types.ErrUnknown, "validator")
+		return nil, errors.Wrap(types.ErrUnknown, "validator")
 	}
 
 	// return an error if the validator isn't in the active set
 	val := k.StakingKeeper.Validator(ctx, validator)
 	if val == nil || !val.IsBonded() {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrap(sdkerrors.ErrorInvalidSigner, "validator not in active set")
+		return nil, errors.Wrap(sdkerrors.ErrorInvalidSigner, "validator not in active set")
 	}
 
 	any, err := codectypes.NewAnyWithValue(msg)
@@ -302,7 +305,7 @@ func (k msgServer) DepositClaim(c context.Context, msg *types.MsgDepositClaim) (
 	_, err = k.Attest(ctx, msg, any)
 	if err != nil {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrap(err, "create attestation")
+		return nil, errors.Wrap(err, "create attestation")
 	}
 
 	return &types.MsgDepositClaimResponse{}, nil
@@ -321,14 +324,14 @@ func (k msgServer) WithdrawClaim(c context.Context, msg *types.MsgWithdrawClaim)
 	validator, found := k.GetOrchestratorValidator(ctx, orchestrator)
 	if !found {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrap(types.ErrUnknown, "validator")
+		return nil, errors.Wrap(types.ErrUnknown, "validator")
 	}
 
 	// return an error if the validator isn't in the active set
 	val := k.StakingKeeper.Validator(ctx, validator)
 	if val == nil || !val.IsBonded() {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrap(sdkerrors.ErrorInvalidSigner, "validator not in active set")
+		return nil, errors.Wrap(sdkerrors.ErrorInvalidSigner, "validator not in active set")
 	}
 
 	any, err := codectypes.NewAnyWithValue(msg)
@@ -341,7 +344,7 @@ func (k msgServer) WithdrawClaim(c context.Context, msg *types.MsgWithdrawClaim)
 	_, err = k.Attest(ctx, msg, any)
 	if err != nil {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrap(err, "create attestation")
+		return nil, errors.Wrap(err, "create attestation")
 	}
 
 	return &types.MsgWithdrawClaimResponse{}, nil
@@ -357,14 +360,14 @@ func (k msgServer) ERC20DeployedClaim(c context.Context, msg *types.MsgERC20Depl
 	validator, found := k.GetOrchestratorValidator(ctx, orch)
 	if !found {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrap(types.ErrUnknown, "validator")
+		return nil, errors.Wrap(types.ErrUnknown, "validator")
 	}
 
 	// return an error if the validator isn't in the active set
 	val := k.StakingKeeper.Validator(ctx, validator)
 	if val == nil || !val.IsBonded() {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrap(sdkerrors.ErrorInvalidSigner, "validator not in active set")
+		return nil, errors.Wrap(sdkerrors.ErrorInvalidSigner, "validator not in active set")
 	}
 
 	any, err := codectypes.NewAnyWithValue(msg)
@@ -377,7 +380,7 @@ func (k msgServer) ERC20DeployedClaim(c context.Context, msg *types.MsgERC20Depl
 	_, err = k.Attest(ctx, msg, any)
 	if err != nil {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrap(err, "create attestation")
+		return nil, errors.Wrap(err, "create attestation")
 	}
 
 	return &types.MsgERC20DeployedClaimResponse{}, nil
@@ -393,14 +396,14 @@ func (k msgServer) ValsetUpdateClaim(c context.Context, msg *types.MsgValsetUpda
 	validator, found := k.GetOrchestratorValidator(ctx, orchaddr)
 	if !found {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrap(types.ErrUnknown, "validator")
+		return nil, errors.Wrap(types.ErrUnknown, "validator")
 	}
 
 	// return an error if the validator isn't in the active set
 	val := k.StakingKeeper.Validator(ctx, validator)
 	if val == nil || !val.IsBonded() {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrap(sdkerrors.ErrorInvalidSigner, "validator not in active set")
+		return nil, errors.Wrap(sdkerrors.ErrorInvalidSigner, "validator not in active set")
 	}
 
 	any, err := codectypes.NewAnyWithValue(msg)
@@ -413,7 +416,7 @@ func (k msgServer) ValsetUpdateClaim(c context.Context, msg *types.MsgValsetUpda
 	_, err = k.Attest(ctx, msg, any)
 	if err != nil {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrap(err, "create attestation")
+		return nil, errors.Wrap(err, "create attestation")
 	}
 
 	return &types.MsgValsetUpdatedClaimResponse{}, nil
@@ -461,4 +464,21 @@ func (k msgServer) SubmitBadSignatureEvidence(c context.Context, msg *types.MsgS
 	}
 
 	return &types.MsgSubmitBadSignatureEvidenceResponse{}, err
+}
+
+func (k msgServer) UpdateParams(c context.Context, msg *types.MsgUpdateParams) (*types.MsgUpdateParamsResponse, error) {
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+
+	if msg.Authority != k.authority {
+		return nil, errors.Wrapf(govtypes.ErrInvalidSigner, "invalid authority: expected %s, got %s", k.authority, msg.Authority)
+	}
+
+	if err := msg.Params.ValidateBasic(); err != nil {
+		return nil, err
+	}
+
+	ctx := sdk.UnwrapSDKContext(c)
+	k.SetParams(ctx, &msg.Params)
+
+	return &types.MsgUpdateParamsResponse{}, nil
 }

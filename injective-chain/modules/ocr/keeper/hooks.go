@@ -5,18 +5,14 @@ import (
 )
 
 type OcrHooks interface {
-	SetHooks(
-		h types.OcrHooks,
-	) Keeper
+	SetHooks(h types.OcrHooks)
 }
 
 // Set the hooks
-func (k *keeper) SetHooks(h types.OcrHooks) Keeper {
+func (k *Keeper) SetHooks(h types.OcrHooks) {
 	if k.hooks != nil {
 		panic("cannot set hooks twice")
 	}
 
 	k.hooks = h
-
-	return k
 }

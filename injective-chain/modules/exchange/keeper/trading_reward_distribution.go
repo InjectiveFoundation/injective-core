@@ -1,6 +1,7 @@
 package keeper
 
 import (
+	sdkmath "cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/InjectiveLabs/metrics"
@@ -11,7 +12,7 @@ import (
 
 func (k *Keeper) distributeTradingRewardsForAccount(
 	ctx sdk.Context,
-	availableRewardsToPayout map[string]sdk.Int,
+	availableRewardsToPayout map[string]sdkmath.Int,
 	maxCampaignRewards sdk.Coins,
 	accountPoints *types.TradingRewardAccountPoints,
 	totalPoints sdk.Dec,
@@ -47,7 +48,7 @@ func (k *Keeper) distributeTradingRewardsForAccount(
 
 func (k *Keeper) distributeTradingRewardsForAllAccounts(
 	ctx sdk.Context,
-	availableRewardsToPayout map[string]sdk.Int,
+	availableRewardsToPayout map[string]sdkmath.Int,
 	maxCampaignRewards sdk.Coins,
 	pendingPoolStartTimestamp int64,
 ) {
@@ -78,8 +79,8 @@ func (k *Keeper) distributeTradingRewardsForAllAccounts(
 func (k *Keeper) getAvailableRewardsToPayout(
 	ctx sdk.Context,
 	maxCampaignRewards sdk.Coins,
-) map[string]sdk.Int {
-	availableRewardsToPayout := make(map[string]sdk.Int)
+) map[string]sdkmath.Int {
+	availableRewardsToPayout := make(map[string]sdkmath.Int)
 	feePool := k.DistributionKeeper.GetFeePool(ctx)
 
 	for _, rewardCoin := range maxCampaignRewards {

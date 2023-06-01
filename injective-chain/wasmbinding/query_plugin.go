@@ -3,9 +3,9 @@ package wasmbinding
 import (
 	"encoding/json"
 
+	"cosmossdk.io/errors"
 	wasmvmtypes "github.com/CosmWasm/wasmvm/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 )
 
 const (
@@ -13,6 +13,7 @@ const (
 	ExchangeRoute     = "exchange"
 	TokenFactoryRoute = "tokenfactory"
 	WasmxRoute        = "wasmx"
+	FeeGrant          = "feegrant"
 )
 
 type InjectiveQueryWrapper struct {
@@ -27,7 +28,7 @@ func CustomQuerier(qp *QueryPlugin) func(ctx sdk.Context, request json.RawMessag
 	return func(ctx sdk.Context, request json.RawMessage) ([]byte, error) {
 		var contractQuery InjectiveQueryWrapper
 		if err := json.Unmarshal(request, &contractQuery); err != nil {
-			return nil, sdkerrors.Wrap(err, "Error parsing request data")
+			return nil, errors.Wrap(err, "Error parsing request data")
 		}
 
 		var bz []byte
@@ -42,6 +43,8 @@ func CustomQuerier(qp *QueryPlugin) func(ctx sdk.Context, request json.RawMessag
 			bz, err = qp.HandleTokenFactoryQuery(ctx, contractQuery.QueryData)
 		case WasmxRoute:
 			bz, err = qp.HandleWasmxQuery(ctx, contractQuery.QueryData)
+		case FeeGrant:
+			bz, err = qp.HandleFeeGrantQuery(ctx, contractQuery.QueryData)
 		default:
 			return nil, wasmvmtypes.UnsupportedRequest{Kind: "Unknown Injective Query Route"}
 		}

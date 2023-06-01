@@ -1,10 +1,12 @@
 package oracle
 
 import (
+	"fmt"
+
+	"cosmossdk.io/errors"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
-	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
-	"github.com/pkg/errors"
+	errortypes "github.com/cosmos/cosmos-sdk/types/errors"
+	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types/v1beta1"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/keeper"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/types"
@@ -33,7 +35,7 @@ func NewOracleProposalHandler(k keeper.Keeper) govtypes.Handler {
 		case *types.RevokeProviderPrivilegeProposal:
 			return handleRevokeProviderPrivilegeProposal(ctx, k, c)
 		default:
-			return sdkerrors.Wrapf(sdkerrors.ErrUnknownRequest, "unrecognized oracle proposal content type: %T", c)
+			return errors.Wrapf(errortypes.ErrUnknownRequest, "unrecognized oracle proposal content type: %T", c)
 		}
 	}
 }
@@ -46,7 +48,7 @@ func handleGrantBandOraclePrivilegeProposal(ctx sdk.Context, k keeper.Keeper, p 
 	for _, relayer := range p.Relayers {
 		bandRelayer, err := sdk.AccAddressFromBech32(relayer)
 		if err != nil {
-			return sdkerrors.Wrapf(err, "invalid band relayer address %s", relayer)
+			return errors.Wrapf(err, "invalid band relayer address %s", relayer)
 		}
 		k.SetBandRelayer(ctx, bandRelayer)
 	}
@@ -62,11 +64,11 @@ func handleRevokeBandOraclePrivilegeProposal(ctx sdk.Context, k keeper.Keeper, p
 	for _, relayer := range p.Relayers {
 		bandRelayer, err := sdk.AccAddressFromBech32(relayer)
 		if err != nil {
-			return sdkerrors.Wrapf(err, "invalid band relayer address %s", relayer)
+			return errors.Wrapf(err, "invalid band relayer address %s", relayer)
 		}
 
 		if !k.IsBandRelayer(ctx, bandRelayer) {
-			return errors.New("invalid relayer address")
+			return fmt.Errorf("invalid relayer address")
 		} else {
 			k.DeleteBandRelayer(ctx, bandRelayer)
 		}
@@ -83,7 +85,7 @@ func handleGrantPriceFeederPrivilegeProposal(ctx sdk.Context, k keeper.Keeper, p
 	for _, relayer := range p.Relayers {
 		priceFeedRelayer, err := sdk.AccAddressFromBech32(relayer)
 		if err != nil {
-			return sdkerrors.Wrapf(err, "invalid price feed relayer address %s", relayer)
+			return errors.Wrapf(err, "invalid price feed relayer address %s", relayer)
 		}
 
 		k.SetPriceFeedInfo(ctx, &types.PriceFeedInfo{
@@ -105,11 +107,11 @@ func handleRevokePriceFeederPrivilegeProposal(ctx sdk.Context, k keeper.Keeper, 
 	for _, relayer := range p.Relayers {
 		priceFeedRelayer, err := sdk.AccAddressFromBech32(relayer)
 		if err != nil {
-			return sdkerrors.Wrapf(err, "invalid price feed relayer address %s", relayer)
+			return errors.Wrapf(err, "invalid price feed relayer address %s", relayer)
 		}
 
 		if !k.IsPriceFeedRelayer(ctx, p.Base, p.Quote, priceFeedRelayer) {
-			return errors.New("invalid price feed relayer address")
+			return fmt.Errorf("invalid price feed relayer address")
 		} else {
 			k.DeletePriceFeedRelayer(ctx, p.Base, p.Quote, priceFeedRelayer)
 		}
@@ -144,7 +146,7 @@ func handleEnableBandIBCProposal(ctx sdk.Context, k keeper.Keeper, p *types.Enab
 		// and claims the returned capability
 		err := k.BindPort(ctx, p.BandIbcParams.IbcPortId)
 		if err != nil {
-			return sdkerrors.Wrap(types.ErrBadIBCPortBind, err.Error())
+			return errors.Wrap(types.ErrBadIBCPortBind, err.Error())
 		}
 	}
 
@@ -167,7 +169,7 @@ func handleUpdateBandOracleRequestProposal(ctx sdk.Context, k keeper.Keeper, p *
 
 	request := k.GetBandIBCOracleRequest(ctx, p.UpdateOracleRequest.RequestId)
 	if request == nil {
-		return sdkerrors.Wrapf(types.ErrBandIBCRequestNotFound, "cannot update requestID %T", p.UpdateOracleRequest.RequestId)
+		return errors.Wrapf(types.ErrBandIBCRequestNotFound, "cannot update requestID %T", p.UpdateOracleRequest.RequestId)
 	}
 
 	if p.UpdateOracleRequest.OracleScriptId > 0 {

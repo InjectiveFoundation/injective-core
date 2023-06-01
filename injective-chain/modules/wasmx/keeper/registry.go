@@ -2,20 +2,78 @@ package keeper
 
 import (
 	"encoding/json"
+
+	"cosmossdk.io/errors"
+	sdk "github.com/cosmos/cosmos-sdk/types"
+
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/types"
 	chaintypes "github.com/InjectiveLabs/injective-core/injective-chain/types"
-	sdk "github.com/cosmos/cosmos-sdk/types"
 )
+
+func (k *Keeper) HandleContractRegistration(ctx sdk.Context, params types.Params, req types.ContractRegistrationRequest) error {
+	contractAddress, _ := sdk.AccAddressFromBech32(req.ContractAddress)
+
+	// Enforce MinGasContractExecution ≤ GasLimit ≤ MaxContractGasLimit
+	if req.GasLimit < types.MinExecutionGasLimit || req.GasLimit > params.MaxContractGasLimit {
+		return errors.Wrapf(types.ErrInvalidGasLimit, "ContractRegistrationRequestProposal: The gasLimit (%d) must be within the range (%d) - (%d).", req.GasLimit, types.MinExecutionGasLimit, params.MaxContractGasLimit)
+	}
+
+	// Enforce GasPrice ≥ MinGasPrice
+	if req.GasPrice < params.MinGasPrice {
+		return errors.Wrapf(types.ErrInvalidGasPrice, "ContractRegistrationRequestProposal: The gasPrice (%d) must be greater than (%d)", req.GasPrice, params.MinGasPrice)
+	}
+
+	// if migrations are not allowed, enforce that a contract exists at contractAddress and that it's code_id matches the one in the proposal
+	if !req.IsMigrationAllowed {
+		contractInfo := k.GetContractInfo(ctx, contractAddress)
+		if contractInfo == nil {
+			return errors.Wrapf(types.ErrInvalidContractAddress, "ContractRegistrationRequestProposal: The contract address %s does not exist", contractAddress.String())
+		}
+		if contractInfo.CodeID != req.CodeId {
+			return errors.Wrapf(types.ErrInvalidCodeId, "ContractRegistrationRequestProposal: The codeId of contract at address %s does not match codeId from the proposal", contractAddress.String())
+		}
+	}
+
+	// Enforce grant only account to have a registered granter address
+	if req.FundingMode == types.FundingMode_GrantOnly || req.FundingMode == types.FundingMode_Dual {
+		granter, _ := sdk.AccAddressFromBech32(req.GranterAddress)
+		if !k.AccountExists(ctx, granter) {
+			return errors.Wrapf(types.ErrNoGranterAccount, "ContractRegistrationRequestProposal: Granter account does not exist")
+		}
+	}
+
+	// Enforce that the contract is not already registered
+	registeredContract := k.GetContractByAddress(ctx, contractAddress)
+	if registeredContract != nil {
+		return errors.Wrapf(types.ErrAlreadyRegistered, "ContractRegistrationRequestProposal: contract %s is already registered", contractAddress.String())
+	}
+
+	// Register the contract execution parameters
+	if err := k.RegisterContract(ctx, req); err != nil {
+		return errors.Wrapf(err, "ContractRegistrationRequestProposal: Error while registering the contract")
+	}
+
+	// Pin the contract with Wasmd module to reduce the gas used for contract execution
+	if req.ShouldPinContract {
+		if err := k.PinContract(ctx, contractAddress); err != nil {
+			return errors.Wrapf(err, "ContractRegistrationRequestProposal: Error while pinning the contract")
+		}
+	}
+
+	return nil
+}
 
 func (k *Keeper) RegisterContract(
 	ctx sdk.Context,
 	req types.ContractRegistrationRequest,
 ) (err error) {
 	contract := types.RegisteredContract{
-		GasLimit:     req.GasLimit,
-		GasPrice:     req.GasPrice,
-		IsExecutable: true,
-		AdminAddress: req.AdminAddress,
+		GasLimit:       req.GasLimit,
+		GasPrice:       req.GasPrice,
+		IsExecutable:   true,
+		AdminAddress:   req.AdminAddress,
+		GranterAddress: req.GranterAddress,
+		FundMode:       req.FundingMode,
 	}
 	contractAddr, err := sdk.AccAddressFromBech32(req.ContractAddress)
 	if err != nil {

@@ -1,3 +1,4 @@
+//nolint:staticcheck // deprecated gov proposal flags
 package cli
 
 import (
@@ -8,16 +9,16 @@ import (
 	"strconv"
 	"strings"
 
+	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types/v1beta1"
 	ethCrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/spf13/cobra"
 
+	"cosmossdk.io/errors"
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/client/tx"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 
 	govcli "github.com/cosmos/cosmos-sdk/x/gov/client/cli"
-	gov "github.com/cosmos/cosmos-sdk/x/gov/types"
 
 	cliflags "github.com/InjectiveLabs/injective-core/cli/flags"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/peggy/types"
@@ -68,7 +69,7 @@ func CmdUnsafeETHPrivKey() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			key, err := ethCrypto.GenerateKey()
 			if err != nil {
-				return sdkerrors.Wrap(err, "can not generate key")
+				return errors.Wrap(err, "can not generate key")
 			}
 			k := "0x" + hex.EncodeToString(ethCrypto.FromECDSA(key))
 			println(k)
@@ -115,11 +116,11 @@ func CmdSendToEth() *cobra.Command {
 
 			amount, err := sdk.ParseCoinsNormalized(args[1])
 			if err != nil {
-				return sdkerrors.Wrap(err, "amount")
+				return errors.Wrap(err, "amount")
 			}
 			bridgeFee, err := sdk.ParseCoinsNormalized(args[2])
 			if err != nil {
-				return sdkerrors.Wrap(err, "bridge fee")
+				return errors.Wrap(err, "bridge fee")
 			}
 
 			if len(amount) > 1 || len(bridgeFee) > 1 {
@@ -263,7 +264,7 @@ func NewBlacklistEthereumAddressesProposalTxCmd() *cobra.Command {
 				return err
 			}
 
-			msg, err := gov.NewMsgSubmitProposal(content, deposit, from)
+			msg, err := govtypes.NewMsgSubmitProposal(content, deposit, from)
 			if err != nil {
 				return err
 			}
@@ -318,7 +319,7 @@ func NewRevokeEthereumBlacklistProposalCmd() *cobra.Command {
 				return err
 			}
 
-			msg, err := gov.NewMsgSubmitProposal(content, deposit, from)
+			msg, err := govtypes.NewMsgSubmitProposal(content, deposit, from)
 			if err != nil {
 				return err
 			}
@@ -339,7 +340,7 @@ func NewRevokeEthereumBlacklistProposalCmd() *cobra.Command {
 	return cmd
 }
 
-func blacklistEthereumAddressesProposalArgsToContent(cmd *cobra.Command, blacklistAddresses []string) (gov.Content, error) {
+func blacklistEthereumAddressesProposalArgsToContent(cmd *cobra.Command, blacklistAddresses []string) (govtypes.Content, error) {
 	title, err := cmd.Flags().GetString(govcli.FlagTitle)
 	if err != nil {
 		return nil, err
@@ -361,7 +362,7 @@ func blacklistEthereumAddressesProposalArgsToContent(cmd *cobra.Command, blackli
 	return content, nil
 }
 
-func revokeEthereumBlacklistProposalArgsToContent(cmd *cobra.Command, blacklistAddresses []string) (gov.Content, error) {
+func revokeEthereumBlacklistProposalArgsToContent(cmd *cobra.Command, blacklistAddresses []string) (govtypes.Content, error) {
 	title, err := cmd.Flags().GetString(govcli.FlagTitle)
 	if err != nil {
 		return nil, err

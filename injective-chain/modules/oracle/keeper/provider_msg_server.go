@@ -3,9 +3,9 @@ package keeper
 import (
 	"context"
 
+	"cosmossdk.io/errors"
 	"github.com/InjectiveLabs/metrics"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/types"
 )
@@ -33,7 +33,7 @@ func (k ProviderMsgServer) RelayProviderPrices(goCtx context.Context, msg *types
 
 	relayer, _ := sdk.AccAddressFromBech32(msg.Sender)
 	if !k.IsProviderRelayer(ctx, msg.Provider, relayer) {
-		return nil, sdkerrors.Wrapf(types.ErrRelayerNotAuthorized, "relayer %s not an authorized provider for %s", relayer.String(), msg.Provider)
+		return nil, errors.Wrapf(types.ErrRelayerNotAuthorized, "relayer %s not an authorized provider for %s", relayer.String(), msg.Provider)
 	}
 
 	for idx := range msg.Prices {

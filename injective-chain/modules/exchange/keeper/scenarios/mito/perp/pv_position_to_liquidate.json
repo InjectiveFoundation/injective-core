@@ -24,7 +24,9 @@
     },
     {
       "actionType": "priceOracle",
-      "perpsPrices": [70000]
+      "perpsPrices": [
+        70000
+      ]
     },
     {
       "actionType": "positionDerivative",
@@ -39,7 +41,9 @@
     },
     {
       "actionType": "priceOracle",
-      "perpsPrices": [130000]
+      "perpsPrices": [
+        130000
+      ]
     },
     {
       "actionType": "positionDerivative",
@@ -54,7 +58,9 @@
     },
     {
       "actionType": "priceOracle",
-      "perpsPrices": [100000]
+      "perpsPrices": [
+        100000
+      ]
     },
     {
       "actionType": "endblocker",
@@ -109,13 +115,12 @@
       "executionType": "injective",
       "accountIndex": 1,
       "message": {
-        "Subscribe": {
-          "args": {
-            "margin_ratio": "1.0",
-            "vault_subaccount_id": "$contractAddress(scMaster).sub(1)",
-            "subscriber_subaccount_id": "$subaccount(0)",
-            "subscription_type": {
-              "DerivativeSubscriptionType": "WithoutPosition"
+        "vault_subaccount_id": "$contractAddress(scMaster).sub(1)",
+        "trader_subaccount_id": "$subaccount(0)",
+        "msg": {
+          "subscribe": {
+            "slippage": {
+              "max_penalty": "0.1"
             }
           }
         }
@@ -140,7 +145,9 @@
     },
     {
       "actionType": "priceOracle",
-      "perpsPrices": [96930]
+      "perpsPrices": [
+        96930
+      ]
     },
     {
       "actionType": "endblocker"

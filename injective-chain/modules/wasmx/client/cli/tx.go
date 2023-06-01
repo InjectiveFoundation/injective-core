@@ -1,9 +1,12 @@
+//nolint:staticcheck // deprecated gov proposal flags
 package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/CosmWasm/wasmd/x/wasm/ioutils"
 	wasmtypes "github.com/CosmWasm/wasmd/x/wasm/types"
@@ -11,10 +14,11 @@ import (
 	"github.com/cosmos/cosmos-sdk/client/tx"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	govcli "github.com/cosmos/cosmos-sdk/x/gov/client/cli"
-	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
+	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types/v1beta1"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
+	"github.com/InjectiveLabs/injective-core/cli"
 	cliflags "github.com/InjectiveLabs/injective-core/cli/flags"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/types"
 )
@@ -22,6 +26,8 @@ import (
 const (
 	FlagContractGasLimit      = "contract-gas-limit"
 	FlagContractGasPrice      = "contract-gas-price"
+	FlagContractFundingMode   = "contract-funding-mode"
+	FlagGranterAddress        = "granter-address"
 	FlagPinContract           = "pin-contract"
 	FlagContractAddress       = "contract-address"
 	FlagContractAdmin         = "contract-admin"
@@ -53,6 +59,7 @@ func NewTxCmd() *cobra.Command {
 		ContractActivateTxCmd(),
 		ContractDeactivateTxCmd(),
 		ExecuteContractCompatCmd(),
+		RegisterContractTxCmd(),
 	)
 	return txCmd
 }
@@ -64,7 +71,7 @@ func NewContractRegistrationRequestProposalTxCmd() *cobra.Command {
 		Short: "Submit a proposal to register contract",
 		Long: `Submit a proposal to register contract.
 			Example:
-			$ %s tx xwasm propose-contract-registration-request --contract-gas-limit 20000 --contract-gas-price "1000000000" --contract-address "inj14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9swvf72y" --pin-contract=true --from mykey
+			$ %s tx xwasm propose-contract-registration-request --contract-gas-limit 20000 --contract-gas-price "1000000000" --contract-address "inj14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9swvf72y" (--contract-funding-mode=dual) (--granter-address=inj1dzqd00lfd4y4qy2pxa0dsdwzfnmsu27hgttswz) --pin-contract=true --from mykey
 		`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clientCtx, err := client.GetClientTxContext(cmd)
@@ -104,6 +111,8 @@ func NewContractRegistrationRequestProposalTxCmd() *cobra.Command {
 	cmd.Flags().Uint64(FlagContractGasLimit, 300000, "Maximum gas to use for the contract execution")
 	cmd.Flags().String(FlagContractAddress, "", "contract address to register")
 	cmd.Flags().Uint64(FlagContractGasPrice, 1000000000, "gas price in inj to use for the contract execution")
+	cmd.Flags().String(FlagContractFundingMode, "", "funding mode: self-funded, grant-only, dual")
+	cmd.Flags().String(FlagGranterAddress, "", "address that will pay gas fees for contract execution")
 	cmd.Flags().Bool(FlagPinContract, false, "Pin the contract upon registration to reduce the gas usage")
 	cmd.Flags().Uint64(FlagCodeId, 0, "code-id of contract")
 	cmd.Flags().Bool(FlagMigrationAllowed, true, "is contract migration allowed?")
@@ -124,7 +133,7 @@ func NewContractDeregistrationRequestProposalTxCmd() *cobra.Command {
 		Short: "Submit a proposal to deregister contract",
 		Long: `Submit a proposal to deregister contract.
 			Example:
-			$ %s tx xwasm propose-batch-contract-deregistration-request --contract-addresses "inj1fpmlw98jka5dc9cjrwurvutz87n87y45skvqkv,inj1dzqd00lfd4y4qy2pxa0dsdwzfnmsu27hgttswz" --from mykey
+			$ %s tx xwasm propose-contract-registration-request --contract-gas-limit 20000 --contract-gas-price "1000000000" --code-id 1 --contract-address "inj14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9swvf72y"  --granter-address=inj1dzqd00lfd4y4qy2pxa0dsdwzfnmsu27hgttswz --contract-funding-mode self-funded --pin-contract=true --from wasm --chain-id injective-1 
 		`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clientCtx, err := client.GetClientTxContext(cmd)
@@ -243,7 +252,7 @@ func ContractRegistrationRequestProposalArgsToContent(
 	}
 
 	if codeId == 0 {
-		return nil, fmt.Errorf("Code id cannot be equal to 0")
+		return nil, fmt.Errorf("code id cannot be equal to 0")
 	}
 
 	allowMigration, err := cmd.Flags().GetBool(FlagMigrationAllowed)
@@ -254,6 +263,23 @@ func ContractRegistrationRequestProposalArgsToContent(
 	adminAddress, err := cmd.Flags().GetString(FlagContractAdmin)
 	if err != nil {
 		adminAddress = ""
+	}
+
+	fundingModeFlag, err := cmd.Flags().GetString(FlagContractFundingMode)
+	if err != nil {
+		return nil, err
+	}
+
+	var fundingMode types.FundingMode
+	switch strings.ToLower(fundingModeFlag) {
+	case "self-funded":
+		fundingMode = types.FundingMode_SelfFunded
+	case "grant-only":
+		fundingMode = types.FundingMode_GrantOnly
+	case "dual":
+		fundingMode = types.FundingMode_Dual
+	default:
+		return nil, fmt.Errorf("following funding modes are valid: 'self-funded', 'grant-only' and 'dual'; but '%s' was provided", fundingModeFlag)
 	}
 
 	content := &types.ContractRegistrationRequestProposal{
@@ -267,8 +293,27 @@ func ContractRegistrationRequestProposalArgsToContent(
 			CodeId:             codeId,
 			IsMigrationAllowed: allowMigration,
 			AdminAddress:       adminAddress,
+			FundingMode:        fundingMode,
 		},
 	}
+
+	if fundingMode > types.FundingMode_SelfFunded {
+		granterAddrFlag, err := cmd.Flags().GetString(FlagGranterAddress)
+		if err != nil {
+			return nil, err
+		}
+
+		if granterAddrFlag == "" {
+			return nil, errors.New("granter address cannot be empty if funding mode is used")
+		}
+
+		granterAddr, err := sdk.AccAddressFromBech32(granterAddrFlag)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse granter address due to: %s", err.Error())
+		}
+		content.ContractRegistrationRequest.GranterAddress = granterAddr.String()
+	}
+
 	if err := content.ValidateBasic(); err != nil {
 		return nil, err
 	}
@@ -504,6 +549,23 @@ func ContractDeactivateTxCmd() *cobra.Command {
 	cmd.Flags().String(FlagContractAddress, "", "contract address ")
 
 	cliflags.AddTxFlagsToCmd(cmd)
+	return cmd
+}
+
+func RegisterContractTxCmd() *cobra.Command {
+	cmd := cli.TxCmd(
+		"register-contract <contract_address> <gas_limit> <gas_price> <should_pin_contract> <is_migration_allowed> <code_id> <admin_address> --granter-address <granter_address> --contract-funding-mode <funding_mode>",
+		"Register contract for BeginBlocker execution",
+		&types.MsgRegisterContract{},
+		cli.FlagsMapping{
+			"GranterAddress": cli.Flag{Flag: FlagGranterAddress},
+			"FundingMode":    cli.Flag{Flag: FlagContractFundingMode},
+		},
+		cli.ArgsMapping{},
+	)
+	cmd.Example = "injectived tx xwasm register-contract inj1apapy3g66m52mmt2wkyjm6hpyd563t90u0dgmx 4500000 1000000000 true true 1 inj17gkuet8f6pssxd8nycm3qr9d9y699rupv6397z"
+	cmd.Flags().String(FlagGranterAddress, "", "Granter address")
+	cmd.Flags().Int32(FlagContractFundingMode, 1, "Funding mode (1 for self-funded, 2 for grant-only, 3 for dual")
 	return cmd
 }
 

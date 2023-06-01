@@ -3,12 +3,14 @@ package keeper
 import (
 	"sort"
 
+	"cosmossdk.io/errors"
+	"cosmossdk.io/math"
 	"github.com/cosmos/cosmos-sdk/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
+
+	"github.com/InjectiveLabs/metrics"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/ocr/types"
-	"github.com/InjectiveLabs/metrics"
 )
 
 type RewardPool interface {
@@ -83,7 +85,7 @@ type RewardPool interface {
 	)
 }
 
-func (k *keeper) DepositIntoRewardPool(
+func (k *Keeper) DepositIntoRewardPool(
 	ctx sdk.Context,
 	feedId string,
 	sender sdk.AccAddress,
@@ -96,7 +98,7 @@ func (k *keeper) DepositIntoRewardPool(
 	if poolAmount == nil {
 		feedConfig := k.GetFeedConfig(ctx, feedId)
 		if feedConfig == nil {
-			return sdkerrors.Wrapf(types.ErrFeedConfigNotFound, "failed to find config for feedId=%s", feedId)
+			return errors.Wrapf(types.ErrFeedConfigNotFound, "failed to find config for feedId=%s", feedId)
 		}
 
 		if feedConfig.ModuleParams.LinkDenom != amount.Denom {
@@ -109,7 +111,7 @@ func (k *keeper) DepositIntoRewardPool(
 		return types.ErrIncorrectRewardPoolDenom
 	}
 
-	if err := k.BankKeeper.SendCoinsFromAccountToModule(ctx, sender, types.ModuleName, sdk.Coins{amount}); err != nil {
+	if err := k.bankKeeper.SendCoinsFromAccountToModule(ctx, sender, types.ModuleName, sdk.Coins{amount}); err != nil {
 		return err
 	}
 
@@ -123,7 +125,7 @@ func (k *keeper) DepositIntoRewardPool(
 	return nil
 }
 
-func (k *keeper) WithdrawFromRewardPool(
+func (k *Keeper) WithdrawFromRewardPool(
 	ctx sdk.Context,
 	feedId string,
 	recipient sdk.AccAddress,
@@ -136,7 +138,7 @@ func (k *keeper) WithdrawFromRewardPool(
 	if poolAmount == nil {
 		feedConfig := k.GetFeedConfig(ctx, feedId)
 		if feedConfig == nil {
-			return sdkerrors.Wrapf(types.ErrFeedConfigNotFound, "failed to find config for feedId=%s", feedId)
+			return errors.Wrapf(types.ErrFeedConfigNotFound, "failed to find config for feedId=%s", feedId)
 		}
 
 		if feedConfig.ModuleParams.LinkDenom != amount.Denom {
@@ -153,7 +155,7 @@ func (k *keeper) WithdrawFromRewardPool(
 		return types.ErrInsufficientRewardPool
 	}
 
-	if err := k.BankKeeper.SendCoinsFromModuleToAccount(ctx, types.ModuleName, recipient, sdk.Coins{amount}); err != nil {
+	if err := k.bankKeeper.SendCoinsFromModuleToAccount(ctx, types.ModuleName, recipient, sdk.Coins{amount}); err != nil {
 		return err
 	}
 
@@ -167,7 +169,7 @@ func (k *keeper) WithdrawFromRewardPool(
 	return nil
 }
 
-func (k *keeper) DisburseFromRewardPool(
+func (k *Keeper) DisburseFromRewardPool(
 	ctx sdk.Context,
 	feedId string,
 	rewards []*types.Reward,
@@ -188,7 +190,7 @@ func (k *keeper) DisburseFromRewardPool(
 
 	totalReward := sdk.NewCoin(rewards[0].Amount.Denom, sdk.ZeroInt())
 	for _, reward := range rewards {
-		if err := k.BankKeeper.SendCoinsFromModuleToAccount(ctx, types.ModuleName, reward.Addr, sdk.Coins{reward.Amount}); err != nil {
+		if err := k.bankKeeper.SendCoinsFromModuleToAccount(ctx, types.ModuleName, reward.Addr, sdk.Coins{reward.Amount}); err != nil {
 			return err
 		}
 		totalReward = totalReward.Add(reward.Amount)
@@ -199,7 +201,7 @@ func (k *keeper) DisburseFromRewardPool(
 	return nil
 }
 
-func (k *keeper) setRewardPoolAmount(
+func (k *Keeper) setRewardPoolAmount(
 	ctx sdk.Context,
 	feedId string,
 	amount sdk.Coin,
@@ -211,7 +213,7 @@ func (k *keeper) setRewardPoolAmount(
 	k.getStore(ctx).Set(key, bz)
 }
 
-func (k *keeper) GetRewardPoolAmount(
+func (k *Keeper) GetRewardPoolAmount(
 	ctx sdk.Context,
 	feedId string,
 ) *sdk.Coin {
@@ -227,7 +229,7 @@ func (k *keeper) GetRewardPoolAmount(
 	return &amount
 }
 
-func (k *keeper) GetAllRewardPools(
+func (k *Keeper) GetAllRewardPools(
 	ctx sdk.Context,
 ) []*types.RewardPool {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
@@ -260,12 +262,12 @@ func (k *keeper) GetAllRewardPools(
 	return rewardPools
 }
 
-func (k *keeper) ProcessRewardPayout(ctx sdk.Context, feedConfig *types.FeedConfig) {
+func (k *Keeper) ProcessRewardPayout(ctx sdk.Context, feedConfig *types.FeedConfig) {
 	feedId := feedConfig.ModuleParams.FeedId
 	transmissionCounts := k.GetFeedTransmissionCounts(ctx, feedId)
 	observationCounts := k.GetFeedObservationCounts(ctx, feedId)
 
-	linkRewards := make(map[string]sdk.Int, len(feedConfig.Transmitters))
+	linkRewards := make(map[string]math.Int, len(feedConfig.Transmitters))
 	totalRewards := sdk.ZeroInt()
 
 	for _, c := range transmissionCounts.Counts {
@@ -344,7 +346,7 @@ func (k *keeper) ProcessRewardPayout(ctx sdk.Context, feedConfig *types.FeedConf
 	}
 }
 
-func (k *keeper) GetPayee(
+func (k *Keeper) GetPayee(
 	ctx sdk.Context,
 	feedId string,
 	transmitter sdk.AccAddress,
@@ -360,7 +362,7 @@ func (k *keeper) GetPayee(
 	return &addr
 }
 
-func (k *keeper) SetPayee(
+func (k *Keeper) SetPayee(
 	ctx sdk.Context,
 	feedId string,
 	transmitter sdk.AccAddress,
@@ -372,7 +374,7 @@ func (k *keeper) SetPayee(
 	k.getStore(ctx).Set(key, payee.Bytes())
 }
 
-func (k *keeper) GetPendingPayeeshipTransfer(
+func (k *Keeper) GetPendingPayeeshipTransfer(
 	ctx sdk.Context,
 	feedId string,
 	transmitter sdk.AccAddress,
@@ -388,7 +390,7 @@ func (k *keeper) GetPendingPayeeshipTransfer(
 	return &addr
 }
 
-func (k *keeper) GetAllPendingPayeeships(
+func (k *Keeper) GetAllPendingPayeeships(
 	ctx sdk.Context,
 ) []*types.PendingPayeeship {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
@@ -420,7 +422,7 @@ func (k *keeper) GetAllPendingPayeeships(
 	return pendingPayeeships
 }
 
-func (k *keeper) SetPendingPayeeshipTransfer(
+func (k *Keeper) SetPendingPayeeshipTransfer(
 	ctx sdk.Context,
 	feedId string,
 	transmitter sdk.AccAddress,
@@ -432,7 +434,7 @@ func (k *keeper) SetPendingPayeeshipTransfer(
 	k.getStore(ctx).Set(key, payee.Bytes())
 }
 
-func (k *keeper) DeletePendingPayeeshipTransfer(
+func (k *Keeper) DeletePendingPayeeshipTransfer(
 	ctx sdk.Context,
 	feedId string,
 	transmitter sdk.AccAddress,

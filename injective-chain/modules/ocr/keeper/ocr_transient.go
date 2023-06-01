@@ -7,7 +7,7 @@ import (
 	"github.com/InjectiveLabs/metrics"
 )
 
-func (k *keeper) SetTransientLatestEpochAndRound(
+func (k *Keeper) SetTransientLatestEpochAndRound(
 	ctx sdk.Context,
 	feedId string,
 	epochAndRound *types.EpochAndRound,
@@ -19,7 +19,7 @@ func (k *keeper) SetTransientLatestEpochAndRound(
 	k.getTransientStore(ctx).Set(key, bz)
 }
 
-func (k *keeper) GetTransientLatestEpochAndRound(
+func (k *Keeper) GetTransientLatestEpochAndRound(
 	ctx sdk.Context,
 	feedId string,
 ) *types.EpochAndRound {

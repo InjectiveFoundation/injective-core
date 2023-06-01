@@ -3,8 +3,8 @@ package keeper
 import (
 	"sort"
 
+	"cosmossdk.io/errors"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
@@ -50,7 +50,7 @@ func (k *Keeper) ensurePositionAboveBankruptcyForClosing(
 	bankruptcyMarginRatio := sdk.ZeroDec()
 
 	if positionMarginRatio.LT(bankruptcyMarginRatio) {
-		return sdkerrors.Wrapf(types.ErrLowPositionMargin, "position margin ratio %s ≥ %s must hold", positionMarginRatio.String(), market.InitialMarginRatio.String())
+		return errors.Wrapf(types.ErrLowPositionMargin, "position margin ratio %s ≥ %s must hold", positionMarginRatio.String(), market.InitialMarginRatio.String())
 	}
 
 	return nil
@@ -68,7 +68,7 @@ func (k *Keeper) ensurePositionAboveInitialMarginRatio(
 	positionMarginRatio := position.GetEffectiveMarginRatio(markPrice, sdk.ZeroDec())
 
 	if positionMarginRatio.LT(market.InitialMarginRatio) {
-		return sdkerrors.Wrapf(types.ErrLowPositionMargin, "position margin ratio %s ≥ %s must hold", positionMarginRatio.String(), market.InitialMarginRatio.String())
+		return errors.Wrapf(types.ErrLowPositionMargin, "position margin ratio %s ≥ %s must hold", positionMarginRatio.String(), market.InitialMarginRatio.String())
 	}
 
 	return nil
@@ -87,7 +87,7 @@ func (k *Keeper) handleSyntheticTradeAction(
 
 	// Enforce that subaccountIDs provided match either the contract address or the origin address
 	if !contractAddress.Equals(summary.ContractAddress) || !origin.Equals(summary.UserAddress) {
-		return sdkerrors.Wrapf(types.ErrBadSubaccountID, "subaccountID address %s does not match either contract address %s or origin address %s", summary.UserAddress.String(), contractAddress.String(), origin.String())
+		return errors.Wrapf(types.ErrBadSubaccountID, "subaccountID address %s does not match either contract address %s or origin address %s", summary.UserAddress.String(), contractAddress.String(), origin.String())
 	}
 
 	marketIDs := summary.GetMarketIDs()
@@ -98,7 +98,7 @@ func (k *Keeper) handleSyntheticTradeAction(
 	for _, marketID := range marketIDs {
 		m := k.GetDerivativeMarketInfo(ctx, marketID, true)
 		if m.Market == nil || m.MarkPrice.IsNil() {
-			return sdkerrors.Wrapf(types.ErrDerivativeMarketNotFound, "active derivative market for marketID %s not found", marketID.Hex())
+			return errors.Wrapf(types.ErrDerivativeMarketNotFound, "active derivative market for marketID %s not found", marketID.Hex())
 		}
 
 		markets[marketID] = m
@@ -188,7 +188,7 @@ func (k *Keeper) handleSyntheticTradeAction(
 
 	if !coinsToTransfer.IsZero() {
 		if err := k.bankKeeper.SendCoinsFromAccountToModule(ctx, contractAddress, types.ModuleName, coinsToTransfer); err != nil {
-			return sdkerrors.Wrap(err, "failed SyntheticTradeAction")
+			return errors.Wrap(err, "failed SyntheticTradeAction")
 		}
 
 		sortedDenomKeys := GetSortedFeesKeys(totalFees)
@@ -246,7 +246,7 @@ func (k *Keeper) handlePositionTransferAction(
 	)
 
 	if market == nil || markPrice.IsNil() {
-		return sdkerrors.Wrapf(types.ErrDerivativeMarketNotFound, "active derivative market for marketID %s not found", action.MarketID.Hex())
+		return errors.Wrapf(types.ErrDerivativeMarketNotFound, "active derivative market for marketID %s not found", action.MarketID.Hex())
 	}
 
 	sourceAddress := types.SubaccountIDToSdkAddress(action.SourceSubaccountID)
@@ -254,10 +254,10 @@ func (k *Keeper) handlePositionTransferAction(
 
 	// TODO consider also allowing position transfer from user to contract address
 	if !contractAddress.Equals(sourceAddress) {
-		return sdkerrors.Wrapf(types.ErrBadSubaccountID, "Source subaccountID address %s does not match origin address %s", sourceAddress.String(), origin.String())
+		return errors.Wrapf(types.ErrBadSubaccountID, "Source subaccountID address %s does not match origin address %s", sourceAddress.String(), origin.String())
 	}
 	if !origin.Equals(destinationAddress) {
-		return sdkerrors.Wrapf(types.ErrBadSubaccountID, "Destination subaccountID address %s does not match contract address %s", destinationAddress.String(), contractAddress.String())
+		return errors.Wrapf(types.ErrBadSubaccountID, "Destination subaccountID address %s does not match contract address %s", destinationAddress.String(), contractAddress.String())
 	}
 
 	sourcePosition := k.GetPosition(ctx, action.MarketID, action.SourceSubaccountID)
@@ -265,7 +265,7 @@ func (k *Keeper) handlePositionTransferAction(
 
 	// Enforce that source position has sufficient quantity for transfer
 	if sourcePosition == nil || sourcePosition.Quantity.LT(action.Quantity) {
-		return sdkerrors.Wrapf(types.ErrInvalidQuantity, "Source subaccountID position quantity")
+		return errors.Wrapf(types.ErrInvalidQuantity, "Source subaccountID position quantity")
 	}
 
 	if destinationPosition == nil {
@@ -285,13 +285,13 @@ func (k *Keeper) handlePositionTransferAction(
 	if sourcePosition.Quantity.IsPositive() {
 		positionMarginRatio := sourcePosition.GetEffectiveMarginRatio(markPrice, sdk.ZeroDec())
 		if positionMarginRatio.LT(market.MaintenanceMarginRatio) {
-			return sdkerrors.Wrapf(types.ErrLowPositionMargin, "position margin ratio %s ≥ %s must hold", positionMarginRatio.String(), market.MaintenanceMarginRatio.String())
+			return errors.Wrapf(types.ErrLowPositionMargin, "position margin ratio %s ≥ %s must hold", positionMarginRatio.String(), market.MaintenanceMarginRatio.String())
 		}
 	}
 	if destinationPosition.Quantity.IsPositive() {
 		positionMarginRatio := destinationPosition.GetEffectiveMarginRatio(markPrice, sdk.ZeroDec())
 		if positionMarginRatio.LT(market.MaintenanceMarginRatio) {
-			return sdkerrors.Wrapf(types.ErrLowPositionMargin, "position margin ratio %s ≥ %s must hold", positionMarginRatio.String(), market.MaintenanceMarginRatio.String())
+			return errors.Wrapf(types.ErrLowPositionMargin, "position margin ratio %s ≥ %s must hold", positionMarginRatio.String(), market.MaintenanceMarginRatio.String())
 		}
 	}
 

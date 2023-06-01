@@ -204,6 +204,8 @@ func (k *Keeper) GetOrderbookPriceLevels(
 	marketID common.Hash,
 	isBuy bool,
 	limit *uint64,
+	limitCumulativeNotional *sdk.Dec, // optionally retrieve only top positions up to this cumulative notional value (useful when calc. worst price for BUY)
+	limitCumulativeQuantity *sdk.Dec, // optionally retrieve only top positions up to this cumulative quantity value (useful when calc. worst price for SELL)
 ) []*types.Level {
 	metrics.ReportFuncCall(k.svcTags)
 	doneFn := metrics.ReportFuncTiming(k.svcTags)
@@ -229,8 +231,16 @@ func (k *Keeper) GetOrderbookPriceLevels(
 	defer iterator.Close()
 
 	levels := make([]*types.Level, 0)
+	cumulativeNotional := sdk.ZeroDec()
+	cumulativeQuantity := sdk.ZeroDec()
 	for ; iterator.Valid(); iterator.Next() {
 		if limit != nil && uint64(len(levels)) == *limit {
+			break
+		}
+		if limitCumulativeNotional != nil && cumulativeNotional.GTE(*limitCumulativeNotional) {
+			break
+		}
+		if limitCumulativeQuantity != nil && cumulativeQuantity.GTE(*limitCumulativeQuantity) {
 			break
 		}
 
@@ -238,6 +248,12 @@ func (k *Keeper) GetOrderbookPriceLevels(
 		price := types.GetPriceFromPaddedPrice(string(key))
 		quantity := types.DecBytesToDec(iterator.Value())
 		levels = append(levels, types.NewLevel(price, quantity))
+		if limitCumulativeNotional != nil {
+			cumulativeNotional = cumulativeNotional.Add(quantity.Mul(price))
+		}
+		if limitCumulativeQuantity != nil {
+			cumulativeQuantity = cumulativeQuantity.Add(quantity)
+		}
 	}
 	return levels
 }

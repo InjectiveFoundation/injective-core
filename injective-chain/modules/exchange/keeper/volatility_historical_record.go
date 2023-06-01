@@ -18,27 +18,16 @@ const (
 )
 
 func (k *Keeper) PersistVwapInfo(ctx sdk.Context, spotVwapInfo *SpotVwapInfo, derivativeVwapInfo *DerivativeVwapInfo) {
-	blockTime := ctx.BlockTime()
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
-	// TODO below code could be optimized to cache denom decimals and not load markets again
+	blockTime := ctx.BlockTime()
 
 	if spotVwapInfo != nil {
 		spotMarketIDs := spotVwapInfo.GetSortedSpotMarketIDs()
 		for _, spotMarketID := range spotMarketIDs {
-			spotMarket := k.GetSpotMarketByID(ctx, spotMarketID)
-			baseDecimals := k.GetDenomDecimals(ctx, spotMarket.BaseDenom)
-			quoteDecimals := k.GetDenomDecimals(ctx, spotMarket.QuoteDenom)
-
-			var scaledPrice sdk.Dec
-			if baseDecimals > quoteDecimals {
-				scaledPrice = (*spotVwapInfo)[spotMarketID].Price.Mul(sdk.NewDec(10).Power(baseDecimals - quoteDecimals))
-			} else {
-				scaledPrice = (*spotVwapInfo)[spotMarketID].Price.Quo(sdk.NewDec(10).Power(quoteDecimals - baseDecimals))
-			}
-
 			k.AppendTradeRecord(ctx, spotMarketID, &types.TradeRecord{
 				Timestamp: blockTime.Unix(),
-				Price:     scaledPrice,
+				Price:     (*spotVwapInfo)[spotMarketID].Price,
 				Quantity:  (*spotVwapInfo)[spotMarketID].Quantity,
 			})
 		}
@@ -47,33 +36,27 @@ func (k *Keeper) PersistVwapInfo(ctx sdk.Context, spotVwapInfo *SpotVwapInfo, de
 	if derivativeVwapInfo != nil {
 		perpetualMarketIDs := derivativeVwapInfo.GetSortedPerpetualMarketIDs()
 		for _, perpetualMarketID := range perpetualMarketIDs {
-			derivativeMarket := k.GetDerivativeMarketByID(ctx, perpetualMarketID)
-			scaleDivisor := k.GetDenomDecimals(ctx, derivativeMarket.QuoteDenom)
 			k.AppendTradeRecord(ctx, perpetualMarketID, &types.TradeRecord{
 				Timestamp: blockTime.Unix(),
-				Price:     derivativeVwapInfo.perpetualVwapInfo[perpetualMarketID].VwapData.Price.Quo(sdk.NewDec(10).Power(scaleDivisor)),
+				Price:     derivativeVwapInfo.perpetualVwapInfo[perpetualMarketID].VwapData.Price,
 				Quantity:  derivativeVwapInfo.perpetualVwapInfo[perpetualMarketID].VwapData.Quantity,
 			})
 		}
 
 		expiryMarketIDs := derivativeVwapInfo.GetSortedExpiryFutureMarketIDs()
 		for _, expiryMarketID := range expiryMarketIDs {
-			derivativeMarket := k.GetDerivativeMarketByID(ctx, expiryMarketID)
-			scaleDivisor := k.GetDenomDecimals(ctx, derivativeMarket.QuoteDenom)
 			k.AppendTradeRecord(ctx, expiryMarketID, &types.TradeRecord{
 				Timestamp: blockTime.Unix(),
-				Price:     derivativeVwapInfo.expiryVwapInfo[expiryMarketID].VwapData.Price.Quo(sdk.NewDec(10).Power(scaleDivisor)),
+				Price:     derivativeVwapInfo.expiryVwapInfo[expiryMarketID].VwapData.Price,
 				Quantity:  derivativeVwapInfo.expiryVwapInfo[expiryMarketID].VwapData.Quantity,
 			})
 		}
 
 		binaryOptionsMarketIDs := derivativeVwapInfo.GetSortedBinaryOptionsMarketIDs()
 		for _, binaryOptionMarketID := range binaryOptionsMarketIDs {
-			binaryOptionsMarket := k.GetBinaryOptionsMarketByID(ctx, binaryOptionMarketID)
-			scaleDivisor := k.GetDenomDecimals(ctx, binaryOptionsMarket.QuoteDenom)
 			k.AppendTradeRecord(ctx, binaryOptionMarketID, &types.TradeRecord{
 				Timestamp: blockTime.Unix(),
-				Price:     derivativeVwapInfo.binaryOptionsVwapInfo[binaryOptionMarketID].VwapData.Price.Quo(sdk.NewDec(10).Power(scaleDivisor)),
+				Price:     derivativeVwapInfo.binaryOptionsVwapInfo[binaryOptionMarketID].VwapData.Price,
 				Quantity:  derivativeVwapInfo.binaryOptionsVwapInfo[binaryOptionMarketID].VwapData.Quantity,
 			})
 		}
@@ -256,7 +239,7 @@ func GetMeanForTradeRecords(tradeRecords []*types.TradeRecord) (mean sdk.Dec) {
 }
 
 // GetStandardDeviationForTradeRecords returns the volume-weighted arithmetic mean for the trade records.
-func GetStandardDeviationForTradeRecords(tradeRecords []*types.TradeRecord) *sdk.Dec {
+func GetStandardDeviationForTradeRecords(tradeRecords []*types.TradeRecord, temporaryPriceScalingFactor uint64) *sdk.Dec {
 	if len(tradeRecords) == 1 {
 		standardDeviationValue := sdk.ZeroDec()
 		return &standardDeviationValue
@@ -265,24 +248,26 @@ func GetStandardDeviationForTradeRecords(tradeRecords []*types.TradeRecord) *sdk
 	// x̄ = ∑(p * q) / ∑q
 	mean := GetMeanForTradeRecords(tradeRecords)
 
-	sum, aggregateQuantity := sdk.ZeroDec(), sdk.ZeroDec()
+	scaledSum, aggregateQuantity := sdk.ZeroDec(), sdk.ZeroDec()
 
 	for _, tradeRecord := range tradeRecords {
-		deviation := tradeRecord.Price.Sub(mean)
-		sum = sum.Add(tradeRecord.Quantity.Mul(deviation.Mul(deviation)))
+		scaledDeviation := tradeRecord.Price.Sub(mean).Mul(sdk.NewDec(10).Power(temporaryPriceScalingFactor))
+		scaledSum = scaledSum.Add(tradeRecord.Quantity.Mul(scaledDeviation.Mul(scaledDeviation)))
 		aggregateQuantity = aggregateQuantity.Add(tradeRecord.Quantity)
 	}
 	// x̄ = ∑(p * q) / ∑q
 
 	// σ² = ∑(q * (p - x̄)²) / ∑q
-	variance := sum.Quo(aggregateQuantity)
+	variance := scaledSum.Quo(aggregateQuantity)
 	// σ = √σ²
-	standardDeviationValue, err := variance.ApproxSqrt()
+	scaledStandardDeviationValue, err := variance.ApproxSqrt()
 	if err != nil {
 		return nil
 	}
 
-	return &standardDeviationValue
+	scaledBackStandardDeviation := scaledStandardDeviationValue.Quo((sdk.NewDec(10).Power(temporaryPriceScalingFactor)))
+
+	return &scaledBackStandardDeviation
 }
 
 // CalculateStatistics returns statistics metadata over given trade records and grouped trade records.
@@ -367,7 +352,8 @@ func (k *Keeper) GetMarketVolatility(ctx sdk.Context, marketID common.Hash, opti
 
 	tradesGrouped := GetRecordsGroupedBy(trades, groupingSec)
 
-	vol = GetStandardDeviationForTradeRecords(tradesGrouped)
+	temporaryPriceScalingFactor := k.getTemporaryPriceScalingFactor(ctx, marketID)
+	vol = GetStandardDeviationForTradeRecords(tradesGrouped, temporaryPriceScalingFactor)
 
 	if includeRawHistory {
 		rawTrades = trades
@@ -376,4 +362,34 @@ func (k *Keeper) GetMarketVolatility(ctx sdk.Context, marketID common.Hash, opti
 		meta = CalculateStatistics(trades, tradesGrouped)
 	}
 	return
+}
+
+func (k *Keeper) getTemporaryPriceScalingFactor(
+	ctx sdk.Context,
+	marketID common.Hash,
+) uint64 {
+	marketType, err := k.GetMarketType(ctx, marketID, true)
+	if err != nil {
+		marketType, err = k.GetMarketType(ctx, marketID, false)
+		if err != nil {
+			return 1
+		}
+	}
+
+	switch *marketType {
+	case types.MarketType_Expiry, types.MarketType_Perpetual, types.MarketType_BinaryOption:
+		return 1
+	case types.MarketType_Spot:
+		spotMarket := k.GetSpotMarket(ctx, marketID, true)
+		baseDecimals := k.GetDenomDecimals(ctx, spotMarket.BaseDenom)
+		quoteDecimals := k.GetDenomDecimals(ctx, spotMarket.QuoteDenom)
+
+		hasPricesBelowOne := baseDecimals > quoteDecimals
+
+		if hasPricesBelowOne {
+			return baseDecimals - quoteDecimals
+		}
+	}
+
+	return 1
 }

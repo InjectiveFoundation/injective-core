@@ -1,0 +1,51 @@
+#install packages for build layer
+FROM golang:1.19-alpine as builder
+RUN apk add --no-cache git gcc make libc-dev linux-headers
+RUN set -eux; apk add --no-cache ca-certificates build-base
+
+ADD https://github.com/CosmWasm/wasmvm/releases/download/v1.1.1/libwasmvm_muslc.aarch64.a /lib/libwasmvm_muslc.aarch64.a
+ADD https://github.com/CosmWasm/wasmvm/releases/download/v1.1.1/libwasmvm_muslc.x86_64.a /lib/libwasmvm_muslc.x86_64.a
+RUN sha256sum /lib/libwasmvm_muslc.aarch64.a | grep 9ecb037336bd56076573dc18c26631a9d2099a7f2b40dc04b6cae31ffb4c8f9a
+RUN sha256sum /lib/libwasmvm_muslc.x86_64.a | grep 6e4de7ba9bad4ae9679c7f9ecf7e283dd0160e71567c6a7be6ae47c81ebe7f32
+
+#Set architecture
+RUN apk --print-arch > ./architecture
+RUN cp /lib/libwasmvm_muslc.$(cat ./architecture).a /lib/libwasmvm_muslc.a
+RUN rm ./architecture
+
+#build binary
+WORKDIR /src
+COPY go.mod .
+COPY go.sum .
+ENV GO111MODULE=on
+RUN go mod download
+COPY . .
+
+#build binary
+RUN LEDGER_ENABLED=false BUILD_TAGS=muslc LINK_STATICALLY=true make install-ci
+
+#build main container
+FROM alpine:latest
+
+# Add the "injective" non-root user and group
+RUN addgroup -S injective && adduser -S -G injective injective
+
+# Install dependencies
+RUN apk add --no-cache ca-certificates curl tree python3 py3-pip
+
+# Install AWS CLI
+RUN pip3 install --upgrade pip && \
+    pip3 install --no-cache-dir awscli && \
+    rm -rf /var/cache/apk/*
+
+# Copy the injectived binary and configuration files
+COPY --from=builder /go/bin/* /usr/local/bin/
+COPY --from=builder /src/injectived.sh .
+
+#configure container
+VOLUME /apps/data
+WORKDIR /apps/data
+EXPOSE 26657 26656 10337 9900 9091
+
+#default command
+CMD sh /injectived.sh

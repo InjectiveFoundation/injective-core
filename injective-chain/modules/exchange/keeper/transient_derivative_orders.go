@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"sort"
 
+	"cosmossdk.io/errors"
 	"github.com/cosmos/cosmos-sdk/store/prefix"
 	storetypes "github.com/cosmos/cosmos-sdk/store/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/InjectiveLabs/metrics"
@@ -485,7 +485,7 @@ func (k *Keeper) CancelTransientDerivativeLimitOrder(
 		if position == nil {
 			k.Logger(ctx).Error("Derivative Position doesn't exist", "marketId", marketID, "subaccountID", subaccountID, "orderHash", order.Hash().Hex())
 			metrics.ReportFuncError(k.svcTags)
-			return sdkerrors.Wrapf(types.ErrPositionNotFound, "marketId %s subaccountID %s orderHash %s", marketID, subaccountID.Hex(), order.Hash().Hex())
+			return errors.Wrapf(types.ErrPositionNotFound, "marketId %s subaccountID %s orderHash %s", marketID, subaccountID.Hex(), order.Hash().Hex())
 		}
 	}
 

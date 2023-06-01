@@ -512,7 +512,7 @@ type FeeDiscountSchedule struct {
 type FeeDiscountTierInfo struct {
   MakerDiscountRate sdk.Dec
   TakerDiscountRate sdk.Dec
-  StakedAmount      sdk.Int
+  StakedAmount      sdkmath.Int
   FeePaidAmount     sdk.Dec
 }
 ```

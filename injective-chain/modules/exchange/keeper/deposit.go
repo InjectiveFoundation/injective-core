@@ -1,6 +1,8 @@
 package keeper
 
 import (
+	"cosmossdk.io/errors"
+	sdkmath "cosmossdk.io/math"
 	"github.com/InjectiveLabs/metrics"
 	"github.com/cosmos/cosmos-sdk/store/prefix"
 	"github.com/cosmos/cosmos-sdk/telemetry"
@@ -56,7 +58,7 @@ func (k *Keeper) executeDeposit(ctx sdk.Context, msg *types.MsgDeposit) error {
 	if err := k.bankKeeper.SendCoinsFromAccountToModule(ctx, senderAddr, types.ModuleName, sdk.NewCoins(msg.Amount)); err != nil {
 		metrics.ReportFuncError(k.svcTags)
 		k.Logger(ctx).Error("subaccount deposit failed", "senderAddr", senderAddr.String(), "coin", msg.Amount.String())
-		return sdkerrors.Wrap(err, "deposit failed")
+		return errors.Wrap(err, "deposit failed")
 	}
 
 	var subaccountID common.Hash
@@ -105,14 +107,14 @@ func (k *Keeper) ExecuteWithdraw(ctx sdk.Context, msg *types.MsgWithdraw) error 
 
 	if err := k.DecrementDeposit(ctx, subaccountID, denom, amount); err != nil {
 		metrics.ReportFuncError(k.svcTags)
-		return sdkerrors.Wrap(err, "withdrawal failed")
+		return errors.Wrap(err, "withdrawal failed")
 	}
 
 	err := k.bankKeeper.SendCoinsFromModuleToAccount(ctx, types.ModuleName, withdrawDestAddr, sdk.NewCoins(msg.Amount))
 	if err != nil {
 		metrics.ReportFuncError(k.svcTags)
 		k.Logger(ctx).Error("subaccount withdrawal failed", "senderAddr", withdrawDestAddr.String(), "coin", msg.Amount.String())
-		return sdkerrors.Wrap(err, "withdrawal failed")
+		return errors.Wrap(err, "withdrawal failed")
 	}
 
 	// nolint:errcheck //ignored on purpose
@@ -322,7 +324,7 @@ func (k *Keeper) MoveCoinsIntoCurrentAuction(
 type SendToAuctionCoin struct {
 	SubaccountId string
 	Denom        string
-	Amount       sdk.Int
+	Amount       sdkmath.Int
 }
 
 func (k *Keeper) WithdrawAllAuctionBalances(ctx sdk.Context) []SendToAuctionCoin {
@@ -428,7 +430,7 @@ func (k *Keeper) GetAllExchangeBalances(
 	return balances
 }
 
-func (k *Keeper) chargeBank(ctx sdk.Context, account sdk.AccAddress, denom string, amount sdk.Int) error {
+func (k *Keeper) chargeBank(ctx sdk.Context, account sdk.AccAddress, denom string, amount sdkmath.Int) error {
 	if amount.IsZero() {
 		return nil
 	}
@@ -438,13 +440,13 @@ func (k *Keeper) chargeBank(ctx sdk.Context, account sdk.AccAddress, denom strin
 	// ignores "locked" funds in the bank module, but not relevant to us since we don't have locked/vesting bank funds
 	balance := k.bankKeeper.GetBalance(ctx, account, denom)
 	if balance.Amount.LT(amount) {
-		return sdkerrors.Wrapf(sdkerrors.ErrInsufficientFunds, "%s is smaller than %s", balance, coin)
+		return errors.Wrapf(types.ErrInsufficientFunds, "%s is smaller than %s", balance, coin)
 	}
 
 	if err := k.bankKeeper.SendCoinsFromAccountToModule(ctx, account, types.ModuleName, sdk.NewCoins(coin)); err != nil {
 		metrics.ReportFuncError(k.svcTags)
 		k.Logger(ctx).Error("bank charge failed", "account", account.String(), "coin", coin.String())
-		return sdkerrors.Wrap(err, "bank charge failed")
+		return errors.Wrap(err, "bank charge failed")
 	}
 	return nil
 }
@@ -453,12 +455,12 @@ func (k *Keeper) chargeAvailableDeposits(ctx sdk.Context, subaccountID common.Ha
 	deposit := k.GetDeposit(ctx, subaccountID, denom)
 	if deposit.IsEmpty() {
 		metrics.ReportFuncError(k.svcTags)
-		return sdkerrors.Wrapf(types.ErrInsufficientDeposit, "Deposits for subaccountID %s asset %s not found", subaccountID.Hex(), denom)
+		return errors.Wrapf(types.ErrInsufficientDeposit, "Deposits for subaccountID %s asset %s not found", subaccountID.Hex(), denom)
 	}
 
 	if deposit.AvailableBalance.LT(amount) {
 		metrics.ReportFuncError(k.svcTags)
-		return sdkerrors.Wrapf(types.ErrInsufficientDeposit, "Insufficient Deposits for subaccountID %s asset %s. Balance decrement %s exceeds Available Balance %s ", subaccountID.Hex(), denom, amount.String(), deposit.AvailableBalance.String())
+		return errors.Wrapf(types.ErrInsufficientDeposit, "Insufficient Deposits for subaccountID %s asset %s. Balance decrement %s exceeds Available Balance %s ", subaccountID.Hex(), denom, amount.String(), deposit.AvailableBalance.String())
 	}
 
 	deposit.AvailableBalance = deposit.AvailableBalance.Sub(amount)
@@ -481,7 +483,7 @@ func (k *Keeper) chargeAccount(
 	}
 
 	if amount.IsNegative() {
-		return sdkerrors.Wrapf(types.ErrInvalidAmount, "amount charged %s for denom %s must not be negative", amount.String(), denom)
+		return errors.Wrapf(types.ErrInvalidAmount, "amount charged %s for denom %s must not be negative", amount.String(), denom)
 	}
 
 	if types.IsDefaultSubaccountID(subaccountID) {
@@ -594,7 +596,7 @@ func (k *Keeper) IncrementDepositForNonDefaultSubaccount(
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	if types.IsDefaultSubaccountID(subaccountID) {
-		return sdkerrors.Wrap(types.ErrBadSubaccountID, subaccountID.Hex())
+		return errors.Wrap(types.ErrBadSubaccountID, subaccountID.Hex())
 	}
 
 	deposit := k.GetDeposit(ctx, subaccountID, denom)

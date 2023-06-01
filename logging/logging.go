@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	tmlog "github.com/tendermint/tendermint/libs/log"
+	tmlog "github.com/cometbft/cometbft/libs/log"
 	log "github.com/xlab/suplog"
 	bugsnagHook "github.com/xlab/suplog/hooks/bugsnag"
 	debugHook "github.com/xlab/suplog/hooks/debug"

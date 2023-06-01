@@ -1,10 +1,10 @@
 package keeper
 
 import (
+	"cosmossdk.io/errors"
 	"github.com/InjectiveLabs/metrics"
 	"github.com/cosmos/cosmos-sdk/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
@@ -52,18 +52,112 @@ func (k *Keeper) GetSpotMarket(ctx sdk.Context, marketID common.Hash, isEnabled 
 	return &market
 }
 
-// GetAllSpotMarkets returns all SpotMarkets.
-func (k *Keeper) GetAllSpotMarkets(ctx sdk.Context) []*types.SpotMarket {
+// SpotMarketFilter can be used to filter out markets from a list by returning false
+type SpotMarketFilter func(*types.SpotMarket) bool
+
+// AllSpotMarketFilter allows all markets
+func AllSpotMarketFilter(market *types.SpotMarket) bool {
+	return true
+}
+
+// StatusSpotMarketFilter filters the markets by their status
+func StatusSpotMarketFilter(status ...types.MarketStatus) SpotMarketFilter {
+	m := make(map[types.MarketStatus]struct{}, len(status))
+	for _, s := range status {
+		m[s] = struct{}{}
+	}
+	return func(market *types.SpotMarket) bool {
+		_, found := m[market.Status]
+		return found
+	}
+}
+
+// MarketIDSpotMarketFilter filters the markets by their ID
+func MarketIDSpotMarketFilter(marketIDs ...string) SpotMarketFilter {
+	m := make(map[common.Hash]struct{}, len(marketIDs))
+	for _, id := range marketIDs {
+		m[common.HexToHash(id)] = struct{}{}
+	}
+	return func(market *types.SpotMarket) bool {
+		_, found := m[common.HexToHash(market.MarketId)]
+		return found
+	}
+}
+
+// ChainSpotMarketFilter can be used to chain multiple spot market filters
+func ChainSpotMarketFilter(filters ...SpotMarketFilter) SpotMarketFilter {
+	return func(market *types.SpotMarket) bool {
+		// allow the market only if all the filters pass
+		for _, f := range filters {
+			if !f(market) {
+				return false
+			}
+		}
+		return true
+	}
+}
+
+// FullSpotMarketFiller function that adds data to a full spot market
+type FullSpotMarketFiller func(sdk.Context, *types.FullSpotMarket)
+
+// FullSpotMarketWithMidPriceToB adds mid-price and ToB to a full spot market
+func FullSpotMarketWithMidPriceToB(k *Keeper) func(sdk.Context, *types.FullSpotMarket) {
+	return func(ctx sdk.Context, market *types.FullSpotMarket) {
+		midPrice, bestBuy, bestSell := k.GetSpotMidPriceAndTOB(ctx, market.GetMarket().MarketID())
+		market.MidPriceAndTob = &types.MidPriceAndTOB{
+			MidPrice:      midPrice,
+			BestBuyPrice:  bestBuy,
+			BestSellPrice: bestSell,
+		}
+	}
+}
+
+// FindSpotMarkets returns a filtered list of SpotMarkets.
+func (k *Keeper) FindSpotMarkets(ctx sdk.Context, filter SpotMarketFilter) []*types.SpotMarket {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	spotMarkets := make([]*types.SpotMarket, 0)
-	appendPair := func(p *types.SpotMarket) (stop bool) {
-		spotMarkets = append(spotMarkets, p)
+	appendPair := func(m *types.SpotMarket) (stop bool) {
+		if !filter(m) {
+			return false
+		}
+
+		spotMarkets = append(spotMarkets, m)
 		return false
 	}
 
 	k.IterateSpotMarkets(ctx, nil, appendPair)
 	return spotMarkets
+}
+
+// FindFullSpotMarkets returns a filtered list of FullSpotMarkets.
+func (k *Keeper) FindFullSpotMarkets(ctx sdk.Context, filter SpotMarketFilter, fillers ...FullSpotMarketFiller) []*types.FullSpotMarket {
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+
+	spotMarkets := make([]*types.FullSpotMarket, 0)
+	appendPair := func(m *types.SpotMarket) (stop bool) {
+		if !filter(m) {
+			return false
+		}
+
+		fm := &types.FullSpotMarket{Market: m}
+		for _, filler := range fillers {
+			filler(ctx, fm)
+		}
+
+		spotMarkets = append(spotMarkets, fm)
+		return false
+	}
+
+	k.IterateSpotMarkets(ctx, nil, appendPair)
+	return spotMarkets
+}
+
+// GetAllSpotMarkets returns all SpotMarkets.
+func (k *Keeper) GetAllSpotMarkets(ctx sdk.Context) []*types.SpotMarket {
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+
+	return k.FindSpotMarkets(ctx, AllSpotMarketFilter)
 }
 
 func (k *Keeper) ScheduleSpotMarketParamUpdate(ctx sdk.Context, p *types.SpotMarketParamUpdateProposal) error {
@@ -158,7 +252,7 @@ func (k *Keeper) ExecuteSpotMarketParamUpdateProposal(ctx sdk.Context, p *types.
 	prevMarket := k.GetSpotMarketByID(ctx, marketID)
 	if prevMarket == nil {
 		metrics.ReportFuncCall(k.svcTags)
-		return sdkerrors.Wrapf(types.ErrMarketInvalid, "market is not available, market_id %s", p.MarketId)
+		return errors.Wrapf(types.ErrMarketInvalid, "market is not available, market_id %s", p.MarketId)
 	}
 
 	if p.Status == types.MarketStatus_Demolished {
@@ -250,18 +344,18 @@ func (k *Keeper) SpotMarketLaunchWithCustomFees(
 
 	if !k.IsDenomValid(ctx, baseDenom) {
 		metrics.ReportFuncCall(k.svcTags)
-		return nil, sdkerrors.Wrapf(types.ErrInvalidBaseDenom, "denom %s does not exist in supply", baseDenom)
+		return nil, errors.Wrapf(types.ErrInvalidBaseDenom, "denom %s does not exist in supply", baseDenom)
 	}
 
 	if !k.IsDenomValid(ctx, quoteDenom) {
 		metrics.ReportFuncCall(k.svcTags)
-		return nil, sdkerrors.Wrapf(types.ErrInvalidQuoteDenom, "denom %s does not exist in supply", quoteDenom)
+		return nil, errors.Wrapf(types.ErrInvalidQuoteDenom, "denom %s does not exist in supply", quoteDenom)
 	}
 
 	marketID := types.NewSpotMarketID(baseDenom, quoteDenom)
 	if k.HasSpotMarket(ctx, marketID, true) || k.HasSpotMarket(ctx, marketID, false) {
 		metrics.ReportFuncCall(k.svcTags)
-		return nil, sdkerrors.Wrapf(types.ErrSpotMarketExists, "ticker %s baseDenom %s quoteDenom %s", ticker, baseDenom, quoteDenom)
+		return nil, errors.Wrapf(types.ErrSpotMarketExists, "ticker %s baseDenom %s quoteDenom %s", ticker, baseDenom, quoteDenom)
 	}
 
 	market := types.SpotMarket{
@@ -297,7 +391,7 @@ func (k *Keeper) SetSpotMarketStatus(ctx sdk.Context, marketID common.Hash, stat
 	}
 
 	if market == nil {
-		return nil, sdkerrors.Wrapf(types.ErrSpotMarketNotFound, "marketID %s", marketID)
+		return nil, errors.Wrapf(types.ErrSpotMarketNotFound, "marketID %s", marketID)
 	}
 
 	isActiveStatusChange := market.Status == types.MarketStatus_Active && status != types.MarketStatus_Active || (market.Status != types.MarketStatus_Active && status == types.MarketStatus_Active)

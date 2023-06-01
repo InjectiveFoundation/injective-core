@@ -3,11 +3,13 @@ package keeper
 import (
 	"context"
 
+	sdkmath "cosmossdk.io/math"
+
 	insurancetypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/insurance/types"
 
+	"cosmossdk.io/errors"
 	"github.com/InjectiveLabs/metrics"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
@@ -16,7 +18,7 @@ import (
 func (k *Keeper) moveCoinsIntoInsuranceFund(
 	ctx sdk.Context,
 	market MarketI,
-	insuranceFundPaymentAmount sdk.Int,
+	insuranceFundPaymentAmount sdkmath.Int,
 ) error {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
@@ -200,13 +202,13 @@ func (k DerivativesMsgServer) LiquidatePosition(goCtx context.Context, msg *type
 	if market == nil {
 		k.Logger(ctx).Error("active derivative market doesn't exist", "marketID", marketID.Hex())
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrapf(types.ErrDerivativeMarketNotFound, "active derivative market for marketID %s not found", marketID.Hex())
+		return nil, errors.Wrapf(types.ErrDerivativeMarketNotFound, "active derivative market for marketID %s not found", marketID.Hex())
 	}
 
 	position := k.GetPosition(cacheCtx, marketID, positionSubaccountID)
 	if position == nil || position.Quantity.IsZero() {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrapf(types.ErrPositionNotFound, "subaccountID %s marketID %s", positionSubaccountID.Hex(), marketID.Hex())
+		return nil, errors.Wrapf(types.ErrPositionNotFound, "subaccountID %s marketID %s", positionSubaccountID.Hex(), marketID.Hex())
 	}
 
 	var funding *types.PerpetualMarketFunding
@@ -219,7 +221,7 @@ func (k DerivativesMsgServer) LiquidatePosition(goCtx context.Context, msg *type
 
 	if !shouldLiquidate {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrapf(types.ErrPositionNotLiquidable, "%s position liquidation price is %s but mark price is %s", position.GetDirectionString(), liquidationPrice.String(), markPrice.String())
+		return nil, errors.Wrapf(types.ErrPositionNotLiquidable, "%s position liquidation price is %s but mark price is %s", position.GetDirectionString(), liquidationPrice.String(), markPrice.String())
 	}
 
 	// Step 1a: Cancel all reduce-only limit orders created by the position holder in the given market

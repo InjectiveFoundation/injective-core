@@ -116,7 +116,7 @@ type MsgDepositClaim struct {
 	EventNonce     uint64                                
 	BlockHeight    uint64                                
 	TokenContract  string                                
-	Amount         sdk.Int 
+	Amount         sdkmath.Int 
 	EthereumSender string                                 
 	CosmosReceiver string                                 
 	Orchestrator   string                                 
@@ -150,7 +150,7 @@ type MsgValsetUpdatedClaim struct {
 	ValsetNonce  uint64                           
 	BlockHeight  uint64                           
 	Members      []*BridgeValidator               
-	RewardAmount sdk.Int 
+	RewardAmount sdkmath.Int 
 	RewardToken  string                                 
 	Orchestrator string                                 
 }

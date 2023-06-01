@@ -3,12 +3,13 @@ package client
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"sort"
 
-	bip39 "github.com/cosmos/go-bip39"
+	"github.com/cosmos/go-bip39"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v2"
 
@@ -21,6 +22,8 @@ import (
 	"github.com/cosmos/cosmos-sdk/crypto/keys/multisig"
 	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+
+	cryptohd "github.com/InjectiveLabs/injective-core/injective-chain/crypto/hd"
 )
 
 const (
@@ -39,62 +42,6 @@ const (
 	DefaultKeyPass      = "12345678"
 	mnemonicEntropySize = 256
 )
-
-// AddKeyCommand defines a keys command to add a generated or recovered private key to keybase.
-func AddKeyCommand() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "add <name>",
-		Short: "Add an encrypted private key (either newly generated or recovered), encrypt it, and save to <name> file",
-		Long: `Derive a new private key and encrypt to disk.
-Optionally specify a BIP39 mnemonic, a BIP39 passphrase to further secure the mnemonic,
-and a bip32 HD path to derive a specific account. The key will be stored under the given name
-and encrypted with the given password. The only input that is required is the encryption password.
-
-If run with -i, it will prompt the user for BIP44 path, BIP39 mnemonic, and passphrase.
-The flag --recover allows one to recover a key from a seed passphrase.
-If run with --dry-run, a key would be generated (or recovered) but not stored to the
-local keystore.
-Use the --pubkey flag to add arbitrary public keys to the keystore for constructing
-multisig transactions.
-
-You can create and store a multisig key by passing the list of key names stored in a keyring
-and the minimum number of signatures required through --multisig-threshold. The keys are
-sorted by address, unless the flag --nosort is set.
-Example:
-
-    keys add mymultisig --multisig "keyname1,keyname2,keyname3" --multisig-threshold 2
-`,
-		Args: cobra.ExactArgs(1),
-		RunE: runAddCmdPrepare,
-	}
-	f := cmd.Flags()
-	f.StringSlice(flagMultisig, nil, "List of key names stored in keyring to construct a public legacy multisig key")
-	f.Int(flagMultiSigThreshold, 1, "K out of N required signatures. For use in conjunction with --multisig")
-	f.Bool(flagNoSort, false, "Keys passed to --multisig are taken in the order they're supplied")
-	f.String(keys.FlagPublicKey, "", "Parse a public key in JSON format and saves key info to <name> file.")
-	f.BoolP(flagInteractive, "i", false, "Interactively prompt user for BIP39 passphrase and mnemonic")
-	f.Bool(flags.FlagUseLedger, false, "Store a local reference to a private key on a Ledger device")
-	f.Bool(flagRecover, false, "Provide seed phrase to recover existing key instead of creating")
-	f.Bool(flagNoBackup, false, "Don't print out seed phrase (if others are watching the terminal)")
-	f.Bool(flags.FlagDryRun, false, "Perform action, but don't add key to local keystore")
-	f.String(flagHDPath, "", "Manual HD Path derivation (overrides BIP44 config)")
-	f.Uint32(flagCoinType, sdk.GetConfig().GetCoinType(), "coin type number for HD derivation")
-	f.Uint32(flagAccount, 0, "Account number for HD derivation")
-	f.Uint32(flagIndex, 0, "Address index number for HD derivation")
-	f.String(flags.FlagKeyAlgorithm, string(hd.Secp256k1Type), "Key signing algorithm to generate keys for")
-
-	return cmd
-}
-
-func runAddCmdPrepare(cmd *cobra.Command, args []string) error {
-	buf := bufio.NewReader(cmd.InOrStdin())
-	clientCtx, err := client.GetClientQueryContext(cmd)
-	if err != nil {
-		return err
-	}
-
-	return RunAddCmd(clientCtx, cmd, args, buf)
-}
 
 /*
 input
@@ -125,7 +72,7 @@ func RunAddCmd(ctx client.Context, cmd *cobra.Command, args []string, inBuf *buf
 
 	if dryRun, _ := cmd.Flags().GetBool(flags.FlagDryRun); dryRun {
 		// use in memory keybase
-		kb = keyring.NewInMemory()
+		kb = keyring.NewInMemory(ctx.Codec, cryptohd.EthSecp256k1Option())
 	} else {
 		_, err = kb.Key(name)
 		if err == nil {
@@ -159,7 +106,11 @@ func RunAddCmd(ctx client.Context, cmd *cobra.Command, args []string, inBuf *buf
 					return err
 				}
 
-				pks[i] = k.GetPubKey()
+				key, err := k.GetPubKey()
+				if err != nil {
+					return err
+				}
+				pks[i] = key
 			}
 
 			if noSort, _ := cmd.Flags().GetBool(flagNoSort); !noSort {
@@ -186,7 +137,7 @@ func RunAddCmd(ctx client.Context, cmd *cobra.Command, args []string, inBuf *buf
 			return err
 		}
 
-		info, err := kb.SavePubKey(name, pk, algo.Name())
+		info, err := kb.SaveOfflineKey(name, pk)
 		if err != nil {
 			return err
 		}
@@ -292,11 +243,11 @@ func RunAddCmd(ctx client.Context, cmd *cobra.Command, args []string, inBuf *buf
 	return printCreate(cmd, info, showMnemonic, mnemonic, outputFormat)
 }
 
-func printCreate(cmd *cobra.Command, info keyring.Info, showMnemonic bool, mnemonic, outputFormat string) error {
+func printCreate(cmd *cobra.Command, k *keyring.Record, showMnemonic bool, mnemonic, outputFormat string) error {
 	switch outputFormat {
 	case keys.OutputFormatText:
 		cmd.PrintErrln()
-		printKeyInfo(cmd.OutOrStdout(), info, keyring.MkAccKeyOutput, outputFormat)
+		printKeyInfo(cmd.OutOrStdout(), k, keyring.MkAccKeyOutput, outputFormat)
 
 		// print mnemonic unless requested not to.
 		if showMnemonic {
@@ -306,7 +257,7 @@ func printCreate(cmd *cobra.Command, info keyring.Info, showMnemonic bool, mnemo
 			fmt.Fprintln(cmd.ErrOrStderr(), mnemonic)
 		}
 	case keys.OutputFormatJSON:
-		out, err := keyring.MkAccKeyOutput(info)
+		out, err := keyring.MkAccKeyOutput(k)
 		if err != nil {
 			return err
 		}
@@ -315,7 +266,7 @@ func printCreate(cmd *cobra.Command, info keyring.Info, showMnemonic bool, mnemo
 			out.Mnemonic = mnemonic
 		}
 
-		jsonString, err := keys.KeysCdc.MarshalJSON(out)
+		jsonString, err := json.Marshal(out)
 		if err != nil {
 			return err
 		}
@@ -340,7 +291,7 @@ func validateMultisigThreshold(k, nKeys int) error {
 	return nil
 }
 
-type bechKeyOutFn func(keyInfo keyring.Info) (keyring.KeyOutput, error)
+type bechKeyOutFn func(keyInfo *keyring.Record) (keyring.KeyOutput, error)
 
 func printTextInfos(w io.Writer, kos []keyring.KeyOutput) {
 	out, err := yaml.Marshal(&kos)
@@ -350,7 +301,7 @@ func printTextInfos(w io.Writer, kos []keyring.KeyOutput) {
 	fmt.Fprintln(w, string(out))
 }
 
-func printKeyInfo(w io.Writer, keyInfo keyring.Info, bechKeyOut bechKeyOutFn, output string) {
+func printKeyInfo(w io.Writer, keyInfo *keyring.Record, bechKeyOut bechKeyOutFn, output string) {
 	ko, err := bechKeyOut(keyInfo)
 	if err != nil {
 		panic(err)
@@ -361,7 +312,7 @@ func printKeyInfo(w io.Writer, keyInfo keyring.Info, bechKeyOut bechKeyOutFn, ou
 		printTextInfos(w, []keyring.KeyOutput{ko})
 
 	case keys.OutputFormatJSON:
-		out, err := keys.KeysCdc.MarshalJSON(ko)
+		out, err := json.Marshal(ko)
 		if err != nil {
 			panic(err)
 		}

@@ -1,12 +1,11 @@
 package keeper
 
 import (
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 	"github.com/InjectiveLabs/metrics"
 	"github.com/cosmos/cosmos-sdk/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
-
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 )
 
 type MarketI interface {
@@ -30,6 +29,66 @@ type MarketIDQuoteDenomMakerFee struct {
 	MarketID   common.Hash
 	QuoteDenom string
 	MakerFee   sdk.Dec
+}
+
+// MarketFilter can be used to filter out markets from a list by returning false
+type MarketFilter func(MarketI) bool
+
+// AllMarketFilter allows all markets
+func AllMarketFilter(_ MarketI) bool {
+	return true
+}
+
+// StatusMarketFilter filters the markets by their status
+func StatusMarketFilter(status ...types.MarketStatus) MarketFilter {
+	m := make(map[types.MarketStatus]struct{}, len(status))
+	for _, s := range status {
+		m[s] = struct{}{}
+	}
+	return func(market MarketI) bool {
+		_, found := m[market.GetMarketStatus()]
+		return found
+	}
+}
+
+// MarketIDMarketFilter filters the markets by their ID
+func MarketIDMarketFilter(marketIDs ...string) MarketFilter {
+	m := make(map[common.Hash]struct{}, len(marketIDs))
+	for _, id := range marketIDs {
+		m[common.HexToHash(id)] = struct{}{}
+	}
+	return func(market MarketI) bool {
+		_, found := m[market.MarketID()]
+		return found
+	}
+}
+
+// ChainMarketFilter can be used to chain multiple market filters
+func ChainMarketFilter(filters ...MarketFilter) MarketFilter {
+	return func(market MarketI) bool {
+		// allow the market only if all the filters pass
+		for _, f := range filters {
+			if !f(market) {
+				return false
+			}
+		}
+		return true
+	}
+}
+
+func (k *Keeper) FindDerivativeAndBinaryOptionsMarkets(ctx sdk.Context, filter MarketFilter) []MarketI {
+	derivativeMarkets := k.FindDerivativeMarkets(ctx, filter)
+	binaryOptionsMarkets := k.FindBinaryOptionsMarkets(ctx, filter)
+
+	markets := make([]MarketI, 0, len(derivativeMarkets)+len(binaryOptionsMarkets))
+	for _, m := range derivativeMarkets {
+		markets = append(markets, m)
+	}
+	for _, m := range binaryOptionsMarkets {
+		markets = append(markets, m)
+	}
+
+	return markets
 }
 
 func (k *Keeper) GetAllDerivativeAndBinaryOptionsMarkets(ctx sdk.Context) []MarketI {
@@ -192,22 +251,22 @@ func (k *Keeper) SetAtomicMarketOrderFeeMultipliers(ctx sdk.Context, marketFeeMu
 	}
 }
 
-func (k *Keeper) GetMarketType(ctx sdk.Context, marketID common.Hash) (*types.MarketType, error) {
-	isSpotMarket := k.HasSpotMarket(ctx, marketID, true)
-	if isSpotMarket {
+func (k *Keeper) GetMarketType(ctx sdk.Context, marketID common.Hash, isEnabled bool) (*types.MarketType, error) {
+	if k.HasSpotMarket(ctx, marketID, isEnabled) {
 		tp := types.MarketType_Spot
 		return &tp, nil
 	}
-	isDerivativeMarket := k.HasDerivativeMarket(ctx, marketID, true)
-	if isDerivativeMarket {
-		derivativeMarket := k.GetDerivativeMarket(ctx, marketID, true)
+
+	if k.HasDerivativeMarket(ctx, marketID, isEnabled) {
+		derivativeMarket := k.GetDerivativeMarket(ctx, marketID, isEnabled)
 		tp := derivativeMarket.GetMarketType()
 		return &tp, nil
 	}
-	isBinaryMarket := k.HasBinaryOptionsMarket(ctx, marketID, true)
-	if isBinaryMarket {
+
+	if k.HasBinaryOptionsMarket(ctx, marketID, isEnabled) {
 		tp := types.MarketType_BinaryOption
 		return &tp, nil
 	}
+
 	return nil, types.ErrMarketInvalid.Wrapf("Market with id: %v doesn't exist or is not active", marketID)
 }

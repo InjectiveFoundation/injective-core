@@ -1,3 +1,4 @@
+//nolint:staticcheck // deprecated gov proposal flags
 package cli
 
 import (
@@ -9,7 +10,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/client/tx"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	govcli "github.com/cosmos/cosmos-sdk/x/gov/client/cli"
-	gov "github.com/cosmos/cosmos-sdk/x/gov/types"
+	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types/v1beta1"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -101,7 +102,7 @@ func NewGrantPriceFeederPrivilegeProposalTxCmd() *cobra.Command {
 				return err
 			}
 
-			msg, err := gov.NewMsgSubmitProposal(content, deposit, from)
+			msg, err := govtypes.NewMsgSubmitProposal(content, deposit, from)
 			if err != nil {
 				return err
 			}
@@ -156,7 +157,7 @@ func NewRevokePriceFeederPrivilegeProposalTxCmd() *cobra.Command {
 				return err
 			}
 
-			msg, err := gov.NewMsgSubmitProposal(content, deposit, from)
+			msg, err := govtypes.NewMsgSubmitProposal(content, deposit, from)
 			if err != nil {
 				return err
 			}
@@ -211,7 +212,7 @@ func NewGrantBandOraclePrivilegeProposalTxCmd() *cobra.Command {
 				return err
 			}
 
-			msg, err := gov.NewMsgSubmitProposal(content, deposit, from)
+			msg, err := govtypes.NewMsgSubmitProposal(content, deposit, from)
 			if err != nil {
 				return err
 			}
@@ -266,7 +267,7 @@ func NewRevokeBandOraclePrivilegeProposalTxCmd() *cobra.Command {
 				return err
 			}
 
-			msg, err := gov.NewMsgSubmitProposal(content, deposit, from)
+			msg, err := govtypes.NewMsgSubmitProposal(content, deposit, from)
 			if err != nil {
 				return err
 			}
@@ -517,7 +518,7 @@ func NewEnableBandIBCProposalTxCmd() *cobra.Command {
 				return err
 			}
 
-			msg, err := gov.NewMsgSubmitProposal(content, deposit, from)
+			msg, err := govtypes.NewMsgSubmitProposal(content, deposit, from)
 			if err != nil {
 				return err
 			}
@@ -577,7 +578,7 @@ func NewAuthorizeBandOracleRequestProposalTxCmd() *cobra.Command {
 				return err
 			}
 
-			msg, err := gov.NewMsgSubmitProposal(content, deposit, from)
+			msg, err := govtypes.NewMsgSubmitProposal(content, deposit, from)
 			if err != nil {
 				return err
 			}
@@ -636,7 +637,7 @@ func NewUpdateBandOracleRequestProposalTxCmd() *cobra.Command {
 				return err
 			}
 
-			msg, err := gov.NewMsgSubmitProposal(content, deposit, from)
+			msg, err := govtypes.NewMsgSubmitProposal(content, deposit, from)
 			if err != nil {
 				return err
 			}
@@ -695,7 +696,7 @@ func NewDeleteBandOracleRequestProposalTxCmd() *cobra.Command {
 				return err
 			}
 
-			msg, err := gov.NewMsgSubmitProposal(content, deposit, from)
+			msg, err := govtypes.NewMsgSubmitProposal(content, deposit, from)
 			if err != nil {
 				return err
 			}
@@ -761,7 +762,7 @@ func NewGrantProviderPrivilegeProposalTxCmd() *cobra.Command {
 				return err
 			}
 
-			msg, err := gov.NewMsgSubmitProposal(content, deposit, from)
+			msg, err := govtypes.NewMsgSubmitProposal(content, deposit, from)
 			if err != nil {
 				return err
 			}
@@ -821,7 +822,7 @@ func NewRevokeProviderPrivilegeProposalTxCmd() *cobra.Command {
 				return err
 			}
 
-			msg, err := gov.NewMsgSubmitProposal(content, deposit, from)
+			msg, err := govtypes.NewMsgSubmitProposal(content, deposit, from)
 			if err != nil {
 				return err
 			}
@@ -887,7 +888,7 @@ func NewRelayProviderPricesProposalTxCmd() *cobra.Command {
 	return cmd
 }
 
-func grantBandOraclePrivilegeProposalArgsToContent(cmd *cobra.Command, relayers []string) (gov.Content, error) {
+func grantBandOraclePrivilegeProposalArgsToContent(cmd *cobra.Command, relayers []string) (govtypes.Content, error) {
 	title, err := cmd.Flags().GetString(govcli.FlagTitle)
 	if err != nil {
 		return nil, err
@@ -909,7 +910,7 @@ func grantBandOraclePrivilegeProposalArgsToContent(cmd *cobra.Command, relayers 
 	return content, nil
 }
 
-func revokeBandOraclePrivilegeProposalArgsToContent(cmd *cobra.Command, relayers []string) (gov.Content, error) {
+func revokeBandOraclePrivilegeProposalArgsToContent(cmd *cobra.Command, relayers []string) (govtypes.Content, error) {
 	title, err := cmd.Flags().GetString(govcli.FlagTitle)
 	if err != nil {
 		return nil, err
@@ -931,7 +932,7 @@ func revokeBandOraclePrivilegeProposalArgsToContent(cmd *cobra.Command, relayers
 	return content, nil
 }
 
-func grantPriceFeederPrivilegeProposalArgsToContent(cmd *cobra.Command, base, quote string, relayers []string) (gov.Content, error) {
+func grantPriceFeederPrivilegeProposalArgsToContent(cmd *cobra.Command, base, quote string, relayers []string) (govtypes.Content, error) {
 	title, err := cmd.Flags().GetString(govcli.FlagTitle)
 	if err != nil {
 		return nil, err
@@ -955,7 +956,7 @@ func grantPriceFeederPrivilegeProposalArgsToContent(cmd *cobra.Command, base, qu
 	return content, nil
 }
 
-func revokePriceFeederPrivilegeProposalArgsToContent(cmd *cobra.Command, base, quote string, relayers []string) (gov.Content, error) {
+func revokePriceFeederPrivilegeProposalArgsToContent(cmd *cobra.Command, base, quote string, relayers []string) (govtypes.Content, error) {
 	title, err := cmd.Flags().GetString(govcli.FlagTitle)
 	if err != nil {
 		return nil, err
@@ -982,7 +983,7 @@ func revokePriceFeederPrivilegeProposalArgsToContent(cmd *cobra.Command, base, q
 func authorizeBandOracleRequestProposalArgsToContent(
 	cmd *cobra.Command,
 	args []string,
-) (gov.Content, error) {
+) (govtypes.Content, error) {
 	title, err := cmd.Flags().GetString(govcli.FlagTitle)
 	if err != nil {
 		return nil, err
@@ -1061,7 +1062,7 @@ func authorizeBandOracleRequestProposalArgsToContent(
 func updateBandOracleRequestProposalArgsToContent(
 	cmd *cobra.Command,
 	args []string,
-) (gov.Content, error) {
+) (govtypes.Content, error) {
 	title, err := cmd.Flags().GetString(govcli.FlagTitle)
 	if err != nil {
 		return nil, err
@@ -1146,7 +1147,7 @@ func updateBandOracleRequestProposalArgsToContent(
 func deleteBandOracleRequestProposalArgsToContent(
 	cmd *cobra.Command,
 	args []string,
-) (gov.Content, error) {
+) (govtypes.Content, error) {
 	title, err := cmd.Flags().GetString(govcli.FlagTitle)
 	if err != nil {
 		return nil, err
@@ -1180,7 +1181,7 @@ func deleteBandOracleRequestProposalArgsToContent(
 	return content, nil
 }
 
-func enableBandIBCProposalArgsToContent(cmd *cobra.Command, shouldEnable bool, interval int64) (gov.Content, error) {
+func enableBandIBCProposalArgsToContent(cmd *cobra.Command, shouldEnable bool, interval int64) (govtypes.Content, error) {
 	title, err := cmd.Flags().GetString(govcli.FlagTitle)
 	if err != nil {
 		return nil, err

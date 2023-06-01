@@ -44,3 +44,5 @@ injective-chain/modules/exchange/testexchange/test.properties
 
 # Go
 *.coverprofile
+
+vendor/

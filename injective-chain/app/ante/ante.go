@@ -3,9 +3,11 @@ package ante
 import (
 	"fmt"
 
-	ibckeeper "github.com/cosmos/ibc-go/v4/modules/core/keeper"
+	storetypes "github.com/cosmos/cosmos-sdk/store/types"
+	ibckeeper "github.com/cosmos/ibc-go/v7/modules/core/keeper"
 	log "github.com/xlab/suplog"
 
+	"cosmossdk.io/errors"
 	"github.com/cosmos/cosmos-sdk/crypto/keys/ed25519"
 	"github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	"github.com/cosmos/cosmos-sdk/crypto/types/multisig"
@@ -15,7 +17,7 @@ import (
 	authante "github.com/cosmos/cosmos-sdk/x/auth/ante"
 	authsigning "github.com/cosmos/cosmos-sdk/x/auth/signing"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
-	ibcante "github.com/cosmos/ibc-go/v4/modules/core/ante"
+	ibcante "github.com/cosmos/ibc-go/v7/modules/core/ante"
 
 	wasmkeeper "github.com/CosmWasm/wasmd/x/wasm/keeper"
 	wasmTypes "github.com/CosmWasm/wasmd/x/wasm/types"
@@ -72,7 +74,7 @@ func NewAnteHandler(
 	bankKeeper BankKeeper,
 	feegrantKeeper FeegrantKeeper,
 	signModeHandler authsigning.SignModeHandler,
-	txCounterStoreKey sdk.StoreKey,
+	txCounterStoreKey storetypes.StoreKey,
 	wasmConfig wasmTypes.WasmConfig,
 	ibcKeeper *ibckeeper.Keeper,
 ) sdk.AnteHandler {
@@ -87,7 +89,7 @@ func NewAnteHandler(
 			if len(opts) > 0 {
 				switch typeURL := opts[0].GetTypeUrl(); typeURL {
 				case "/injective.evm.v1beta1.ExtensionOptionsEthereumTx":
-					return ctx, sdkerrors.Wrap(sdkerrors.ErrUnknownRequest, "ExtensionOptionsEthereumTx is not supported by this instance")
+					return ctx, errors.Wrap(sdkerrors.ErrUnknownRequest, "ExtensionOptionsEthereumTx is not supported by this instance")
 				case "/injective.types.v1beta1.ExtensionOptionsWeb3Tx":
 					// handle as normal Cosmos SDK tx, except signature is checked for EIP712 representation
 
@@ -97,9 +99,8 @@ func NewAnteHandler(
 							authante.NewSetUpContextDecorator(),                                      // outermost AnteDecorator. SetUpContext must be called first
 							wasmkeeper.NewLimitSimulationGasDecorator(wasmConfig.SimulationGasLimit), // after setup context to enforce limits early
 							wasmkeeper.NewCountTXDecorator(txCounterStoreKey),
-							authante.NewMempoolFeeDecorator(),
 							authante.NewValidateBasicDecorator(),
-							authante.TxTimeoutHeightDecorator{},
+							authante.NewTxTimeoutHeightDecorator(),
 							authante.NewValidateMemoDecorator(ak),
 							authante.NewConsumeGasForTxSizeDecorator(ak),
 							authante.NewSetPubKeyDecorator(ak), // SetPubKeyDecorator must be called before all signature verification decorators
@@ -110,7 +111,7 @@ func NewAnteHandler(
 							authante.NewIncrementSequenceDecorator(ak),             // innermost AnteDecorator
 						)
 					default:
-						return ctx, sdkerrors.Wrapf(sdkerrors.ErrUnknownRequest, "invalid transaction type: %T", tx)
+						return ctx, errors.Wrapf(sdkerrors.ErrUnknownRequest, "invalid transaction type: %T", tx)
 					}
 
 				default:
@@ -130,22 +131,21 @@ func NewAnteHandler(
 				authante.NewSetUpContextDecorator(),                                      // outermost AnteDecorator. SetUpContext must be called first
 				wasmkeeper.NewLimitSimulationGasDecorator(wasmConfig.SimulationGasLimit), // after setup context to enforce limits early
 				wasmkeeper.NewCountTXDecorator(txCounterStoreKey),
-				authante.NewRejectExtensionOptionsDecorator(),
-				authante.NewMempoolFeeDecorator(),
+				authante.NewExtensionOptionsDecorator(nil),
 				authante.NewValidateBasicDecorator(),
-				authante.TxTimeoutHeightDecorator{},
+				authante.NewTxTimeoutHeightDecorator(),
 				authante.NewValidateMemoDecorator(ak),
 				authante.NewConsumeGasForTxSizeDecorator(ak),
+				authante.NewDeductFeeDecorator(ak, bankKeeper, feegrantKeeper, nil),
 				authante.NewSetPubKeyDecorator(ak), // SetPubKeyDecorator must be called before all signature verification decorators
 				authante.NewValidateSigCountDecorator(ak),
-				authante.NewDeductFeeDecorator(ak, bankKeeper, feegrantKeeper),
 				authante.NewSigGasConsumeDecorator(ak, DefaultSigVerificationGasConsumer),
 				authante.NewSigVerificationDecorator(ak, signModeHandler),
 				authante.NewIncrementSequenceDecorator(ak),
-				ibcante.NewAnteDecorator(ibcKeeper),
+				ibcante.NewRedundantRelayDecorator(ibcKeeper),
 			)
 		default:
-			return ctx, sdkerrors.Wrapf(sdkerrors.ErrUnknownRequest, "invalid transaction type: %T", tx)
+			return ctx, errors.Wrapf(sdkerrors.ErrUnknownRequest, "invalid transaction type: %T", tx)
 		}
 
 		return anteHandler(ctx, tx, sim)
@@ -187,7 +187,7 @@ func DefaultSigVerificationGasConsumer(
 		return nil
 
 	default:
-		return sdkerrors.Wrapf(sdkerrors.ErrInvalidPubKey, "unrecognized public key type: %T", pubkey)
+		return errors.Wrapf(sdkerrors.ErrInvalidPubKey, "unrecognized public key type: %T", pubkey)
 	}
 }
 

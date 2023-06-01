@@ -3,8 +3,10 @@ package oracle
 import (
 	"runtime/debug"
 
+	"cosmossdk.io/errors"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
+
 	log "github.com/xlab/suplog"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/types"
@@ -39,15 +41,18 @@ func NewHandler(k keeper.Keeper) sdk.Handler {
 		case *types.MsgRelayPythPrices:
 			res, err := msgServer.RelayPythPrices(sdk.WrapSDKContext(ctx), msg)
 			return sdk.WrapServiceResult(ctx, res, err)
+		case *types.MsgUpdateParams:
+			res, err := msgServer.UpdateParams(sdk.WrapSDKContext(ctx), msg)
+			return sdk.WrapServiceResult(ctx, res, err)
 		default:
-			return nil, sdkerrors.Wrapf(sdkerrors.ErrUnknownRequest, "Unrecognized oracle Msg type: %T", msg)
+			return nil, errors.Wrapf(sdkerrors.ErrUnknownRequest, "Unrecognized oracle Msg type: %T", msg)
 		}
 	}
 }
 
 func Recover(err *error) { // nolint:all
 	if r := recover(); r != nil {
-		*err = sdkerrors.Wrapf(sdkerrors.ErrPanic, "%v", r) // nolint:all
+		*err = errors.Wrapf(sdkerrors.ErrPanic, "%v", r) // nolint:all
 
 		if e, ok := r.(error); ok {
 			log.WithError(e).Errorln("oracle msg handler panicked with an error")

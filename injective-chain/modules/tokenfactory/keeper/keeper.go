@@ -3,7 +3,8 @@ package keeper
 import (
 	"fmt"
 
-	"github.com/tendermint/tendermint/libs/log"
+	"github.com/cometbft/cometbft/libs/log"
+	storetypes "github.com/cosmos/cosmos-sdk/store/types"
 
 	"github.com/cosmos/cosmos-sdk/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -11,40 +12,32 @@ import (
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/tokenfactory/types"
 
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
-	paramtypes "github.com/cosmos/cosmos-sdk/x/params/types"
 )
 
-type (
-	Keeper struct {
-		storeKey sdk.StoreKey
+type Keeper struct {
+	storeKey storetypes.StoreKey
 
-		paramSpace paramtypes.Subspace
+	accountKeeper       types.AccountKeeper
+	bankKeeper          types.BankKeeper
+	communityPoolKeeper types.CommunityPoolKeeper
 
-		accountKeeper       types.AccountKeeper
-		bankKeeper          types.BankKeeper
-		communityPoolKeeper types.CommunityPoolKeeper
-	}
-)
+	authority string
+}
 
 // NewKeeper returns a new instance of the x/tokenfactory keeper
 func NewKeeper(
-	storeKey sdk.StoreKey,
-	paramSpace paramtypes.Subspace,
+	storeKey storetypes.StoreKey,
 	accountKeeper types.AccountKeeper,
 	bankKeeper types.BankKeeper,
 	communityPoolKeeper types.CommunityPoolKeeper,
+	authority string,
 ) Keeper {
-	if !paramSpace.HasKeyTable() {
-		paramSpace = paramSpace.WithKeyTable(types.ParamKeyTable())
-	}
-
 	return Keeper{
-		storeKey:   storeKey,
-		paramSpace: paramSpace,
-
+		storeKey:            storeKey,
 		accountKeeper:       accountKeeper,
 		bankKeeper:          bankKeeper,
 		communityPoolKeeper: communityPoolKeeper,
+		authority:           authority,
 	}
 }
 

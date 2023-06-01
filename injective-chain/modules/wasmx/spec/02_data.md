@@ -21,5 +21,18 @@ type RegisteredContract struct {
 	CodeId uint64 json:"code_id,omitempty"ł
 	// optional - admin addr that is allowed to update contract data
 	AdminAddress string json:"admin_address,omitempty"
+	// address of an account providing grant for execution 
+	GranterAddress string 
+	// enum indicating how contract's execution is funded
+	FundMode FundingMode
 }
+
+type FundingMode int32
+
+const (
+    FundingMode_Unspecified FundingMode = 0
+    FundingMode_SelfFunded  FundingMode = 1
+    FundingMode_GrantOnly   FundingMode = 2
+    FundingMode_Dual        FundingMode = 3
+)
 ```

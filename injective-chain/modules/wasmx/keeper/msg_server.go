@@ -3,6 +3,9 @@ package keeper
 import (
 	"context"
 
+	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
+
+	"cosmossdk.io/errors"
 	wasmkeeper "github.com/CosmWasm/wasmd/x/wasm/keeper"
 	wasmtypes "github.com/CosmWasm/wasmd/x/wasm/types"
 	"github.com/InjectiveLabs/metrics"
@@ -30,10 +33,24 @@ func NewMsgServerImpl(keeper Keeper) types.MsgServer {
 	}
 }
 
-var _ types.MsgServer = msgServer{}
+func (m msgServer) UpdateParams(c context.Context, msg *types.MsgUpdateParams) (*types.MsgUpdateParamsResponse, error) {
+	defer metrics.ReportFuncCallAndTiming(m.svcTags)()
+
+	if msg.Authority != m.authority {
+		return nil, errors.Wrapf(govtypes.ErrInvalidSigner, "invalid authority: expected %s, got %s", m.authority, msg.Authority)
+	}
+
+	if err := msg.Params.Validate(); err != nil {
+		return nil, err
+	}
+
+	m.SetParams(sdk.UnwrapSDKContext(c), msg.Params)
+
+	return &types.MsgUpdateParamsResponse{}, nil
+}
 
 func (m msgServer) ExecuteContractCompat(goCtx context.Context, msg *types.MsgExecuteContractCompat) (*types.MsgExecuteContractCompatResponse, error) {
-	wasmMsgServer := wasmkeeper.NewMsgServerImpl(m.wasmContractOpsKeeper)
+	wasmMsgServer := wasmkeeper.NewMsgServerImpl(&m.wasmKeeper)
 
 	funds := sdk.Coins{}
 	if msg.Funds != "0" {
@@ -106,10 +123,45 @@ func (m msgServer) DeactivateRegistryContract(goCtx context.Context, msg *types.
 	return &types.MsgDeactivateContractResponse{}, nil
 }
 
+func isAllowed(accessConfig wasmtypes.AccessConfig, actor sdk.AccAddress) bool {
+	switch accessConfig.Permission {
+	case wasmtypes.AccessTypeOnlyAddress:
+		return accessConfig.Address == actor.String()
+	case wasmtypes.AccessTypeAnyOfAddresses:
+		for _, v := range accessConfig.Addresses {
+			if v == actor.String() {
+				return true
+			}
+		}
+		return false
+	}
+	return false
+}
+
+func (m msgServer) RegisterContract(goCtx context.Context, msg *types.MsgRegisterContract) (*types.MsgRegisterContractResponse, error) {
+	ctx := sdk.UnwrapSDKContext(goCtx)
+	params := m.Keeper.GetParams(ctx)
+
+	sender := sdk.MustAccAddressFromBech32(msg.Sender)
+
+	accessConfig := m.wasmViewKeeper.GetParams(ctx).CodeUploadAccess
+	isRegistrationAllowed := isAllowed(accessConfig, sender)
+
+	if !isRegistrationAllowed {
+		return nil, sdkerrors.ErrUnauthorized.Wrap("Unauthorized to register contract")
+	}
+
+	if err := m.Keeper.HandleContractRegistration(ctx, params, msg.ContractRegistrationRequest); err != nil {
+		return nil, err
+	}
+
+	return &types.MsgRegisterContractResponse{}, nil
+}
+
 func (m msgServer) fetchContractAndCheckAccessControl(ctx sdk.Context, contractAddr sdk.AccAddress, msg sdk.Msg) (*types.RegisteredContract, error) {
 	contract := m.Keeper.GetContractByAddress(ctx, contractAddr)
 	if contract == nil {
-		return nil, sdkerrors.Wrapf(sdkerrors.ErrNotFound, "Contract with address %s not found", contractAddr.String())
+		return nil, errors.Wrapf(sdkerrors.ErrNotFound, "Contract with address %s not found", contractAddr.String())
 	}
 
 	senderAddr := msg.GetSigners()[0]

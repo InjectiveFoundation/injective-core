@@ -5,8 +5,8 @@ import (
 	"encoding/hex"
 	"fmt"
 
+	"cosmossdk.io/errors"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/peggy/types"
@@ -34,7 +34,7 @@ func (k *Keeper) CheckBadSignatureEvidence(
 
 	default:
 		metrics.ReportFuncError(k.svcTags)
-		return sdkerrors.Wrap(types.ErrInvalid, "Bad signature must be over a batch, valset, or logic call")
+		return errors.Wrap(types.ErrInvalid, "Bad signature must be over a batch, valset, or logic call")
 	}
 }
 
@@ -49,35 +49,35 @@ func (k *Keeper) checkBadSignatureEvidenceInternal(ctx sdk.Context, subject type
 	// this is not a bad signature
 	if k.GetPastEthSignatureCheckpoint(ctx, checkpoint) {
 		metrics.ReportFuncError(k.svcTags)
-		return sdkerrors.Wrap(types.ErrInvalid, "Checkpoint exists, cannot slash")
+		return errors.Wrap(types.ErrInvalid, "Checkpoint exists, cannot slash")
 	}
 
 	// Decode Eth signature to bytes
 	sigBytes, err := hex.DecodeString(signature)
 	if err != nil {
 		metrics.ReportFuncError(k.svcTags)
-		return sdkerrors.Wrap(types.ErrInvalid, "signature decoding")
+		return errors.Wrap(types.ErrInvalid, "signature decoding")
 	}
 
 	// Get eth address of the offending validator using the checkpoint and the signature
 	ethAddress, err := types.EthAddressFromSignature(checkpoint, sigBytes)
 	if err != nil {
 		metrics.ReportFuncError(k.svcTags)
-		return sdkerrors.Wrap(types.ErrInvalid, fmt.Sprintf("signature to eth address failed with checkpoint %s and signature %s", checkpoint.Hex(), signature))
+		return errors.Wrap(types.ErrInvalid, fmt.Sprintf("signature to eth address failed with checkpoint %s and signature %s", checkpoint.Hex(), signature))
 	}
 
 	// Find the offending validator by eth address
 	val, found := k.GetValidatorByEthAddress(ctx, ethAddress)
 	if !found {
 		metrics.ReportFuncError(k.svcTags)
-		return sdkerrors.Wrap(types.ErrInvalid, fmt.Sprintf("Did not find validator for eth address %s", ethAddress))
+		return errors.Wrap(types.ErrInvalid, fmt.Sprintf("Did not find validator for eth address %s", ethAddress))
 	}
 
 	// Slash the offending validator
 	cons, err := val.GetConsAddr()
 	if err != nil {
 		metrics.ReportFuncError(k.svcTags)
-		return sdkerrors.Wrap(err, "Could not get consensus key address for validator")
+		return errors.Wrap(err, "Could not get consensus key address for validator")
 	}
 
 	params := k.GetParams(ctx)

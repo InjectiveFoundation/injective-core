@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"runtime/debug"
 
+	"cosmossdk.io/errors"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	log "github.com/xlab/suplog"
@@ -51,8 +52,11 @@ func NewHandler(k keeper.Keeper) sdk.Handler {
 		case *types.MsgValsetUpdatedClaim:
 			res, err := msgServer.ValsetUpdateClaim(sdk.WrapSDKContext(ctx), msg)
 			return sdk.WrapServiceResult(ctx, res, err)
+		case *types.MsgUpdateParams:
+			res, err := msgServer.UpdateParams(sdk.WrapSDKContext(ctx), msg)
+			return sdk.WrapServiceResult(ctx, res, err)
 		default:
-			return nil, sdkerrors.Wrap(sdkerrors.ErrUnknownRequest, fmt.Sprintf("Unrecognized Peggy Msg type: %T", msg))
+			return nil, errors.Wrap(sdkerrors.ErrUnknownRequest, fmt.Sprintf("Unrecognized Peggy Msg type: %T", msg))
 		}
 	}
 }

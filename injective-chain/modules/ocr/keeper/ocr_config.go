@@ -65,7 +65,7 @@ type OcrConfig interface {
 	) []*types.FeedConfig
 }
 
-func (k *keeper) SetFeedConfig(
+func (k *Keeper) SetFeedConfig(
 	ctx sdk.Context,
 	feedId string,
 	feedConfig *types.FeedConfig,
@@ -117,7 +117,7 @@ func (k *keeper) SetFeedConfig(
 	return prevInfo
 }
 
-func (k *keeper) GetFeedConfig(
+func (k *Keeper) GetFeedConfig(
 	ctx sdk.Context,
 	feedId string,
 ) *types.FeedConfig {
@@ -133,7 +133,7 @@ func (k *keeper) GetFeedConfig(
 	return &feedConfig
 }
 
-func (k *keeper) GetFeedConfigByDigest(
+func (k *Keeper) GetFeedConfigByDigest(
 	ctx sdk.Context,
 	configDigest []byte,
 ) *types.FeedConfig {
@@ -162,7 +162,7 @@ func (k *keeper) GetFeedConfigByDigest(
 	return nil
 }
 
-func (k *keeper) SetFeedConfigInfo(
+func (k *Keeper) SetFeedConfigInfo(
 	ctx sdk.Context,
 	feedId string,
 	configInfo *types.FeedConfigInfo,
@@ -174,7 +174,7 @@ func (k *keeper) SetFeedConfigInfo(
 	k.getStore(ctx).Set(key, bz)
 }
 
-func (k *keeper) GetFeedConfigInfo(
+func (k *Keeper) GetFeedConfigInfo(
 	ctx sdk.Context,
 	feedId string,
 ) *types.FeedConfigInfo {
@@ -190,7 +190,7 @@ func (k *keeper) GetFeedConfigInfo(
 	return &feedConfigInfo
 }
 
-func (k *keeper) IsTransmitter(
+func (k *Keeper) IsTransmitter(
 	ctx sdk.Context,
 	feedId string,
 	transmitter sdk.AccAddress,
@@ -211,7 +211,7 @@ func (k *keeper) IsTransmitter(
 	return false
 }
 
-func (k *keeper) GetAllTransmitters(
+func (k *Keeper) GetAllTransmitters(
 	ctx sdk.Context,
 	feedId string,
 ) []string {
@@ -225,7 +225,7 @@ func (k *keeper) GetAllTransmitters(
 	return []string{}
 }
 
-func (k *keeper) IsSigner(
+func (k *Keeper) IsSigner(
 	ctx sdk.Context,
 	feedId string,
 	signer sdk.AccAddress,
@@ -246,7 +246,7 @@ func (k *keeper) IsSigner(
 	return false
 }
 
-func (k *keeper) GetAllSigners(
+func (k *Keeper) GetAllSigners(
 	ctx sdk.Context,
 	feedId string,
 ) []string {
@@ -260,7 +260,7 @@ func (k *keeper) GetAllSigners(
 	return []string{}
 }
 
-func (k *keeper) GetAllFeedConfigs(
+func (k *Keeper) GetAllFeedConfigs(
 	ctx sdk.Context,
 ) []*types.FeedConfig {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()

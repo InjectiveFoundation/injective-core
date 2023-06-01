@@ -522,17 +522,17 @@ func RegisterQueryHandlerClient(ctx context.Context, mux *runtime.ServeMux, clie
 }
 
 var (
-	pattern_Query_InsuranceParams_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "insurance", "v1beta1", "params"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_InsuranceParams_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "insurance", "v1beta1", "params"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_InsuranceFund_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"injective", "insurance", "v1beta1", "insurance_fund", "market_id"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_InsuranceFund_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"injective", "insurance", "v1beta1", "insurance_fund", "market_id"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_InsuranceFunds_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "insurance", "v1beta1", "insurance_funds"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_InsuranceFunds_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "insurance", "v1beta1", "insurance_funds"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_EstimatedRedemptions_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "insurance", "v1beta1", "estimated_redemptions"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_EstimatedRedemptions_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "insurance", "v1beta1", "estimated_redemptions"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_PendingRedemptions_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "insurance", "v1beta1", "pending_redemptions"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_PendingRedemptions_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "insurance", "v1beta1", "pending_redemptions"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_InsuranceModuleState_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "insurance", "v1beta1", "module_state"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_InsuranceModuleState_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "insurance", "v1beta1", "module_state"}, "", runtime.AssumeColonVerbOpt(false)))
 )
 
 var (

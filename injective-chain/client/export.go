@@ -5,10 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cosmos/cosmos-sdk/client/flags"
+	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/client/input"
 	"github.com/cosmos/cosmos-sdk/crypto"
-	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/spf13/cobra"
@@ -27,18 +26,8 @@ func UnsafeExportEthKeyCommand() *cobra.Command {
 		Long:  `**UNSAFE** Export an Ethereum private key unencrypted to use in dev tooling`,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			inBuf := bufio.NewReader(cmd.InOrStdin())
-
-			keyringBackend, _ := cmd.Flags().GetString(flags.FlagKeyringBackend)
-			rootDir, _ := cmd.Flags().GetString(flags.FlagHome)
-
-			kr, err := keyring.New(
-				sdk.KeyringServiceName(),
-				keyringBackend,
-				rootDir,
-				inBuf,
-				hd.EthSecp256k1Option(),
-			)
+			clientCtx := client.GetClientContextFromCmd(cmd).WithKeyringOptions(hd.EthSecp256k1Option())
+			clientCtx, err := client.ReadPersistentCommandFlags(clientCtx, cmd.Flags())
 			if err != nil {
 				return err
 			}
@@ -46,7 +35,8 @@ func UnsafeExportEthKeyCommand() *cobra.Command {
 			decryptPassword := ""
 			conf := true
 
-			switch keyringBackend {
+			inBuf := bufio.NewReader(cmd.InOrStdin())
+			switch clientCtx.Keyring.Backend() {
 			case keyring.BackendFile:
 				decryptPassword, err = input.GetPassword(
 					"**WARNING this is an unsafe way to export your unencrypted private key**\nEnter key password:",
@@ -61,7 +51,7 @@ func UnsafeExportEthKeyCommand() *cobra.Command {
 			}
 
 			// Exports private key from keybase using password
-			armor, err := kr.ExportPrivKeyArmor(args[0], decryptPassword)
+			armor, err := clientCtx.Keyring.ExportPrivKeyArmor(args[0], decryptPassword)
 			if err != nil {
 				return err
 			}
@@ -75,14 +65,16 @@ func UnsafeExportEthKeyCommand() *cobra.Command {
 				return fmt.Errorf("invalid key algorithm, got %s, expected %s", algo, ethsecp256k1.KeyType)
 			}
 
-			// Converts key to Ethermint secp256 implementation
+			// Converts key to eth secp256k1 implementation
 			ethPrivKey, ok := privKey.(*ethsecp256k1.PrivKey)
 			if !ok {
 				return fmt.Errorf("invalid private key type %T, expected %T", privKey, &ethsecp256k1.PrivKey{})
 			}
 
+			key := ethPrivKey.ToECDSA()
+
 			// Formats key for output
-			privB := ethcrypto.FromECDSA(ethPrivKey.ToECDSA())
+			privB := ethcrypto.FromECDSA(key)
 			keyS := strings.ToUpper(hexutil.Encode(privB)[2:])
 
 			fmt.Println(keyS)

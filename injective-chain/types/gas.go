@@ -20,6 +20,10 @@ func NewThreadsafeInfiniteGasMeter() storetypes.GasMeter {
 	}
 }
 
+func (g *infiniteGasMeter) GasRemaining() storetypes.Gas {
+	return math.MaxUint64
+}
+
 func (g *infiniteGasMeter) GasConsumed() storetypes.Gas {
 	g.mux.RLock()
 	defer g.mux.RUnlock()

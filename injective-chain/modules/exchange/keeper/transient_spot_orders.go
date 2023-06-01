@@ -503,6 +503,6 @@ func (k *Keeper) GetAllTransientSpotLimitOrderbook(ctx sdk.Context) []types.Spot
 	return orderbook
 }
 
-func (k *Keeper) GetTransientStoreKey() sdk.StoreKey {
+func (k *Keeper) GetTransientStoreKey() storetypes.StoreKey {
 	return k.tStoreKey
 }

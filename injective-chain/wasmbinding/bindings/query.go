@@ -1,7 +1,9 @@
 package bindings
 
 import (
+	sdkmath "cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/cosmos/cosmos-sdk/x/feegrant"
 
 	exchangetypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 	oracletypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/types"
@@ -12,6 +14,7 @@ type InjectiveQuery struct {
 	AuctionQuery
 	ExchangeQuery
 	InsuranceQuery
+	FeeGrantQuery
 	OcrQuery
 	OracleQuery
 	PeggyQuery
@@ -74,6 +77,7 @@ type OracleQuery struct {
 	OracleParams     *oracletypes.QueryParamsRequest           `json:"oracle_params,omitempty"`
 	OracleVolatility *oracletypes.QueryOracleVolatilityRequest `json:"oracle_volatility,omitempty"`
 	OraclePrice      *oracletypes.QueryOraclePriceRequest      `json:"oracle_price,omitempty"`
+	PythPrice        *oracletypes.QueryPythPriceRequest        `json:"pyth_price,omitempty"`
 }
 
 type PeggyQuery struct{}
@@ -91,6 +95,12 @@ type WasmxQuery struct {
 	RegisteredContractInfo *RegisteredContractInfo `json:"wasmx_registered_contract_info"`
 }
 
+type FeeGrantQuery struct {
+	Allowance           *feegrant.QueryAllowanceRequest           `json:"allowance"`
+	Allowances          *feegrant.QueryAllowancesRequest          `json:"allowances"`
+	AllowancesByGranter *feegrant.QueryAllowancesByGranterRequest `json:"allowances_by_granter"`
+}
+
 type DenomAdmin struct {
 	Subdenom string `json:"subdenom"`
 }
@@ -106,7 +116,7 @@ type DenomAdminResponse struct {
 }
 
 type DenomTotalSupplyResponse struct {
-	TotalSupply sdk.Int `json:"total_supply"`
+	TotalSupply sdkmath.Int `json:"total_supply"`
 }
 
 type DenomCreationFeeResponse struct {

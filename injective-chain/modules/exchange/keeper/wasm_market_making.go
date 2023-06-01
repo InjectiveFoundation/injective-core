@@ -3,36 +3,40 @@ package keeper
 import (
 	"encoding/json"
 
+	sdkmath "cosmossdk.io/math"
+
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
-
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 )
 
 func (k *Keeper) QueryMarketID(
 	ctx sdk.Context,
-	subaccountID common.Hash,
+	contractAddress string,
 ) (common.Hash, error) {
 	type GetMarketIDQuery struct {
-		SubaccountID string `json:"subaccount_id"`
 	}
 
 	type QueryData struct {
 		Data GetMarketIDQuery `json:"get_market_id"`
 	}
 
-	queryData := QueryData{
-		Data: GetMarketIDQuery{
-			SubaccountID: subaccountID.Hex(),
+	type BaseMsgWrapper struct {
+		Base QueryData `json:"base"`
+	}
+
+	queryData := BaseMsgWrapper{
+		QueryData{
+			Data: GetMarketIDQuery{},
 		},
 	}
+
 	queryDataBz, err := json.Marshal(queryData)
 	if err != nil {
 		return common.Hash{}, err
 	}
 
-	contractAddress := types.SubaccountIDToSdkAddress(subaccountID)
-	bz, err := k.wasmViewKeeper.QuerySmart(ctx, contractAddress, queryDataBz)
+	contractAddressAcc := sdk.MustAccAddressFromBech32(contractAddress)
+	bz, err := k.wasmViewKeeper.QuerySmart(ctx, contractAddressAcc, queryDataBz)
 	if err != nil {
 		return common.Hash{}, err
 	}
@@ -54,7 +58,7 @@ func (k *Keeper) QueryTotalSupply(
 	ctx sdk.Context,
 	contractAddress sdk.AccAddress,
 	subaccountID common.Hash,
-) (sdk.Int, error) {
+) (sdkmath.Int, error) {
 	type GetTotalSupplyQuery struct {
 		SubaccountID string `json:"subaccount_id"`
 	}
@@ -79,7 +83,7 @@ func (k *Keeper) QueryTotalSupply(
 	}
 
 	type Data struct {
-		TotalSupply sdk.Int `json:"total_supply"`
+		TotalSupply sdkmath.Int `json:"total_supply"`
 	}
 
 	var result Data
@@ -95,7 +99,7 @@ func (k *Keeper) QueryTokenBalance(
 	ctx sdk.Context,
 	cw20ContractAddress sdk.AccAddress,
 	user string,
-) (sdk.Int, error) {
+) (sdkmath.Int, error) {
 	type Balance struct {
 		Address string `json:"address"`
 	}
@@ -120,7 +124,7 @@ func (k *Keeper) QueryTokenBalance(
 	}
 
 	type BalanceResponse struct {
-		Balance sdk.Int `json:"balance"`
+		Balance sdkmath.Int `json:"balance"`
 	}
 
 	var result BalanceResponse

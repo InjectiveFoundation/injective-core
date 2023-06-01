@@ -1,14 +1,13 @@
 package keeper
 
 import (
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/types"
 	"github.com/InjectiveLabs/metrics"
+	"github.com/cometbft/cometbft/libs/log"
 	"github.com/cosmos/cosmos-sdk/codec"
+	storetypes "github.com/cosmos/cosmos-sdk/store/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authkeeper "github.com/cosmos/cosmos-sdk/x/auth/keeper"
-	paramtypes "github.com/cosmos/cosmos-sdk/x/params/types"
-	"github.com/tendermint/tendermint/libs/log"
-
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/types"
 
 	capabilitykeeper "github.com/cosmos/cosmos-sdk/x/capability/keeper"
 )
@@ -22,10 +21,9 @@ type Keeper struct {
 	ProviderKeeper
 	types.QueryServer
 
-	storeKey   sdk.StoreKey
-	cdc        codec.BinaryCodec
-	paramSpace paramtypes.Subspace
-	memKey     sdk.StoreKey
+	storeKey storetypes.StoreKey
+	cdc      codec.BinaryCodec
+	memKey   storetypes.StoreKey
 
 	accountKeeper authkeeper.AccountKeeper
 	bankKeeper    types.BankKeeper
@@ -37,44 +35,37 @@ type Keeper struct {
 	ocrKeeper types.OcrKeeper
 
 	svcTags metrics.Tags
+
+	authority string
 }
 
 // NewKeeper creates new instances of the oracle Keeper
 func NewKeeper(
 	cdc codec.BinaryCodec,
-	storeKey sdk.StoreKey,
-	memKey sdk.StoreKey,
-	paramSpace paramtypes.Subspace,
+	storeKey storetypes.StoreKey,
+	memKey storetypes.StoreKey,
 	ak authkeeper.AccountKeeper,
 	bk types.BankKeeper,
 	channelKeeper types.ChannelKeeper,
 	portKeeper types.PortKeeper,
 	scopedKeeper capabilitykeeper.ScopedKeeper,
 	ocrKeeper types.OcrKeeper,
+	authority string,
 ) Keeper {
-
-	// set KeyTable if it has not already been set
-	if !paramSpace.HasKeyTable() {
-		paramSpace = paramSpace.WithKeyTable(types.ParamKeyTable())
-	}
-
 	return Keeper{
-		svcTags: metrics.Tags{
-			"svc": "oracle_k",
-		},
-		paramSpace: paramSpace,
-
 		storeKey:      storeKey,
 		memKey:        memKey,
 		cdc:           cdc,
 		accountKeeper: ak,
 		bankKeeper:    bk,
-
 		channelKeeper: channelKeeper,
 		portKeeper:    portKeeper,
 		scopedKeeper:  scopedKeeper,
-
-		ocrKeeper: ocrKeeper,
+		ocrKeeper:     ocrKeeper,
+		authority:     authority,
+		svcTags: metrics.Tags{
+			"svc": "oracle_k",
+		},
 	}
 }
 

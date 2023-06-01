@@ -2,11 +2,8 @@ package types
 
 import (
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
+	"github.com/cosmos/cosmos-sdk/types/tx"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
-)
-
-type (
-	ExtensionOptionsWeb3TxI interface{}
 )
 
 // RegisterInterfaces registers the tendermint concrete client-related
@@ -24,9 +21,9 @@ func RegisterInterfaces(registry codectypes.InterfaceRegistry) {
 		&EthAccount{},
 	)
 
-	registry.RegisterInterface("injective.types.v1beta1.ExtensionOptionsWeb3Tx", (*ExtensionOptionsWeb3TxI)(nil))
+	registry.RegisterInterface("injective.types.v1beta1.ExtensionOptionsWeb3Tx", (*tx.ExtensionOptionI)(nil))
 	registry.RegisterImplementations(
-		(*ExtensionOptionsWeb3TxI)(nil),
+		(*tx.ExtensionOptionI)(nil),
 		&ExtensionOptionsWeb3Tx{},
 	)
 }

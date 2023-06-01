@@ -1,6 +1,7 @@
 package keeper
 
 import (
+	"cosmossdk.io/errors"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/ocr/types"
 	"github.com/InjectiveLabs/metrics"
 	"github.com/cosmos/cosmos-sdk/store/prefix"
@@ -70,7 +71,7 @@ type OcrReporting interface {
 	) []*types.FeedEpochAndRound
 }
 
-func (k *keeper) TransmitterReport(
+func (k *Keeper) TransmitterReport(
 	ctx sdk.Context,
 	transmitter sdk.AccAddress,
 	feedId string,
@@ -82,7 +83,7 @@ func (k *keeper) TransmitterReport(
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	if len(report.Observations) <= int(feedConfigInfo.F*2) {
-		return sdkerrors.Wrap(sdkerrors.ErrInvalidRequest, "too few values to trust median")
+		return errors.Wrap(sdkerrors.ErrInvalidRequest, "too few values to trust median")
 	}
 
 	epochAndRound := &types.EpochAndRound{
@@ -123,7 +124,7 @@ func (k *keeper) TransmitterReport(
 	return nil
 }
 
-func (k *keeper) IncreaseAggregatorRoundID(
+func (k *Keeper) IncreaseAggregatorRoundID(
 	ctx sdk.Context,
 	feedId string,
 ) uint64 {
@@ -144,7 +145,7 @@ func (k *keeper) IncreaseAggregatorRoundID(
 	return aggregatorRoundID
 }
 
-func (k *keeper) SetAggregatorRoundID(
+func (k *Keeper) SetAggregatorRoundID(
 	ctx sdk.Context,
 	feedId string,
 	roundID uint64,
@@ -156,7 +157,7 @@ func (k *keeper) SetAggregatorRoundID(
 	store.Set(key, sdk.Uint64ToBigEndian(roundID))
 }
 
-func (k *keeper) LatestAggregatorRoundID(
+func (k *Keeper) LatestAggregatorRoundID(
 	ctx sdk.Context,
 	feedId string,
 ) uint64 {
@@ -173,7 +174,7 @@ func (k *keeper) LatestAggregatorRoundID(
 	return 0
 }
 
-func (k *keeper) GetAllLatestAggregatorRoundIDs(
+func (k *Keeper) GetAllLatestAggregatorRoundIDs(
 	ctx sdk.Context,
 ) []*types.FeedLatestAggregatorRoundIDs {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
@@ -198,7 +199,7 @@ func (k *keeper) GetAllLatestAggregatorRoundIDs(
 	return aggregatorRoundIDs
 }
 
-func (k *keeper) SetTransmission(
+func (k *Keeper) SetTransmission(
 	ctx sdk.Context,
 	feedId string,
 	transmission *types.Transmission,
@@ -210,7 +211,7 @@ func (k *keeper) SetTransmission(
 	k.getStore(ctx).Set(key, bz)
 }
 
-func (k *keeper) GetTransmission(
+func (k *Keeper) GetTransmission(
 	ctx sdk.Context,
 	feedId string,
 ) *types.Transmission {
@@ -226,7 +227,7 @@ func (k *keeper) GetTransmission(
 	return &transmission
 }
 
-func (k *keeper) GetAllFeedTransmissions(
+func (k *Keeper) GetAllFeedTransmissions(
 	ctx sdk.Context,
 ) []*types.FeedTransmission {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
@@ -258,7 +259,7 @@ func (k *keeper) GetAllFeedTransmissions(
 	return feedTransmissions
 }
 
-func (k *keeper) SetLatestEpochAndRound(
+func (k *Keeper) SetLatestEpochAndRound(
 	ctx sdk.Context,
 	feedId string,
 	epochAndRound *types.EpochAndRound,
@@ -272,7 +273,7 @@ func (k *keeper) SetLatestEpochAndRound(
 	k.SetTransientLatestEpochAndRound(ctx, feedId, epochAndRound)
 }
 
-func (k *keeper) GetLatestEpochAndRound(
+func (k *Keeper) GetLatestEpochAndRound(
 	ctx sdk.Context,
 	feedId string,
 ) *types.EpochAndRound {
@@ -293,7 +294,7 @@ func (k *keeper) GetLatestEpochAndRound(
 	return &epochAndRound
 }
 
-func (k *keeper) GetAllLatestEpochAndRounds(
+func (k *Keeper) GetAllLatestEpochAndRounds(
 	ctx sdk.Context,
 ) []*types.FeedEpochAndRound {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()

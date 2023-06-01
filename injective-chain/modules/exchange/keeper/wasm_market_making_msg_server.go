@@ -3,9 +3,9 @@ package keeper
 import (
 	"context"
 
+	"cosmossdk.io/errors"
 	"github.com/InjectiveLabs/metrics"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 	wasmxtypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/types"
@@ -45,7 +45,7 @@ func (k WasmMsgServer) PrivilegedExecuteContract(
 	if !msg.HasEmptyFunds() {
 		coins, err := sdk.ParseCoinsNormalized(msg.Funds)
 		if err != nil {
-			return nil, sdkerrors.Wrapf(err, "failed to parse coins %s", msg.Funds)
+			return nil, errors.Wrapf(err, "failed to parse coins %s", msg.Funds)
 		}
 
 		for _, coin := range coins {
@@ -54,30 +54,30 @@ func (k WasmMsgServer) PrivilegedExecuteContract(
 		}
 
 		if err := k.bankKeeper.SendCoins(ctx, sender, contract, coins); err != nil {
-			return nil, sdkerrors.Wrap(err, "failed to send coins")
+			return nil, errors.Wrap(err, "failed to send coins")
 		}
 		totalFunds = coins
 	}
 
 	execMsg, err := wasmxtypes.NewInjectiveExecMsg(sender, msg.Data)
 	if err != nil {
-		return nil, sdkerrors.Wrap(err, "failed to create exec msg")
+		return nil, errors.Wrap(err, "failed to create exec msg")
 	}
 
 	res, err := k.wasmxExecutionKeeper.InjectiveExec(ctx, contract, totalFunds, execMsg)
 	if err != nil {
-		return nil, sdkerrors.Wrap(err, "failed to execute msg")
+		return nil, errors.Wrap(err, "failed to execute msg")
 	}
 
 	action, err := types.ParseRequest(res)
 	if err != nil {
-		return nil, sdkerrors.Wrap(err, "failed to execute msg")
+		return nil, errors.Wrap(err, "failed to execute msg")
 	}
 
 	if action != nil {
 		err = k.handlePrivilegedAction(ctx, contract, sender, action)
 		if err != nil {
-			return nil, sdkerrors.Wrap(err, "failed to execute msg")
+			return nil, errors.Wrap(err, "failed to execute msg")
 		}
 	}
 
@@ -88,7 +88,7 @@ func (k WasmMsgServer) PrivilegedExecuteContract(
 		fundsAfter = fundsAfter.Add(coinAfter)
 	}
 
-	fundsDiff, _ := fundsAfter.SafeSub(fundsBefore)
+	fundsDiff, _ := fundsAfter.SafeSub(fundsBefore...)
 	filteredFundsDiff := filterNonPositiveCoins(fundsDiff)
 
 	if err != nil {

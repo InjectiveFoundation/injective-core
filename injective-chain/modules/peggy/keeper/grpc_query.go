@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
+	"cosmossdk.io/errors"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 
@@ -21,15 +22,12 @@ const maxValsetRequestsReturned = 5
 const MaxResults = 100 // todo: impl pagination
 
 // Params queries the params of the peggy module
-func (k *Keeper) Params(c context.Context, req *types.QueryParamsRequest) (*types.QueryParamsResponse, error) {
+func (k *Keeper) Params(c context.Context, _ *types.QueryParamsRequest) (*types.QueryParamsResponse, error) {
 	metrics.ReportFuncCall(k.grpcTags)
 	doneFn := metrics.ReportFuncTiming(k.grpcTags)
 	defer doneFn()
 
-	var params types.Params
-	k.paramSpace.GetParamSet(sdk.UnwrapSDKContext(c), &params)
-	return &types.QueryParamsResponse{Params: params}, nil
-
+	return &types.QueryParamsResponse{Params: *k.GetParams(sdk.UnwrapSDKContext(c))}, nil
 }
 
 // CurrentValset queries the CurrentValset of the peggy module
@@ -58,7 +56,7 @@ func (k *Keeper) ValsetConfirm(c context.Context, req *types.QueryValsetConfirmR
 
 	addr, err := sdk.AccAddressFromBech32(req.Address)
 	if err != nil {
-		return nil, sdkerrors.Wrap(sdkerrors.ErrInvalidRequest, "address invalid")
+		return nil, errors.Wrap(sdkerrors.ErrInvalidRequest, "address invalid")
 	}
 
 	return &types.QueryValsetConfirmResponse{Confirm: k.GetValsetConfirm(sdk.UnwrapSDKContext(c), req.Nonce, addr)}, nil
@@ -109,7 +107,7 @@ func (k *Keeper) LastPendingValsetRequestByAddr(c context.Context, req *types.Qu
 	addr, err := sdk.AccAddressFromBech32(req.Address)
 	if err != nil {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrap(sdkerrors.ErrInvalidRequest, "address invalid")
+		return nil, errors.Wrap(sdkerrors.ErrInvalidRequest, "address invalid")
 	}
 
 	pendingValsetReq := make([]*types.Valset, 0)
@@ -151,7 +149,7 @@ func (k *Keeper) LastPendingBatchRequestByAddr(c context.Context, req *types.Que
 	addr, err := sdk.AccAddressFromBech32(req.Address)
 	if err != nil {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrap(sdkerrors.ErrInvalidRequest, "address invalid")
+		return nil, errors.Wrap(sdkerrors.ErrInvalidRequest, "address invalid")
 	}
 
 	var pendingBatchReq *types.OutgoingTxBatch
@@ -191,13 +189,13 @@ func (k *Keeper) BatchRequestByNonce(c context.Context, req *types.QueryBatchReq
 
 	if err := types.ValidateEthAddress(req.ContractAddress); err != nil {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrap(sdkerrors.ErrUnknownRequest, err.Error())
+		return nil, errors.Wrap(sdkerrors.ErrUnknownRequest, err.Error())
 	}
 
 	foundBatch := k.GetOutgoingTXBatch(sdk.UnwrapSDKContext(c), common.HexToAddress(req.ContractAddress), req.Nonce)
 	if foundBatch == nil {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrap(sdkerrors.ErrUnknownRequest, "Can not find tx batch")
+		return nil, errors.Wrap(sdkerrors.ErrUnknownRequest, "Can not find tx batch")
 	}
 
 	return &types.QueryBatchRequestByNonceResponse{Batch: foundBatch}, nil
@@ -231,19 +229,19 @@ func (k *Keeper) LastEventByAddr(c context.Context, req *types.QueryLastEventByA
 	addr, err := sdk.AccAddressFromBech32(req.Address)
 	if err != nil {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrap(sdkerrors.ErrInvalidAddress, req.Address)
+		return nil, errors.Wrap(sdkerrors.ErrInvalidAddress, req.Address)
 	}
 
 	validator, found := k.GetOrchestratorValidator(ctx, addr)
 	if !found {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrap(types.ErrUnknown, "address")
+		return nil, errors.Wrap(types.ErrUnknown, "address")
 	}
 
 	lastClaimEvent := k.GetLastEventByValidator(ctx, validator)
 	if lastClaimEvent.EthereumEventNonce == 0 && lastClaimEvent.EthereumEventHeight == 0 {
 		// if peggo happens to query too early without a bonded validator even existing
-		return nil, sdkerrors.Wrapf(types.ErrNoLastClaimForValidator, "ensure validator has bonded: validator=%v", validator.String())
+		return nil, errors.Wrapf(types.ErrNoLastClaimForValidator, "ensure validator has bonded: validator=%v", validator.String())
 	}
 
 	ret.LastClaimEvent = &lastClaimEvent
@@ -311,7 +309,7 @@ func (k *Keeper) GetDelegateKeyByValidator(c context.Context, req *types.QueryDe
 	}
 
 	metrics.ReportFuncError(k.svcTags)
-	return nil, sdkerrors.Wrap(types.ErrInvalid, "No validator")
+	return nil, errors.Wrap(types.ErrInvalid, "No validator")
 }
 
 func (k *Keeper) GetDelegateKeyByOrchestrator(c context.Context, req *types.QueryDelegateKeysByOrchestratorAddress) (*types.QueryDelegateKeysByOrchestratorAddressResponse, error) {
@@ -335,7 +333,7 @@ func (k *Keeper) GetDelegateKeyByOrchestrator(c context.Context, req *types.Quer
 	}
 
 	metrics.ReportFuncError(k.svcTags)
-	return nil, sdkerrors.Wrap(types.ErrInvalid, "No validator")
+	return nil, errors.Wrap(types.ErrInvalid, "No validator")
 }
 
 func (k *Keeper) GetDelegateKeyByEth(c context.Context, req *types.QueryDelegateKeysByEthAddress) (*types.QueryDelegateKeysByEthAddressResponse, error) {
@@ -347,7 +345,7 @@ func (k *Keeper) GetDelegateKeyByEth(c context.Context, req *types.QueryDelegate
 
 	keys := k.GetOrchestratorAddresses(ctx)
 	if err := types.ValidateEthAddress(req.EthAddress); err != nil {
-		return nil, sdkerrors.Wrap(err, "invalid eth address")
+		return nil, errors.Wrap(err, "invalid eth address")
 	}
 
 	for _, key := range keys {
@@ -359,7 +357,7 @@ func (k *Keeper) GetDelegateKeyByEth(c context.Context, req *types.QueryDelegate
 	}
 
 	metrics.ReportFuncError(k.svcTags)
-	return nil, sdkerrors.Wrap(types.ErrInvalid, "No validator")
+	return nil, errors.Wrap(types.ErrInvalid, "No validator")
 }
 
 func (k *Keeper) GetPendingSendToEth(c context.Context, req *types.QueryPendingSendToEth) (*types.QueryPendingSendToEthResponse, error) {
@@ -473,4 +471,22 @@ func (k *Keeper) PeggyModuleState(c context.Context, req *types.QueryModuleState
 	}
 
 	return res, nil
+}
+
+func (k *Keeper) MissingPeggoNonces(
+	c context.Context,
+	_ *types.MissingNoncesRequest,
+) (*types.MissingNoncesResponse, error) {
+	ctx := sdk.UnwrapSDKContext(c)
+	var res []string
+
+	bondedValidators := k.StakingKeeper.GetBondedValidatorsByPower(ctx)
+	for i := range bondedValidators {
+		ev := k.GetLastEventByValidator(ctx, bondedValidators[i].GetOperator())
+		if ev.EthereumEventNonce == 0 && ev.EthereumEventHeight == 0 {
+			res = append(res, bondedValidators[i].GetOperator().String())
+		}
+	}
+
+	return &types.MissingNoncesResponse{OperatorAddresses: res}, nil
 }

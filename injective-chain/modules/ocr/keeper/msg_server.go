@@ -5,11 +5,14 @@ import (
 	"context"
 	"encoding/hex"
 
+	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
+
+	"cosmossdk.io/errors"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
+	"github.com/cosmos/gogoproto/proto"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	ethsecp256k1 "github.com/ethereum/go-ethereum/crypto/secp256k1"
-	"github.com/gogo/protobuf/proto"
 	log "github.com/xlab/suplog"
 
 	secp256k1 "github.com/InjectiveLabs/injective-core/injective-chain/crypto/ethsecp256k1"
@@ -18,6 +21,8 @@ import (
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/ocr/types"
 )
+
+var _ types.MsgServer = msgServer{}
 
 type msgServer struct {
 	Keeper
@@ -37,7 +42,21 @@ func NewMsgServerImpl(keeper Keeper) types.MsgServer {
 	}
 }
 
-var _ types.MsgServer = msgServer{}
+func (k msgServer) UpdateParams(c context.Context, msg *types.MsgUpdateParams) (*types.MsgUpdateParamsResponse, error) {
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+
+	if msg.Authority != k.authority {
+		return nil, errors.Wrapf(govtypes.ErrInvalidSigner, "invalid authority: expected %s, got %s", k.authority, msg.Authority)
+	}
+
+	if err := msg.Params.Validate(); err != nil {
+		return nil, err
+	}
+
+	k.SetParams(sdk.UnwrapSDKContext(c), msg.Params)
+
+	return &types.MsgUpdateParamsResponse{}, nil
+}
 
 func (k msgServer) CreateFeed(goCtx context.Context, msg *types.MsgCreateFeed) (*types.MsgCreateFeedResponse, error) {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
@@ -53,13 +72,13 @@ func (k msgServer) CreateFeed(goCtx context.Context, msg *types.MsgCreateFeed) (
 
 	linkDenom := k.LinkDenom(ctx)
 	if linkDenom != msg.Config.ModuleParams.LinkDenom {
-		return nil, sdkerrors.Wrapf(sdkerrors.ErrInvalidCoins, "expected LINK denom %s but got %s", linkDenom, msg.Config.ModuleParams.LinkDenom)
+		return nil, errors.Wrapf(sdkerrors.ErrInvalidCoins, "expected LINK denom %s but got %s", linkDenom, msg.Config.ModuleParams.LinkDenom)
 	}
 
 	feedId := msg.Config.ModuleParams.FeedId
 
 	if k.GetFeedConfig(ctx, feedId) != nil {
-		return nil, sdkerrors.Wrap(types.ErrFeedAlreadyExists, feedId)
+		return nil, errors.Wrap(types.ErrFeedAlreadyExists, feedId)
 	}
 
 	k.SetLatestEpochAndRound(ctx, feedId, &types.EpochAndRound{
@@ -87,7 +106,7 @@ func (k msgServer) UpdateFeed(goCtx context.Context, msg *types.MsgUpdateFeed) (
 
 	feedConfig := k.GetFeedConfig(ctx, feedId)
 	if feedConfig == nil {
-		return nil, sdkerrors.Wrap(types.ErrFeedDoesntExists, feedId)
+		return nil, errors.Wrap(types.ErrFeedDoesntExists, feedId)
 	}
 
 	isFeedAdmin := msg.Sender == feedConfig.ModuleParams.FeedAdmin
@@ -155,7 +174,7 @@ func (k msgServer) Transmit(goCtx context.Context, msg *types.MsgTransmit) (*typ
 	isStaleReport := epochAndRound.Epoch > msg.Epoch || (epochAndRound.Epoch == msg.Epoch && epochAndRound.Round >= msg.Round)
 
 	if isStaleReport {
-		return nil, sdkerrors.Wrapf(types.ErrStaleReport, "%s reported epoch %d round %d precedes current epoch %d round %d", msg.FeedId, msg.Epoch, msg.Round, epochAndRound.Epoch, epochAndRound.Round)
+		return nil, errors.Wrapf(types.ErrStaleReport, "%s reported epoch %d round %d precedes current epoch %d round %d", msg.FeedId, msg.Epoch, msg.Round, epochAndRound.Epoch, epochAndRound.Round)
 	}
 
 	transmitter, err := sdk.AccAddressFromBech32(msg.Transmitter)
@@ -166,7 +185,7 @@ func (k msgServer) Transmit(goCtx context.Context, msg *types.MsgTransmit) (*typ
 
 	feedConfigInfo := k.GetFeedConfigInfo(ctx, msg.FeedId)
 	if feedConfigInfo == nil {
-		return nil, sdkerrors.Wrapf(sdkerrors.ErrNotFound, "cannot find feed config info for %s", msg.FeedId)
+		return nil, errors.Wrapf(sdkerrors.ErrNotFound, "cannot find feed config info for %s", msg.FeedId)
 	}
 
 	if !bytes.Equal(feedConfigInfo.LatestConfigDigest, msg.ConfigDigest) {
@@ -176,14 +195,14 @@ func (k msgServer) Transmit(goCtx context.Context, msg *types.MsgTransmit) (*typ
 
 	feedConfig := k.GetFeedConfig(ctx, msg.FeedId)
 	if feedConfig == nil {
-		return nil, sdkerrors.Wrapf(sdkerrors.ErrNotFound, "cannot find feed config for %s", msg.FeedId)
+		return nil, errors.Wrapf(sdkerrors.ErrNotFound, "cannot find feed config for %s", msg.FeedId)
 	}
 
 	validTransmitters := feedConfig.ValidTransmitters()
 
 	if _, ok := validTransmitters[transmitter.String()]; !ok {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrapf(sdkerrors.ErrUnauthorized, "transmitter unauthorized to report: %s", transmitter.String())
+		return nil, errors.Wrapf(sdkerrors.ErrUnauthorized, "transmitter unauthorized to report: %s", transmitter.String())
 	}
 
 	err = k.TransmitterReport(ctx, transmitter, msg.FeedId, feedConfig, feedConfigInfo, msg.Epoch, msg.Round, *msg.Report)
@@ -207,7 +226,7 @@ func (k msgServer) Transmit(goCtx context.Context, msg *types.MsgTransmit) (*typ
 
 	if len(msg.Signatures) != expectedNumSignatures {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrapf(types.ErrWrongNumberOfSignatures, "expected %d, got %d", expectedNumSignatures, len(msg.Signatures))
+		return nil, errors.Wrapf(types.ErrWrongNumberOfSignatures, "expected %d, got %d", expectedNumSignatures, len(msg.Signatures))
 	}
 
 	// obtain opaque protobuf-encoded report bytes
@@ -234,13 +253,13 @@ func (k msgServer) Transmit(goCtx context.Context, msg *types.MsgTransmit) (*typ
 				"sig", hex.EncodeToString(sig),
 			).Error("ethsecp256k1.RecoverPubkey failed")
 
-			return nil, sdkerrors.Wrapf(types.ErrIncorrectSignature, "ethsecp256k1.RecoverPubkey failed on signature %d", idx)
+			return nil, errors.Wrapf(types.ErrIncorrectSignature, "ethsecp256k1.RecoverPubkey failed on signature %d", idx)
 		}
 
 		ecPubKey, err := ethcrypto.UnmarshalPubkey(pubKey)
 		if err != nil {
 			metrics.ReportFuncError(k.svcTags)
-			return nil, sdkerrors.Wrapf(sdkerrors.ErrInvalidPubKey, "failed to unmarshal recovered signer pubkey")
+			return nil, errors.Wrapf(sdkerrors.ErrInvalidPubKey, "failed to unmarshal recovered signer pubkey")
 		}
 
 		signerAcc := sdk.AccAddress((&secp256k1.PubKey{
@@ -251,7 +270,7 @@ func (k msgServer) Transmit(goCtx context.Context, msg *types.MsgTransmit) (*typ
 
 		if !ok {
 			metrics.ReportFuncError(k.svcTags)
-			return nil, sdkerrors.Wrapf(sdkerrors.ErrUnauthorized, "found signature from unauthorized signer: %s", signerAcc.String())
+			return nil, errors.Wrapf(sdkerrors.ErrUnauthorized, "found signature from unauthorized signer: %s", signerAcc.String())
 		}
 
 		k.IncrementFeedObservationCount(ctx, msg.FeedId, observer)
@@ -292,7 +311,7 @@ func (k msgServer) WithdrawFeedRewardPool(goCtx context.Context, msg *types.MsgW
 
 	feedConfig := k.GetFeedConfig(ctx, feedId)
 	if feedConfig == nil {
-		return nil, sdkerrors.Wrap(types.ErrFeedDoesntExists, feedId)
+		return nil, errors.Wrap(types.ErrFeedDoesntExists, feedId)
 	}
 
 	isFeedAdmin := msg.Sender == feedConfig.ModuleParams.FeedAdmin
@@ -322,7 +341,7 @@ func (k msgServer) SetPayees(goCtx context.Context, msg *types.MsgSetPayees) (*t
 	feedConfig := k.GetFeedConfig(ctx, feedId)
 
 	if feedConfig == nil {
-		return nil, sdkerrors.Wrap(types.ErrFeedDoesntExists, feedId)
+		return nil, errors.Wrap(types.ErrFeedDoesntExists, feedId)
 	}
 
 	if msg.Sender != feedConfig.ModuleParams.FeedAdmin {
@@ -353,7 +372,7 @@ func (k msgServer) TransferPayeeship(goCtx context.Context, msg *types.MsgTransf
 	feedConfig := k.GetFeedConfig(ctx, feedId)
 
 	if feedConfig == nil {
-		return nil, sdkerrors.Wrap(types.ErrFeedDoesntExists, feedId)
+		return nil, errors.Wrap(types.ErrFeedDoesntExists, feedId)
 	}
 
 	transmitter, _ := sdk.AccAddressFromBech32(msg.Transmitter)
@@ -387,7 +406,7 @@ func (k msgServer) AcceptPayeeship(goCtx context.Context, msg *types.MsgAcceptPa
 	feedConfig := k.GetFeedConfig(ctx, feedId)
 
 	if feedConfig == nil {
-		return nil, sdkerrors.Wrap(types.ErrFeedDoesntExists, feedId)
+		return nil, errors.Wrap(types.ErrFeedDoesntExists, feedId)
 	}
 
 	transmitter, _ := sdk.AccAddressFromBech32(msg.Transmitter)

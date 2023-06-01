@@ -8,26 +8,32 @@ import (
 )
 
 // AuctionPeriodDuration auction period param
-func (k *Keeper) AuctionPeriodDuration(ctx sdk.Context) (duration int64) {
+func (k *Keeper) AuctionPeriodDuration(ctx sdk.Context) int64 {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
-	k.paramSpace.Get(ctx, types.KeyAuctionPeriod, &duration)
-	return
+	return k.GetParams(ctx).AuctionPeriod
 }
 
 // MinNextBidIncrementRate returns min percentage increment param
-func (k *Keeper) MinNextBidIncrementRate(ctx sdk.Context) (res string) {
+func (k *Keeper) MinNextBidIncrementRate(ctx sdk.Context) string {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
-	k.paramSpace.Get(ctx, types.KeyMinNextBidIncrementRate, &res)
-	return
+	return k.GetParams(ctx).MinNextBidIncrementRate.String()
 }
 
 // GetParams returns the total set of auction parameters.
-func (k *Keeper) GetParams(ctx sdk.Context) (params types.Params) {
+func (k *Keeper) GetParams(ctx sdk.Context) types.Params {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
-	k.paramSpace.GetParamSet(ctx, &params)
+	store := k.GetStore(ctx)
+	bz := store.Get(types.ParamsKey)
+	if bz == nil {
+		return types.Params{}
+	}
+
+	var params types.Params
+	k.cdc.MustUnmarshal(bz, &params)
+
 	return params
 }
 
@@ -35,5 +41,6 @@ func (k *Keeper) GetParams(ctx sdk.Context) (params types.Params) {
 func (k *Keeper) SetParams(ctx sdk.Context, params types.Params) {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
-	k.paramSpace.SetParamSet(ctx, &params)
+	store := k.GetStore(ctx)
+	store.Set(types.ParamsKey, k.cdc.MustMarshal(&params))
 }

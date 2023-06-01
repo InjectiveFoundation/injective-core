@@ -31,11 +31,23 @@ func (k *Keeper) GetPriceState(ctx sdk.Context, key string, oracletype types.Ora
 
 	switch oracletype {
 	case types.OracleType_Band:
-		return &k.GetBandPriceState(ctx, key).PriceState
+		priceState := k.GetBandPriceState(ctx, key)
+		if priceState == nil {
+			return nil
+		}
+		return &priceState.PriceState
 	case types.OracleType_Coinbase:
-		return &k.GetCoinbasePriceState(ctx, key).PriceState
+		priceState := k.GetCoinbasePriceState(ctx, key)
+		if priceState == nil {
+			return nil
+		}
+		return &priceState.PriceState
 	case types.OracleType_Chainlink:
-		return &k.GetChainlinkPriceState(ctx, key).PriceState
+		priceState := k.GetChainlinkPriceState(ctx, key)
+		if priceState == nil {
+			return nil
+		}
+		return &priceState.PriceState
 	case types.OracleType_Razor:
 		return nil
 	case types.OracleType_Dia:
@@ -45,9 +57,17 @@ func (k *Keeper) GetPriceState(ctx sdk.Context, key string, oracletype types.Ora
 	case types.OracleType_Uma:
 		return nil
 	case types.OracleType_Pyth:
-		return &k.GetPythPriceState(ctx, common.HexToHash(key)).PriceState
+		priceState := k.GetPythPriceState(ctx, common.HexToHash(key))
+		if priceState == nil {
+			return nil
+		}
+		return &priceState.PriceState
 	case types.OracleType_BandIBC:
-		return &k.GetBandIBCPriceState(ctx, key).PriceState
+		priceState := k.GetBandIBCPriceState(ctx, key)
+		if priceState == nil {
+			return nil
+		}
+		return &priceState.PriceState
 	case types.OracleType_Provider:
 		// GetProviderPrice should be called instead
 		return nil

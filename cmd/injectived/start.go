@@ -16,15 +16,15 @@ import (
 	log "github.com/xlab/suplog"
 	"google.golang.org/grpc"
 
-	tcmd "github.com/tendermint/tendermint/cmd/tendermint/commands"
-	"github.com/tendermint/tendermint/node"
-	"github.com/tendermint/tendermint/p2p"
-	pvm "github.com/tendermint/tendermint/privval"
-	"github.com/tendermint/tendermint/proxy"
-	"github.com/tendermint/tendermint/rpc/client/local"
-	dbm "github.com/tendermint/tm-db"
-
 	"github.com/CosmWasm/wasmd/x/wasm"
+	"github.com/InjectiveLabs/metrics"
+	cometbftdb "github.com/cometbft/cometbft-db"
+	tcmd "github.com/cometbft/cometbft/cmd/cometbft/commands"
+	"github.com/cometbft/cometbft/node"
+	"github.com/cometbft/cometbft/p2p"
+	pvm "github.com/cometbft/cometbft/privval"
+	"github.com/cometbft/cometbft/proxy"
+	"github.com/cometbft/cometbft/rpc/client/local"
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/client/flags"
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
@@ -33,10 +33,7 @@ import (
 	sdkconfig "github.com/cosmos/cosmos-sdk/server/config"
 	servergrpc "github.com/cosmos/cosmos-sdk/server/grpc"
 	"github.com/cosmos/cosmos-sdk/server/types"
-	storetypes "github.com/cosmos/cosmos-sdk/store/types"
-	sdk "github.com/cosmos/cosmos-sdk/types"
-
-	"github.com/InjectiveLabs/metrics"
+	pruningtypes "github.com/cosmos/cosmos-sdk/store/pruning/types"
 
 	"github.com/InjectiveLabs/injective-core/cmd/injectived/config"
 )
@@ -72,12 +69,6 @@ const (
 	flagGRPCAddress    = "grpc.address"
 	flagGRPCWebEnable  = "grpc-web.enable"
 	flagGRPCWebAddress = "grpc-web.address"
-)
-
-// State sync-related flags.
-const (
-	FlagStateSyncSnapshotInterval   = "state-sync.snapshot-interval"
-	FlagStateSyncSnapshotKeepRecent = "state-sync.snapshot-keep-recent"
 )
 
 // StartCmd runs the service passed in, either stand-alone or in-process with
@@ -145,7 +136,7 @@ which accepts a path for the resulting pprof file.
 	cmd.Flags().Bool(FlagInterBlockCache, true, "Enable inter-block caching")
 	cmd.Flags().String(flagCPUProfile, "", "Enable CPU profiling and write to the provided file")
 	cmd.Flags().Bool(FlagTrace, false, "Provide full stack traces for errors in ABCI Log")
-	cmd.Flags().String(FlagPruning, storetypes.PruningOptionDefault, "Pruning strategy (default|nothing|everything|custom)")
+	cmd.Flags().String(FlagPruning, pruningtypes.PruningOptionDefault, "Pruning strategy (default|nothing|everything|custom)")
 	cmd.Flags().Uint64(FlagPruningKeepRecent, 0, "Number of recent heights to keep on disk (ignored if pruning is not 'custom')")
 	cmd.Flags().Uint64(FlagPruningKeepEvery, 0, "Offset heights to keep on disk after 'keep-every' (ignored if pruning is not 'custom')")
 	cmd.Flags().Uint64(FlagPruningInterval, 0, "Height interval at which pruned heights are removed from disk (ignored if pruning is not 'custom')")
@@ -157,8 +148,8 @@ which accepts a path for the resulting pprof file.
 	cmd.Flags().Bool(flagGRPCWebEnable, true, "Define if the gRPC-Web server should be enabled. (Note: gRPC must also be enabled.)")
 	cmd.Flags().String(flagGRPCWebAddress, config.DefaultGRPCWebAddress, "The gRPC-Web server address to listen on")
 
-	cmd.Flags().Uint64(FlagStateSyncSnapshotInterval, 0, "State sync snapshot interval")
-	cmd.Flags().Uint32(FlagStateSyncSnapshotKeepRecent, 2, "State sync snapshot to keep")
+	cmd.Flags().Uint64(server.FlagStateSyncSnapshotInterval, 0, "State sync snapshot interval")
+	cmd.Flags().Uint32(server.FlagStateSyncSnapshotKeepRecent, 2, "State sync snapshot to keep")
 
 	cmd.Flags().String(flags.FlagKeyringBackend, keyring.BackendFile, "Select keyring's backend (os|file|kwallet|pass|test)")
 
@@ -260,7 +251,10 @@ func startInProcess(ctx *server.Context, clientCtx client.Context, appCreator ty
 	app.RegisterTendermintService(clientCtx)
 
 	var apiSrv *api.Server
-	parsedConfig := config.GetConfig(ctx.Viper)
+	parsedConfig, err := config.GetConfig(ctx.Viper)
+	if err != nil {
+		return err
+	}
 
 	var (
 		grpcSrv        *grpc.Server
@@ -268,7 +262,7 @@ func startInProcess(ctx *server.Context, clientCtx client.Context, appCreator ty
 		grpcWebSrvDone <-chan struct{}
 	)
 	if parsedConfig.GRPC.Enable {
-		grpcSrv, err = servergrpc.StartGRPCServer(clientCtx, app, parsedConfig.GRPC.Address)
+		grpcSrv, err = servergrpc.StartGRPCServer(clientCtx, app, parsedConfig.GRPC)
 		if err != nil {
 			log.WithError(err).Errorln("failed to boot GRPC server")
 		}
@@ -282,7 +276,7 @@ func startInProcess(ctx *server.Context, clientCtx client.Context, appCreator ty
 		}
 	}
 
-	sdkcfg, _ := sdkconfig.GetConfig(ctx.Viper)
+	sdkcfg, _ := config.GetConfig(ctx.Viper)
 	sdkcfg.API = parsedConfig.API
 	if sdkcfg.API.Enable {
 		apiSrv = api.New(clientCtx, ctx.Logger.With("module", "api-server"))
@@ -361,7 +355,7 @@ func startInProcess(ctx *server.Context, clientCtx client.Context, appCreator ty
 }
 
 // StartGRPCWeb starts a gRPC-Web server on the given address.
-func StartGRPCWeb(grpcSrv *grpc.Server, parsedConfig config.Config) (*http.Server, <-chan struct{}, error) {
+func StartGRPCWeb(grpcSrv *grpc.Server, parsedConfig sdkconfig.Config) (*http.Server, <-chan struct{}, error) {
 	grpcWebSrvDone := make(chan struct{}, 1)
 
 	wrappedServer := grpcweb.WrapServer(grpcSrv)
@@ -413,9 +407,9 @@ func StartGRPCWeb(grpcSrv *grpc.Server, parsedConfig config.Config) (*http.Serve
 	return grpcWebSrv, grpcWebSrvDone, nil
 }
 
-func openDB(rootDir string) (dbm.DB, error) {
+func openDB(rootDir string) (cometbftdb.DB, error) {
 	dataDir := filepath.Join(rootDir, "data")
-	return sdk.NewLevelDB("application", dataDir)
+	return cometbftdb.NewGoLevelDB("application", dataDir)
 }
 
 func openTraceWriter(traceWriterFile string) (w io.Writer, err error) {

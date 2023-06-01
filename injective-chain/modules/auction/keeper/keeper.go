@@ -1,52 +1,45 @@
 package keeper
 
 import (
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/auction/types"
 	"github.com/InjectiveLabs/metrics"
+	"github.com/cometbft/cometbft/libs/log"
 	"github.com/cosmos/cosmos-sdk/codec"
+	storetypes "github.com/cosmos/cosmos-sdk/store/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authkeeper "github.com/cosmos/cosmos-sdk/x/auth/keeper"
-	paramtypes "github.com/cosmos/cosmos-sdk/x/params/types"
-	"github.com/tendermint/tendermint/libs/log"
-
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/auction/types"
 )
 
 // Keeper of this module maintains collections of auction.
 type Keeper struct {
-	storeKey   sdk.StoreKey
-	cdc        codec.BinaryCodec
-	paramSpace paramtypes.Subspace
+	storeKey storetypes.StoreKey
+	cdc      codec.BinaryCodec
 
 	accountKeeper authkeeper.AccountKeeper
 	bankKeeper    types.BankKeeper
 
 	svcTags metrics.Tags
+
+	authority string
 }
 
 // NewKeeper creates new instances of the auction Keeper
 func NewKeeper(
 	cdc codec.BinaryCodec,
-	storeKey sdk.StoreKey,
-	paramSpace paramtypes.Subspace,
+	storeKey storetypes.StoreKey,
 	ak authkeeper.AccountKeeper,
 	bk types.BankKeeper,
+	authority string,
 ) Keeper {
-
-	// set KeyTable if it has not already been set
-	if !paramSpace.HasKeyTable() {
-		paramSpace = paramSpace.WithKeyTable(types.ParamKeyTable())
-	}
-
 	return Keeper{
-		svcTags: metrics.Tags{
-			"svc": "auction_k",
-		},
-		paramSpace: paramSpace,
-
 		storeKey:      storeKey,
 		cdc:           cdc,
 		accountKeeper: ak,
 		bankKeeper:    bk,
+		authority:     authority,
+		svcTags: metrics.Tags{
+			"svc": "auction_k",
+		},
 	}
 }
 

@@ -502,6 +502,114 @@ func local_request_Query_SpotMarket_0(ctx context.Context, marshaler runtime.Mar
 }
 
 var (
+	filter_Query_FullSpotMarkets_0 = &utilities.DoubleArray{Encoding: map[string]int{}, Base: []int(nil), Check: []int(nil)}
+)
+
+func request_Query_FullSpotMarkets_0(ctx context.Context, marshaler runtime.Marshaler, client QueryClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq QueryFullSpotMarketsRequest
+	var metadata runtime.ServerMetadata
+
+	if err := req.ParseForm(); err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	if err := runtime.PopulateQueryParameters(&protoReq, req.Form, filter_Query_FullSpotMarkets_0); err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+
+	msg, err := client.FullSpotMarkets(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+
+}
+
+func local_request_Query_FullSpotMarkets_0(ctx context.Context, marshaler runtime.Marshaler, server QueryServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq QueryFullSpotMarketsRequest
+	var metadata runtime.ServerMetadata
+
+	if err := req.ParseForm(); err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	if err := runtime.PopulateQueryParameters(&protoReq, req.Form, filter_Query_FullSpotMarkets_0); err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+
+	msg, err := server.FullSpotMarkets(ctx, &protoReq)
+	return msg, metadata, err
+
+}
+
+var (
+	filter_Query_FullSpotMarket_0 = &utilities.DoubleArray{Encoding: map[string]int{"market_id": 0}, Base: []int{1, 1, 0}, Check: []int{0, 1, 2}}
+)
+
+func request_Query_FullSpotMarket_0(ctx context.Context, marshaler runtime.Marshaler, client QueryClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq QueryFullSpotMarketRequest
+	var metadata runtime.ServerMetadata
+
+	var (
+		val string
+		ok  bool
+		err error
+		_   = err
+	)
+
+	val, ok = pathParams["market_id"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "market_id")
+	}
+
+	protoReq.MarketId, err = runtime.String(val)
+
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "market_id", err)
+	}
+
+	if err := req.ParseForm(); err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	if err := runtime.PopulateQueryParameters(&protoReq, req.Form, filter_Query_FullSpotMarket_0); err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+
+	msg, err := client.FullSpotMarket(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+
+}
+
+func local_request_Query_FullSpotMarket_0(ctx context.Context, marshaler runtime.Marshaler, server QueryServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq QueryFullSpotMarketRequest
+	var metadata runtime.ServerMetadata
+
+	var (
+		val string
+		ok  bool
+		err error
+		_   = err
+	)
+
+	val, ok = pathParams["market_id"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "market_id")
+	}
+
+	protoReq.MarketId, err = runtime.String(val)
+
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "market_id", err)
+	}
+
+	if err := req.ParseForm(); err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	if err := runtime.PopulateQueryParameters(&protoReq, req.Form, filter_Query_FullSpotMarket_0); err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+
+	msg, err := server.FullSpotMarket(ctx, &protoReq)
+	return msg, metadata, err
+
+}
+
+var (
 	filter_Query_SpotOrderbook_0 = &utilities.DoubleArray{Encoding: map[string]int{"market_id": 0}, Base: []int{1, 1, 0}, Check: []int{0, 1, 2}}
 )
 
@@ -645,6 +753,82 @@ func local_request_Query_TraderSpotOrders_0(ctx context.Context, marshaler runti
 	}
 
 	msg, err := server.TraderSpotOrders(ctx, &protoReq)
+	return msg, metadata, err
+
+}
+
+func request_Query_AccountAddressSpotOrders_0(ctx context.Context, marshaler runtime.Marshaler, client QueryClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq QueryAccountAddressSpotOrdersRequest
+	var metadata runtime.ServerMetadata
+
+	var (
+		val string
+		ok  bool
+		err error
+		_   = err
+	)
+
+	val, ok = pathParams["market_id"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "market_id")
+	}
+
+	protoReq.MarketId, err = runtime.String(val)
+
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "market_id", err)
+	}
+
+	val, ok = pathParams["account_address"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "account_address")
+	}
+
+	protoReq.AccountAddress, err = runtime.String(val)
+
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "account_address", err)
+	}
+
+	msg, err := client.AccountAddressSpotOrders(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+
+}
+
+func local_request_Query_AccountAddressSpotOrders_0(ctx context.Context, marshaler runtime.Marshaler, server QueryServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq QueryAccountAddressSpotOrdersRequest
+	var metadata runtime.ServerMetadata
+
+	var (
+		val string
+		ok  bool
+		err error
+		_   = err
+	)
+
+	val, ok = pathParams["market_id"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "market_id")
+	}
+
+	protoReq.MarketId, err = runtime.String(val)
+
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "market_id", err)
+	}
+
+	val, ok = pathParams["account_address"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "account_address")
+	}
+
+	protoReq.AccountAddress, err = runtime.String(val)
+
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "account_address", err)
+	}
+
+	msg, err := server.AccountAddressSpotOrders(ctx, &protoReq)
 	return msg, metadata, err
 
 }
@@ -1143,6 +1327,82 @@ func local_request_Query_TraderDerivativeOrders_0(ctx context.Context, marshaler
 	}
 
 	msg, err := server.TraderDerivativeOrders(ctx, &protoReq)
+	return msg, metadata, err
+
+}
+
+func request_Query_AccountAddressDerivativeOrders_0(ctx context.Context, marshaler runtime.Marshaler, client QueryClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq QueryAccountAddressDerivativeOrdersRequest
+	var metadata runtime.ServerMetadata
+
+	var (
+		val string
+		ok  bool
+		err error
+		_   = err
+	)
+
+	val, ok = pathParams["market_id"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "market_id")
+	}
+
+	protoReq.MarketId, err = runtime.String(val)
+
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "market_id", err)
+	}
+
+	val, ok = pathParams["account_address"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "account_address")
+	}
+
+	protoReq.AccountAddress, err = runtime.String(val)
+
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "account_address", err)
+	}
+
+	msg, err := client.AccountAddressDerivativeOrders(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+
+}
+
+func local_request_Query_AccountAddressDerivativeOrders_0(ctx context.Context, marshaler runtime.Marshaler, server QueryServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq QueryAccountAddressDerivativeOrdersRequest
+	var metadata runtime.ServerMetadata
+
+	var (
+		val string
+		ok  bool
+		err error
+		_   = err
+	)
+
+	val, ok = pathParams["market_id"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "market_id")
+	}
+
+	protoReq.MarketId, err = runtime.String(val)
+
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "market_id", err)
+	}
+
+	val, ok = pathParams["account_address"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "account_address")
+	}
+
+	protoReq.AccountAddress, err = runtime.String(val)
+
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "account_address", err)
+	}
+
+	msg, err := server.AccountAddressDerivativeOrders(ctx, &protoReq)
 	return msg, metadata, err
 
 }
@@ -2254,15 +2514,15 @@ func request_Query_QueryMarketIDFromVault_0(ctx context.Context, marshaler runti
 		_   = err
 	)
 
-	val, ok = pathParams["vault_subaccount_id"]
+	val, ok = pathParams["vault_address"]
 	if !ok {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "vault_subaccount_id")
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "vault_address")
 	}
 
-	protoReq.VaultSubaccountId, err = runtime.String(val)
+	protoReq.VaultAddress, err = runtime.String(val)
 
 	if err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "vault_subaccount_id", err)
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "vault_address", err)
 	}
 
 	msg, err := client.QueryMarketIDFromVault(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
@@ -2281,15 +2541,15 @@ func local_request_Query_QueryMarketIDFromVault_0(ctx context.Context, marshaler
 		_   = err
 	)
 
-	val, ok = pathParams["vault_subaccount_id"]
+	val, ok = pathParams["vault_address"]
 	if !ok {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "vault_subaccount_id")
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "vault_address")
 	}
 
-	protoReq.VaultSubaccountId, err = runtime.String(val)
+	protoReq.VaultAddress, err = runtime.String(val)
 
 	if err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "vault_subaccount_id", err)
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "vault_address", err)
 	}
 
 	msg, err := server.QueryMarketIDFromVault(ctx, &protoReq)
@@ -2907,6 +3167,52 @@ func RegisterQueryHandlerServer(ctx context.Context, mux *runtime.ServeMux, serv
 
 	})
 
+	mux.Handle("GET", pattern_Query_FullSpotMarkets_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		var stream runtime.ServerTransportStream
+		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		rctx, err := runtime.AnnotateIncomingContext(ctx, mux, req)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := local_request_Query_FullSpotMarkets_0(rctx, inboundMarshaler, server, req, pathParams)
+		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
+		ctx = runtime.NewServerMetadataContext(ctx, md)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+
+		forward_Query_FullSpotMarkets_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
+	})
+
+	mux.Handle("GET", pattern_Query_FullSpotMarket_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		var stream runtime.ServerTransportStream
+		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		rctx, err := runtime.AnnotateIncomingContext(ctx, mux, req)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := local_request_Query_FullSpotMarket_0(rctx, inboundMarshaler, server, req, pathParams)
+		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
+		ctx = runtime.NewServerMetadataContext(ctx, md)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+
+		forward_Query_FullSpotMarket_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
+	})
+
 	mux.Handle("GET", pattern_Query_SpotOrderbook_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
@@ -2950,6 +3256,29 @@ func RegisterQueryHandlerServer(ctx context.Context, mux *runtime.ServeMux, serv
 		}
 
 		forward_Query_TraderSpotOrders_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
+	})
+
+	mux.Handle("GET", pattern_Query_AccountAddressSpotOrders_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		var stream runtime.ServerTransportStream
+		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		rctx, err := runtime.AnnotateIncomingContext(ctx, mux, req)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := local_request_Query_AccountAddressSpotOrders_0(rctx, inboundMarshaler, server, req, pathParams)
+		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
+		ctx = runtime.NewServerMetadataContext(ctx, md)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+
+		forward_Query_AccountAddressSpotOrders_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
 	})
 
@@ -3111,6 +3440,29 @@ func RegisterQueryHandlerServer(ctx context.Context, mux *runtime.ServeMux, serv
 		}
 
 		forward_Query_TraderDerivativeOrders_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
+	})
+
+	mux.Handle("GET", pattern_Query_AccountAddressDerivativeOrders_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		var stream runtime.ServerTransportStream
+		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		rctx, err := runtime.AnnotateIncomingContext(ctx, mux, req)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := local_request_Query_AccountAddressDerivativeOrders_0(rctx, inboundMarshaler, server, req, pathParams)
+		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
+		ctx = runtime.NewServerMetadataContext(ctx, md)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+
+		forward_Query_AccountAddressDerivativeOrders_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
 	})
 
@@ -4131,6 +4483,46 @@ func RegisterQueryHandlerClient(ctx context.Context, mux *runtime.ServeMux, clie
 
 	})
 
+	mux.Handle("GET", pattern_Query_FullSpotMarkets_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		rctx, err := runtime.AnnotateContext(ctx, mux, req)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_Query_FullSpotMarkets_0(rctx, inboundMarshaler, client, req, pathParams)
+		ctx = runtime.NewServerMetadataContext(ctx, md)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+
+		forward_Query_FullSpotMarkets_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
+	})
+
+	mux.Handle("GET", pattern_Query_FullSpotMarket_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		rctx, err := runtime.AnnotateContext(ctx, mux, req)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_Query_FullSpotMarket_0(rctx, inboundMarshaler, client, req, pathParams)
+		ctx = runtime.NewServerMetadataContext(ctx, md)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+
+		forward_Query_FullSpotMarket_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
+	})
+
 	mux.Handle("GET", pattern_Query_SpotOrderbook_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
@@ -4168,6 +4560,26 @@ func RegisterQueryHandlerClient(ctx context.Context, mux *runtime.ServeMux, clie
 		}
 
 		forward_Query_TraderSpotOrders_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
+	})
+
+	mux.Handle("GET", pattern_Query_AccountAddressSpotOrders_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		rctx, err := runtime.AnnotateContext(ctx, mux, req)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_Query_AccountAddressSpotOrders_0(rctx, inboundMarshaler, client, req, pathParams)
+		ctx = runtime.NewServerMetadataContext(ctx, md)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+
+		forward_Query_AccountAddressSpotOrders_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
 	})
 
@@ -4308,6 +4720,26 @@ func RegisterQueryHandlerClient(ctx context.Context, mux *runtime.ServeMux, clie
 		}
 
 		forward_Query_TraderDerivativeOrders_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
+	})
+
+	mux.Handle("GET", pattern_Query_AccountAddressDerivativeOrders_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		rctx, err := runtime.AnnotateContext(ctx, mux, req)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_Query_AccountAddressDerivativeOrders_0(rctx, inboundMarshaler, client, req, pathParams)
+		ctx = runtime.NewServerMetadataContext(ctx, md)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+
+		forward_Query_AccountAddressDerivativeOrders_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
 	})
 
@@ -4955,111 +5387,119 @@ func RegisterQueryHandlerClient(ctx context.Context, mux *runtime.ServeMux, clie
 }
 
 var (
-	pattern_Query_QueryExchangeParams_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "exchange", "v1beta1", "exchangeParams"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_QueryExchangeParams_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "exchange", "v1beta1", "exchangeParams"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_SubaccountDeposits_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 1, 2, 3}, []string{"injective", "exchange", "v1beta1", "subaccountDeposits"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_SubaccountDeposits_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 1, 2, 3}, []string{"injective", "exchange", "v1beta1", "subaccountDeposits"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_SubaccountDeposit_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 1, 2, 3}, []string{"injective", "exchange", "v1beta1", "subaccountDeposit"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_SubaccountDeposit_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 1, 2, 3}, []string{"injective", "exchange", "v1beta1", "subaccountDeposit"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_ExchangeBalances_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 1, 2, 3}, []string{"injective", "exchange", "v1beta1", "exchangeBalances"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_ExchangeBalances_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 1, 2, 3}, []string{"injective", "exchange", "v1beta1", "exchangeBalances"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_AggregateVolume_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 1, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"injective", "exchange", "v1beta1", "aggregateVolume", "account"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_AggregateVolume_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 1, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"injective", "exchange", "v1beta1", "aggregateVolume", "account"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_AggregateVolumes_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 1, 2, 3}, []string{"injective", "exchange", "v1beta1", "aggregateVolumes"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_AggregateVolumes_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 1, 2, 3}, []string{"injective", "exchange", "v1beta1", "aggregateVolumes"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_AggregateMarketVolume_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 1, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"injective", "exchange", "v1beta1", "aggregateMarketVolume", "market_id"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_AggregateMarketVolume_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 1, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"injective", "exchange", "v1beta1", "aggregateMarketVolume", "market_id"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_AggregateMarketVolumes_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 1, 2, 3}, []string{"injective", "exchange", "v1beta1", "aggregateMarketVolumes"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_AggregateMarketVolumes_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 1, 2, 3}, []string{"injective", "exchange", "v1beta1", "aggregateMarketVolumes"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_DenomDecimal_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 1, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"injective", "exchange", "v1beta1", "denom_decimal", "denom"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_DenomDecimal_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 1, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"injective", "exchange", "v1beta1", "denom_decimal", "denom"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_DenomDecimals_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 1, 2, 3}, []string{"injective", "exchange", "v1beta1", "denom_decimals"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_DenomDecimals_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 1, 2, 3}, []string{"injective", "exchange", "v1beta1", "denom_decimals"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_SpotMarkets_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4}, []string{"injective", "exchange", "v1beta1", "spot", "markets"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_SpotMarkets_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4}, []string{"injective", "exchange", "v1beta1", "spot", "markets"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_SpotMarket_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 1, 0, 4, 1, 5, 5}, []string{"injective", "exchange", "v1beta1", "spot", "markets", "market_id"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_SpotMarket_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 1, 0, 4, 1, 5, 5}, []string{"injective", "exchange", "v1beta1", "spot", "markets", "market_id"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_SpotOrderbook_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 1, 0, 4, 1, 5, 5}, []string{"injective", "exchange", "v1beta1", "spot", "orderbook", "market_id"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_FullSpotMarkets_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4}, []string{"injective", "exchange", "v1beta1", "spot", "full_markets"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_TraderSpotOrders_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 1, 0, 4, 1, 5, 5, 1, 0, 4, 1, 5, 6}, []string{"injective", "exchange", "v1beta1", "spot", "orders", "market_id", "subaccount_id"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_FullSpotMarket_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 1, 0, 4, 1, 5, 5}, []string{"injective", "exchange", "v1beta1", "spot", "full_market", "market_id"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_SpotOrdersByHashes_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 1, 0, 4, 1, 5, 5, 1, 0, 4, 1, 5, 6}, []string{"injective", "exchange", "v1beta1", "spot", "orders_by_hashes", "market_id", "subaccount_id"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_SpotOrderbook_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 1, 0, 4, 1, 5, 5}, []string{"injective", "exchange", "v1beta1", "spot", "orderbook", "market_id"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_SubaccountOrders_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"injective", "exchange", "v1beta1", "orders", "subaccount_id"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_TraderSpotOrders_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 1, 0, 4, 1, 5, 5, 1, 0, 4, 1, 5, 6}, []string{"injective", "exchange", "v1beta1", "spot", "orders", "market_id", "subaccount_id"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_TraderSpotTransientOrders_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 1, 0, 4, 1, 5, 5, 1, 0, 4, 1, 5, 6}, []string{"injective", "exchange", "v1beta1", "spot", "transient_orders", "market_id", "subaccount_id"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_AccountAddressSpotOrders_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 1, 0, 4, 1, 5, 5, 2, 6, 1, 0, 4, 1, 5, 7}, []string{"injective", "exchange", "v1beta1", "spot", "orders", "market_id", "account", "account_address"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_SpotMidPriceAndTOB_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 1, 0, 4, 1, 5, 5}, []string{"injective", "exchange", "v1beta1", "spot", "mid_price_and_tob", "market_id"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_SpotOrdersByHashes_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 1, 0, 4, 1, 5, 5, 1, 0, 4, 1, 5, 6}, []string{"injective", "exchange", "v1beta1", "spot", "orders_by_hashes", "market_id", "subaccount_id"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_DerivativeMidPriceAndTOB_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 1, 0, 4, 1, 5, 5}, []string{"injective", "exchange", "v1beta1", "derivative", "mid_price_and_tob", "market_id"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_SubaccountOrders_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"injective", "exchange", "v1beta1", "orders", "subaccount_id"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_DerivativeOrderbook_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 1, 0, 4, 1, 5, 5}, []string{"injective", "exchange", "v1beta1", "derivative", "orderbook", "market_id"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_TraderSpotTransientOrders_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 1, 0, 4, 1, 5, 5, 1, 0, 4, 1, 5, 6}, []string{"injective", "exchange", "v1beta1", "spot", "transient_orders", "market_id", "subaccount_id"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_TraderDerivativeOrders_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 1, 0, 4, 1, 5, 5, 1, 0, 4, 1, 5, 6}, []string{"injective", "exchange", "v1beta1", "derivative", "orders", "market_id", "subaccount_id"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_SpotMidPriceAndTOB_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 1, 0, 4, 1, 5, 5}, []string{"injective", "exchange", "v1beta1", "spot", "mid_price_and_tob", "market_id"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_DerivativeOrdersByHashes_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 1, 0, 4, 1, 5, 5, 1, 0, 4, 1, 5, 6}, []string{"injective", "exchange", "v1beta1", "derivative", "orders_by_hashes", "market_id", "subaccount_id"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_DerivativeMidPriceAndTOB_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 1, 0, 4, 1, 5, 5}, []string{"injective", "exchange", "v1beta1", "derivative", "mid_price_and_tob", "market_id"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_TraderDerivativeTransientOrders_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 1, 0, 4, 1, 5, 5, 1, 0, 4, 1, 5, 6}, []string{"injective", "exchange", "v1beta1", "derivative", "transient_orders", "market_id", "subaccount_id"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_DerivativeOrderbook_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 1, 0, 4, 1, 5, 5}, []string{"injective", "exchange", "v1beta1", "derivative", "orderbook", "market_id"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_DerivativeMarkets_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4}, []string{"injective", "exchange", "v1beta1", "derivative", "markets"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_TraderDerivativeOrders_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 1, 0, 4, 1, 5, 5, 1, 0, 4, 1, 5, 6}, []string{"injective", "exchange", "v1beta1", "derivative", "orders", "market_id", "subaccount_id"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_DerivativeMarket_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 1, 0, 4, 1, 5, 5}, []string{"injective", "exchange", "v1beta1", "derivative", "markets", "market_id"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_AccountAddressDerivativeOrders_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 1, 0, 4, 1, 5, 5, 2, 6, 1, 0, 4, 1, 5, 7}, []string{"injective", "exchange", "v1beta1", "derivative", "orders", "market_id", "account", "account_address"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_DerivativeMarketAddress_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 1, 0, 4, 1, 5, 5}, []string{"injective", "exchange", "v1beta1", "derivative", "market_address", "market_id"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_DerivativeOrdersByHashes_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 1, 0, 4, 1, 5, 5, 1, 0, 4, 1, 5, 6}, []string{"injective", "exchange", "v1beta1", "derivative", "orders_by_hashes", "market_id", "subaccount_id"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_SubaccountTradeNonce_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 1, 1, 0, 4, 1, 5, 3}, []string{"injective", "exchange", "v1beta1", "subaccount_id"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_TraderDerivativeTransientOrders_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 1, 0, 4, 1, 5, 5, 1, 0, 4, 1, 5, 6}, []string{"injective", "exchange", "v1beta1", "derivative", "transient_orders", "market_id", "subaccount_id"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_ExchangeModuleState_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "exchange", "v1beta1", "module_state"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_DerivativeMarkets_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4}, []string{"injective", "exchange", "v1beta1", "derivative", "markets"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_Positions_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "exchange", "v1beta1", "positions"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_DerivativeMarket_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 1, 0, 4, 1, 5, 5}, []string{"injective", "exchange", "v1beta1", "derivative", "markets", "market_id"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_SubaccountPositions_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"injective", "exchange", "v1beta1", "positions", "subaccount_id"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_DerivativeMarketAddress_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 1, 0, 4, 1, 5, 5}, []string{"injective", "exchange", "v1beta1", "derivative", "market_address", "market_id"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_SubaccountPositionInMarket_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4, 1, 0, 4, 1, 5, 5}, []string{"injective", "exchange", "v1beta1", "positions", "subaccount_id", "market_id"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_SubaccountTradeNonce_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 1, 1, 0, 4, 1, 5, 3}, []string{"injective", "exchange", "v1beta1", "subaccount_id"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_SubaccountEffectivePositionInMarket_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4, 1, 0, 4, 1, 5, 5}, []string{"injective", "exchange", "v1beta1", "effective_positions", "subaccount_id", "market_id"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_ExchangeModuleState_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "exchange", "v1beta1", "module_state"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_PerpetualMarketInfo_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"injective", "exchange", "v1beta1", "perpetual_market_info", "market_id"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_Positions_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "exchange", "v1beta1", "positions"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_ExpiryFuturesMarketInfo_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"injective", "exchange", "v1beta1", "expiry_market_info", "market_id"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_SubaccountPositions_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"injective", "exchange", "v1beta1", "positions", "subaccount_id"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_PerpetualMarketFunding_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"injective", "exchange", "v1beta1", "perpetual_market_funding", "market_id"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_SubaccountPositionInMarket_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4, 1, 0, 4, 1, 5, 5}, []string{"injective", "exchange", "v1beta1", "positions", "subaccount_id", "market_id"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_SubaccountOrderMetadata_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"injective", "exchange", "v1beta1", "order_metadata", "subaccount_id"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_SubaccountEffectivePositionInMarket_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4, 1, 0, 4, 1, 5, 5}, []string{"injective", "exchange", "v1beta1", "effective_positions", "subaccount_id", "market_id"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_TradeRewardPoints_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "exchange", "v1beta1", "trade_reward_points"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_PerpetualMarketInfo_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"injective", "exchange", "v1beta1", "perpetual_market_info", "market_id"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_PendingTradeRewardPoints_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "exchange", "v1beta1", "pending_trade_reward_points"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_ExpiryFuturesMarketInfo_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"injective", "exchange", "v1beta1", "expiry_market_info", "market_id"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_TradeRewardCampaign_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "exchange", "v1beta1", "trade_reward_campaign"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_PerpetualMarketFunding_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"injective", "exchange", "v1beta1", "perpetual_market_funding", "market_id"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_FeeDiscountAccountInfo_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"injective", "exchange", "v1beta1", "fee_discount_account_info", "account"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_SubaccountOrderMetadata_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"injective", "exchange", "v1beta1", "order_metadata", "subaccount_id"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_FeeDiscountSchedule_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "exchange", "v1beta1", "fee_discount_schedule"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_TradeRewardPoints_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "exchange", "v1beta1", "trade_reward_points"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_BalanceMismatches_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"injective", "exchange", "v1beta1", "balance_mismatches", "dust_factor"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_PendingTradeRewardPoints_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "exchange", "v1beta1", "pending_trade_reward_points"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_BalanceWithBalanceHolds_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "exchange", "v1beta1", "balances_with_balance_holds"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_TradeRewardCampaign_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "exchange", "v1beta1", "trade_reward_campaign"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_FeeDiscountTierStatistics_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "exchange", "v1beta1", "fee_discount_tier_stats"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_FeeDiscountAccountInfo_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"injective", "exchange", "v1beta1", "fee_discount_account_info", "account"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_MitoVaultInfos_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "exchange", "v1beta1", "mito_vault_infos"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_FeeDiscountSchedule_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "exchange", "v1beta1", "fee_discount_schedule"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_QueryMarketIDFromVault_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"injective", "exchange", "v1beta1", "vault_market_id", "vault_subaccount_id"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_BalanceMismatches_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"injective", "exchange", "v1beta1", "balance_mismatches", "dust_factor"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_HistoricalTradeRecords_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "exchange", "v1beta1", "historical_trade_records"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_BalanceWithBalanceHolds_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "exchange", "v1beta1", "balances_with_balance_holds"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_IsOptedOutOfRewards_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"injective", "exchange", "v1beta1", "is_opted_out_of_rewards", "account"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_FeeDiscountTierStatistics_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "exchange", "v1beta1", "fee_discount_tier_stats"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_OptedOutOfRewardsAccounts_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "exchange", "v1beta1", "opted_out_of_rewards_accounts"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_MitoVaultInfos_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "exchange", "v1beta1", "mito_vault_infos"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_MarketVolatility_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"injective", "exchange", "v1beta1", "market_volatility", "market_id"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_QueryMarketIDFromVault_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"injective", "exchange", "v1beta1", "vault_market_id", "vault_address"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_BinaryOptionsMarkets_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4}, []string{"injective", "exchange", "v1beta1", "binary_options", "markets"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_HistoricalTradeRecords_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "exchange", "v1beta1", "historical_trade_records"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_TraderDerivativeConditionalOrders_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 2, 5, 1, 0, 4, 1, 5, 6, 1, 0, 4, 1, 5, 7}, []string{"injective", "exchange", "v1beta1", "derivative", "orders", "conditional", "market_id", "subaccount_id"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_IsOptedOutOfRewards_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"injective", "exchange", "v1beta1", "is_opted_out_of_rewards", "account"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_MarketAtomicExecutionFeeMultiplier_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "exchange", "v1beta1", "atomic_order_fee_multiplier"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_OptedOutOfRewardsAccounts_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "exchange", "v1beta1", "opted_out_of_rewards_accounts"}, "", runtime.AssumeColonVerbOpt(false)))
+
+	pattern_Query_MarketVolatility_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"injective", "exchange", "v1beta1", "market_volatility", "market_id"}, "", runtime.AssumeColonVerbOpt(false)))
+
+	pattern_Query_BinaryOptionsMarkets_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4}, []string{"injective", "exchange", "v1beta1", "binary_options", "markets"}, "", runtime.AssumeColonVerbOpt(false)))
+
+	pattern_Query_TraderDerivativeConditionalOrders_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 2, 5, 1, 0, 4, 1, 5, 6, 1, 0, 4, 1, 5, 7}, []string{"injective", "exchange", "v1beta1", "derivative", "orders", "conditional", "market_id", "subaccount_id"}, "", runtime.AssumeColonVerbOpt(false)))
+
+	pattern_Query_MarketAtomicExecutionFeeMultiplier_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "exchange", "v1beta1", "atomic_order_fee_multiplier"}, "", runtime.AssumeColonVerbOpt(false)))
 )
 
 var (
@@ -5087,9 +5527,15 @@ var (
 
 	forward_Query_SpotMarket_0 = runtime.ForwardResponseMessage
 
+	forward_Query_FullSpotMarkets_0 = runtime.ForwardResponseMessage
+
+	forward_Query_FullSpotMarket_0 = runtime.ForwardResponseMessage
+
 	forward_Query_SpotOrderbook_0 = runtime.ForwardResponseMessage
 
 	forward_Query_TraderSpotOrders_0 = runtime.ForwardResponseMessage
+
+	forward_Query_AccountAddressSpotOrders_0 = runtime.ForwardResponseMessage
 
 	forward_Query_SpotOrdersByHashes_0 = runtime.ForwardResponseMessage
 
@@ -5104,6 +5550,8 @@ var (
 	forward_Query_DerivativeOrderbook_0 = runtime.ForwardResponseMessage
 
 	forward_Query_TraderDerivativeOrders_0 = runtime.ForwardResponseMessage
+
+	forward_Query_AccountAddressDerivativeOrders_0 = runtime.ForwardResponseMessage
 
 	forward_Query_DerivativeOrdersByHashes_0 = runtime.ForwardResponseMessage
 

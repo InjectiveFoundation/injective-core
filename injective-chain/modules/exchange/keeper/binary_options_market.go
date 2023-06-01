@@ -1,12 +1,13 @@
 package keeper
 
 import (
+	"fmt"
+
+	"cosmossdk.io/errors"
 	"github.com/InjectiveLabs/metrics"
 	"github.com/cosmos/cosmos-sdk/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/pkg/errors"
 	log "github.com/xlab/suplog"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
@@ -34,31 +35,31 @@ func (k *Keeper) BinaryOptionsMarketLaunch(
 
 	if !k.IsDenomValid(ctx, quoteDenom) {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrapf(types.ErrInvalidQuoteDenom, "denom %s does not exist in supply", quoteDenom)
+		return nil, errors.Wrapf(types.ErrInvalidQuoteDenom, "denom %s does not exist in supply", quoteDenom)
 	}
 
 	if market, _ := k.GetBinaryOptionsMarketAndStatus(ctx, marketID); market != nil {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrapf(types.ErrBinaryOptionsMarketExists, "ticker %s quoteDenom %s", ticker, quoteDenom)
+		return nil, errors.Wrapf(types.ErrBinaryOptionsMarketExists, "ticker %s quoteDenom %s", ticker, quoteDenom)
 	}
 
 	// Enforce that the provider exists, but not necessarily that the oracle price for the symbol exists
 	if k.OracleKeeper.GetProviderInfo(ctx, oracleProvider) == nil {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrapf(types.ErrInvalidOracle, "oracle provider %s does not exist", oracleProvider)
+		return nil, errors.Wrapf(types.ErrInvalidOracle, "oracle provider %s does not exist", oracleProvider)
 	}
 
 	// Enforce that expiration is in the future
 	if settlementTimestamp <= ctx.BlockTime().Unix() {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrapf(types.ErrInvalidSettlement, "settlement timestamp %d is in the past", settlementTimestamp)
+		return nil, errors.Wrapf(types.ErrInvalidSettlement, "settlement timestamp %d is in the past", settlementTimestamp)
 	}
 
 	// Enforce that admin account exists, if specified
 	if admin != "" {
 		adminAccount, _ := sdk.AccAddressFromBech32(admin)
 		if !k.AccountKeeper.HasAccount(ctx, adminAccount) {
-			return nil, sdkerrors.Wrapf(types.ErrAccountDoesntExist, "admin %s", admin)
+			return nil, errors.Wrapf(types.ErrAccountDoesntExist, "admin %s", admin)
 		}
 	}
 
@@ -423,18 +424,27 @@ func (k *Keeper) removeScheduledSettlementOfBinaryOptionsMarket(ctx sdk.Context,
 	settlementStore.Delete(marketID.Bytes())
 }
 
-// GetAllBinaryOptionsMarkets returns all binary options markets.
-func (k *Keeper) GetAllBinaryOptionsMarkets(ctx sdk.Context) []*types.BinaryOptionsMarket {
+// FindBinaryOptionsMarkets returns a list of filtered binary options markets.
+func (k *Keeper) FindBinaryOptionsMarkets(ctx sdk.Context, filter MarketFilter) []*types.BinaryOptionsMarket {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	markets := make([]*types.BinaryOptionsMarket, 0)
 	appendMarket := func(p *types.BinaryOptionsMarket) (stop bool) {
-		markets = append(markets, p)
+		if filter(p) {
+			markets = append(markets, p)
+		}
 		return false
 	}
 
 	k.IterateBinaryOptionsMarkets(ctx, nil, appendMarket)
 	return markets
+}
+
+// GetAllBinaryOptionsMarkets returns all binary options markets.
+func (k *Keeper) GetAllBinaryOptionsMarkets(ctx sdk.Context) []*types.BinaryOptionsMarket {
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+
+	return k.FindBinaryOptionsMarkets(ctx, AllMarketFilter)
 }
 
 // IterateBinaryOptionsMarkets iterates over binary options markets calling process on each market.
@@ -502,11 +512,11 @@ func (k *Keeper) ExecuteBinaryOptionsMarketParamUpdateProposal(ctx sdk.Context, 
 
 	if market == nil {
 		metrics.ReportFuncError(k.svcTags)
-		return errors.Errorf("market is not available, market_id %s", p.MarketId)
+		return fmt.Errorf("market is not available, market_id %s", p.MarketId)
 	}
 	if market.Status == types.MarketStatus_Demolished {
 		metrics.ReportFuncError(k.svcTags)
-		return sdkerrors.Wrapf(types.ErrInvalidMarketStatus, "can't update market that was demolished already")
+		return errors.Wrapf(types.ErrInvalidMarketStatus, "can't update market that was demolished already")
 	}
 
 	if p.MakerFeeRate != nil {

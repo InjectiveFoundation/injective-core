@@ -6,18 +6,20 @@ import (
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/types"
 
+	"cosmossdk.io/errors"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	capabilitytypes "github.com/cosmos/cosmos-sdk/x/capability/types"
 
-	channeltypes "github.com/cosmos/ibc-go/v4/modules/core/04-channel/types"
-	ibcexported "github.com/cosmos/ibc-go/v4/modules/core/exported"
+	channeltypes "github.com/cosmos/ibc-go/v7/modules/core/04-channel/types"
+	ibcexported "github.com/cosmos/ibc-go/v7/modules/core/exported"
 
-	porttypes "github.com/cosmos/ibc-go/v4/modules/core/05-port/types"
-	host "github.com/cosmos/ibc-go/v4/modules/core/24-host"
+	porttypes "github.com/cosmos/ibc-go/v7/modules/core/05-port/types"
+	host "github.com/cosmos/ibc-go/v7/modules/core/24-host"
 
-	bandoracle "github.com/InjectiveLabs/sdk-go/bandchain/oracle/types"
 	bandPacket "github.com/bandprotocol/bandchain-packet/packet"
+
+	bandoracle "github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/bandchain/oracle/types"
 )
 
 // OnChanOpenInit implements the IBCModule interface
@@ -34,13 +36,13 @@ func (am AppModule) OnChanOpenInit(
 	// Require portID is the portID module is bound to
 	boundPort := am.keeper.GetPort(ctx)
 	if boundPort != portID {
-		return "", sdkerrors.Wrapf(porttypes.ErrInvalidPort, "invalid port: %s, expected %s", portID, boundPort)
+		return "", errors.Wrapf(porttypes.ErrInvalidPort, "invalid port: %s, expected %s", portID, boundPort)
 	}
 
 	bandIBCParams := am.keeper.GetBandIBCParams(ctx)
 
 	if version != bandIBCParams.IbcVersion {
-		return "", sdkerrors.Wrapf(bandoracle.ErrInvalidVersion, "got %s, expected %s", version, bandIBCParams.IbcVersion)
+		return "", errors.Wrapf(bandoracle.ErrInvalidVersion, "got %s, expected %s", version, bandIBCParams.IbcVersion)
 	}
 
 	// Claim channel capability passed back by IBC module
@@ -67,13 +69,13 @@ func (am AppModule) OnChanOpenTry(
 	// Require portID is the portID module is bound to
 	boundPort := am.keeper.GetPort(ctx)
 	if boundPort != portID {
-		return "", sdkerrors.Wrapf(porttypes.ErrInvalidPort, "invalid port: %s, expected %s", portID, boundPort)
+		return "", errors.Wrapf(porttypes.ErrInvalidPort, "invalid port: %s, expected %s", portID, boundPort)
 	}
 
 	bandIBCParams := am.keeper.GetBandIBCParams(ctx)
 
 	if counterpartyVersion != bandIBCParams.IbcVersion {
-		return "", sdkerrors.Wrapf(bandoracle.ErrInvalidVersion, "invalid counterparty version: got: %s, expected %s", counterpartyVersion, bandIBCParams.IbcVersion)
+		return "", errors.Wrapf(bandoracle.ErrInvalidVersion, "invalid counterparty version: got: %s, expected %s", counterpartyVersion, bandIBCParams.IbcVersion)
 	}
 
 	// Module may have already claimed capability in OnChanOpenInit in the case of crossing hellos
@@ -101,11 +103,11 @@ func (am AppModule) OnChanOpenAck(
 	bandIBCParams := am.keeper.GetBandIBCParams(ctx)
 
 	if counterpartyVersion != bandIBCParams.IbcVersion {
-		return sdkerrors.Wrapf(bandoracle.ErrInvalidVersion, "invalid counterparty version: %s, expected %s", counterpartyVersion, bandIBCParams.IbcVersion)
+		return errors.Wrapf(bandoracle.ErrInvalidVersion, "invalid counterparty version: %s, expected %s", counterpartyVersion, bandIBCParams.IbcVersion)
 	}
 
 	if portID != bandIBCParams.IbcPortId {
-		return sdkerrors.Wrapf(types.ErrInvalidPortID, "got %s, expected %s", portID, bandIBCParams.IbcPortId)
+		return errors.Wrapf(types.ErrInvalidPortID, "got %s, expected %s", portID, bandIBCParams.IbcPortId)
 	}
 
 	return nil
@@ -120,7 +122,7 @@ func (am AppModule) OnChanOpenConfirm(
 	bandIBCParams := am.keeper.GetBandIBCParams(ctx)
 
 	if portID != bandIBCParams.IbcPortId {
-		return sdkerrors.Wrapf(types.ErrInvalidPortID, "got %s, expected %s", portID, bandIBCParams.IbcPortId)
+		return errors.Wrapf(types.ErrInvalidPortID, "got %s, expected %s", portID, bandIBCParams.IbcPortId)
 	}
 
 	return nil
@@ -133,7 +135,7 @@ func (am AppModule) OnChanCloseInit(
 	channelID string,
 ) error {
 	// Disallow user-initiated channel closing for channels
-	return sdkerrors.Wrap(sdkerrors.ErrInvalidRequest, "user cannot close channel")
+	return errors.Wrap(sdkerrors.ErrInvalidRequest, "user cannot close channel")
 }
 
 // OnChanCloseConfirm implements the IBCModule interface
@@ -173,16 +175,16 @@ func (am AppModule) OnAcknowledgementPacket(
 
 	var ack channeltypes.Acknowledgement
 	if err := types.ModuleCdc.UnmarshalJSON(acknowledgement, &ack); err != nil {
-		return sdkerrors.Wrapf(sdkerrors.ErrUnknownRequest, "cannot unmarshal packet acknowledgement: %v", err)
+		return errors.Wrapf(sdkerrors.ErrUnknownRequest, "cannot unmarshal packet acknowledgement: %v", err)
 	}
 
 	var data bandPacket.OracleRequestPacketData
 	if err := types.ModuleCdc.UnmarshalJSON(modulePacket.GetData(), &data); err != nil {
-		return sdkerrors.Wrapf(sdkerrors.ErrUnknownRequest, "cannot unmarshal packet data: %s", err.Error())
+		return errors.Wrapf(sdkerrors.ErrUnknownRequest, "cannot unmarshal packet data: %s", err.Error())
 	}
 	clientID, err := strconv.Atoi(data.ClientID)
 	if err != nil {
-		return sdkerrors.Wrapf(sdkerrors.ErrUnknownRequest, "cannot parse client id: %s", err.Error())
+		return errors.Wrapf(sdkerrors.ErrUnknownRequest, "cannot parse client id: %s", err.Error())
 	}
 
 	switch resp := ack.Response.(type) {
@@ -217,12 +219,12 @@ func (am AppModule) OnTimeoutPacket(
 
 	var data bandPacket.OracleRequestPacketData
 	if err := types.ModuleCdc.UnmarshalJSON(modulePacket.GetData(), &data); err != nil {
-		return sdkerrors.Wrapf(sdkerrors.ErrUnknownRequest, "cannot unmarshal packet data: %s", err.Error())
+		return errors.Wrapf(sdkerrors.ErrUnknownRequest, "cannot unmarshal packet data: %s", err.Error())
 	}
 
 	clientID, err := strconv.Atoi(data.ClientID)
 	if err != nil {
-		return sdkerrors.Wrapf(sdkerrors.ErrUnknownRequest, "cannot parse client id: %s", err.Error())
+		return errors.Wrapf(sdkerrors.ErrUnknownRequest, "cannot parse client id: %s", err.Error())
 	}
 	// Delete the calldata corresponding to the sequence number
 	am.keeper.DeleteBandIBCCallDataRecord(ctx, uint64(clientID))
@@ -245,7 +247,7 @@ func (am AppModule) NegotiateAppVersion(
 	proposedVersion string,
 ) (string, error) {
 	if proposedVersion != bandoracle.Version {
-		return "", sdkerrors.Wrapf(bandoracle.ErrInvalidVersion, "failed to negotiate app version: expected %s, got %s", bandoracle.Version, proposedVersion)
+		return "", errors.Wrapf(bandoracle.ErrInvalidVersion, "failed to negotiate app version: expected %s, got %s", bandoracle.Version, proposedVersion)
 	}
 
 	return bandoracle.Version, nil

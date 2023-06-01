@@ -1,9 +1,9 @@
 package keeper
 
 import (
+	"cosmossdk.io/errors"
 	"github.com/InjectiveLabs/metrics"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
@@ -56,7 +56,7 @@ func (k *Keeper) ensureValidDerivativeOrder(
 	isMissingRequiredMarkPrice := (!marketType.IsBinaryOptions() || derivativeOrder.IsConditional()) && markPrice.IsNil()
 	if market == nil || isMissingRequiredMarkPrice {
 		k.Logger(ctx).Debug("active market with valid mark price doesn't exist", "marketId", derivativeOrder.MarketId, "mark price", markPrice)
-		return orderHash, sdkerrors.Wrapf(types.ErrDerivativeMarketNotFound, "active derivative market for marketID %s not found", derivativeOrder.MarketId)
+		return orderHash, errors.Wrapf(types.ErrDerivativeMarketNotFound, "active derivative market for marketID %s not found", derivativeOrder.MarketId)
 	}
 
 	if err := derivativeOrder.CheckValidConditionalPrice(markPrice); err != nil {
@@ -111,7 +111,7 @@ func (k *Keeper) ensureValidDerivativeOrder(
 			oppositeMetadata := k.GetSubaccountOrderbookMetadata(ctx, marketID, subaccountID, !derivativeOrder.IsBuy())
 			if oppositeMetadata.VanillaLimitOrderCount == 0 && oppositeMetadata.VanillaConditionalOrderCount == 0 {
 				metrics.ReportFuncError(k.svcTags)
-				return orderHash, sdkerrors.Wrapf(types.ErrNoMarginLocked, "Should have a position or open vanilla orders before posting conditional reduce-only orders")
+				return orderHash, errors.Wrapf(types.ErrNoMarginLocked, "Should have a position or open vanilla orders before posting conditional reduce-only orders")
 			}
 		}
 	} else {
@@ -138,7 +138,7 @@ func (k *Keeper) ensureValidDerivativeOrder(
 		if derivativeOrder.IsReduceOnly() {
 			if position == nil {
 				metrics.ReportFuncError(k.svcTags)
-				return orderHash, sdkerrors.Wrapf(types.ErrPositionNotFound, "Position for marketID %s subaccountID %s not found", marketID, subaccountID)
+				return orderHash, errors.Wrapf(types.ErrPositionNotFound, "Position for marketID %s subaccountID %s not found", marketID, subaccountID)
 			}
 
 			if derivativeOrder.IsBuy() == position.IsLong {
@@ -293,7 +293,7 @@ func (k *Keeper) resizeNewReduceOnlyIfRequired(
 
 	hasReducibleQuantity := reducibleQuantity.IsPositive()
 	if !hasReducibleQuantity {
-		return sdkerrors.Wrapf(types.ErrInsufficientPositionQuantity, "position quantity %s > AggregateReduceOnlyQuantity %s + CumulativeEOBVanillaQuantity %s must hold", getReadableDec(position.Quantity), getReadableDec(metadata.AggregateReduceOnlyQuantity), getReadableDec(betterOrEqualOrders.GetCumulativeEOBVanillaQuantity()))
+		return errors.Wrapf(types.ErrInsufficientPositionQuantity, "position quantity %s > AggregateReduceOnlyQuantity %s + CumulativeEOBVanillaQuantity %s must hold", getReadableDec(position.Quantity), getReadableDec(metadata.AggregateReduceOnlyQuantity), getReadableDec(betterOrEqualOrders.GetCumulativeEOBVanillaQuantity()))
 	}
 
 	// min() is a defensive programming check, should always be reducibleQuantity, otherwise we wouldn't reach this point

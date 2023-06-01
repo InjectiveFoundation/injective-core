@@ -6,6 +6,7 @@ import (
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/types"
 
+	"cosmossdk.io/errors"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	log "github.com/xlab/suplog"
@@ -34,8 +35,14 @@ func NewHandler(k keeper.Keeper) sdk.Handler {
 		case *types.MsgExecuteContractCompat:
 			res, err := msgServer.ExecuteContractCompat(sdk.WrapSDKContext(ctx), msg)
 			return sdk.WrapServiceResult(ctx, res, err)
+		case *types.MsgUpdateParams:
+			res, err := msgServer.UpdateParams(sdk.WrapSDKContext(ctx), msg)
+			return sdk.WrapServiceResult(ctx, res, err)
+		case *types.MsgRegisterContract:
+			res, err := msgServer.RegisterContract(sdk.WrapSDKContext(ctx), msg)
+			return sdk.WrapServiceResult(ctx, res, err)
 		default:
-			return nil, sdkerrors.Wrap(sdkerrors.ErrUnknownRequest,
+			return nil, errors.Wrap(sdkerrors.ErrUnknownRequest,
 				fmt.Sprintf("Unrecognized wasmx Msg type: %T", msg))
 		}
 	}
@@ -43,7 +50,7 @@ func NewHandler(k keeper.Keeper) sdk.Handler {
 
 func Recover(err *error) { // nolint:all
 	if r := recover(); r != nil {
-		*err = sdkerrors.Wrapf(sdkerrors.ErrPanic, "%v", r) // nolint:all
+		*err = errors.Wrapf(sdkerrors.ErrPanic, "%v", r) // nolint:all
 
 		if e, ok := r.(error); ok {
 			log.WithError(e).Errorln("wasmx msg handler panicked with an error")

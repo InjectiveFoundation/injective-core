@@ -26,7 +26,14 @@ func (k *Keeper) ProcessMarketsScheduledToSettle(ctx sdk.Context) {
 
 		if marketSettlementInfo.SettlementPrice.IsZero() {
 			latestPrice := k.OracleKeeper.GetPrice(ctx, market.OracleType, market.OracleBase, market.OracleQuote)
-			marketSettlementInfo.SettlementPrice = *latestPrice
+			// defensive programming: should never happen since derivative markets should always have a valid oracle price
+			// nolint:all
+			if latestPrice == nil || latestPrice.IsNil() {
+				continue
+			}
+
+			scaledPrice := types.GetScaledPrice(*latestPrice, market.OracleScaleFactor)
+			marketSettlementInfo.SettlementPrice = scaledPrice
 		}
 
 		k.SettleMarket(ctx, market, zeroClosingFeeRateWhenForciblyClosing, &marketSettlementInfo.SettlementPrice)
@@ -302,9 +309,18 @@ func (k *Keeper) executeSocializedLoss(
 		k.Logger(ctx).Error("Retrieving from insurance fund upon settling failed for amount", socializedLossData.DeficitAmountAbs.String(), " with error", err)
 	}
 
+	haircutPercentage := sdk.ZeroDec()
 	doesMarketHaveDeficit := deficitAmountAfterInsuranceFunds.IsPositive()
 
 	if !doesMarketHaveDeficit {
+		// nolint:errcheck //ignored on purpose
+		ctx.EventManager().EmitTypedEvent(&types.EventDerivativeMarketPaused{
+			MarketId:          marketID.Hex(),
+			SettlePrice:       settlementPrice.String(),
+			TotalMissingFunds: deficitAmountAfterInsuranceFunds.String(),
+			MissingFundsRate:  haircutPercentage.String(),
+		})
+
 		return socializedLossData.DeficitPositions
 	}
 
@@ -328,16 +344,16 @@ func (k *Keeper) executeSocializedLoss(
 			}
 		}
 
-		haircutPercentage := deficitAmountAfterInsuranceFunds.Quo(socializedLossData.TotalProfits)
-
-		// nolint:errcheck //ignored on purpose
-		ctx.EventManager().EmitTypedEvent(&types.EventDerivativeMarketPaused{
-			MarketId:          marketID.Hex(),
-			SettlePrice:       settlementPrice.String(),
-			TotalMissingFunds: deficitAmountAfterInsuranceFunds.String(),
-			MissingFundsRate:  haircutPercentage.String(),
-		})
+		haircutPercentage = deficitAmountAfterInsuranceFunds.Quo(socializedLossData.TotalProfits)
 	}
+
+	// nolint:errcheck //ignored on purpose
+	ctx.EventManager().EmitTypedEvent(&types.EventDerivativeMarketPaused{
+		MarketId:          marketID.Hex(),
+		SettlePrice:       settlementPrice.String(),
+		TotalMissingFunds: deficitAmountAfterInsuranceFunds.String(),
+		MissingFundsRate:  haircutPercentage.String(),
+	})
 
 	if !canProfitsCoverDeficit {
 		remainingDeficit := deficitAmountAfterInsuranceFunds.Sub(socializedLossData.TotalProfits)

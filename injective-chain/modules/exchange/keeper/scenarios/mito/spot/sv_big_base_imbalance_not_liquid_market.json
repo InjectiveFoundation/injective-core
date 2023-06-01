@@ -69,15 +69,10 @@
       "executionType": "injective",
       "accountIndex": 1,
       "message": {
-        "Subscribe": {
-          "args": {
-            "margin_ratio": "1.0",
-            "vault_subaccount_id": "$contractAddress(scMaster).sub(1)",
-            "subscriber_subaccount_id": "$subaccount(0)",
-            "subscription_type": { "SpotSubscriptionType": "Regular" },
-            "max_slippage": "-0.1",
-            "deadline": "1976944449000000000"
-          }
+        "vault_subaccount_id": "$contractAddress(scMaster).sub(1)",
+        "trader_subaccount_id": "$subaccount(0)",
+        "msg": {
+          "subscribe": {}
         }
       },
       "funds": [

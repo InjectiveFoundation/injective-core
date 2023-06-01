@@ -131,107 +131,38 @@ mongo:
 ###                                Protobuf                                 ###
 ###############################################################################
 
-gen:
-	@echo "Generating Protobuf files without ts bindings."
-	@echo "👉 Run make gen-all if you want to generate the files with ts bindings"
-	@echo "\n"
-	@./scripts/protocgen.sh
-	@./scripts/protoc-swagger-gen.sh
+DOCKER=docker
+protoVer=0.12.1
+protoImageName=ghcr.io/cosmos/proto-builder:$(protoVer)
+protoImage=$(DOCKER) run --rm -v $(CURDIR):/workspace --workdir /workspace $(protoImageName)
 
-gen-all:
-	@./scripts/protocgen.sh
-	@./scripts/protoc-swagger-gen.sh
+proto: proto-format proto-gen proto-swagger-gen
 
-gen-ts:
-	@./client/proto-ts/scripts/gen-proto-ts.sh
-	@./client/proto-ts/scripts/gen-proto-ts-types-ignore.sh
-	@./client/proto-ts/scripts/gen-proto-grpc-web-package.sh
+proto-gen:
+	@$(protoImage) sh ./scripts/protocgen.sh
+
+proto-swagger-gen:
+	@$(protoImage) sh ./scripts/protoc-swagger-gen.sh
+
+proto-format:
+	@$(protoImage) find ./ -name "*.proto" -exec clang-format -i {} \;
+
+proto-lint:
+	@$(protoImage) buf lint --error-format=json ./proto
+
+proto-check-breaking:
+	@$(protoImage) buf breaking --against-input '.git#branch=main'
+
+proto-ts:
+	@$(protoImage) sh ./scripts/protoc-gen-ts.sh
 
 publish-ts:
 	@./client/proto-ts/scripts/gen-proto-ts-publish.sh
-	@./client/proto-ts/scripts/gen-proto-ts-publish-esm.sh
 
 grpc-ui:
 	grpcui -plaintext -protoset ./injectived.protoset localhost:9900
 
-proto-all: proto-gen proto-swagger-gen proto-format
-
-proto-gen:
-	@./scripts/protocgen.sh
-
-proto-format:
-	find ./ -not -path "./third_party/*" -name *.proto -exec clang-format -i {} \;
-
-proto-swagger-gen:
-	@./scripts/protoc-swagger-gen.sh
-
-proto-lint:
-	@buf check lint --error-format=json
-
-proto-check-breaking:
-	@buf check breaking --against-input '.git#branch=development'
-
-proto-lint-docker:
-	@$(DOCKER_BUF) check lint --error-format=json
-.PHONY: proto-lint
-
-proto-check-breaking-docker:
-	@$(DOCKER_BUF) check breaking --against-input $(HTTPS_GIT)#branch=development
-.PHONY: proto-check-breaking-ci
-
-TM_URL           = https://raw.githubusercontent.com/tendermint/tendermint/v0.34.0-rc4/proto/tendermint
-GOGO_PROTO_URL   = https://raw.githubusercontent.com/regen-network/protobuf/cosmos
-COSMOS_PROTO_URL = https://raw.githubusercontent.com/regen-network/cosmos-proto/master
-COSMOS_SDK_URL = https://raw.githubusercontent.com/cosmos/cosmos-sdk/master
-CONFIO_URL 		 = https://raw.githubusercontent.com/confio/ics23/v0.6.2
-
-TM_CRYPTO_TYPES     = third_party/proto/tendermint/crypto
-TM_ABCI_TYPES       = third_party/proto/tendermint/abci
-TM_TYPES     			  = third_party/proto/tendermint/types
-TM_VERSION 					= third_party/proto/tendermint/version
-TM_LIBS							= third_party/proto/tendermint/libs/bits
-
-GOGO_PROTO_TYPES    = third_party/proto/gogoproto
-COSMOS_PROTO_TYPES  = third_party/proto/cosmos_proto
-CONFIO_TYPES        = third_party/proto/confio
-
-COSMOS_SDK_PROTO  = third_party/proto/cosmos-sdk
-
-proto-update-deps:
-	@mkdir -p $(GOGO_PROTO_TYPES)
-	@curl -sSL $(GOGO_PROTO_URL)/gogoproto/gogo.proto > $(GOGO_PROTO_TYPES)/gogo.proto
-
-	@mkdir -p $(COSMOS_PROTO_TYPES)
-	@curl -sSL $(COSMOS_PROTO_URL)/cosmos.proto > $(COSMOS_PROTO_TYPES)/cosmos.proto
-
-## Importing of tendermint protobuf definitions currently requires the
-## use of `sed` in order to build properly with cosmos-sdk's proto file layout
-## (which is the standard Buf.build FILE_LAYOUT)
-## Issue link: https://github.com/tendermint/tendermint/issues/5021
-	@mkdir -p $(TM_ABCI_TYPES)
-	@curl -sSL $(TM_URL)/abci/types.proto > $(TM_ABCI_TYPES)/types.proto
-
-	@mkdir -p $(TM_VERSION)
-	@curl -sSL $(TM_URL)/version/types.proto > $(TM_VERSION)/types.proto
-
-	@mkdir -p $(TM_TYPES)
-	@curl -sSL $(TM_URL)/types/types.proto > $(TM_TYPES)/types.proto
-	@curl -sSL $(TM_URL)/types/evidence.proto > $(TM_TYPES)/evidence.proto
-	@curl -sSL $(TM_URL)/types/params.proto > $(TM_TYPES)/params.proto
-	@curl -sSL $(TM_URL)/types/validator.proto > $(TM_TYPES)/validator.proto
-
-	@mkdir -p $(TM_CRYPTO_TYPES)
-	@curl -sSL $(TM_URL)/crypto/proof.proto > $(TM_CRYPTO_TYPES)/proof.proto
-	@curl -sSL $(TM_URL)/crypto/keys.proto > $(TM_CRYPTO_TYPES)/keys.proto
-
-	@mkdir -p $(TM_LIBS)
-	@curl -sSL $(TM_URL)/libs/bits/types.proto > $(TM_LIBS)/types.proto
-
-	@mkdir -p $(CONFIO_TYPES)
-	@curl -sSL $(CONFIO_URL)/proofs.proto > $(CONFIO_TYPES)/proofs.proto
-
-
-.PHONY: proto-all proto-gen proto-lint proto-check-breaking proto-update-deps
+.PHONY: proto proto-gen proto-lint proto-check-breaking proto-update-deps
 
 
 ###############################################################################

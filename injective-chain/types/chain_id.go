@@ -6,8 +6,8 @@ import (
 	"regexp"
 	"strings"
 
-	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
-	tmrand "github.com/tendermint/tendermint/libs/rand"
+	"cosmossdk.io/errors"
+	tmrand "github.com/cometbft/cometbft/libs/rand"
 )
 
 var (
@@ -31,18 +31,18 @@ func IsValidChainID(chainID string) bool {
 func ParseChainID(chainID string) (*big.Int, error) {
 	chainID = strings.TrimSpace(chainID)
 	if len(chainID) > 48 {
-		return nil, sdkerrors.Wrapf(ErrInvalidChainID, "chain-id '%s' cannot exceed 48 chars", chainID)
+		return nil, errors.Wrapf(ErrInvalidChainID, "chain-id '%s' cannot exceed 48 chars", chainID)
 	}
 
 	matches := injectiveChainID.FindStringSubmatch(chainID)
 	if matches == nil || len(matches) != 3 || matches[1] == "" {
-		return nil, sdkerrors.Wrap(ErrInvalidChainID, chainID)
+		return nil, errors.Wrap(ErrInvalidChainID, chainID)
 	}
 
 	// verify that the chain-id entered is a base 10 integer
 	chainIDInt, ok := new(big.Int).SetString(matches[2], 10)
 	if !ok {
-		return nil, sdkerrors.Wrapf(ErrInvalidChainID, "epoch %s must be base-10 integer format", matches[2])
+		return nil, errors.Wrapf(ErrInvalidChainID, "epoch %s must be base-10 integer format", matches[2])
 	}
 
 	return chainIDInt, nil

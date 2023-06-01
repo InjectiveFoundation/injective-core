@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"time"
 
+	"cosmossdk.io/errors"
+	sdkmath "cosmossdk.io/math"
+	db "github.com/cometbft/cometbft-db"
 	"github.com/cosmos/cosmos-sdk/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 	"github.com/ethereum/go-ethereum/common"
-	db "github.com/tendermint/tm-db"
 
 	"github.com/InjectiveLabs/metrics"
 
@@ -104,7 +105,7 @@ func (k *Keeper) globalRedemptionIterator(ctx sdk.Context) db.Iterator {
 	return sdk.KVStorePrefixIterator(store, types.RedemptionSchedulePrefixKey)
 }
 
-func (k *Keeper) getRedemptionAmountFromShare(fund types.InsuranceFund, shareAmount sdk.Int) sdk.Coin {
+func (k *Keeper) getRedemptionAmountFromShare(fund types.InsuranceFund, shareAmount sdkmath.Int) sdk.Coin {
 	redemptionAmount := shareAmount.Mul(fund.Balance).Quo(fund.TotalShare)
 	return sdk.NewCoin(fund.DepositDenom, redemptionAmount)
 }
@@ -196,7 +197,7 @@ func (k *Keeper) GetInsuranceFund(ctx sdk.Context, marketID common.Hash) *types.
 }
 
 // DepositIntoInsuranceFund increments the insurance fund balance by amount.
-func (k *Keeper) DepositIntoInsuranceFund(ctx sdk.Context, marketID common.Hash, amount sdk.Int) error {
+func (k *Keeper) DepositIntoInsuranceFund(ctx sdk.Context, marketID common.Hash, amount sdkmath.Int) error {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	fund := k.GetInsuranceFund(ctx, marketID)
@@ -212,7 +213,7 @@ func (k *Keeper) DepositIntoInsuranceFund(ctx sdk.Context, marketID common.Hash,
 }
 
 // WithdrawFromInsuranceFund decrements the insurance fund balance by amount and sends tokens from the insurance module to the exchange module.
-func (k *Keeper) WithdrawFromInsuranceFund(ctx sdk.Context, marketID common.Hash, amount sdk.Int) error {
+func (k *Keeper) WithdrawFromInsuranceFund(ctx sdk.Context, marketID common.Hash, amount sdkmath.Int) error {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	fund := k.GetInsuranceFund(ctx, marketID)
@@ -271,7 +272,7 @@ func (k *Keeper) CreateInsuranceFund(
 	fund := k.GetInsuranceFund(ctx, marketID)
 	if fund != nil {
 		metrics.ReportFuncError(k.svcTags)
-		return sdkerrors.Wrapf(types.ErrInsuranceFundAlreadyExists, "insurance fund %s already exist", marketID.Hex())
+		return errors.Wrapf(types.ErrInsuranceFundAlreadyExists, "insurance fund %s already exist", marketID.Hex())
 	}
 
 	// create insurance fund object
@@ -287,7 +288,7 @@ func (k *Keeper) CreateInsuranceFund(
 	// initial deposit shouldn't be zero always as we mint tokens for the first user that deposits
 	if deposit.Amount.Equal(sdk.ZeroInt()) {
 		metrics.ReportFuncError(k.svcTags)
-		return sdkerrors.Wrapf(types.ErrInvalidDepositAmount, "insurance fund initial deposit should not be zero")
+		return errors.Wrapf(types.ErrInvalidDepositAmount, "insurance fund initial deposit should not be zero")
 	}
 
 	// send coins to module account
@@ -341,7 +342,7 @@ func (k *Keeper) UnderwriteInsuranceFund(ctx sdk.Context, underwriter sdk.AccAdd
 	fund := k.GetInsuranceFund(ctx, marketID)
 	if fund == nil {
 		metrics.ReportFuncError(k.svcTags)
-		return sdkerrors.Wrapf(types.ErrInsuranceFundNotFound, "insurance fund for %s does not exist", marketID.Hex())
+		return errors.Wrapf(types.ErrInsuranceFundNotFound, "insurance fund for %s does not exist", marketID.Hex())
 	}
 
 	// create insurance fund object
@@ -356,7 +357,7 @@ func (k *Keeper) UnderwriteInsuranceFund(ctx sdk.Context, underwriter sdk.AccAdd
 	}
 
 	// mint share tokens to distributer
-	var shareTokenAmount sdk.Int
+	var shareTokenAmount sdkmath.Int
 	switch {
 	case totalBalance.IsZero() && totalShareAmount.IsZero():
 		// provide initial supply
@@ -461,12 +462,12 @@ func (k *Keeper) RequestInsuranceFundRedemption(ctx sdk.Context, sender sdk.AccA
 	fund := k.GetInsuranceFund(ctx, marketID)
 	if fund == nil {
 		metrics.ReportFuncError(k.svcTags)
-		return sdkerrors.Wrapf(types.ErrInsuranceFundNotFound, "insurance fund %s not found", marketID)
+		return errors.Wrapf(types.ErrInsuranceFundNotFound, "insurance fund %s not found", marketID)
 	}
 
 	if shares.Denom != fund.ShareDenom() {
 		metrics.ReportFuncError(k.svcTags)
-		return sdkerrors.Wrapf(types.ErrInvalidShareDenom, "insurance fund share denom %s doesnt match redemption share denom %s", fund.ShareDenom(), shares.Denom)
+		return errors.Wrapf(types.ErrInvalidShareDenom, "insurance fund share denom %s doesnt match redemption share denom %s", fund.ShareDenom(), shares.Denom)
 	}
 
 	err := k.bankKeeper.SendCoinsFromAccountToModule(ctx, sender, types.ModuleName, sdk.Coins{shares})
@@ -514,7 +515,7 @@ func (k *Keeper) WithdrawAllMaturedRedemptions(ctx sdk.Context) error {
 		if fund == nil {
 			metrics.ReportFuncError(k.svcTags)
 			// Note: insurance fund is never deleted and it should exist if it's put on redemption schedule
-			return sdkerrors.Wrapf(types.ErrInsuranceFundNotFound, "insurance fund %s does not exist", marketID.Hex())
+			return errors.Wrapf(types.ErrInsuranceFundNotFound, "insurance fund %s does not exist", marketID.Hex())
 		}
 		// convert string address to bytes
 		redeemer, err := sdk.AccAddressFromBech32(schedule.Redeemer)
@@ -582,7 +583,7 @@ func (k *Keeper) UpdateInsuranceFundOracleParams(
 	fund := k.GetInsuranceFund(ctx, marketID)
 	if fund == nil {
 		metrics.ReportFuncError(k.svcTags)
-		return sdkerrors.Wrap(types.ErrInsuranceFundNotFound, marketID.Hex())
+		return errors.Wrap(types.ErrInsuranceFundNotFound, marketID.Hex())
 	}
 	fund.OracleType = oracleParams.OracleType
 	fund.OracleBase = oracleParams.OracleBase

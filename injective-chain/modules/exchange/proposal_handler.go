@@ -1,9 +1,10 @@
 package exchange
 
 import (
+	"cosmossdk.io/errors"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
-	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
+	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types/v1beta1"
 	"github.com/ethereum/go-ethereum/common"
 	log "github.com/xlab/suplog"
 
@@ -50,7 +51,7 @@ func NewExchangeProposalHandler(k keeper.Keeper) govtypes.Handler {
 		case *types.AtomicMarketOrderFeeMultiplierScheduleProposal:
 			return handleAtomicMarketOrderFeeMultiplierScheduleProposal(ctx, k, c)
 		default:
-			return sdkerrors.Wrapf(sdkerrors.ErrUnknownRequest, "unrecognized exchange proposal content type: %T", c)
+			return errors.Wrapf(sdkerrors.ErrUnknownRequest, "unrecognized exchange proposal content type: %T", c)
 		}
 	}
 }
@@ -246,7 +247,7 @@ func scheduleDerivativeMarketSettlement(ctx sdk.Context, k keeper.Keeper, deriva
 		zeroDec := sdk.ZeroDec()
 		settlementPrice = &zeroDec
 	} else if !types.SafeIsPositiveDec(*settlementPrice) {
-		return sdkerrors.Wrap(types.ErrInvalidSettlement, "settlement price must be positive for derivative markets")
+		return errors.Wrap(types.ErrInvalidSettlement, "settlement price must be positive for derivative markets")
 	}
 
 	settlementInfo := k.GetDerivativesMarketScheduledSettlementInfo(ctx, common.HexToHash(derivativeMarket.MarketId))
@@ -278,7 +279,7 @@ func handleMarketForcedSettlementProposal(ctx sdk.Context, k keeper.Keeper, p *t
 		}
 
 		if p.SettlementPrice != nil {
-			return sdkerrors.Wrap(types.ErrInvalidSettlement, "settlement price must be nil for spot markets")
+			return errors.Wrap(types.ErrInvalidSettlement, "settlement price must be nil for spot markets")
 		}
 
 		return scheduleSpotMarketForceClosure(ctx, k, spotMarket)
@@ -354,7 +355,7 @@ func handleDerivativeMarketParamUpdateProposal(ctx sdk.Context, k keeper.Keeper,
 		// fail if the |oldPrice - newPrice| / oldPrice is greater than 90% since that probably means something's wrong
 		priceDifferenceThreshold := sdk.MustNewDecFromStr("0.90")
 		if oldPrice.Sub(*newPrice).Abs().Quo(*oldPrice).GT(priceDifferenceThreshold) {
-			return sdkerrors.Wrapf(types.ErrOraclePriceDeltaExceedsThreshold, "Existing Price %s exceeds %s percent of new Price %s", oldPrice.String(), priceDifferenceThreshold.String(), newPrice.String())
+			return errors.Wrapf(types.ErrOraclePriceDeltaExceedsThreshold, "Existing Price %s exceeds %s percent of new Price %s", oldPrice.String(), priceDifferenceThreshold.String(), newPrice.String())
 		}
 	}
 
@@ -431,38 +432,38 @@ func handleBinaryOptionsMarketParamUpdateProposal(ctx sdk.Context, k keeper.Keep
 
 	if p.ExpirationTimestamp != 0 {
 		if market.ExpirationTimestamp <= ctx.BlockTime().Unix() {
-			return sdkerrors.Wrap(types.ErrInvalidExpiry, "cannot change expiration time of an expired market")
+			return errors.Wrap(types.ErrInvalidExpiry, "cannot change expiration time of an expired market")
 		}
 		// Enforce that expiration is in the future, if being modified
 		if p.ExpirationTimestamp <= ctx.BlockTime().Unix() {
-			return sdkerrors.Wrapf(types.ErrInvalidExpiry, "expiration timestamp %d is in the past", p.ExpirationTimestamp)
+			return errors.Wrapf(types.ErrInvalidExpiry, "expiration timestamp %d is in the past", p.ExpirationTimestamp)
 		}
 		expTimestamp = p.ExpirationTimestamp
 	}
 
 	if p.SettlementTimestamp != 0 {
 		if p.SettlementTimestamp <= ctx.BlockTime().Unix() {
-			return sdkerrors.Wrapf(types.ErrInvalidSettlement, "expiration timestamp %d is in the past", p.SettlementTimestamp)
+			return errors.Wrapf(types.ErrInvalidSettlement, "expiration timestamp %d is in the past", p.SettlementTimestamp)
 		}
 		settlementTimestamp = p.SettlementTimestamp
 	}
 
 	if expTimestamp >= settlementTimestamp {
-		return sdkerrors.Wrap(types.ErrInvalidExpiry, "expiration timestamp should be prior to settlement timestamp")
+		return errors.Wrap(types.ErrInvalidExpiry, "expiration timestamp should be prior to settlement timestamp")
 	}
 
 	// Enforce that the admin account exists, if specified
 	if p.Admin != "" {
 		admin, _ := sdk.AccAddressFromBech32(p.Admin)
 		if !k.AccountKeeper.HasAccount(ctx, admin) {
-			return sdkerrors.Wrapf(types.ErrAccountDoesntExist, "admin %s", p.Admin)
+			return errors.Wrapf(types.ErrAccountDoesntExist, "admin %s", p.Admin)
 		}
 	}
 
 	if p.OracleParams != nil {
 		// Enforce that the provider exists, but not necessarily that the oracle price for the symbol exists
 		if k.OracleKeeper.GetProviderInfo(ctx, p.OracleParams.Provider) == nil {
-			return sdkerrors.Wrapf(types.ErrInvalidOracle, "oracle provider %s does not exist", p.OracleParams.Provider)
+			return errors.Wrapf(types.ErrInvalidOracle, "oracle provider %s does not exist", p.OracleParams.Provider)
 		}
 	}
 
@@ -502,16 +503,16 @@ func handleTradingRewardCampaignLaunchProposal(ctx sdk.Context, k keeper.Keeper,
 	tradingRewardPoolCampaignSchedule := k.GetAllCampaignRewardPools(ctx)
 	doesCampaignAlreadyExist := len(tradingRewardPoolCampaignSchedule) > 0
 	if doesCampaignAlreadyExist {
-		return sdkerrors.Wrap(types.ErrInvalidTradingRewardCampaign, "already existing trading reward campaign")
+		return errors.Wrap(types.ErrInvalidTradingRewardCampaign, "already existing trading reward campaign")
 	}
 
 	if p.CampaignRewardPools[0].StartTimestamp <= ctx.BlockTime().Unix() {
-		return sdkerrors.Wrap(types.ErrInvalidTradingRewardCampaign, "campaign start timestamp has already passed")
+		return errors.Wrap(types.ErrInvalidTradingRewardCampaign, "campaign start timestamp has already passed")
 	}
 
 	for _, denom := range p.CampaignInfo.QuoteDenoms {
 		if !k.IsDenomValid(ctx, denom) {
-			return sdkerrors.Wrapf(types.ErrInvalidBaseDenom, "denom %s does not exist in supply", denom)
+			return errors.Wrapf(types.ErrInvalidBaseDenom, "denom %s does not exist in supply", denom)
 		}
 	}
 
@@ -539,17 +540,17 @@ func handleTradingRewardCampaignUpdateProposal(ctx sdk.Context, k keeper.Keeper,
 	tradingRewardPoolCampaignSchedule := k.GetAllCampaignRewardPools(ctx)
 	doesCampaignAlreadyExist := len(tradingRewardPoolCampaignSchedule) > 0
 	if !doesCampaignAlreadyExist {
-		return sdkerrors.Wrap(types.ErrInvalidTradingRewardCampaign, "no existing trading reward campaign")
+		return errors.Wrap(types.ErrInvalidTradingRewardCampaign, "no existing trading reward campaign")
 	}
 
 	campaignInfo := k.GetCampaignInfo(ctx)
 	if campaignInfo.CampaignDurationSeconds != p.CampaignInfo.CampaignDurationSeconds {
-		return sdkerrors.Wrap(types.ErrInvalidTradingRewardCampaign, "campaign duration does not match existing campaign")
+		return errors.Wrap(types.ErrInvalidTradingRewardCampaign, "campaign duration does not match existing campaign")
 	}
 
 	for _, denom := range p.CampaignInfo.QuoteDenoms {
 		if !k.IsDenomValid(ctx, denom) {
-			return sdkerrors.Wrapf(types.ErrInvalidBaseDenom, "denom %s does not exist in supply", denom)
+			return errors.Wrapf(types.ErrInvalidBaseDenom, "denom %s does not exist in supply", denom)
 		}
 	}
 
@@ -587,7 +588,7 @@ func handleTradingRewardPendingPointsUpdateProposal(ctx sdk.Context, k keeper.Ke
 	pendingPool := k.GetCampaignRewardPendingPool(ctx, p.PendingPoolTimestamp)
 
 	if pendingPool == nil {
-		return sdkerrors.Wrap(types.ErrInvalidTradingRewardsPendingPointsUpdate, "no pending reward pool with timestamp found")
+		return errors.Wrap(types.ErrInvalidTradingRewardsPendingPointsUpdate, "no pending reward pool with timestamp found")
 	}
 
 	currentTotalTradingRewardPoints := k.GetTotalTradingRewardPendingPoints(ctx, pendingPool.StartTimestamp)
@@ -624,14 +625,14 @@ func updateRewardPool(
 
 	isUpdatingCurrentRewardPool := poolsUpdates[0].StartTimestamp == firstTradingRewardPoolStartTimestamp
 	if isUpdatingCurrentRewardPool {
-		return sdkerrors.Wrap(types.ErrInvalidTradingRewardCampaign, "cannot update reward pools for running campaign")
+		return errors.Wrap(types.ErrInvalidTradingRewardCampaign, "cannot update reward pools for running campaign")
 	}
 
 	for _, campaignRewardPool := range poolsUpdates {
 		existingCampaignRewardPool := k.GetCampaignRewardPool(ctx, campaignRewardPool.StartTimestamp)
 
 		if existingCampaignRewardPool == nil {
-			return sdkerrors.Wrap(types.ErrInvalidTradingRewardCampaign, "reward pool update not matching existing reward pool")
+			return errors.Wrap(types.ErrInvalidTradingRewardCampaign, "reward pool update not matching existing reward pool")
 		}
 
 		if campaignRewardPool.MaxCampaignRewards == nil {
@@ -656,7 +657,7 @@ func addRewardPools(
 		hasMatchingStartTimestamp := lastTradingRewardPoolStartTimestamp == 0 || campaignRewardPool.StartTimestamp == lastTradingRewardPoolStartTimestamp+campaignDurationSeconds
 
 		if !hasMatchingStartTimestamp {
-			return sdkerrors.Wrap(types.ErrInvalidTradingRewardCampaign, "reward pool addition start timestamp not matching campaign duration")
+			return errors.Wrap(types.ErrInvalidTradingRewardCampaign, "reward pool addition start timestamp not matching campaign duration")
 		}
 
 		k.SetCampaignRewardPool(ctx, campaignRewardPool)
@@ -679,7 +680,7 @@ func handleFeeDiscountProposal(ctx sdk.Context, k keeper.Keeper, p *types.FeeDis
 
 	for _, denom := range p.Schedule.QuoteDenoms {
 		if !k.IsDenomValid(ctx, denom) {
-			return sdkerrors.Wrapf(types.ErrInvalidBaseDenom, "denom %s does not exist in supply", denom)
+			return errors.Wrapf(types.ErrInvalidBaseDenom, "denom %s does not exist in supply", denom)
 		}
 	}
 

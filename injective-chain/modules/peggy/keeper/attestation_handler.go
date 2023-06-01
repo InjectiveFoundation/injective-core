@@ -6,8 +6,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
+	"cosmossdk.io/errors"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/peggy/types"
 	"github.com/InjectiveLabs/metrics"
@@ -46,7 +46,7 @@ func (a AttestationHandler) Handle(ctx sdk.Context, claim types.EthereumClaim) e
 		// likewise nil sender would have to be caused by a bogus event
 		if errEthereumSender != nil {
 			metrics.ReportFuncError(a.svcTags)
-			return sdkerrors.Wrap(types.ErrInvalidEthSender, "invalid ethereum sender on claim")
+			return errors.Wrap(types.ErrInvalidEthSender, "invalid ethereum sender on claim")
 		}
 
 		// Check if coin is Cosmos-originated asset and get denom
@@ -75,12 +75,12 @@ func (a AttestationHandler) Handle(ctx sdk.Context, claim types.EthereumClaim) e
 			newSupply := new(big.Int).Add(currentSupply.Amount.BigInt(), claim.Amount.BigInt())
 			if newSupply.BitLen() > 256 {
 				metrics.ReportFuncError(a.svcTags)
-				return sdkerrors.Wrap(types.ErrSupplyOverflow, "invalid supply")
+				return errors.Wrap(types.ErrSupplyOverflow, "invalid supply")
 			}
 
 			if err := a.bankKeeper.MintCoins(ctx, types.ModuleName, coins); err != nil {
 				metrics.ReportFuncError(a.svcTags)
-				return sdkerrors.Wrapf(err, "mint vouchers coins: %s", coins)
+				return errors.Wrapf(err, "mint vouchers coins: %s", coins)
 			}
 		}
 
@@ -97,7 +97,7 @@ func (a AttestationHandler) Handle(ctx sdk.Context, claim types.EthereumClaim) e
 		// so we deposit the tokens into the community pool for later use via governance vote
 		if invalidAddress {
 			if err := a.keeper.SendToCommunityPool(ctx, coins); err != nil {
-				return sdkerrors.Wrap(err, "failed to send to Community pool")
+				return errors.Wrap(err, "failed to send to Community pool")
 			}
 		}
 
@@ -112,7 +112,7 @@ func (a AttestationHandler) Handle(ctx sdk.Context, claim types.EthereumClaim) e
 		if exists {
 			metrics.ReportFuncError(a.svcTags)
 
-			return sdkerrors.Wrap(
+			return errors.Wrap(
 				types.ErrInvalid,
 				fmt.Sprintf("ERC20 %s already exists for denom %s", existingERC20, claim.CosmosDenom))
 		}
@@ -121,20 +121,20 @@ func (a AttestationHandler) Handle(ctx sdk.Context, claim types.EthereumClaim) e
 		metadata, found := a.keeper.bankKeeper.GetDenomMetaData(ctx, claim.CosmosDenom)
 		if metadata.Base == "" || !found {
 			metrics.ReportFuncError(a.svcTags)
-			return sdkerrors.Wrap(types.ErrUnknown, fmt.Sprintf("denom not found %s", claim.CosmosDenom))
+			return errors.Wrap(types.ErrUnknown, fmt.Sprintf("denom not found %s", claim.CosmosDenom))
 		}
 
 		// Check if attributes of ERC20 match Cosmos denom
 		if claim.Name != metadata.Display {
 			metrics.ReportFuncError(a.svcTags)
-			return sdkerrors.Wrap(
+			return errors.Wrap(
 				types.ErrInvalid,
 				fmt.Sprintf("ERC20 name %s does not match denom display %s", claim.Name, metadata.Description))
 		}
 
 		if claim.Symbol != metadata.Display {
 			metrics.ReportFuncError(a.svcTags)
-			return sdkerrors.Wrap(
+			return errors.Wrap(
 				types.ErrInvalid,
 				fmt.Sprintf("ERC20 symbol %s does not match denom display %s", claim.Symbol, metadata.Display))
 		}
@@ -162,7 +162,7 @@ func (a AttestationHandler) Handle(ctx sdk.Context, claim types.EthereumClaim) e
 
 		if uint64(decimals) != claim.Decimals {
 			metrics.ReportFuncError(a.svcTags)
-			return sdkerrors.Wrap(
+			return errors.Wrap(
 				types.ErrInvalid,
 				fmt.Sprintf("ERC20 decimals %d does not match denom decimals %d", claim.Decimals, decimals))
 		}

@@ -19,9 +19,9 @@ vote() {
 }
 
 
-yes $PASSPHRASE | injectived tx gov submit-proposal software-upgrade v1.9 \
- --title "Injective Protocol 1.9 Dry Run" \
- --description "Injective Upgrade 1.9" \
+yes $PASSPHRASE | injectived tx gov submit-proposal software-upgrade v1.11 \
+ --title "Injective Protocol 1.11 Dry Run" \
+ --description "Injective Upgrade 1.11" \
  --upgrade-height $HALT_HEIGHT \
  --deposit 500000000000000000000inj $TX_OPTS
 

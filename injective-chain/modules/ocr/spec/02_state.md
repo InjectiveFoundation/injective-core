@@ -137,9 +137,9 @@ type OnchainConfig struct {
 	// highest answer the median of a report is allowed to be
 	MaxAnswer sdk.Dec
 	// Fixed LINK reward for each observer
-	LinkPerObservation sdk.Int
+	LinkPerObservation sdkmath.Int
 	// Fixed LINK reward for transmitter
-	LinkPerTransmission sdk.Int
+	LinkPerTransmission sdkmath.Int
 	// Native denom for LINK coin in the bank keeper
 	LinkDenom string
 	// Enables unique reports
@@ -194,9 +194,9 @@ type FeedProperties struct {
 	// highest answer the median of a report is allowed to be
 	MaxAnswer sdk.Dec
 	// Fixed LINK reward for each observer
-	LinkPerObservation sdk.Int
+	LinkPerObservation sdkmath.Int
 	// Fixed LINK reward for transmitter
-	LinkPerTransmission sdk.Int
+	LinkPerTransmission sdkmath.Int
 	// Enables unique reports
 	UniqueReports bool
 	// short human-readable description of observable this feed's answers pertain to

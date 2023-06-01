@@ -1,9 +1,10 @@
 package wasmx
 
 import (
+	"cosmossdk.io/errors"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
-	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
+	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types/v1beta1"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/keeper"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/types"
@@ -22,54 +23,9 @@ func NewWasmxProposalHandler(k keeper.Keeper, wasmProposalHandler govtypes.Handl
 		case *types.BatchStoreCodeProposal:
 			return handleBatchStoreCodeProposal(ctx, k, c, wasmProposalHandler)
 		default:
-			return sdkerrors.Wrapf(sdkerrors.ErrUnknownRequest, "unrecognized wasmx proposal content type: %T", c)
+			return errors.Wrapf(sdkerrors.ErrUnknownRequest, "unrecognized wasmx proposal content type: %T", c)
 		}
 	}
-}
-
-func handleContractRegistration(ctx sdk.Context, k keeper.Keeper, params types.Params, req types.ContractRegistrationRequest) error {
-	contractAddress, _ := sdk.AccAddressFromBech32(req.ContractAddress)
-
-	// Enforce MinGasContractExecution ≤ GasLimit ≤ MaxContractGasLimit
-	if req.GasLimit < types.MinExecutionGasLimit || req.GasLimit > params.MaxContractGasLimit {
-		return sdkerrors.Wrapf(types.ErrInvalidGasLimit, "ContractRegistrationRequestProposal: The gasLimit (%d) must be within the range (%d) - (%d).", req.GasLimit, types.MinExecutionGasLimit, params.MaxContractGasLimit)
-	}
-
-	// Enforce GasPrice ≥ MinGasPrice
-	if req.GasPrice < params.MinGasPrice {
-		return sdkerrors.Wrapf(types.ErrInvalidGasPrice, "ContractRegistrationRequestProposal: The gasPrice (%d) must be greater than (%d)", req.GasPrice, params.MinGasPrice)
-	}
-
-	// if migrations are not allowed, enforce that a contract exists at contractAddress and that it's code_id matches the one in the proposal
-	if !req.IsMigrationAllowed {
-		contractInfo := k.GetContractInfo(ctx, contractAddress)
-		if contractInfo == nil {
-			return sdkerrors.Wrapf(types.ErrInvalidContractAddress, "ContractRegistrationRequestProposal: The contract address %s does not exist", contractAddress.String())
-		}
-		if contractInfo.CodeID != req.CodeId {
-			return sdkerrors.Wrapf(types.ErrInvalidCodeId, "ContractRegistrationRequestProposal: The codeId of contract at address %s does not match codeId from the proposal", contractAddress.String())
-		}
-	}
-
-	// Enforce that the contract is not already registered
-	registeredContract := k.GetContractByAddress(ctx, contractAddress)
-	if registeredContract != nil {
-		return sdkerrors.Wrapf(types.ErrAlreadyRegistered, "ContractRegistrationRequestProposal: contract %s is already registered", contractAddress.String())
-	}
-
-	// Register the contract execution parameters
-	if err := k.RegisterContract(ctx, req); err != nil {
-		return sdkerrors.Wrapf(err, "ContractRegistrationRequestProposal: Error while registering the contract")
-	}
-
-	// Pin the contract with Wasmd module to reduce the gas used for contract execution
-	if req.ShouldPinContract {
-		if err := k.PinContract(ctx, contractAddress); err != nil {
-			return sdkerrors.Wrapf(err, "ContractRegistrationRequestProposal: Error while pinning the contract")
-		}
-	}
-
-	return nil
 }
 
 func handleContractRegistrationRequestProposal(ctx sdk.Context, k keeper.Keeper, p *types.ContractRegistrationRequestProposal) error {
@@ -78,7 +34,7 @@ func handleContractRegistrationRequestProposal(ctx sdk.Context, k keeper.Keeper,
 	}
 
 	params := k.GetParams(ctx)
-	return handleContractRegistration(ctx, k, params, p.ContractRegistrationRequest)
+	return k.HandleContractRegistration(ctx, params, p.ContractRegistrationRequest)
 }
 
 func handleBatchContractRegistrationRequestProposal(ctx sdk.Context, k keeper.Keeper, p *types.BatchContractRegistrationRequestProposal) error {
@@ -89,7 +45,7 @@ func handleBatchContractRegistrationRequestProposal(ctx sdk.Context, k keeper.Ke
 	params := k.GetParams(ctx)
 
 	for _, req := range p.ContractRegistrationRequests {
-		if err := handleContractRegistration(ctx, k, params, req); err != nil {
+		if err := k.HandleContractRegistration(ctx, params, req); err != nil {
 			return err
 		}
 	}

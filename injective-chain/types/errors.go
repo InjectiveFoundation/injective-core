@@ -1,8 +1,6 @@
 package types
 
-import (
-	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
-)
+import "cosmossdk.io/errors"
 
 const (
 	// RootCodespace is the codespace for all errors defined in this package
@@ -13,5 +11,5 @@ const (
 
 var (
 	// ErrInvalidChainID returns an error resulting from an invalid chain ID.
-	ErrInvalidChainID = sdkerrors.Register(RootCodespace, 3, "invalid chain ID")
+	ErrInvalidChainID = errors.Register(RootCodespace, 3, "invalid chain ID")
 )

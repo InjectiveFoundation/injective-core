@@ -4,11 +4,12 @@ import (
 	"context"
 	"reflect"
 
-	"github.com/InjectiveLabs/injective-core/cli/flags"
 	"github.com/cosmos/cosmos-sdk/client"
-	"github.com/gogo/protobuf/grpc"
-	"github.com/gogo/protobuf/proto"
+	"github.com/cosmos/gogoproto/grpc"
+	"github.com/cosmos/gogoproto/proto"
 	"github.com/spf13/cobra"
+
+	"github.com/InjectiveLabs/injective-core/cli/flags"
 )
 
 // QueryCmd generates single query command

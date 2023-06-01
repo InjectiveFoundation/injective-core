@@ -1,6 +1,7 @@
 package keeper
 
 import (
+	sdkmath "cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	stakingTypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -196,7 +197,7 @@ func (k *Keeper) setAccountFeeDiscountTier(
 func (k *Keeper) CalculateStakedAmountWithoutCache(
 	ctx sdk.Context,
 	trader sdk.AccAddress,
-) sdk.Int {
+) sdkmath.Int {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	maxDelegations := uint16(10)
@@ -223,7 +224,7 @@ func (k *Keeper) CalculateStakedAmountWithCache(
 	ctx sdk.Context,
 	trader sdk.AccAddress,
 	feeDiscountConfig *FeeDiscountConfig,
-) sdk.Int {
+) sdkmath.Int {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	maxDelegations := uint16(10)

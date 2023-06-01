@@ -7,6 +7,7 @@ import (
 	wasmxtypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/types"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/cosmos/cosmos-sdk/x/feegrant"
 
 	exchangetypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 	tokenfactorytypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/tokenfactory/types"
@@ -22,6 +23,7 @@ type InjectiveMsgWrapper struct {
 type InjectiveMsg struct {
 	AuctionMsg
 	ExchangeMsg
+	FeeGrantMsg
 	InsuranceMsg
 	OcrMsg
 	OracleMsg
@@ -57,6 +59,11 @@ type ExchangeMsg struct {
 	PrivilegedExecuteContract        *exchangetypes.MsgPrivilegedExecuteContract        `json:"privileged_execute_contract,omitempty"`
 }
 
+type FeeGrantMsg struct {
+	GrantAllowance  *feegrant.MsgGrantAllowance  `json:"grant_allowance,omitempty"`
+	RevokeAllowance *feegrant.MsgRevokeAllowance `json:"revoke_allowance,omitempty"`
+}
+
 type InsuranceMsg struct{}
 
 type OcrMsg struct{}
@@ -88,7 +95,7 @@ type WasmxMsg struct {
 	// update contract params (like gas price or gas limit)
 	UpdateContractMsg *wasmxtypes.MsgUpdateContract `json:"update_contract,omitempty"`
 	// Deactivate (pause) contract - won't be executed in begin blocker any longer
-	DeactiveContractMsg *wasmxtypes.MsgDeactivateContract `json:"deactivate_contract,omitempty"`
+	DeactivateContractMsg *wasmxtypes.MsgDeactivateContract `json:"deactivate_contract,omitempty"`
 	// Reactivate paused contract - will be again executed
 	ActivateContractMsg *wasmxtypes.MsgActivateContract `json:"activate_contract,omitempty"`
 }

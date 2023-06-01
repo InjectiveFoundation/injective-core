@@ -47,7 +47,7 @@ type FeedTransmissions interface {
 	)
 }
 
-func (k *keeper) IncrementFeedTransmissionCount(
+func (k *Keeper) IncrementFeedTransmissionCount(
 	ctx sdk.Context,
 	feedId string,
 	addr sdk.AccAddress,
@@ -58,7 +58,7 @@ func (k *keeper) IncrementFeedTransmissionCount(
 	k.SetFeedTransmissionsCount(ctx, feedId, addr, count+1)
 }
 
-func (k *keeper) GetFeedTransmissionsCount(
+func (k *Keeper) GetFeedTransmissionsCount(
 	ctx sdk.Context,
 	feedId string,
 	addr sdk.AccAddress,
@@ -74,7 +74,7 @@ func (k *keeper) GetFeedTransmissionsCount(
 	return count
 }
 
-func (k *keeper) SetFeedTransmissionsCount(
+func (k *Keeper) SetFeedTransmissionsCount(
 	ctx sdk.Context,
 	feedId string,
 	addr sdk.AccAddress,
@@ -87,7 +87,7 @@ func (k *keeper) SetFeedTransmissionsCount(
 	k.getStore(ctx).Set(key, countBz)
 }
 
-func (k *keeper) GetAllFeedTransmissionCounts(
+func (k *Keeper) GetAllFeedTransmissionCounts(
 	ctx sdk.Context,
 ) []*types.FeedCounts {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
@@ -106,7 +106,7 @@ func (k *keeper) GetAllFeedTransmissionCounts(
 	return feedCounts
 }
 
-func (k *keeper) GetFeedTransmissionCounts(
+func (k *Keeper) GetFeedTransmissionCounts(
 	ctx sdk.Context,
 	feedId string,
 ) *types.FeedCounts {
@@ -141,7 +141,7 @@ func (k *keeper) GetFeedTransmissionCounts(
 	}
 }
 
-func (k *keeper) DeleteAllFeedTransmissionCounts(
+func (k *Keeper) DeleteAllFeedTransmissionCounts(
 	ctx sdk.Context,
 ) {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
@@ -156,7 +156,7 @@ func (k *keeper) DeleteAllFeedTransmissionCounts(
 	}
 }
 
-func (k *keeper) DeleteFeedTransmissionCounts(
+func (k *Keeper) DeleteFeedTransmissionCounts(
 	ctx sdk.Context,
 	feedId string,
 ) {

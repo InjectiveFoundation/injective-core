@@ -4,93 +4,62 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strconv"
-	"time"
 
-	cliflags "github.com/InjectiveLabs/injective-core/cli/flags"
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
-	wasmxtypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/types"
+	"cosmossdk.io/math"
+
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/client/tx"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+
+	cliflags "github.com/InjectiveLabs/injective-core/cli/flags"
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	wasmxtypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/types"
 )
 
-type BasicVaultSubscribeArgs struct {
-	VaultSubaccountId      string `json:"vault_subaccount_id"`
-	SubscriberSubaccountId string `json:"subscriber_subaccount_id"`
-}
-
-type SpotVaultSubscribeArgs struct {
-	BasicVaultSubscribeArgs
-	SubscriptionType SpotSubscriptionType `json:"subscription_type,omitempty"`
-	MaxSlippage      sdk.Dec              `json:"max_slippage,omitempty"`
-	Deadline         uint64               `json:"deadline,omitempty"`
-}
-
-type DerivativeVaultSubscribeArgs struct {
-	BasicVaultSubscribeArgs
-	MarginRatio      *sdk.Dec                   `json:"margin_ratio,omitempty"`
-	SubscriptionType DerivativeSubscriptionType `json:"subscription_type,omitempty"`
-}
-
-type SpotSubscriptionType struct {
-	SpotSubscriptionType string `json:"SpotSubscriptionType"`
-}
-
-type DerivativeSubscriptionType struct {
-	DerivativeSubscriptionType string `json:"DerivativeSubscriptionType"`
+type Slippage struct {
+	MaxPenalty   *sdk.Dec `json:"max_penalty,omitempty"`
+	MinIncentive *sdk.Dec `json:"min_incentive,omitempty"`
 }
 
 type VaultSubscribe struct {
-	SubscribeArgs interface{} `json:"args"`
-}
-
-type DerivativeRedemptionType struct {
-	DerivativeRedemptionType string `json:"DerivativeRedemptionType"`
-}
-
-type SpotRedemptionType struct {
-	SpotRedemptionType string `json:"SpotRedemptionType"`
+	Slippage *Slippage `json:"slippage,omitempty"`
 }
 
 type BasicVaultRedeemArgs struct {
-	VaultSubaccountId    string  `json:"vault_subaccount_id"`
-	RedeemerSubaccountId string  `json:"redeemer_subaccount_id"`
-	LpTokenBurnAmount    sdk.Int `json:"lp_token_burn_amount"`
-}
-
-type SpotVaultRedeemArgs struct {
-	BasicVaultRedeemArgs
-	RedemptionType  SpotRedemptionType `json:"redemption_type,omitempty"`
-	RedemptionRatio *sdk.Dec           `json:"redemption_ratio,omitempty"`
-}
-
-type DerivativeVaultRedeemArgs struct {
-	BasicVaultRedeemArgs
-	RedemptionType DerivativeRedemptionType `json:"redemption_type,omitempty"`
+	LpTokenBurnAmount math.Int `json:"lp_token_burn_amount"`
+	Slippage          Slippage `json:"slippage,omitempty"`
 }
 
 type VaultRedeem struct {
-	RedeemArgs interface{} `json:"args"`
+	BasicVaultRedeemArgs
+	RedemptionType string `json:"redemption_type,omitempty"`
+}
+
+type VaultSubscribeRedeem struct {
+	Subscribe *VaultSubscribe `json:"subscribe,omitempty"`
+	Redeem    interface{}     `json:"redeem,omitempty"`
 }
 
 type VaultInput struct {
-	Subscribe *VaultSubscribe `json:"Subscribe,omitempty"`
-	Redeem    *VaultRedeem    `json:"Redeem,omitempty"`
+	VaultSubaccountId  string               `json:"vault_subaccount_id"`
+	TraderSubaccountId string               `json:"trader_subaccount_id"`
+	Msg                VaultSubscribeRedeem `json:"msg"`
 }
+
+const MIN_INCENTIVE_DISABLED_FLAG = 101
+const MAX_PENALTY_DEFAULT_VALUE = 1
 
 func NewSubscribeToSpotVaultTxCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "subscribe-to-spot-vault [vault subaccount id] [subscriber subaccount id] [flags]",
-		Args:  cobra.MinimumNArgs(2),
+		Args:  cobra.MinimumNArgs(3),
 		Short: "subscribe-to-spot-vault",
 		Long: `subscribe-to-spot-vault.
 
 		Example:
-		$ %s tx exchange subscribe-to-spot-vault [vault subaccount id] [subscriber subaccount id] (--quote-amount=<quote_amount>) (--base-amount=<base_amount>) (--max-slippage=<max slippage:-1>) (--deadline=<deadline:now + 10s>) --from=genesis --keyring-backend=file --yes
+		$ %s tx exchange subscribe-to-spot-vault [vault address] [vault subaccount id] [subscriber subaccount id] (--quote-amount=<quote_amount>) (--base-amount=<base_amount>)  --from=genesis --keyring-backend=file --yes
 		`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clientCtx, err := client.GetClientTxContext(cmd)
@@ -98,8 +67,9 @@ func NewSubscribeToSpotVaultTxCmd() *cobra.Command {
 				return err
 			}
 
-			vaultSubaccountId := args[0]
-			subscriberSubaccountId := args[1]
+			vaultAddress := args[0]
+			vaultSubaccountId := args[1]
+			traderSubaccountId := args[2]
 
 			quoteAmountFlag, quoteErr := cmd.Flags().GetString(FlagSubscriptionQuoteAmount)
 
@@ -107,58 +77,37 @@ func NewSubscribeToSpotVaultTxCmd() *cobra.Command {
 				return quoteErr
 			}
 
-			baseAmountFlag, baseErr := cmd.Flags().GetString(FlagSubscriptionQuoteAmount)
+			baseAmountFlag, baseErr := cmd.Flags().GetString(FlagSubscriptionBaseAmount)
 
 			if baseErr != nil {
 				return baseErr
 			}
 
-			var quoteAmount, baseAmount int64
+			var quoteAmount, baseAmount math.Int
+			var ok bool
 
 			if quoteAmountFlag == "" && baseAmountFlag == "" {
 				return fmt.Errorf("expected either quote or base amount or both, got but got neither")
 			}
 
 			if quoteAmountFlag != "" {
-				q, err := strconv.Atoi(quoteAmountFlag)
-				quoteAmount = int64(q)
-				if err != nil {
-					return err
+				quoteAmount, ok = math.NewIntFromString(quoteAmountFlag)
+				if !ok {
+					return fmt.Errorf("failed to convert quote amount to int: %v", quoteAmountFlag)
 				}
 			}
 
 			if baseAmountFlag != "" {
-				b, err := strconv.Atoi(baseAmountFlag)
-				baseAmount = int64(b)
-				if err != nil {
-					return err
+				baseAmount, ok = math.NewIntFromString(baseAmountFlag)
+				if !ok {
+					return fmt.Errorf("failed to convert base amount to int: %v", baseAmountFlag)
 				}
-			}
-
-			maxSlippageFlag, maxSlippageErr := cmd.Flags().GetInt64(FlagSubscriptionMaxSlippage)
-			if maxSlippageErr != nil {
-				return maxSlippageErr
-			}
-
-			if maxSlippageFlag < -100 || maxSlippageFlag > 100 {
-				return fmt.Errorf("max slippage has to be within <-100,100>, but %d was given", maxSlippageFlag)
-			}
-
-			maxSlippage := sdk.NewDecFromInt(sdk.NewInt(maxSlippageFlag))
-
-			deadlineFlag, deadlineErr := cmd.Flags().GetUint(FlagSubscriptionDeadline)
-			if deadlineErr != nil {
-				return deadlineErr
-			}
-
-			if deadlineFlag <= 0 {
-				return errors.New("deadline must be > 0")
 			}
 
 			queryClient := types.NewQueryClient(clientCtx)
 
 			req := &types.QueryMarketIDFromVaultRequest{
-				VaultSubaccountId: vaultSubaccountId,
+				VaultAddress: vaultAddress,
 			}
 			res, err := queryClient.QueryMarketIDFromVault(context.Background(), req)
 			if err != nil {
@@ -179,32 +128,166 @@ func NewSubscribeToSpotVaultTxCmd() *cobra.Command {
 			bankFunds := sdk.Coins{}
 
 			if quoteAmountFlag != "" {
-				bankFunds = append(bankFunds, sdk.NewCoin(quoteDenom, sdk.NewInt(quoteAmount)))
+				bankFunds = append(bankFunds, sdk.NewCoin(quoteDenom, quoteAmount))
 			}
 
 			if baseAmountFlag != "" {
-				bankFunds = append(bankFunds, sdk.NewCoin(baseDenom, sdk.NewInt(baseAmount)))
+				bankFunds = append(bankFunds, sdk.NewCoin(baseDenom, baseAmount))
 			}
-
-			deadline := time.Now().UnixNano() + int64(deadlineFlag*1_000_000)
 
 			fromAddress := clientCtx.GetFromAddress().String()
-			spotSubscriptionType := SpotSubscriptionType{SpotSubscriptionType: "Regular"}
 
-			vaultSubscribeArgs := SpotVaultSubscribeArgs{
-				BasicVaultSubscribeArgs: BasicVaultSubscribeArgs{
-					VaultSubaccountId:      vaultSubaccountId,
-					SubscriberSubaccountId: subscriberSubaccountId,
-				},
-				SubscriptionType: spotSubscriptionType,
-				MaxSlippage:      maxSlippage,
-				Deadline:         uint64(deadline),
-			}
 			vaultSubscribe := VaultSubscribe{
-				SubscribeArgs: vaultSubscribeArgs,
+				Slippage: nil,
 			}
-			vaultInput := VaultInput{
+
+			forwardMsg := VaultSubscribeRedeem{
 				Subscribe: &vaultSubscribe,
+			}
+
+			vaultInput := VaultInput{
+				Msg:                forwardMsg,
+				VaultSubaccountId:  vaultSubaccountId,
+				TraderSubaccountId: traderSubaccountId,
+			}
+
+			execData := wasmxtypes.ExecutionData{
+				Origin: fromAddress,
+				Name:   "VaultSubscribe",
+				Args:   vaultInput,
+			}
+
+			var execDataBytes []byte
+			execDataBytes, err = json.Marshal(execData)
+			if err != nil {
+				return err
+			}
+
+			masterAddress := types.SubaccountIDToSdkAddress(common.HexToHash(vaultSubaccountId))
+			msg := &types.MsgPrivilegedExecuteContract{
+				Sender:          fromAddress,
+				Funds:           bankFunds.String(),
+				ContractAddress: masterAddress.String(),
+				Data:            string(execDataBytes),
+			}
+
+			if err := msg.ValidateBasic(); err != nil {
+				return err
+			}
+			return tx.GenerateOrBroadcastTxCLI(clientCtx, cmd.Flags(), msg)
+		},
+	}
+
+	cmd.Flags().String(FlagSubscriptionQuoteAmount, "", "quote amount to subscribe with")
+	cmd.Flags().String(FlagSubscriptionBaseAmount, "", "base amount to subscribe with")
+
+	cliflags.AddTxFlagsToCmd(cmd)
+	return cmd
+}
+
+func NewSubscribeToAmmVaultTxCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "subscribe-to-amm-vault [vault address] [vault subaccount id] [trader subaccount id] [flags]",
+		Args:  cobra.MinimumNArgs(3),
+		Short: "subscribe-to-amm-vault",
+		Long: `subscribe-to-amm-vault.
+
+		Example:
+		$ %s tx exchange subscribe-to-amm-vault [vault address] [vault subaccount id] [subscriber subaccount id] (--quote-amount=<quote_amount>) (--base-amount=<base_amount>) (--max-penalty:=<max penalty:1>) --from=genesis --keyring-backend=file --yes
+		`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clientCtx, err := client.GetClientTxContext(cmd)
+			if err != nil {
+				return err
+			}
+
+			vaultAddress := args[0]
+			vaultSubaccountId := args[1]
+			traderSubaccountId := args[2]
+
+			quoteAmountFlag, quoteErr := cmd.Flags().GetString(FlagSubscriptionQuoteAmount)
+
+			if quoteErr != nil {
+				return quoteErr
+			}
+
+			baseAmountFlag, baseErr := cmd.Flags().GetString(FlagSubscriptionBaseAmount)
+
+			if baseErr != nil {
+				return baseErr
+			}
+
+			var quoteAmount, baseAmount math.Int
+			var ok bool
+
+			if quoteAmountFlag == "" && baseAmountFlag == "" {
+				return fmt.Errorf("expected either quote or base amount or both, got but got neither")
+			}
+
+			if quoteAmountFlag != "" {
+				quoteAmount, ok = math.NewIntFromString(quoteAmountFlag)
+				if !ok {
+					return fmt.Errorf("failed to convert quote amount to int: %v", quoteAmountFlag)
+				}
+			}
+
+			if baseAmountFlag != "" {
+				baseAmount, ok = math.NewIntFromString(baseAmountFlag)
+				if !ok {
+					return fmt.Errorf("failed to convert base amount to int: %v", baseAmountFlag)
+				}
+			}
+
+			queryClient := types.NewQueryClient(clientCtx)
+
+			req := &types.QueryMarketIDFromVaultRequest{
+				VaultAddress: vaultAddress,
+			}
+			res, err := queryClient.QueryMarketIDFromVault(context.Background(), req)
+			if err != nil {
+				return err
+			}
+
+			marketRequest := &types.QuerySpotMarketRequest{
+				MarketId: res.MarketId,
+			}
+			marketResp, err := queryClient.SpotMarket(context.Background(), marketRequest)
+			if err != nil {
+				return err
+			}
+
+			quoteDenom := marketResp.Market.QuoteDenom
+			baseDenom := marketResp.Market.BaseDenom
+
+			bankFunds := sdk.Coins{}
+
+			if quoteAmountFlag != "" {
+				bankFunds = append(bankFunds, sdk.NewCoin(quoteDenom, quoteAmount))
+			}
+
+			if baseAmountFlag != "" {
+				bankFunds = append(bankFunds, sdk.NewCoin(baseDenom, baseAmount))
+			}
+
+			fromAddress := clientCtx.GetFromAddress().String()
+
+			slippage, slippageErr := getSlippage(cmd)
+			if slippageErr != nil {
+				return slippageErr
+			}
+
+			vaultSubscribe := VaultSubscribe{
+				Slippage: &slippage,
+			}
+
+			forwardMsg := VaultSubscribeRedeem{
+				Subscribe: &vaultSubscribe,
+			}
+
+			vaultInput := VaultInput{
+				Msg:                forwardMsg,
+				VaultSubaccountId:  vaultSubaccountId,
+				TraderSubaccountId: traderSubaccountId,
 			}
 
 			execData := wasmxtypes.ExecutionData{
@@ -215,30 +298,28 @@ func NewSubscribeToSpotVaultTxCmd() *cobra.Command {
 			var execDataBytes []byte
 			execDataBytes, err = json.Marshal(execData)
 			if err != nil {
-				fmt.Println("err", err)
 				return err
 			}
 
-			vaultAccount := types.SubaccountIDToSdkAddress(common.HexToHash(vaultSubaccountId))
+			masterAddress := types.SubaccountIDToSdkAddress(common.HexToHash(vaultSubaccountId))
 			msg := &types.MsgPrivilegedExecuteContract{
 				Sender:          fromAddress,
 				Funds:           bankFunds.String(),
-				ContractAddress: vaultAccount.String(),
+				ContractAddress: masterAddress.String(),
 				Data:            string(execDataBytes),
 			}
 
 			if err := msg.ValidateBasic(); err != nil {
 				return err
 			}
-
 			return tx.GenerateOrBroadcastTxCLI(clientCtx, cmd.Flags(), msg)
 		},
 	}
 
 	cmd.Flags().String(FlagSubscriptionQuoteAmount, "", "quote amount to subscribe with")
 	cmd.Flags().String(FlagSubscriptionBaseAmount, "", "base amount to subscribe with")
-	cmd.Flags().Int64(FlagSubscriptionMaxSlippage, int64(-1), "max penalty % to accept when subscribing only with single side <-100,100>; -1 by default")
-	cmd.Flags().Uint(FlagSubscriptionDeadline, 10, "subscription deadline from now in seconds; 10s by default")
+	cmd.Flags().Int64(FlagSubscriptionMaxPenalty, MAX_PENALTY_DEFAULT_VALUE, "max penalty % to accept when redeeming only with single side <0,100>; 1 by default")
+
 	cliflags.AddTxFlagsToCmd(cmd)
 	return cmd
 }
@@ -251,7 +332,7 @@ func NewRedeemFromSpotVaultTxCmd() *cobra.Command {
 		Long: `redeem-from-spot-vault.
 
 		Example:
-		$ %s tx exchange redeem-from-spot-vault [vault subaccount id] [redeemer subaccount id] [lp token burn amount] (redemption type) --from=genesis --keyring-backend=file --yes
+		$ %s tx exchange redeem-from-spot-vault [vault subaccount id] [trader subaccount id] [lp token burn amount] (--max-penalty:=<max penalty:1>) --from=genesis --keyring-backend=file --yes
 		`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clientCtx, err := client.GetClientTxContext(cmd)
@@ -260,37 +341,33 @@ func NewRedeemFromSpotVaultTxCmd() *cobra.Command {
 			}
 
 			vaultSubaccountId := args[0]
-			redeemerSubaccountId := args[1]
-			lpTokenBurnAmount, ok := sdk.NewIntFromString(args[2])
-			if !ok {
-				return fmt.Errorf("invalid integer: %s", args[2])
+			traderSubaccountId := args[1]
+			lpTokenBurnAmount, err := sdk.ParseCoinNormalized(args[2])
+			if err != nil {
+				return err
 			}
 
 			fromAddress := clientCtx.GetFromAddress().String()
+			slippage, slippageErr := getSlippage(cmd)
 
-			redemptionType := SpotRedemptionType{SpotRedemptionType: "BaseAndQuote"}
-			if len(args) == 4 {
-				switch args[3] {
-				case "BaseOnly", "QuoteOnly", "FixedBaseAndQuote", "VariableBaseAndQuote":
-					redemptionType = SpotRedemptionType{SpotRedemptionType: args[3]}
-				default:
-					return fmt.Errorf("invalid redemption type. Only 'QuoteOnly', 'PositionOnly', 'VariableBaseAndQuote' and 'FixedBaseAndQuote' are supported, but '%s' was given", args[3])
-				}
+			if slippageErr != nil {
+				return slippageErr
 			}
 
-			vaultRedeemArgs := SpotVaultRedeemArgs{
-				BasicVaultRedeemArgs: BasicVaultRedeemArgs{
-					LpTokenBurnAmount:    lpTokenBurnAmount,
-					VaultSubaccountId:    vaultSubaccountId,
-					RedeemerSubaccountId: redeemerSubaccountId,
-				},
-				RedemptionType: redemptionType,
-			}
 			vaultRedeem := VaultRedeem{
-				RedeemArgs: vaultRedeemArgs,
+				BasicVaultRedeemArgs: BasicVaultRedeemArgs{
+					LpTokenBurnAmount: lpTokenBurnAmount.Amount,
+					Slippage:          slippage,
+				},
+				RedemptionType: "FixedBaseAndQuote",
 			}
+
 			vaultInput := VaultInput{
-				Redeem: &vaultRedeem,
+				TraderSubaccountId: traderSubaccountId,
+				VaultSubaccountId:  vaultSubaccountId,
+				Msg: VaultSubscribeRedeem{
+					Redeem: &vaultRedeem,
+				},
 			}
 
 			execData := wasmxtypes.ExecutionData{
@@ -298,6 +375,7 @@ func NewRedeemFromSpotVaultTxCmd() *cobra.Command {
 				Name:   "VaultRedeem",
 				Args:   vaultInput,
 			}
+
 			var execDataBytes []byte
 			execDataBytes, err = json.Marshal(execData)
 			if err != nil {
@@ -308,7 +386,7 @@ func NewRedeemFromSpotVaultTxCmd() *cobra.Command {
 			vaultAccount := types.SubaccountIDToSdkAddress(common.HexToHash(vaultSubaccountId))
 			msg := &types.MsgPrivilegedExecuteContract{
 				Sender:          fromAddress,
-				Funds:           "",
+				Funds:           lpTokenBurnAmount.String(),
 				ContractAddress: vaultAccount.String(),
 				Data:            string(execDataBytes),
 			}
@@ -320,6 +398,86 @@ func NewRedeemFromSpotVaultTxCmd() *cobra.Command {
 		},
 	}
 
+	cmd.Flags().Int64(FlagSubscriptionMaxPenalty, MAX_PENALTY_DEFAULT_VALUE, "max penalty % to accept when redeeming only with single side <0,100>; 1 by default")
+	cliflags.AddTxFlagsToCmd(cmd)
+	return cmd
+}
+
+func NewRedeemFromAmmVaultTxCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "redeem-from-amm-vault [flags]",
+		Args:  cobra.MinimumNArgs(3),
+		Short: "redeem-from-amm-vault",
+		Long: `redeem-from-amm-vault.
+
+		Example:
+		$ %s tx exchange redeem-from-amm-vault [vault subaccount id] [trader subaccount id] [lp token burn amount] (--max-penalty:=<max penalty:1>) --from=genesis --keyring-backend=file --yes
+		`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clientCtx, err := client.GetClientTxContext(cmd)
+			if err != nil {
+				return err
+			}
+
+			vaultSubaccountId := args[0]
+			traderSubaccountId := args[1]
+			lpTokenBurnAmount, err := sdk.ParseCoinNormalized(args[2])
+			if err != nil {
+				return err
+			}
+
+			fromAddress := clientCtx.GetFromAddress().String()
+			slippage, slippageErr := getSlippage(cmd)
+
+			if slippageErr != nil {
+				return slippageErr
+			}
+
+			vaultRedeem := VaultRedeem{
+				BasicVaultRedeemArgs: BasicVaultRedeemArgs{
+					LpTokenBurnAmount: lpTokenBurnAmount.Amount,
+					Slippage:          slippage,
+				},
+				RedemptionType: "FixedBaseAndQuote",
+			}
+
+			vaultInput := VaultInput{
+				TraderSubaccountId: traderSubaccountId,
+				VaultSubaccountId:  vaultSubaccountId,
+				Msg: VaultSubscribeRedeem{
+					Redeem: &vaultRedeem,
+				},
+			}
+
+			execData := wasmxtypes.ExecutionData{
+				Origin: fromAddress,
+				Name:   "VaultRedeem",
+				Args:   vaultInput,
+			}
+
+			var execDataBytes []byte
+			execDataBytes, err = json.Marshal(execData)
+			if err != nil {
+				fmt.Println("err", err)
+				return err
+			}
+
+			vaultAccount := types.SubaccountIDToSdkAddress(common.HexToHash(vaultSubaccountId))
+			msg := &types.MsgPrivilegedExecuteContract{
+				Sender:          fromAddress,
+				Funds:           lpTokenBurnAmount.String(),
+				ContractAddress: vaultAccount.String(),
+				Data:            string(execDataBytes),
+			}
+
+			if err := msg.ValidateBasic(); err != nil {
+				return err
+			}
+			return tx.GenerateOrBroadcastTxCLI(clientCtx, cmd.Flags(), msg)
+		},
+	}
+
+	cmd.Flags().Int64(FlagSubscriptionMaxPenalty, MAX_PENALTY_DEFAULT_VALUE, "max penalty % to accept when redeeming only with single side <0,100>; 1 by default")
 	cliflags.AddTxFlagsToCmd(cmd)
 	return cmd
 }
@@ -332,7 +490,7 @@ func NewSubscribeToDerivativeVaultTxCmd() *cobra.Command {
 		Long: `subscribe-to-derivative-vault.
 
 		Example:
-		$ %s tx exchange subscribe-to-derivative-vault [vault subaccount id] [subscriber subaccount id] [margin ratio] [amount] (subscription type) --from=genesis --keyring-backend=file --yes
+		$ %s tx exchange subscribe-to-derivative-vault [vault address] [vault subaccount id] [subscriber subaccount id] [amount] (--max-penalty:=<max penalty:1>) --from=genesis --keyring-backend=file --yes
 		`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clientCtx, err := client.GetClientTxContext(cmd)
@@ -340,17 +498,14 @@ func NewSubscribeToDerivativeVaultTxCmd() *cobra.Command {
 				return err
 			}
 
-			vaultSubaccountId := args[0]
-			subscriberSubaccountId := args[1]
-			subscriberMarginRatio, err := sdk.NewDecFromStr(args[2])
-			if err != nil {
-				return err
-			}
+			vaultAddress := args[0]
+			vaultSubaccountId := args[1]
+			traderSubaccountId := args[2]
 
 			queryClient := types.NewQueryClient(clientCtx)
 
 			req := &types.QueryMarketIDFromVaultRequest{
-				VaultSubaccountId: vaultSubaccountId,
+				VaultAddress: vaultAddress,
 			}
 			res, err := queryClient.QueryMarketIDFromVault(context.Background(), req)
 			if err != nil {
@@ -366,7 +521,7 @@ func NewSubscribeToDerivativeVaultTxCmd() *cobra.Command {
 			}
 			quoteDenom := marketResp.Market.Market.QuoteDenom
 
-			amount, ok := sdk.NewIntFromString(args[3])
+			amount, ok := math.NewIntFromString(args[3])
 			if !ok {
 				return fmt.Errorf("invalid integer: %s", args[3])
 			}
@@ -374,30 +529,23 @@ func NewSubscribeToDerivativeVaultTxCmd() *cobra.Command {
 			bankFunds := sdk.NewCoins(sdk.NewCoin(quoteDenom, amount))
 			fromAddress := clientCtx.GetFromAddress().String()
 
-			derivativeSubscriptionType := DerivativeSubscriptionType{DerivativeSubscriptionType: "WithoutPosition"}
-			if len(args) == 5 {
-				switch args[4] {
-				case "WithPosition":
-					derivativeSubscriptionType = DerivativeSubscriptionType{DerivativeSubscriptionType: args[4]}
-				case "WithoutPosition":
-				default:
-					return fmt.Errorf("invalid subscription type. Only 'WithPosition' and 'WithoutPosition' is supported, but '%s' was given", args[3])
-				}
+			slippage, slippageErr := getSlippage(cmd)
+			if slippageErr != nil {
+				return slippageErr
 			}
 
-			vaultSubscribeArgs := DerivativeVaultSubscribeArgs{
-				BasicVaultSubscribeArgs: BasicVaultSubscribeArgs{
-					VaultSubaccountId:      vaultSubaccountId,
-					SubscriberSubaccountId: subscriberSubaccountId,
-				},
-				MarginRatio:      &subscriberMarginRatio,
-				SubscriptionType: derivativeSubscriptionType,
-			}
 			vaultSubscribe := VaultSubscribe{
-				SubscribeArgs: vaultSubscribeArgs,
+				Slippage: &slippage,
 			}
-			vaultInput := VaultInput{
+
+			forwardMsg := VaultSubscribeRedeem{
 				Subscribe: &vaultSubscribe,
+			}
+
+			vaultInput := VaultInput{
+				Msg:                forwardMsg,
+				VaultSubaccountId:  vaultSubaccountId,
+				TraderSubaccountId: traderSubaccountId,
 			}
 
 			execData := wasmxtypes.ExecutionData{
@@ -412,11 +560,11 @@ func NewSubscribeToDerivativeVaultTxCmd() *cobra.Command {
 				return err
 			}
 
-			vaultAccount := types.SubaccountIDToSdkAddress(common.HexToHash(vaultSubaccountId))
+			masterAddress := types.SubaccountIDToSdkAddress(common.HexToHash(vaultSubaccountId))
 			msg := &types.MsgPrivilegedExecuteContract{
 				Sender:          fromAddress,
 				Funds:           bankFunds.String(),
-				ContractAddress: vaultAccount.String(),
+				ContractAddress: masterAddress.String(),
 				Data:            string(execDataBytes),
 			}
 
@@ -428,6 +576,7 @@ func NewSubscribeToDerivativeVaultTxCmd() *cobra.Command {
 		},
 	}
 
+	cmd.Flags().Int64(FlagSubscriptionMaxPenalty, MAX_PENALTY_DEFAULT_VALUE, "max penalty % to accept when subscribing without position <0,100>; 1 by default")
 	cliflags.AddTxFlagsToCmd(cmd)
 	return cmd
 }
@@ -440,7 +589,7 @@ func NewRedeemFromDerivativeVaultTxCmd() *cobra.Command {
 		Long: `redeem-from-derivative-vault.
 
 		Example:
-		$ %s tx exchange redeem-from-derivative-vault [vault subaccount id] [redeemer subaccount id] [lp token burn amount] (redemption type) --from=genesis --keyring-backend=file --yes
+		$ %s tx exchange redeem-from-derivative-vault [vault subaccount id] [trader subaccount id] [lp token burn amount] (redemption type) (--max-penalty:=<max penalty:1>) --from=genesis --keyring-backend=file --yes
 		`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clientCtx, err := client.GetClientTxContext(cmd)
@@ -449,38 +598,45 @@ func NewRedeemFromDerivativeVaultTxCmd() *cobra.Command {
 			}
 
 			vaultSubaccountId := args[0]
-			redeemerSubaccountId := args[1]
-			lpTokenBurnAmount, ok := sdk.NewIntFromString(args[2])
-			if !ok {
-				return fmt.Errorf("invalid integer: %s", args[2])
+			traderSubaccountId := args[1]
+			lpTokenBurnAmount, err := sdk.ParseCoinNormalized(args[2])
+			if err != nil {
+				return err
 			}
 
 			fromAddress := clientCtx.GetFromAddress().String()
 
-			redemptionType := DerivativeRedemptionType{DerivativeRedemptionType: "PositionAndQuote"}
+			redemptionType := "PositionAndQuote"
 			if len(args) == 4 {
 				switch args[3] {
-				case "QuoteOnly", "PositionOnly":
-					redemptionType = DerivativeRedemptionType{DerivativeRedemptionType: args[3]}
+				case "QuoteOnly":
+					redemptionType = "QuoteOnly"
 				case "PositionAndQuote":
 				default:
-					return fmt.Errorf("invalid redemption type. Only 'QuoteOnly', 'PositionOnly' and 'PositionAndQuote' are supported, but '%s' was given", args[3])
+					return fmt.Errorf("invalid redemption type. Only 'QuoteOnly' and 'PositionAndQuote' are supported, but '%s' was given", args[3])
 				}
 			}
 
-			vaultRedeemArgs := DerivativeVaultRedeemArgs{
+			slippage, slippageErr := getSlippage(cmd)
+
+			if slippageErr != nil {
+				return slippageErr
+			}
+
+			vaultRedeem := VaultRedeem{
 				BasicVaultRedeemArgs: BasicVaultRedeemArgs{
-					LpTokenBurnAmount:    lpTokenBurnAmount,
-					VaultSubaccountId:    vaultSubaccountId,
-					RedeemerSubaccountId: redeemerSubaccountId,
+					LpTokenBurnAmount: lpTokenBurnAmount.Amount,
+					Slippage:          slippage,
 				},
 				RedemptionType: redemptionType,
 			}
-			vaultRedeem := VaultRedeem{
-				RedeemArgs: vaultRedeemArgs,
-			}
+
 			vaultInput := VaultInput{
-				Redeem: &vaultRedeem,
+				VaultSubaccountId:  vaultSubaccountId,
+				TraderSubaccountId: traderSubaccountId,
+				Msg: VaultSubscribeRedeem{
+					Redeem: &vaultRedeem,
+				},
 			}
 
 			execData := wasmxtypes.ExecutionData{
@@ -488,6 +644,7 @@ func NewRedeemFromDerivativeVaultTxCmd() *cobra.Command {
 				Name:   "VaultRedeem",
 				Args:   vaultInput,
 			}
+
 			var execDataBytes []byte
 			execDataBytes, err = json.Marshal(execData)
 			if err != nil {
@@ -498,7 +655,7 @@ func NewRedeemFromDerivativeVaultTxCmd() *cobra.Command {
 			vaultAccount := types.SubaccountIDToSdkAddress(common.HexToHash(vaultSubaccountId))
 			msg := &types.MsgPrivilegedExecuteContract{
 				Sender:          fromAddress,
-				Funds:           "",
+				Funds:           lpTokenBurnAmount.String(),
 				ContractAddress: vaultAccount.String(),
 				Data:            string(execDataBytes),
 			}
@@ -511,6 +668,25 @@ func NewRedeemFromDerivativeVaultTxCmd() *cobra.Command {
 		},
 	}
 
+	cmd.Flags().Int64(FlagSubscriptionMaxPenalty, MAX_PENALTY_DEFAULT_VALUE, "max penalty % to accept when redeeming without position <0,100>; 1 by default")
 	cliflags.AddTxFlagsToCmd(cmd)
 	return cmd
+}
+
+func getSlippage(cmd *cobra.Command) (Slippage, error) {
+	maxPenaltyFlag, maxPenaltyErr := cmd.Flags().GetInt64(FlagSubscriptionMaxPenalty)
+	if maxPenaltyErr != nil {
+		return Slippage{}, maxPenaltyErr
+	}
+
+	if maxPenaltyFlag < 0 || maxPenaltyFlag > 100 {
+		return Slippage{}, fmt.Errorf("max penalty has to be within <0,100>, but %d was given", maxPenaltyFlag)
+	}
+
+	penaltyDec := sdk.NewDecFromInt(math.NewInt(maxPenaltyFlag))
+	slippage := Slippage{
+		MaxPenalty: &penaltyDec,
+	}
+
+	return slippage, nil
 }

@@ -1,6 +1,7 @@
 package keeper
 
 import (
+	sdkmath "cosmossdk.io/math"
 	"github.com/InjectiveLabs/metrics"
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -117,6 +118,10 @@ func emitNewClaimEvent(ctx sdk.Context, claim types.EthereumClaim, attestationId
 	}
 }
 
+func getRequiredPower(totalPower sdkmath.Int) sdkmath.Int {
+	return totalPower.Mul(sdk.NewInt(66)).Quo(sdk.NewInt(100))
+}
+
 // TryAttestation checks if an attestation has enough votes to be applied to the consensus state
 // and has not already been marked Observed, then calls processAttestation to actually apply it to the state,
 // and then marks it Observed and emits an event.
@@ -133,7 +138,7 @@ func (k *Keeper) TryAttestation(ctx sdk.Context, att *types.Attestation) {
 	if !att.Observed {
 		// Sum the current powers of all validators who have voted and see if it passes the current threshold
 		totalPower := k.StakingKeeper.GetLastTotalPower(ctx)
-		requiredPower := types.AttestationVotesPowerThreshold.Mul(totalPower).Quo(sdk.NewInt(100))
+		requiredPower := getRequiredPower(totalPower)
 		attestationPower := sdk.ZeroInt()
 		for _, validator := range att.Votes {
 			val, err := sdk.ValAddressFromBech32(validator)

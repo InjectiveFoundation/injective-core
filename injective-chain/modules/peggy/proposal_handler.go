@@ -1,10 +1,12 @@
 package peggy
 
 import (
+	"fmt"
+
+	"cosmossdk.io/errors"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
-	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
-	"github.com/pkg/errors"
+	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types/v1beta1"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/peggy/keeper"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/peggy/types"
@@ -19,7 +21,7 @@ func NewPeggyProposalHandler(k keeper.Keeper) govtypes.Handler {
 		case *types.RevokeEthereumBlacklistProposal:
 			return handleRevokeEthereumBlacklistProposal(ctx, k, c)
 		default:
-			return sdkerrors.Wrapf(sdkerrors.ErrUnknownRequest, "unrecognized peggy proposal content type: %T", c)
+			return errors.Wrapf(sdkerrors.ErrUnknownRequest, "unrecognized peggy proposal content type: %T", c)
 		}
 	}
 }
@@ -32,7 +34,7 @@ func handleBlacklistEthereumAddressesProposal(ctx sdk.Context, k keeper.Keeper, 
 	for _, blacklistAddress := range p.BlacklistAddresses {
 		blacklistAddr, err := types.NewEthAddress(blacklistAddress)
 		if err != nil {
-			return sdkerrors.Wrapf(err, "invalid blacklist address %s", blacklistAddr)
+			return errors.Wrapf(err, "invalid blacklist address %s", blacklistAddr)
 		}
 		k.SetEthereumBlacklistAddress(ctx, *blacklistAddr)
 	}
@@ -49,11 +51,11 @@ func handleRevokeEthereumBlacklistProposal(ctx sdk.Context, k keeper.Keeper, p *
 
 		blacklistAddr, err := types.NewEthAddress(blacklistAddress)
 		if err != nil {
-			return sdkerrors.Wrapf(err, "invalid blacklist address %s", blacklistAddr)
+			return errors.Wrapf(err, "invalid blacklist address %s", blacklistAddr)
 		}
 
 		if !k.IsOnBlacklist(ctx, *blacklistAddr) {
-			return errors.New("invalid blacklist address")
+			return fmt.Errorf("invalid blacklist address")
 		} else {
 			k.DeleteEthereumBlacklistAddress(ctx, *blacklistAddr)
 		}

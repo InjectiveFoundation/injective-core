@@ -4,18 +4,19 @@ import (
 	"encoding/json"
 	"fmt"
 
-	tmproto "github.com/tendermint/tendermint/proto/tendermint/types"
+	tmproto "github.com/cometbft/cometbft/proto/tendermint/types"
 
 	servertypes "github.com/cosmos/cosmos-sdk/server/types"
-	"github.com/cosmos/cosmos-sdk/simapp"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	slashingtypes "github.com/cosmos/cosmos-sdk/x/slashing/types"
 	"github.com/cosmos/cosmos-sdk/x/staking"
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 )
 
+type GenesisState map[string]json.RawMessage
+
 // NewDefaultGenesisState generates the default state for the application.
-func NewDefaultGenesisState() simapp.GenesisState {
+func NewDefaultGenesisState() GenesisState {
 	encCfg := MakeEncodingConfig()
 	return ModuleBasics.DefaultGenesis(encCfg.Marshaler)
 }
@@ -23,10 +24,11 @@ func NewDefaultGenesisState() simapp.GenesisState {
 // ExportAppStateAndValidators exports the state of the application for a genesis
 // file.
 func (app *InjectiveApp) ExportAppStateAndValidators(
-	forZeroHeight bool, jailAllowedAddrs []string,
+	forZeroHeight bool,
+	jailAllowedAddrs []string,
+	modulesToExport []string,
 ) (servertypes.ExportedApp, error) {
-
-	// Creates context with current height and checks txs for ctx to be usable by start of next block
+	// as if they could withdraw from the start of the next block
 	ctx := app.NewContext(true, tmproto.Header{Height: app.LastBlockHeight()})
 
 	// We export at last height + 1, because that's the height at which
@@ -34,29 +36,24 @@ func (app *InjectiveApp) ExportAppStateAndValidators(
 	height := app.LastBlockHeight() + 1
 	if forZeroHeight {
 		height = 0
-
 		if err := app.prepForZeroHeightGenesis(ctx, jailAllowedAddrs); err != nil {
 			return servertypes.ExportedApp{}, err
 		}
 	}
 
-	genState := app.mm.ExportGenesis(ctx, app.appCodec)
+	genState := app.mm.ExportGenesisForModules(ctx, app.appCodec, modulesToExport)
 	appState, err := json.MarshalIndent(genState, "", "  ")
 	if err != nil {
 		return servertypes.ExportedApp{}, err
 	}
 
 	validators, err := staking.WriteValidators(ctx, app.StakingKeeper)
-	if err != nil {
-		return servertypes.ExportedApp{}, err
-	}
-
 	return servertypes.ExportedApp{
 		AppState:        appState,
 		Validators:      validators,
 		Height:          height,
 		ConsensusParams: app.BaseApp.GetConsensusParams(ctx),
-	}, nil
+	}, err
 }
 
 // prepare for fresh start at zero height
@@ -125,7 +122,7 @@ func (app *InjectiveApp) prepForZeroHeightGenesis(ctx sdk.Context, jailAllowedAd
 		feePool.CommunityPool = feePool.CommunityPool.Add(scraps...)
 		app.DistrKeeper.SetFeePool(ctx, feePool)
 
-		app.DistrKeeper.Hooks().AfterValidatorCreated(ctx, val.GetOperator())
+		app.DistrKeeper.Hooks().AfterValidatorCreated(ctx, val.GetOperator()) //nolint:errcheck // err is always nil
 		return false
 	})
 
@@ -139,8 +136,8 @@ func (app *InjectiveApp) prepForZeroHeightGenesis(ctx sdk.Context, jailAllowedAd
 		if err != nil {
 			return err
 		}
-		app.DistrKeeper.Hooks().BeforeDelegationCreated(ctx, delAddr, valAddr)
-		app.DistrKeeper.Hooks().AfterDelegationModified(ctx, delAddr, valAddr)
+		app.DistrKeeper.Hooks().BeforeDelegationCreated(ctx, delAddr, valAddr) //nolint:errcheck // err is always nil
+		app.DistrKeeper.Hooks().AfterDelegationModified(ctx, delAddr, valAddr) //nolint:errcheck // err is always nil
 	}
 
 	// reset context height

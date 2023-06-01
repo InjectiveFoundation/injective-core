@@ -25,6 +25,23 @@ func (k *Keeper) WasmxParams(c context.Context, _ *types.QueryWasmxParamsRequest
 	return res, nil
 }
 
+func (k *Keeper) ContractRegistrationInfo(c context.Context, req *types.QueryContractRegistrationInfoRequest) (*types.QueryContractRegistrationInfoResponse, error) {
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+
+	ctx := sdk.UnwrapSDKContext(c)
+
+	contract, err := sdk.AccAddressFromBech32(req.ContractAddress)
+
+	if err != nil {
+		return nil, types.ErrInvalidContractAddress
+	}
+
+	res := &types.QueryContractRegistrationInfoResponse{
+		Contract: k.GetContractByAddress(ctx, contract),
+	}
+	return res, nil
+}
+
 func (k *Keeper) WasmxModuleState(c context.Context, _ *types.QueryModuleStateRequest) (*types.QueryModuleStateResponse, error) {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 

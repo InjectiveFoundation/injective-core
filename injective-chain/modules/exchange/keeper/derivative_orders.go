@@ -3,10 +3,10 @@ package keeper
 import (
 	"sort"
 
+	"cosmossdk.io/errors"
 	"github.com/cosmos/cosmos-sdk/store/prefix"
 	storetypes "github.com/cosmos/cosmos-sdk/store/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/InjectiveLabs/metrics"
@@ -202,7 +202,7 @@ func (k *Keeper) CancelRestingDerivativeLimitOrder(
 	if order == nil {
 		k.Logger(ctx).Debug("Resting Derivative Limit Order doesn't exist to cancel", "marketId", marketID, "subaccountID", subaccountID, "orderHash", orderHash)
 		metrics.ReportFuncError(k.svcTags)
-		return sdkerrors.Wrap(types.ErrOrderDoesntExist, "Derivative Limit Order doesn't exist")
+		return errors.Wrap(types.ErrOrderDoesntExist, "Derivative Limit Order doesn't exist")
 	}
 
 	// skip cancelling limit orders if their type shouldn't be cancelled
@@ -739,6 +739,34 @@ func (k *Keeper) GetAllTraderDerivativeLimitOrders(
 	return orders
 }
 
+func (k *Keeper) GetDerivativeLimitOrdersByAddress(
+	ctx sdk.Context,
+	marketID common.Hash,
+	accountAddress sdk.AccAddress,
+) []*types.TrimmedDerivativeLimitOrder {
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+
+	orders := make([]*types.TrimmedDerivativeLimitOrder, 0)
+
+	store := k.getStore(ctx)
+	ordersStore := prefix.NewStore(store, types.DerivativeLimitOrdersPrefix)
+
+	appendOrder := func(orderKey []byte) (stop bool) {
+		// Fetch Limit Order from ordersStore
+		bz := ordersStore.Get(orderKey)
+		// Unmarshal order
+		var order types.DerivativeLimitOrder
+		k.cdc.MustUnmarshal(bz, &order)
+
+		orders = append(orders, order.ToTrimmed())
+		return false
+	}
+
+	k.IterateDerivativeLimitOrdersByAddress(ctx, marketID, true, accountAddress, appendOrder)
+	k.IterateDerivativeLimitOrdersByAddress(ctx, marketID, false, accountAddress, appendOrder)
+	return orders
+}
+
 // GetDerivativeOrdersToCancelUpToAmount returns the Derivative orders to cancel up to a given amount
 func GetDerivativeOrdersToCancelUpToAmount(
 	market *types.DerivativeMarket,
@@ -795,6 +823,34 @@ func (k *Keeper) IterateDerivativeLimitOrdersBySubaccount(
 
 	store := k.getStore(ctx)
 	orderIndexStore := prefix.NewStore(store, types.GetDerivativeLimitOrderIndexPrefix(marketID, isBuy, subaccountID))
+	var iterator storetypes.Iterator
+	if isBuy {
+		iterator = orderIndexStore.ReverseIterator(nil, nil)
+	} else {
+		iterator = orderIndexStore.Iterator(nil, nil)
+	}
+	defer iterator.Close()
+
+	for ; iterator.Valid(); iterator.Next() {
+		orderKeyBz := iterator.Value()
+		if process(orderKeyBz) {
+			return
+		}
+	}
+}
+
+// IterateDerivativeLimitOrdersByAddress iterates over the derivative limits order index for a given account address and marketID and direction
+func (k *Keeper) IterateDerivativeLimitOrdersByAddress(
+	ctx sdk.Context,
+	marketID common.Hash,
+	isBuy bool,
+	accountAddress sdk.AccAddress,
+	process func(orderKey []byte) (stop bool),
+) {
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+
+	store := k.getStore(ctx)
+	orderIndexStore := prefix.NewStore(store, types.GetDerivativeLimitOrderIndexByAccountAddressPrefix(marketID, isBuy, accountAddress))
 	var iterator storetypes.Iterator
 	if isBuy {
 		iterator = orderIndexStore.ReverseIterator(nil, nil)

@@ -2,11 +2,14 @@ package wasmbinding
 
 import (
 	"encoding/json"
+	"fmt"
 
+	"cosmossdk.io/errors"
 	wasmvmtypes "github.com/CosmWasm/wasmvm/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	bankkeeper "github.com/cosmos/cosmos-sdk/x/bank/keeper"
+	"github.com/cosmos/cosmos-sdk/x/feegrant"
 	"github.com/ethereum/go-ethereum/common"
 
 	wasmxkeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/keeper"
@@ -19,12 +22,14 @@ import (
 	tokenfactorykeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/tokenfactory/keeper"
 	tokenfactorytypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/tokenfactory/types"
 	"github.com/InjectiveLabs/injective-core/injective-chain/wasmbinding/bindings"
+	feegrantkeeper "github.com/cosmos/cosmos-sdk/x/feegrant/keeper"
 )
 
 type QueryPlugin struct {
-	exchangeKeeper     *exchangekeeper.Keeper
-	oracleKeeper       *oraclekeeper.Keeper
 	bankKeeper         *bankkeeper.BaseKeeper
+	exchangeKeeper     *exchangekeeper.Keeper
+	feegrantKeeper     *feegrantkeeper.Keeper
+	oracleKeeper       *oraclekeeper.Keeper
 	tokenFactoryKeeper *tokenfactorykeeper.Keeper
 	wasmxKeeper        *wasmxkeeper.Keeper
 }
@@ -36,11 +41,13 @@ func NewQueryPlugin(
 	bk *bankkeeper.BaseKeeper,
 	tfk *tokenfactorykeeper.Keeper,
 	wk *wasmxkeeper.Keeper,
+	fgk *feegrantkeeper.Keeper,
 ) *QueryPlugin {
 	return &QueryPlugin{
-		exchangeKeeper:     ek,
-		oracleKeeper:       ok,
 		bankKeeper:         bk,
+		exchangeKeeper:     ek,
+		feegrantKeeper:     fgk,
+		oracleKeeper:       ok,
 		tokenFactoryKeeper: tfk,
 		wasmxKeeper:        wk,
 	}
@@ -49,7 +56,7 @@ func NewQueryPlugin(
 func (qp QueryPlugin) HandleOracleQuery(ctx sdk.Context, queryData json.RawMessage) ([]byte, error) {
 	var query bindings.OracleQuery
 	if err := json.Unmarshal(queryData, &query); err != nil {
-		return nil, sdkerrors.Wrap(err, "Error parsing Injective OracleQuery")
+		return nil, errors.Wrap(err, "Error parsing Injective OracleQuery")
 	}
 
 	var bz []byte
@@ -72,21 +79,37 @@ func (qp QueryPlugin) HandleOracleQuery(ctx sdk.Context, queryData json.RawMessa
 			return nil, wasmvmtypes.UnsupportedRequest{Kind: "provider oracle is not supported"}
 		}
 
-		price := qp.oracleKeeper.GetPrice(ctx, req.GetOracleType(), req.GetBase(), req.GetQuote())
+		pricePairState := qp.oracleKeeper.GetPricePairState(ctx, req.GetOracleType(), req.GetBase(), req.GetQuote())
 
-		if price == nil {
+		if pricePairState == nil {
 			return nil, oracletypes.ErrOraclePriceNotFound
 		}
 
-		bz, err = json.Marshal(oracletypes.PriceFeedPrice{
-			Price: *price,
+		bz, err = json.Marshal(oracletypes.QueryOraclePriceResponse{
+			PricePairState: pricePairState,
+		})
+	case query.PythPrice != nil:
+		req := query.PythPrice
+
+		if !exchangetypes.IsHexHash(req.PriceId) {
+			return nil, errors.Wrap(err, "Error invalid price_id")
+		}
+
+		pythPriceState := qp.oracleKeeper.GetPythPriceState(ctx, common.HexToHash(req.PriceId))
+
+		if pythPriceState == nil {
+			return nil, oracletypes.ErrOraclePriceNotFound
+		}
+
+		bz, err = json.Marshal(oracletypes.QueryPythPriceResponse{
+			PriceState: pythPriceState,
 		})
 	default:
-		return nil, wasmvmtypes.UnsupportedRequest{Kind: "unknown oracle query variant"}
+		return nil, wasmvmtypes.UnsupportedRequest{Kind: fmt.Sprintf("unknown oracle query variant: %+v", string(queryData))}
 	}
 
 	if err != nil {
-		return nil, sdkerrors.Wrap(sdkerrors.ErrJSONMarshal, err.Error())
+		return nil, errors.Wrap(sdkerrors.ErrJSONMarshal, err.Error())
 	}
 
 	return bz, nil
@@ -95,7 +118,7 @@ func (qp QueryPlugin) HandleOracleQuery(ctx sdk.Context, queryData json.RawMessa
 func (qp QueryPlugin) HandleExchangeQuery(ctx sdk.Context, queryData json.RawMessage) ([]byte, error) {
 	var query bindings.ExchangeQuery
 	if err := json.Unmarshal(queryData, &query); err != nil {
-		return nil, sdkerrors.Wrap(err, "Error parsing Injective ExchangeQuery")
+		return nil, errors.Wrap(err, "Error parsing Injective ExchangeQuery")
 	}
 
 	var bz []byte
@@ -228,27 +251,40 @@ func (qp QueryPlugin) HandleExchangeQuery(ctx sdk.Context, queryData json.RawMes
 		req := query.SpotOrderbook
 		marketID := common.HexToHash(req.MarketId)
 
-		limit := req.Limit
-		if limit == 0 {
-			limit = exchangetypes.DefaultQueryOrderbookLimit
+		var limit *uint64
+		if req.Limit > 0 {
+			limit = &req.Limit
+		} else if req.LimitCumulativeNotional == nil && req.LimitCumulativeQuantity == nil {
+			defaultLimit := exchangetypes.DefaultQueryOrderbookLimit
+			limit = &defaultLimit
 		}
-
+		buysLevels := make([]*exchangetypes.Level, 0)
+		if req.OrderSide == exchangetypes.OrderSide_Buy || req.OrderSide == exchangetypes.OrderSide_Side_Unspecified {
+			buysLevels = qp.exchangeKeeper.GetOrderbookPriceLevels(ctx, true, marketID, true, limit, req.LimitCumulativeNotional, req.LimitCumulativeQuantity)
+		}
+		sellLevels := make([]*exchangetypes.Level, 0)
+		if req.OrderSide == exchangetypes.OrderSide_Sell || req.OrderSide == exchangetypes.OrderSide_Side_Unspecified {
+			sellLevels = qp.exchangeKeeper.GetOrderbookPriceLevels(ctx, true, marketID, false, limit, req.LimitCumulativeNotional, req.LimitCumulativeQuantity)
+		}
 		bz, err = json.Marshal(exchangetypes.QuerySpotOrderbookResponse{
-			BuysPriceLevel:  qp.exchangeKeeper.GetOrderbookPriceLevels(ctx, true, marketID, true, &limit),
-			SellsPriceLevel: qp.exchangeKeeper.GetOrderbookPriceLevels(ctx, true, marketID, false, &limit),
+			BuysPriceLevel:  buysLevels,
+			SellsPriceLevel: sellLevels,
 		})
 	case query.DerivativeOrderbook != nil:
 		req := query.DerivativeOrderbook
 		marketID := common.HexToHash(req.MarketId)
 
-		limit := req.Limit
-		if limit == 0 {
-			limit = exchangetypes.DefaultQueryOrderbookLimit
+		var limit *uint64
+		if req.Limit > 0 {
+			limit = &req.Limit
+		} else if req.LimitCumulativeNotional == nil {
+			defaultLimit := exchangetypes.DefaultQueryOrderbookLimit
+			limit = &defaultLimit
 		}
 
 		bz, err = json.Marshal(exchangetypes.QueryDerivativeOrderbookResponse{
-			BuysPriceLevel:  qp.exchangeKeeper.GetOrderbookPriceLevels(ctx, false, marketID, true, &limit),
-			SellsPriceLevel: qp.exchangeKeeper.GetOrderbookPriceLevels(ctx, false, marketID, false, &limit),
+			BuysPriceLevel:  qp.exchangeKeeper.GetOrderbookPriceLevels(ctx, false, marketID, true, limit, req.LimitCumulativeNotional, nil),
+			SellsPriceLevel: qp.exchangeKeeper.GetOrderbookPriceLevels(ctx, false, marketID, false, limit, req.LimitCumulativeNotional, nil),
 		})
 	case query.TraderTransientDerivativeOrders != nil:
 		marketId := common.HexToHash(query.TraderTransientDerivativeOrders.MarketId)
@@ -320,7 +356,7 @@ func (qp QueryPlugin) HandleExchangeQuery(ctx sdk.Context, queryData json.RawMes
 	case query.MarketAtomicExecutionFeeMultiplier != nil:
 		req := query.MarketAtomicExecutionFeeMultiplier
 		marketID := common.HexToHash(req.MarketId)
-		marketType, err := qp.exchangeKeeper.GetMarketType(ctx, marketID)
+		marketType, err := qp.exchangeKeeper.GetMarketType(ctx, marketID, true)
 		if err != nil {
 			return nil, err
 		}
@@ -374,7 +410,7 @@ func (qp QueryPlugin) HandleExchangeQuery(ctx sdk.Context, queryData json.RawMes
 	}
 
 	if err != nil {
-		return nil, sdkerrors.Wrap(sdkerrors.ErrJSONMarshal, err.Error())
+		return nil, errors.Wrap(sdkerrors.ErrJSONMarshal, err.Error())
 	}
 
 	return bz, nil
@@ -383,7 +419,7 @@ func (qp QueryPlugin) HandleExchangeQuery(ctx sdk.Context, queryData json.RawMes
 func (qp QueryPlugin) HandleTokenFactoryQuery(ctx sdk.Context, queryData json.RawMessage) ([]byte, error) {
 	var query bindings.TokenfactoryQuery
 	if err := json.Unmarshal(queryData, &query); err != nil {
-		return nil, sdkerrors.Wrap(err, "Error parsing Injective TokenfactoryQuery")
+		return nil, errors.Wrap(err, "Error parsing Injective TokenfactoryQuery")
 	}
 
 	var bz []byte
@@ -415,7 +451,7 @@ func (qp QueryPlugin) HandleTokenFactoryQuery(ctx sdk.Context, queryData json.Ra
 	}
 
 	if err != nil {
-		return nil, sdkerrors.Wrap(sdkerrors.ErrJSONMarshal, err.Error())
+		return nil, errors.Wrap(sdkerrors.ErrJSONMarshal, err.Error())
 	}
 
 	return bz, nil
@@ -424,7 +460,7 @@ func (qp QueryPlugin) HandleTokenFactoryQuery(ctx sdk.Context, queryData json.Ra
 func (qp QueryPlugin) HandleWasmxQuery(ctx sdk.Context, queryData json.RawMessage) ([]byte, error) {
 	var query bindings.WasmxQuery
 	if err := json.Unmarshal(queryData, &query); err != nil {
-		return nil, sdkerrors.Wrap(err, "Error parsing Injective WasmxQuery")
+		return nil, errors.Wrap(err, "Error parsing Injective WasmxQuery")
 	}
 
 	var bz []byte
@@ -435,7 +471,7 @@ func (qp QueryPlugin) HandleWasmxQuery(ctx sdk.Context, queryData json.RawMessag
 		var contractAddress sdk.AccAddress
 		contractAddress, err = sdk.AccAddressFromBech32(query.RegisteredContractInfo.ContractAddress)
 		if err != nil {
-			return nil, sdkerrors.Wrap(err, "Error parsing contract address")
+			return nil, errors.Wrap(err, "Error parsing contract address")
 		}
 
 		contract := qp.wasmxKeeper.GetContractByAddress(ctx, contractAddress)
@@ -445,7 +481,52 @@ func (qp QueryPlugin) HandleWasmxQuery(ctx sdk.Context, queryData json.RawMessag
 	}
 
 	if err != nil {
-		return nil, sdkerrors.Wrap(sdkerrors.ErrJSONMarshal, err.Error())
+		return nil, errors.Wrap(sdkerrors.ErrJSONMarshal, err.Error())
+	}
+
+	return bz, nil
+}
+
+func (qp QueryPlugin) HandleFeeGrantQuery(ctx sdk.Context, queryData json.RawMessage) ([]byte, error) {
+	var query bindings.FeeGrantQuery
+	if err := json.Unmarshal(queryData, &query); err != nil {
+		return nil, errors.Wrap(err, "Error parsing Injective WasmxQuery")
+	}
+
+	var bz []byte
+	var err error
+
+	switch {
+	case query.Allowance != nil:
+		var allowance *feegrant.QueryAllowanceResponse
+		allowance, err = qp.feegrantKeeper.Allowance(ctx, query.Allowance)
+		if err != nil {
+			return nil, errors.Wrap(err, "Error retrieving allowance")
+		}
+
+		bz, err = json.Marshal(allowance)
+	case query.Allowances != nil:
+		var allowances *feegrant.QueryAllowancesResponse
+		allowances, err = qp.feegrantKeeper.Allowances(ctx, query.Allowances)
+		if err != nil {
+			return nil, errors.Wrap(err, "Error retrieving allowances")
+		}
+
+		bz, err = json.Marshal(allowances)
+	case query.AllowancesByGranter != nil:
+		var allowancesByGranter *feegrant.QueryAllowancesByGranterResponse
+		allowancesByGranter, err = qp.feegrantKeeper.AllowancesByGranter(ctx, query.AllowancesByGranter)
+		if err != nil {
+			return nil, errors.Wrap(err, "Error retrieving allowances by granter")
+		}
+
+		bz, err = json.Marshal(allowancesByGranter)
+	default:
+		return nil, wasmvmtypes.UnsupportedRequest{Kind: "unknown feegrant query variant"}
+	}
+
+	if err != nil {
+		return nil, errors.Wrap(sdkerrors.ErrJSONMarshal, err.Error())
 	}
 
 	return bz, nil

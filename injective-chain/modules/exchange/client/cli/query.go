@@ -44,8 +44,11 @@ func GetAllSpotMarkets() *cobra.Command {
 		types.NewQueryClient,
 		&types.QuerySpotMarketsRequest{
 			Status: "Active",
-		}, cli.FlagsMapping{}, cli.ArgsMapping{})
+		}, cli.FlagsMapping{
+			"MarketIds": cli.Flag{Flag: FlagMarketIDs},
+		}, cli.ArgsMapping{})
 	cmd.Long = "Gets all active spot markets. If the height is not provided, it will use the latest height from context."
+	cmd.Flags().String(FlagMarketIDs, "", "filter by market IDs, comma-separated")
 	return cmd
 }
 

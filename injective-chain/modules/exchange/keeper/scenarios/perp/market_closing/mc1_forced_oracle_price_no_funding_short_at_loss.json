@@ -2,10 +2,17 @@
   "numAccounts": 2,
   "numDerivativeMarkets": 1,
   "seed": 1658339268842048000,
+  "config": {
+    "perpMarkets": [
+      {
+        "oracleScaleFactor": 2
+      }
+    ]
+  },
   "actions": [
     {
       "actionType": "priceOracle",
-      "perpsPrices": [100]
+      "perpsPrices": [1]
     },
     {
       "actionType": "endblocker"
@@ -103,7 +110,7 @@
     },
     {
       "actionType": "priceOracle",
-      "perpsPrices": [120]
+      "perpsPrices": [1.2]
     },
     {
       "actionType": "forcedSettlement",

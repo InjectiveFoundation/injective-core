@@ -201,6 +201,34 @@ func (k *Keeper) GetAllTraderSpotLimitOrders(
 	return orders
 }
 
+func (k *Keeper) GetAccountAddressSpotLimitOrders(
+	ctx sdk.Context,
+	marketID common.Hash,
+	accountAddress sdk.AccAddress,
+) []*types.TrimmedSpotLimitOrder {
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+
+	orders := make([]*types.TrimmedSpotLimitOrder, 0)
+
+	store := k.getStore(ctx)
+	ordersStore := prefix.NewStore(store, types.SpotLimitOrdersPrefix)
+
+	appendOrder := func(orderKey []byte) (stop bool) {
+		// Fetch Limit Order from ordersStore
+		bz := ordersStore.Get(orderKey)
+		// Unmarshal order
+		var order types.SpotLimitOrder
+		k.cdc.MustUnmarshal(bz, &order)
+
+		orders = append(orders, order.ToTrimmed())
+		return false
+	}
+
+	k.IterateSpotLimitOrdersByAccountAddress(ctx, marketID, true, accountAddress, appendOrder)
+	k.IterateSpotLimitOrdersByAccountAddress(ctx, marketID, false, accountAddress, appendOrder)
+	return orders
+}
+
 // GetSpotOrdersToCancelUpToAmount returns the spot orders to cancel up to a given amount
 func GetSpotOrdersToCancelUpToAmount(
 	market *types.SpotMarket,
@@ -268,6 +296,34 @@ func (k *Keeper) IterateSpotLimitOrdersBySubaccount(
 
 	store := k.getStore(ctx)
 	orderIndexStore := prefix.NewStore(store, types.GetSpotLimitOrderIndexPrefix(marketID, isBuy, subaccountID))
+	var iterator storetypes.Iterator
+	if isBuy {
+		iterator = orderIndexStore.ReverseIterator(nil, nil)
+	} else {
+		iterator = orderIndexStore.Iterator(nil, nil)
+	}
+	defer iterator.Close()
+
+	for ; iterator.Valid(); iterator.Next() {
+		orderKeyBz := iterator.Value()
+		if process(orderKeyBz) {
+			return
+		}
+	}
+}
+
+// IterateSpotLimitOrdersByAccountAddress iterates over the spot limits order index for a given account address and marketID and direction
+func (k *Keeper) IterateSpotLimitOrdersByAccountAddress(
+	ctx sdk.Context,
+	marketID common.Hash,
+	isBuy bool,
+	accountAddress sdk.AccAddress,
+	process func(orderKey []byte) (stop bool),
+) {
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+
+	store := k.getStore(ctx)
+	orderIndexStore := prefix.NewStore(store, types.GetSpotLimitOrderIndexByAccountAddressPrefix(marketID, isBuy, accountAddress))
 	var iterator storetypes.Iterator
 	if isBuy {
 		iterator = orderIndexStore.ReverseIterator(nil, nil)

@@ -2,6 +2,8 @@ package keeper
 
 import (
 	"context"
+	"cosmossdk.io/errors"
+	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
 
 	"github.com/ethereum/go-ethereum/common"
 
@@ -10,6 +12,8 @@ import (
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/insurance/types"
 )
+
+var _ types.MsgServer = msgServer{}
 
 type msgServer struct {
 	Keeper
@@ -27,7 +31,21 @@ func NewMsgServerImpl(keeper Keeper) types.MsgServer {
 	}
 }
 
-var _ types.MsgServer = msgServer{}
+func (k msgServer) UpdateParams(c context.Context, msg *types.MsgUpdateParams) (*types.MsgUpdateParamsResponse, error) {
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+
+	if msg.Authority != k.authority {
+		return nil, errors.Wrapf(govtypes.ErrInvalidSigner, "invalid authority: expected %s, got %s", k.authority, msg.Authority)
+	}
+
+	if err := msg.Params.Validate(); err != nil {
+		return nil, err
+	}
+
+	k.SetParams(sdk.UnwrapSDKContext(c), msg.Params)
+
+	return &types.MsgUpdateParamsResponse{}, nil
+}
 
 // CreateInsuranceFund is wrapper of keeper.CreateInsuranceFund
 func (k msgServer) CreateInsuranceFund(goCtx context.Context, msg *types.MsgCreateInsuranceFund) (*types.MsgCreateInsuranceFundResponse, error) {

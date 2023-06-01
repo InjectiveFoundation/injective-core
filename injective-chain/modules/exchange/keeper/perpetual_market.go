@@ -1,9 +1,9 @@
 package keeper
 
 import (
+	"cosmossdk.io/errors"
 	"github.com/cosmos/cosmos-sdk/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/InjectiveLabs/metrics"
@@ -29,21 +29,21 @@ func (k *Keeper) PerpetualMarketLaunch(
 
 	if !k.IsDenomValid(ctx, quoteDenom) {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, nil, sdkerrors.Wrapf(types.ErrInvalidQuoteDenom, "denom %s does not exist in supply", quoteDenom)
+		return nil, nil, errors.Wrapf(types.ErrInvalidQuoteDenom, "denom %s does not exist in supply", quoteDenom)
 	}
 
 	marketID := types.NewPerpetualMarketID(ticker, quoteDenom, oracleBase, oracleQuote, oracleType)
 
 	if k.HasDerivativeMarket(ctx, marketID, true) || k.HasDerivativeMarket(ctx, marketID, false) {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, nil, sdkerrors.Wrapf(types.ErrPerpetualMarketExists, "ticker %s quoteDenom %s", ticker, quoteDenom)
+		return nil, nil, errors.Wrapf(types.ErrPerpetualMarketExists, "ticker %s quoteDenom %s", ticker, quoteDenom)
 	}
 
 	if oracleType == oracletypes.OracleType_BandIBC {
 		nonIBCBandMarketID := types.NewPerpetualMarketID(ticker, quoteDenom, oracleBase, oracleQuote, oracletypes.OracleType_Band)
 		if k.HasDerivativeMarket(ctx, nonIBCBandMarketID, true) || k.HasDerivativeMarket(ctx, nonIBCBandMarketID, false) {
 			metrics.ReportFuncError(k.svcTags)
-			return nil, nil, sdkerrors.Wrapf(types.ErrPerpetualMarketExists, "marketID %s with a promoted Band IBC oracle already exists ticker %s quoteDenom %s", nonIBCBandMarketID.Hex(), ticker, quoteDenom)
+			return nil, nil, errors.Wrapf(types.ErrPerpetualMarketExists, "marketID %s with a promoted Band IBC oracle already exists ticker %s quoteDenom %s", nonIBCBandMarketID.Hex(), ticker, quoteDenom)
 		}
 	}
 
@@ -55,7 +55,7 @@ func (k *Keeper) PerpetualMarketLaunch(
 
 	if !k.insuranceKeeper.HasInsuranceFund(ctx, marketID) {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, nil, sdkerrors.Wrapf(insurancetypes.ErrInsuranceFundNotFound, "ticker %s marketID %s", ticker, marketID.Hex())
+		return nil, nil, errors.Wrapf(insurancetypes.ErrInsuranceFundNotFound, "ticker %s marketID %s", ticker, marketID.Hex())
 	}
 
 	params := k.GetParams(ctx)

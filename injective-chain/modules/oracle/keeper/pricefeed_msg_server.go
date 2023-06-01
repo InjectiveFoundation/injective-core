@@ -3,8 +3,8 @@ package keeper
 import (
 	"context"
 
+	"cosmossdk.io/errors"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 
 	"github.com/InjectiveLabs/metrics"
 
@@ -38,7 +38,7 @@ func (k PricefeedMsgServer) RelayPriceFeedPrice(goCtx context.Context, msg *type
 		base, quote, price := msg.Base[idx], msg.Quote[idx], msg.Price[idx]
 		if !k.IsPriceFeedRelayer(ctx, base, quote, relayer) {
 			metrics.ReportFuncError(k.svcTags)
-			return nil, sdkerrors.Wrapf(types.ErrRelayerNotAuthorized, "base %s quote %s relayer %s", base, quote, relayer.String())
+			return nil, errors.Wrapf(types.ErrRelayerNotAuthorized, "base %s quote %s relayer %s", base, quote, relayer.String())
 		}
 
 		k.SetPriceFeedInfo(ctx, &types.PriceFeedInfo{Base: base, Quote: quote})

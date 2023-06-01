@@ -1,47 +1,45 @@
 package keeper
 
 import (
+	wasmkeeper "github.com/CosmWasm/wasmd/x/wasm/keeper"
+	"github.com/InjectiveLabs/metrics"
+	"github.com/cometbft/cometbft/libs/log"
 	"github.com/cosmos/cosmos-sdk/baseapp"
 	"github.com/cosmos/cosmos-sdk/codec"
+	storetypes "github.com/cosmos/cosmos-sdk/store/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authkeeper "github.com/cosmos/cosmos-sdk/x/auth/keeper"
 	bankkeeper "github.com/cosmos/cosmos-sdk/x/bank/keeper"
-	paramtypes "github.com/cosmos/cosmos-sdk/x/params/types"
-	"github.com/tendermint/tendermint/libs/log"
-
-	"github.com/InjectiveLabs/metrics"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 )
 
 // Keeper of this module maintains collections of exchange.
 type Keeper struct {
-	storeKey   sdk.StoreKey
-	tStoreKey  sdk.StoreKey
-	cdc        codec.BinaryCodec
-	paramSpace paramtypes.Subspace
-	router     *baseapp.MsgServiceRouter
+	storeKey  storetypes.StoreKey
+	tStoreKey storetypes.StoreKey
+	cdc       codec.BinaryCodec
+	router    *baseapp.MsgServiceRouter
 
-	DistributionKeeper    types.DistributionKeeper
-	StakingKeeper         types.StakingKeeper
-	AccountKeeper         authkeeper.AccountKeeper
-	bankKeeper            bankkeeper.Keeper
-	OracleKeeper          types.OracleKeeper
-	insuranceKeeper       types.InsuranceKeeper
-	govKeeper             types.GovKeeper
-	wasmViewKeeper        types.WasmViewKeeper
-	wasmContractOpsKeeper types.WasmContractOpsKeeper
-	wasmxExecutionKeeper  types.WasmxExecutionKeeper
+	DistributionKeeper   types.DistributionKeeper
+	StakingKeeper        types.StakingKeeper
+	AccountKeeper        authkeeper.AccountKeeper
+	bankKeeper           bankkeeper.Keeper
+	OracleKeeper         types.OracleKeeper
+	insuranceKeeper      types.InsuranceKeeper
+	govKeeper            types.GovKeeper
+	wasmViewKeeper       types.WasmViewKeeper
+	wasmxExecutionKeeper types.WasmxExecutionKeeper
 
-	svcTags metrics.Tags
+	svcTags   metrics.Tags
+	authority string
 }
 
 // NewKeeper creates new instances of the exchange Keeper
 func NewKeeper(
 	cdc codec.BinaryCodec,
-	storeKey sdk.StoreKey,
-	tstoreKey sdk.StoreKey,
-	paramSpace paramtypes.Subspace,
+	storeKey storetypes.StoreKey,
+	tstoreKey storetypes.StoreKey,
 	ak authkeeper.AccountKeeper,
 	bk bankkeeper.Keeper,
 	ok types.OracleKeeper,
@@ -49,29 +47,23 @@ func NewKeeper(
 	dk types.DistributionKeeper,
 	sk types.StakingKeeper,
 	router *baseapp.MsgServiceRouter,
+	authority string,
 ) Keeper {
-
-	// set KeyTable if it has not already been set
-	if !paramSpace.HasKeyTable() {
-		paramSpace = paramSpace.WithKeyTable(types.ParamKeyTable())
-	}
-
 	return Keeper{
+		cdc:                cdc,
+		storeKey:           storeKey,
+		tStoreKey:          tstoreKey,
+		router:             router,
+		AccountKeeper:      ak,
+		OracleKeeper:       ok,
+		DistributionKeeper: dk,
+		StakingKeeper:      sk,
+		bankKeeper:         bk,
+		insuranceKeeper:    ik,
+		authority:          authority,
 		svcTags: metrics.Tags{
 			"svc": "exchange_k",
 		},
-		paramSpace: paramSpace,
-		router:     router,
-
-		storeKey:           storeKey,
-		tStoreKey:          tstoreKey,
-		cdc:                cdc,
-		AccountKeeper:      ak,
-		bankKeeper:         bk,
-		OracleKeeper:       ok,
-		insuranceKeeper:    ik,
-		DistributionKeeper: dk,
-		StakingKeeper:      sk,
 	}
 }
 
@@ -84,12 +76,10 @@ func (k *Keeper) SetGovKeeper(gk types.GovKeeper) {
 }
 
 func (k *Keeper) SetWasmKeepers(
-	wvk types.WasmViewKeeper,
-	wck types.WasmContractOpsKeeper,
+	wk wasmkeeper.Keeper,
 	wxk types.WasmxExecutionKeeper,
 ) {
-	k.wasmViewKeeper = wvk
-	k.wasmContractOpsKeeper = wck
+	k.wasmViewKeeper = types.WasmViewKeeper(wk)
 	k.wasmxExecutionKeeper = wxk
 }
 

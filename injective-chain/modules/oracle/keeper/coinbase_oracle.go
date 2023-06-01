@@ -1,9 +1,9 @@
 package keeper
 
 import (
+	"cosmossdk.io/errors"
 	"github.com/cosmos/cosmos-sdk/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 
 	"github.com/InjectiveLabs/metrics"
 
@@ -34,6 +34,10 @@ func (k *Keeper) GetCoinbasePrice(ctx sdk.Context, base, quote string) *sdk.Dec 
 
 	price := basePrice.Quo(*quotePrice)
 	return &price
+}
+
+func (k *Keeper) GetCoinbasePriceState(ctx sdk.Context, key string) *types.CoinbasePriceState {
+	return k.getLastCoinbasePriceState(ctx, key)
 }
 
 // HasCoinbasePriceState checks whether a price state exists for a given coinbase price key.
@@ -82,7 +86,7 @@ func (k *Keeper) SetCoinbasePriceState(ctx sdk.Context, priceData *types.Coinbas
 			return nil
 		} else if lastPriceData.Timestamp > priceData.Timestamp {
 			metrics.ReportFuncError(k.svcTags)
-			return sdkerrors.Wrapf(types.ErrBadCoinbaseMessageTimestamp, "existing price data timestamp is %d but got %d", lastPriceData.Timestamp, priceData.Timestamp)
+			return errors.Wrapf(types.ErrBadCoinbaseMessageTimestamp, "existing price data timestamp is %d but got %d", lastPriceData.Timestamp, priceData.Timestamp)
 		}
 	}
 

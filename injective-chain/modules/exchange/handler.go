@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"runtime/debug"
 
+	"cosmossdk.io/errors"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	log "github.com/xlab/suplog"
@@ -21,6 +22,10 @@ func NewHandler(k keeper.Keeper) sdk.Handler {
 
 		ctx = ctx.WithEventManager(sdk.NewEventManager())
 		switch msg := msg.(type) {
+		case *types.MsgUpdateParams:
+			res, err := msgServer.UpdateParams(sdk.WrapSDKContext(ctx), msg)
+			return sdk.WrapServiceResult(ctx, res, err)
+
 		case *types.MsgDeposit:
 			res, err := msgServer.Deposit(sdk.WrapSDKContext(ctx), msg)
 			return sdk.WrapServiceResult(ctx, res, err)
@@ -137,7 +142,7 @@ func NewHandler(k keeper.Keeper) sdk.Handler {
 			res, err := msgServer.AdminUpdateBinaryOptionsMarket(sdk.WrapSDKContext(ctx), msg)
 			return sdk.WrapServiceResult(ctx, res, err)
 		default:
-			return nil, sdkerrors.Wrap(sdkerrors.ErrUnknownRequest,
+			return nil, errors.Wrap(sdkerrors.ErrUnknownRequest,
 				fmt.Sprintf("Unrecognized exchange Msg type: %T", msg))
 		}
 	}
@@ -145,7 +150,7 @@ func NewHandler(k keeper.Keeper) sdk.Handler {
 
 func Recover(err *error) { // nolint:all
 	if r := recover(); r != nil {
-		*err = sdkerrors.Wrapf(sdkerrors.ErrPanic, "%v", r) // nolint:all
+		*err = errors.Wrapf(sdkerrors.ErrPanic, "%v", r) // nolint:all
 
 		if e, ok := r.(error); ok {
 			log.WithError(e).Errorln("exchange msg handler panicked with an error")

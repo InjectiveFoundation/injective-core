@@ -272,26 +272,26 @@ func (k *Keeper) SpotMarkets(c context.Context, req *types.QuerySpotMarketsReque
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(c)
-	m := k.GetAllSpotMarkets(ctx)
 
-	markets := make([]*types.SpotMarket, 0, len(m))
 	var status types.MarketStatus
 	if req.Status == "" {
 		status = types.MarketStatus_Active
 	} else {
 		status = types.MarketStatus(types.MarketStatus_value[req.Status])
 	}
-	if status != types.MarketStatus_Unspecified {
-		for _, market := range m {
-			if market.Status == status {
-				markets = append(markets, market)
-			}
-		}
-	}
 	res := &types.QuerySpotMarketsResponse{
-		Markets: markets,
+		Markets: []*types.SpotMarket{},
+	}
+	if status == types.MarketStatus_Unspecified {
+		return res, nil
 	}
 
+	filters := []SpotMarketFilter{StatusSpotMarketFilter(status)}
+	if ids := req.GetMarketIds(); len(ids) > 0 {
+		filters = append(filters, MarketIDSpotMarketFilter(ids...))
+	}
+
+	res.Markets = k.FindSpotMarkets(ctx, ChainSpotMarketFilter(filters...))
 	return res, nil
 }
 
@@ -314,20 +314,93 @@ func (k *Keeper) SpotMarket(c context.Context, req *types.QuerySpotMarketRequest
 	return res, nil
 }
 
+func (k *Keeper) FullSpotMarkets(c context.Context, req *types.QueryFullSpotMarketsRequest) (*types.QueryFullSpotMarketsResponse, error) {
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+
+	ctx := sdk.UnwrapSDKContext(c)
+
+	var status types.MarketStatus
+	if req.Status == "" {
+		status = types.MarketStatus_Active
+	} else {
+		status = types.MarketStatus(types.MarketStatus_value[req.Status])
+	}
+	res := &types.QueryFullSpotMarketsResponse{
+		Markets: []*types.FullSpotMarket{},
+	}
+	if status == types.MarketStatus_Unspecified {
+		return res, nil
+	}
+
+	filters := []SpotMarketFilter{StatusSpotMarketFilter(status)}
+	if ids := req.GetMarketIds(); len(ids) > 0 {
+		filters = append(filters, MarketIDSpotMarketFilter(ids...))
+	}
+
+	var fillers []FullSpotMarketFiller
+	if req.GetWithMidPriceAndTob() {
+		fillers = append(fillers, FullSpotMarketWithMidPriceToB(k))
+	}
+
+	res.Markets = k.FindFullSpotMarkets(ctx, ChainSpotMarketFilter(filters...), fillers...)
+	return res, nil
+}
+
+func (k *Keeper) FullSpotMarket(c context.Context, req *types.QueryFullSpotMarketRequest) (*types.QueryFullSpotMarketResponse, error) {
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+
+	ctx := sdk.UnwrapSDKContext(c)
+
+	marketID := common.HexToHash(req.MarketId)
+	market := k.GetSpotMarket(ctx, marketID, true)
+	if market == nil {
+		metrics.ReportFuncError(k.svcTags)
+		return nil, types.ErrSpotMarketNotFound
+	}
+
+	fullMarket := &types.FullSpotMarket{Market: market}
+	if req.GetWithMidPriceAndTob() {
+		FullSpotMarketWithMidPriceToB(k)(ctx, fullMarket)
+	}
+
+	res := &types.QueryFullSpotMarketResponse{
+		Market: fullMarket,
+	}
+
+	return res, nil
+}
+
 func (k *Keeper) SpotOrderbook(c context.Context, req *types.QuerySpotOrderbookRequest) (*types.QuerySpotOrderbookResponse, error) {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(c)
 
 	marketID := common.HexToHash(req.MarketId)
-	limit := req.Limit
-	if limit == 0 {
-		limit = types.DefaultQueryOrderbookLimit
+	var limit *uint64
+	if req.Limit > 0 {
+		limit = &req.Limit
+	} else if req.LimitCumulativeNotional == nil && req.LimitCumulativeQuantity == nil {
+		defaultLimit := types.DefaultQueryOrderbookLimit
+		limit = &defaultLimit
+	}
+
+	var buysPriceLevel []*types.Level
+	if req.OrderSide == types.OrderSide_Side_Unspecified || req.OrderSide == types.OrderSide_Buy {
+		buysPriceLevel = k.GetOrderbookPriceLevels(ctx, true, marketID, true, limit, req.LimitCumulativeNotional, req.LimitCumulativeQuantity)
+	} else {
+		buysPriceLevel = make([]*types.Level, 0)
+	}
+
+	var sellsPriceLevel []*types.Level
+	if req.OrderSide == types.OrderSide_Side_Unspecified || req.OrderSide == types.OrderSide_Sell {
+		sellsPriceLevel = k.GetOrderbookPriceLevels(ctx, true, marketID, false, limit, req.LimitCumulativeNotional, req.LimitCumulativeQuantity)
+	} else {
+		sellsPriceLevel = make([]*types.Level, 0)
 	}
 
 	res := &types.QuerySpotOrderbookResponse{
-		BuysPriceLevel:  k.GetOrderbookPriceLevels(ctx, true, marketID, true, &limit),
-		SellsPriceLevel: k.GetOrderbookPriceLevels(ctx, true, marketID, false, &limit),
+		BuysPriceLevel:  buysPriceLevel,
+		SellsPriceLevel: sellsPriceLevel,
 	}
 
 	return res, nil
@@ -393,6 +466,25 @@ func (k *Keeper) TraderSpotOrders(c context.Context, req *types.QueryTraderSpotO
 
 	res := &types.QueryTraderSpotOrdersResponse{
 		Orders: k.GetAllTraderSpotLimitOrders(ctx, marketID, subaccountID),
+	}
+
+	return res, nil
+}
+
+func (k *Keeper) AccountAddressSpotOrders(c context.Context, req *types.QueryAccountAddressSpotOrdersRequest) (*types.QueryAccountAddressSpotOrdersResponse, error) {
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+
+	ctx := sdk.UnwrapSDKContext(c)
+
+	marketID := common.HexToHash(req.MarketId)
+	accountAddress, err := sdk.AccAddressFromBech32(req.AccountAddress)
+	if err != nil {
+		metrics.ReportFuncError(k.svcTags)
+		return nil, types.ErrInvalidAddress
+	}
+
+	res := &types.QueryAccountAddressSpotOrdersResponse{
+		Orders: k.GetAccountAddressSpotLimitOrders(ctx, marketID, accountAddress),
 	}
 
 	return res, nil
@@ -526,14 +618,16 @@ func (k *Keeper) DerivativeOrderbook(c context.Context, req *types.QueryDerivati
 	ctx := sdk.UnwrapSDKContext(c)
 
 	marketID := common.HexToHash(req.MarketId)
-	limit := req.Limit
-	if limit == 0 {
-		limit = types.DefaultQueryOrderbookLimit
+	var limit *uint64
+	if req.Limit > 0 {
+		limit = &req.Limit
+	} else if req.LimitCumulativeNotional == nil {
+		defaultLimit := types.DefaultQueryOrderbookLimit
+		limit = &defaultLimit
 	}
-
 	res := &types.QueryDerivativeOrderbookResponse{
-		BuysPriceLevel:  k.GetOrderbookPriceLevels(ctx, false, marketID, true, &limit),
-		SellsPriceLevel: k.GetOrderbookPriceLevels(ctx, false, marketID, false, &limit),
+		BuysPriceLevel:  k.GetOrderbookPriceLevels(ctx, false, marketID, true, limit, req.LimitCumulativeNotional, nil),
+		SellsPriceLevel: k.GetOrderbookPriceLevels(ctx, false, marketID, false, limit, req.LimitCumulativeNotional, nil),
 	}
 
 	return res, nil
@@ -549,6 +643,25 @@ func (k *Keeper) TraderDerivativeOrders(c context.Context, req *types.QueryTrade
 
 	res := &types.QueryTraderDerivativeOrdersResponse{
 		Orders: k.GetAllTraderDerivativeLimitOrders(ctx, marketID, subaccountID),
+	}
+
+	return res, nil
+}
+
+func (k *Keeper) AccountAddressDerivativeOrders(c context.Context, req *types.QueryAccountAddressDerivativeOrdersRequest) (*types.QueryAccountAddressDerivativeOrdersResponse, error) {
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+
+	ctx := sdk.UnwrapSDKContext(c)
+
+	marketID := common.HexToHash(req.MarketId)
+	accountAddress, err := sdk.AccAddressFromBech32(req.AccountAddress)
+	if err != nil {
+		metrics.ReportFuncError(k.svcTags)
+		return nil, types.ErrInvalidAddress
+	}
+
+	res := &types.QueryAccountAddressDerivativeOrdersResponse{
+		Orders: k.GetDerivativeLimitOrdersByAddress(ctx, marketID, accountAddress),
 	}
 
 	return res, nil
@@ -592,9 +705,6 @@ func (k *Keeper) DerivativeMarkets(c context.Context, req *types.QueryDerivative
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(c)
-	m := k.GetAllFullDerivativeMarkets(ctx)
-
-	markets := make([]*types.FullDerivativeMarket, 0, len(m))
 
 	var status types.MarketStatus
 	if req.Status == "" {
@@ -602,18 +712,24 @@ func (k *Keeper) DerivativeMarkets(c context.Context, req *types.QueryDerivative
 	} else {
 		status = types.MarketStatus(types.MarketStatus_value[req.Status])
 	}
-
-	if status != types.MarketStatus_Unspecified {
-		for _, market := range m {
-			if market.Market.Status == status {
-				markets = append(markets, market)
-			}
-		}
-	}
-
 	res := &types.QueryDerivativeMarketsResponse{
-		Markets: markets,
+		Markets: []*types.FullDerivativeMarket{},
 	}
+	if status == types.MarketStatus_Unspecified {
+		return res, nil
+	}
+
+	filters := []MarketFilter{StatusMarketFilter(status)}
+	if ids := req.GetMarketIds(); len(ids) > 0 {
+		filters = append(filters, MarketIDMarketFilter(ids...))
+	}
+
+	var fillers []FullDerivativeMarketFiller
+	if req.GetWithMidPriceAndTob() {
+		fillers = append(fillers, FullDerivativeMarketWithMidPriceToB(k))
+	}
+
+	res.Markets = k.FindFullDerivativeMarkets(ctx, ChainMarketFilter(filters...), fillers...)
 
 	return res, nil
 }
@@ -1223,7 +1339,7 @@ func (k *Keeper) QueryMarketIDFromVault(c context.Context, req *types.QueryMarke
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(c)
-	marketID, err := k.QueryMarketID(ctx, common.HexToHash(req.VaultSubaccountId))
+	marketID, err := k.QueryMarketID(ctx, req.VaultAddress)
 	if err != nil {
 		metrics.ReportFuncError(k.svcTags)
 		return nil, err
@@ -1286,7 +1402,7 @@ func (k *Keeper) MarketAtomicExecutionFeeMultiplier(c context.Context, req *type
 
 	ctx := sdk.UnwrapSDKContext(c)
 	marketID := common.HexToHash(req.MarketId)
-	marketType, err := k.GetMarketType(ctx, marketID)
+	marketType, err := k.GetMarketType(ctx, marketID, true)
 	if err != nil {
 		return nil, err
 	}

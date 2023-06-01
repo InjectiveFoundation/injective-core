@@ -7,14 +7,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	sdkmath "cosmossdk.io/math"
+
 	"github.com/cosmos/cosmos-sdk/client"
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/cosmos/gogoproto/grpc"
+	"github.com/cosmos/gogoproto/proto"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/gogo/protobuf/grpc"
-	"github.com/gogo/protobuf/proto"
 	"github.com/spf13/pflag"
+
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 )
 
 // parseNumFields returns number of zero fields in the struct that needs to be parsed from args
@@ -190,6 +193,13 @@ func parseFieldsFromFlagsAndArgs(msg proto.Message, flagsMap FlagsMapping, argsM
 
 func parseFieldFromString(fVal reflect.Value, fType reflect.StructField, val string) error {
 	switch fVal.Type().Kind() {
+	case reflect.Bool:
+		b, err := parseBool(val, fType.Name)
+		if err != nil {
+			return err
+		}
+		fVal.SetBool(b)
+		return nil
 	// SetUint allows anyof type u8, u16, u32, u64, and uint
 	case reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uint:
 		u, err := parseUint(val, fType.Name)
@@ -228,6 +238,11 @@ func parseFieldFromString(fVal reflect.Value, fType reflect.StructField, val str
 			fVal.Set(reflect.ValueOf(coins))
 			return nil
 		}
+		switch fVal.Type().Elem().Name() {
+		case "string":
+			fVal.Set(reflect.ValueOf(parseStrings(val)))
+			return nil
+		}
 	case reflect.Ptr:
 		fVal.Set(reflect.New(fVal.Type().Elem()))
 		return parseFieldFromString(fVal.Elem(), fType, val)
@@ -238,10 +253,10 @@ func parseFieldFromString(fVal reflect.Value, fType reflect.StructField, val str
 		switch typeStr {
 		case "types.Coin":
 			v, err = parseCoin(val, fType.Name)
-		case "types.Int":
+		case "math.Int":
 			v, err = parseSdkInt(val, fType.Name)
-		case "types.Dec":
-			v, err = parseSdkDec(val, fType.Name)
+		case "math.LegacyDec":
+			v, err = parseLegacyDec(val, fType.Name)
 		default:
 			return fmt.Errorf("struct field type not recognized. Got type %v", fType)
 		}
@@ -252,6 +267,17 @@ func parseFieldFromString(fVal reflect.Value, fType reflect.StructField, val str
 		return nil
 	}
 	return fmt.Errorf("field type not recognized. Got type %v", fType)
+}
+
+func parseBool(arg, fieldName string) (bool, error) {
+	switch strings.ToLower(strings.TrimSpace(arg)) {
+	case "true", "t", "1":
+		return true, nil
+	case "false", "f", "0":
+		return false, nil
+	default:
+		return false, fmt.Errorf("could not parse %s as bool for field %s", arg, fieldName)
+	}
 }
 
 func parseUint(arg, fieldName string) (uint64, error) {
@@ -290,18 +316,22 @@ func parseCoins(arg, fieldName string) (sdk.Coins, error) {
 	return coins, nil
 }
 
-func parseSdkInt(arg, fieldName string) (sdk.Int, error) {
+func parseStrings(arg string) []string {
+	return strings.Split(arg, ",")
+}
+
+func parseSdkInt(arg, fieldName string) (sdkmath.Int, error) {
 	i, ok := sdk.NewIntFromString(arg)
 	if !ok {
-		return sdk.Int{}, fmt.Errorf("could not parse %s as sdk.Int for field %s", arg, fieldName)
+		return sdkmath.Int{}, fmt.Errorf("could not parse %s as math.Int for field %s", arg, fieldName)
 	}
 	return i, nil
 }
 
-func parseSdkDec(arg, fieldName string) (sdk.Dec, error) {
+func parseLegacyDec(arg, fieldName string) (sdk.Dec, error) {
 	i, err := sdk.NewDecFromStr(arg)
 	if err != nil {
-		return sdk.Dec{}, fmt.Errorf("could not parse %s as sdk.Dec for field %s: %w", arg, fieldName, err)
+		return sdk.Dec{}, fmt.Errorf("could not parse %s as math.LegacyDec for field %s: %w", arg, fieldName, err)
 	}
 	return i, nil
 }
@@ -316,15 +346,21 @@ func isFilledFromCtx(fName string) bool {
 
 func isComplexValue(typeName string) bool {
 	switch typeName {
-	case "types.Coin", "types.Int", "types.Dec", "types.Any":
+	case "types.Coin",
+		"types.Any",
+		"math.LegacyDec",
+		"math.Int",
+		"math.Dec":
 		return true
 	}
 	return false
 }
 
-// isZeroNumber determines if sdk.Dec or sdk.Int has zero value
+// isZeroNumber determines if sdk.Dec or sdkmath.Int has zero value
 func isZeroNumber(field reflect.Value) bool {
-	if field.Type().String() == "types.Dec" || field.Type().String() == "types.Int" {
+	if field.Type().String() == "math.Dec" ||
+		field.Type().String() == "math.Int" ||
+		field.Type().String() == "math.LegacyDec" {
 		isNil := field.MethodByName("IsNil").Call([]reflect.Value{})[0].Bool()
 		if isNil {
 			return true

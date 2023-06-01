@@ -2,7 +2,9 @@ package ante
 
 import (
 	"fmt"
+	txtypes "github.com/cosmos/cosmos-sdk/types/tx"
 
+	"cosmossdk.io/errors"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	authante "github.com/cosmos/cosmos-sdk/x/auth/ante"
@@ -30,7 +32,7 @@ func NewDeductFeeDecorator(ak AccountKeeper, bk types.BankKeeper) DeductFeeDecor
 func (dfd DeductFeeDecorator) AnteHandle(ctx sdk.Context, tx sdk.Tx, simulate bool, next sdk.AnteHandler) (newCtx sdk.Context, err error) {
 	feeTx, ok := tx.(sdk.FeeTx)
 	if !ok {
-		return ctx, sdkerrors.Wrap(sdkerrors.ErrTxDecode, "Tx must be a FeeTx")
+		return ctx, errors.Wrap(sdkerrors.ErrTxDecode, "Tx must be a FeeTx")
 	}
 
 	if addr := dfd.ak.GetModuleAddress(types.FeeCollectorName); addr == nil {
@@ -42,14 +44,14 @@ func (dfd DeductFeeDecorator) AnteHandle(ctx sdk.Context, tx sdk.Tx, simulate bo
 
 	if txWithExtensions, ok := tx.(authante.HasExtensionOptionsTx); ok {
 		if opts := txWithExtensions.GetExtensionOptions(); len(opts) > 0 {
-			var optIface chaintypes.ExtensionOptionsWeb3TxI
+			var optIface txtypes.ExtensionOptionI
 			if err := chainTypesCodec.UnpackAny(opts[0], &optIface); err != nil {
-				return ctx, sdkerrors.Wrap(sdkerrors.ErrUnpackAny, "failed to proto-unpack ExtensionOptionsWeb3Tx")
+				return ctx, errors.Wrap(sdkerrors.ErrUnpackAny, "failed to proto-unpack ExtensionOptionsWeb3Tx")
 			} else if extOpt, ok := optIface.(*chaintypes.ExtensionOptionsWeb3Tx); ok {
 				if len(extOpt.FeePayer) > 0 {
 					feePayer, err = sdk.AccAddressFromBech32(extOpt.FeePayer)
 					if err != nil {
-						err = sdkerrors.Wrapf(sdkerrors.ErrInvalidAddress,
+						err = errors.Wrapf(sdkerrors.ErrInvalidAddress,
 							"failed to parse feePayer %s from ExtensionOptionsWeb3Tx", extOpt.FeePayer)
 						return ctx, err
 					}
@@ -66,7 +68,7 @@ func (dfd DeductFeeDecorator) AnteHandle(ctx sdk.Context, tx sdk.Tx, simulate bo
 
 	feePayerAcc := dfd.ak.GetAccount(ctx, feePayer)
 	if feePayerAcc == nil {
-		return ctx, sdkerrors.Wrapf(sdkerrors.ErrUnknownAddress, "fee payer address: %s does not exist", feePayer)
+		return ctx, errors.Wrapf(sdkerrors.ErrUnknownAddress, "fee payer address: %s does not exist", feePayer)
 	}
 
 	// deduct the fees
@@ -83,26 +85,12 @@ func (dfd DeductFeeDecorator) AnteHandle(ctx sdk.Context, tx sdk.Tx, simulate bo
 // DeductFees deducts fees from the given account.
 func DeductFees(bankKeeper types.BankKeeper, ctx sdk.Context, acc types.AccountI, fees sdk.Coins) error {
 	if !fees.IsValid() {
-		return sdkerrors.Wrapf(sdkerrors.ErrInsufficientFee, "invalid fee amount: %s", fees)
+		return errors.Wrapf(sdkerrors.ErrInsufficientFee, "invalid fee amount: %s", fees)
 	}
 
 	err := bankKeeper.SendCoinsFromAccountToModule(ctx, acc.GetAddress(), types.FeeCollectorName, fees)
 	if err != nil {
-		return sdkerrors.Wrapf(sdkerrors.ErrInsufficientFunds, err.Error())
-	}
-
-	return nil
-}
-
-// RefundFees refunds fees to the given account.
-func RefundFees(bankKeeper types.BankKeeper, ctx sdk.Context, acc types.AccountI, fees sdk.Coins) error {
-	if !fees.IsValid() {
-		return sdkerrors.Wrapf(sdkerrors.ErrInsufficientFee, "invalid fee amount: %s", fees)
-	}
-
-	err := bankKeeper.SendCoinsFromModuleToAccount(ctx, types.FeeCollectorName, acc.GetAddress(), fees)
-	if err != nil {
-		return sdkerrors.Wrapf(sdkerrors.ErrInsufficientFunds, err.Error())
+		return errors.Wrapf(sdkerrors.ErrInsufficientFunds, err.Error())
 	}
 
 	return nil

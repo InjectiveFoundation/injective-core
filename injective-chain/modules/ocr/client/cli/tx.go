@@ -1,3 +1,4 @@
+//nolint:staticcheck // deprecated gov proposal flags
 package cli
 
 // TODO: add tx commands for below
@@ -14,7 +15,7 @@ import (
 	"github.com/spf13/cobra"
 
 	govcli "github.com/cosmos/cosmos-sdk/x/gov/client/cli"
-	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
+	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types/v1beta1"
 
 	cliflags "github.com/InjectiveLabs/injective-core/cli/flags"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/ocr/types"

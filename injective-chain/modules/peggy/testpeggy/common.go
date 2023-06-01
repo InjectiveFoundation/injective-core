@@ -5,12 +5,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cosmos/cosmos-sdk/baseapp"
+	govclient "github.com/cosmos/cosmos-sdk/x/gov/client"
+	govv1 "github.com/cosmos/cosmos-sdk/x/gov/types/v1"
+
+	sdkmath "cosmossdk.io/math"
+	storetypes "github.com/cosmos/cosmos-sdk/store/types"
+
 	chaintypes "github.com/InjectiveLabs/injective-core/injective-chain/types"
 
 	insurancekeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/insurance/keeper"
 	insurancetypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/insurance/types"
 
-	"github.com/cosmos/cosmos-sdk/baseapp"
+	dbm "github.com/cometbft/cometbft-db"
+	"github.com/cometbft/cometbft/libs/log"
+	tmproto "github.com/cometbft/cometbft/proto/tendermint/types"
 	"github.com/cosmos/cosmos-sdk/codec"
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
 	ccodec "github.com/cosmos/cosmos-sdk/crypto/codec"
@@ -33,7 +42,6 @@ import (
 	capabilitytypes "github.com/cosmos/cosmos-sdk/x/capability/types"
 	"github.com/cosmos/cosmos-sdk/x/crisis"
 	"github.com/cosmos/cosmos-sdk/x/distribution"
-	distrclient "github.com/cosmos/cosmos-sdk/x/distribution/client"
 	distrkeeper "github.com/cosmos/cosmos-sdk/x/distribution/keeper"
 	distrtypes "github.com/cosmos/cosmos-sdk/x/distribution/types"
 	"github.com/cosmos/cosmos-sdk/x/evidence"
@@ -41,6 +49,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/x/gov"
 	govkeeper "github.com/cosmos/cosmos-sdk/x/gov/keeper"
 	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
+	govv1beta1 "github.com/cosmos/cosmos-sdk/x/gov/types/v1beta1"
 	"github.com/cosmos/cosmos-sdk/x/mint"
 	minttypes "github.com/cosmos/cosmos-sdk/x/mint/types"
 	"github.com/cosmos/cosmos-sdk/x/params"
@@ -58,9 +67,6 @@ import (
 	upgradeclient "github.com/cosmos/cosmos-sdk/x/upgrade/client"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
-	"github.com/tendermint/tendermint/libs/log"
-	tmproto "github.com/tendermint/tendermint/proto/tendermint/types"
-	dbm "github.com/tendermint/tm-db"
 
 	exchangekeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/keeper"
 	exchangetypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
@@ -83,9 +89,11 @@ var (
 		staking.AppModuleBasic{},
 		mint.AppModuleBasic{},
 		distribution.AppModuleBasic{},
-		gov.NewAppModuleBasic(
-			paramsclient.ProposalHandler, distrclient.ProposalHandler, upgradeclient.ProposalHandler, upgradeclient.CancelProposalHandler,
-		),
+		gov.NewAppModuleBasic([]govclient.ProposalHandler{
+			paramsclient.ProposalHandler,
+			upgradeclient.LegacyProposalHandler,
+			upgradeclient.LegacyCancelProposalHandler,
+		}),
 		params.AppModuleBasic{},
 		crisis.AppModuleBasic{},
 		slashing.AppModuleBasic{},
@@ -191,6 +199,7 @@ var (
 		MaxEntries:        10,
 		HistoricalEntries: 10000,
 		BondDenom:         "stake",
+		MinCommissionRate: sdkmath.LegacyZeroDec(),
 	}
 
 	// TestingPeggyParams is a set of peggy params for testing
@@ -240,9 +249,8 @@ func SetupFiveValChain(t *testing.T) (TestInput, sdk.Context) {
 	input.StakingKeeper.SetParams(input.Context, TestingStakeParams)
 
 	// Initialize each of the validators
-	sh := staking.NewHandler(input.StakingKeeper)
+	sh := stakingkeeper.NewMsgServerImpl(&input.StakingKeeper)
 	for i := range []int{0, 1, 2, 3, 4} {
-
 		// Initialize the account for the key
 		acc := input.AccountKeeper.NewAccount(
 			input.Context,
@@ -258,17 +266,14 @@ func SetupFiveValChain(t *testing.T) (TestInput, sdk.Context) {
 
 		// Create a validator for that account using some of the tokens in the account
 		// and the staking handler
-		_, err := sh(
-			input.Context,
-			NewTestMsgCreateValidator(ValAddrs[i], ConsPubKeys[i], StakingAmount),
-		)
+		_, err := sh.CreateValidator(input.Context, NewTestMsgCreateValidator(ValAddrs[i], ConsPubKeys[i], StakingAmount))
 
 		// Return error if one exists
 		require.NoError(t, err)
 	}
 
 	// Run the staking endblocker to ensure valset is correct in state
-	staking.EndBlocker(input.Context, input.StakingKeeper)
+	staking.EndBlocker(input.Context, &input.StakingKeeper)
 
 	// Register eth addresses for each validator
 	for i, addr := range ValAddrs {
@@ -300,7 +305,7 @@ func GenerateNewValidatorInfo() ValidatorInfo {
 func AddAnotherValidator(t *testing.T, input TestInput, valInfo ValidatorInfo) TestInput {
 	t.Helper()
 
-	sh := staking.NewHandler(input.StakingKeeper)
+	sh := stakingkeeper.NewMsgServerImpl(&input.StakingKeeper)
 
 	// Initialize the account for the key
 	acc := input.AccountKeeper.NewAccount(
@@ -317,7 +322,7 @@ func AddAnotherValidator(t *testing.T, input TestInput, valInfo ValidatorInfo) T
 
 	// Create a validator for that account using some of the tokens in the account
 	// and the staking handler
-	_, err := sh(
+	_, err := sh.CreateValidator(
 		input.Context,
 		NewTestMsgCreateValidator(valInfo.ValAddr, valInfo.ConsKey, StakingAmount),
 	)
@@ -326,7 +331,7 @@ func AddAnotherValidator(t *testing.T, input TestInput, valInfo ValidatorInfo) T
 	require.NoError(t, err)
 
 	// Run the staking endblocker to ensure valset is correct in state
-	staking.EndBlocker(input.Context, input.StakingKeeper)
+	staking.EndBlocker(input.Context, &input.StakingKeeper)
 
 	return input
 }
@@ -360,22 +365,22 @@ func CreateTestEnv(t *testing.T) TestInput {
 	// Initialize memory database and mount stores on it
 	db := dbm.NewMemDB()
 	ms := store.NewCommitMultiStore(db)
-	ms.MountStoreWithDB(peggyKey, sdk.StoreTypeIAVL, nil)
-	ms.MountStoreWithDB(keyAcc, sdk.StoreTypeIAVL, nil)
-	ms.MountStoreWithDB(keyParams, sdk.StoreTypeIAVL, nil)
-	ms.MountStoreWithDB(keyStaking, sdk.StoreTypeIAVL, nil)
-	ms.MountStoreWithDB(keyBank, sdk.StoreTypeIAVL, nil)
-	ms.MountStoreWithDB(tkeyBank, sdk.StoreTypeIAVL, nil)
-	ms.MountStoreWithDB(keyDistro, sdk.StoreTypeIAVL, nil)
-	ms.MountStoreWithDB(tkeyParams, sdk.StoreTypeTransient, nil)
-	ms.MountStoreWithDB(keyGov, sdk.StoreTypeIAVL, nil)
-	ms.MountStoreWithDB(keySlashing, sdk.StoreTypeIAVL, nil)
-	ms.MountStoreWithDB(keyOracle, sdk.StoreTypeIAVL, nil)
-	ms.MountStoreWithDB(keyOracleMemStore, sdk.StoreTypeIAVL, nil)
-	ms.MountStoreWithDB(keyCapability, sdk.StoreTypeIAVL, nil)
-	ms.MountStoreWithDB(keyInsurance, sdk.StoreTypeIAVL, nil)
-	ms.MountStoreWithDB(keyExchange, sdk.StoreTypeIAVL, nil)
-	ms.MountStoreWithDB(tkeyExchange, sdk.StoreTypeIAVL, nil)
+	ms.MountStoreWithDB(peggyKey, storetypes.StoreTypeIAVL, nil)
+	ms.MountStoreWithDB(keyAcc, storetypes.StoreTypeIAVL, nil)
+	ms.MountStoreWithDB(keyParams, storetypes.StoreTypeIAVL, nil)
+	ms.MountStoreWithDB(keyStaking, storetypes.StoreTypeIAVL, nil)
+	ms.MountStoreWithDB(keyBank, storetypes.StoreTypeIAVL, nil)
+	ms.MountStoreWithDB(tkeyBank, storetypes.StoreTypeIAVL, nil)
+	ms.MountStoreWithDB(keyDistro, storetypes.StoreTypeIAVL, nil)
+	ms.MountStoreWithDB(tkeyParams, storetypes.StoreTypeTransient, nil)
+	ms.MountStoreWithDB(keyGov, storetypes.StoreTypeIAVL, nil)
+	ms.MountStoreWithDB(keySlashing, storetypes.StoreTypeIAVL, nil)
+	ms.MountStoreWithDB(keyOracle, storetypes.StoreTypeIAVL, nil)
+	ms.MountStoreWithDB(keyOracleMemStore, storetypes.StoreTypeIAVL, nil)
+	ms.MountStoreWithDB(keyCapability, storetypes.StoreTypeIAVL, nil)
+	ms.MountStoreWithDB(keyInsurance, storetypes.StoreTypeIAVL, nil)
+	ms.MountStoreWithDB(keyExchange, storetypes.StoreTypeIAVL, nil)
+	ms.MountStoreWithDB(tkeyExchange, storetypes.StoreTypeIAVL, nil)
 	err := ms.LoadLatestVersion()
 	require.Nil(t, err)
 
@@ -414,10 +419,11 @@ func CreateTestEnv(t *testing.T) TestInput {
 
 	accountKeeper := authkeeper.NewAccountKeeper(
 		marshaler,
-		keyAcc, // target store
-		getSubspace(paramsKeeper, authtypes.ModuleName),
+		keyAcc,                     // target store
 		authtypes.ProtoBaseAccount, // prototype
 		maccPerms,
+		chaintypes.InjectiveBech32Prefix,
+		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
 	)
 
 	blockedAddr := make(map[string]bool, len(maccPerms))
@@ -426,15 +432,29 @@ func CreateTestEnv(t *testing.T) TestInput {
 		keyBank,
 		tkeyBank,
 		accountKeeper,
-		getSubspace(paramsKeeper, banktypes.ModuleName),
 		blockedAddr,
+		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
 	)
 	bankKeeper.SetParams(ctx, banktypes.Params{DefaultSendEnabled: true})
 
-	stakingKeeper := stakingkeeper.NewKeeper(marshaler, keyStaking, accountKeeper, bankKeeper, getSubspace(paramsKeeper, stakingtypes.ModuleName))
+	stakingKeeper := stakingkeeper.NewKeeper(
+		marshaler,
+		keyStaking,
+		accountKeeper,
+		bankKeeper,
+		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
+	)
 	stakingKeeper.SetParams(ctx, TestingStakeParams)
 
-	distKeeper := distrkeeper.NewKeeper(marshaler, keyDistro, getSubspace(paramsKeeper, distrtypes.ModuleName), accountKeeper, bankKeeper, stakingKeeper, authtypes.FeeCollectorName, nil)
+	distKeeper := distrkeeper.NewKeeper(
+		marshaler,
+		keyDistro,
+		accountKeeper,
+		bankKeeper,
+		stakingKeeper,
+		authtypes.FeeCollectorName,
+		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
+	)
 	distKeeper.SetParams(ctx, distrtypes.DefaultParams())
 
 	// set genesis items required for distribution
@@ -463,31 +483,34 @@ func CreateTestEnv(t *testing.T) TestInput {
 	moduleAcct := accountKeeper.GetAccount(ctx, stakeAddr)
 	require.NotNil(t, moduleAcct)
 
-	router := baseapp.NewRouter()
-	router.AddRoute(bank.AppModule{}.Route())
-	router.AddRoute(staking.AppModule{}.Route())
-	router.AddRoute(distribution.AppModule{}.Route())
-
 	// Load default wasm config
 
-	govRouter := govtypes.NewRouter().
+	govRouter := govv1beta1.NewRouter().
 		AddRoute(paramsproposal.RouterKey, params.NewParamChangeProposalHandler(paramsKeeper)).
-		AddRoute(govtypes.RouterKey, govtypes.ProposalHandler)
+		AddRoute(govtypes.RouterKey, govv1beta1.ProposalHandler)
 
 	govKeeper := govkeeper.NewKeeper(
-		marshaler, keyGov, getSubspace(paramsKeeper, govtypes.ModuleName).WithKeyTable(govtypes.ParamKeyTable()), accountKeeper, bankKeeper, stakingKeeper, govRouter,
+		marshaler,
+		keyGov,
+		accountKeeper,
+		bankKeeper,
+		stakingKeeper,
+		baseapp.NewMsgServiceRouter(),
+		govtypes.DefaultConfig(),
+		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
 	)
 
-	govKeeper.SetProposalID(ctx, govtypes.DefaultStartingProposalID)
-	govKeeper.SetDepositParams(ctx, govtypes.DefaultDepositParams())
-	govKeeper.SetVotingParams(ctx, govtypes.DefaultVotingParams())
-	govKeeper.SetTallyParams(ctx, govtypes.DefaultTallyParams())
+	govKeeper.SetLegacyRouter(govRouter)
+
+	govKeeper.SetProposalID(ctx, govv1beta1.DefaultStartingProposalID)
+	govKeeper.SetParams(ctx, govv1.DefaultParams())
 
 	slashingKeeper := slashingkeeper.NewKeeper(
 		marshaler,
+		cdc,
 		keySlashing,
-		&stakingKeeper,
-		getSubspace(paramsKeeper, slashingtypes.ModuleName).WithKeyTable(slashingtypes.ParamKeyTable()),
+		stakingKeeper,
+		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
 	)
 
 	// add capability keeper and ScopeToModule for ibc module
@@ -497,46 +520,53 @@ func CreateTestEnv(t *testing.T) TestInput {
 		marshaler,
 		keyOracle,
 		keyOracleMemStore,
-		getSubspace(paramsKeeper, oracletypes.ModuleName),
 		accountKeeper,
 		bankKeeper,
 		nil,
 		nil,
 		scopedOracleKeeper,
 		nil,
+		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
 	)
 
 	insuranceKeeper := insurancekeeper.NewKeeper(
 		marshaler,
 		keyInsurance,
-		getSubspace(paramsKeeper, insurancetypes.ModuleName),
 		accountKeeper,
 		bankKeeper,
+		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
 	)
 
 	exchangeKeeper := exchangekeeper.NewKeeper(
 		marshaler,
 		keyExchange,
 		tkeyExchange,
-		getSubspace(paramsKeeper, exchangetypes.ModuleName),
 		accountKeeper,
 		bankKeeper,
 		&oracleKeeper,
 		&insuranceKeeper,
 		&distKeeper,
-		&stakingKeeper,
+		stakingKeeper,
 		nil, // TODO: FIX!
+		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
 	)
 
-	k := peggyKeeper.NewKeeper(marshaler, peggyKey, getSubspace(paramsKeeper, types.DefaultParamspace), stakingKeeper, bankKeeper, slashingKeeper, distKeeper, exchangeKeeper)
-
-	stakingKeeper = *stakingKeeper.SetHooks(
-		stakingtypes.NewMultiStakingHooks(
-			distKeeper.Hooks(),
-			slashingKeeper.Hooks(),
-			k.Hooks(),
-		),
+	k := peggyKeeper.NewKeeper(
+		marshaler,
+		peggyKey,
+		stakingKeeper,
+		bankKeeper,
+		slashingKeeper,
+		distKeeper,
+		exchangeKeeper,
+		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
 	)
+
+	stakingKeeper.SetHooks(stakingtypes.NewMultiStakingHooks(
+		distKeeper.Hooks(),
+		slashingKeeper.Hooks(),
+		k.Hooks(),
+	))
 
 	k.SetParams(ctx, TestingPeggyParams)
 	k.SetLastOutgoingBatchID(ctx, uint64(0))
@@ -546,11 +576,11 @@ func CreateTestEnv(t *testing.T) TestInput {
 		PeggyKeeper:    k,
 		AccountKeeper:  accountKeeper,
 		BankKeeper:     bankKeeper,
-		StakingKeeper:  stakingKeeper,
+		StakingKeeper:  *stakingKeeper,
 		SlashingKeeper: slashingKeeper,
 		ExchangeKeeper: exchangeKeeper,
 		DistKeeper:     distKeeper,
-		GovKeeper:      govKeeper,
+		GovKeeper:      *govKeeper,
 		Context:        ctx,
 		Marshaler:      marshaler,
 		LegacyAmino:    cdc,
@@ -643,7 +673,7 @@ type StakingKeeperMock struct {
 	ValidatorPower   map[string]int64
 }
 
-func (s *StakingKeeperMock) PowerReduction(ctx sdk.Context) (res sdk.Int) {
+func (s *StakingKeeperMock) PowerReduction(ctx sdk.Context) (res sdkmath.Int) {
 	return sdk.DefaultPowerReduction
 }
 
@@ -662,7 +692,7 @@ func (s *StakingKeeperMock) GetLastValidatorPower(ctx sdk.Context, operator sdk.
 }
 
 // GetLastTotalPower implements the interface for staking keeper required by peggy
-func (s *StakingKeeperMock) GetLastTotalPower(ctx sdk.Context) (power sdk.Int) {
+func (s *StakingKeeperMock) GetLastTotalPower(ctx sdk.Context) (power sdkmath.Int) {
 	var total int64
 	for _, v := range s.ValidatorPower {
 		total += v
@@ -742,7 +772,9 @@ func (s *StakingKeeperMock) ValidatorQueueIterator(ctx sdk.Context, endTime time
 }
 
 // Slash staisfies the interface
-func (s *StakingKeeperMock) Slash(sdk.Context, sdk.ConsAddress, int64, int64, sdk.Dec) {}
+func (s *StakingKeeperMock) Slash(sdk.Context, sdk.ConsAddress, int64, int64, sdk.Dec) sdkmath.Int {
+	return sdkmath.Int{}
+}
 
 // Jail staisfies the interface
 func (s *StakingKeeperMock) Jail(sdk.Context, sdk.ConsAddress) {}
@@ -751,7 +783,7 @@ func (s *StakingKeeperMock) Jail(sdk.Context, sdk.ConsAddress) {}
 type AlwaysPanicStakingMock struct{}
 
 // GetLastTotalPower implements the interface for staking keeper required by peggy
-func (s AlwaysPanicStakingMock) GetLastTotalPower(ctx sdk.Context) (power sdk.Int) {
+func (s AlwaysPanicStakingMock) GetLastTotalPower(ctx sdk.Context) (power sdkmath.Int) {
 	panic("unexpected call")
 }
 
@@ -800,24 +832,34 @@ func (s AlwaysPanicStakingMock) Jail(sdk.Context, sdk.ConsAddress) {
 	panic("unexpected call")
 }
 
-func NewTestMsgCreateValidator(address sdk.ValAddress, pubKey ccrypto.PubKey, amt sdk.Int) *stakingtypes.MsgCreateValidator {
-	commission := stakingtypes.NewCommissionRates(sdk.MustNewDecFromStr("0.02"), sdk.MustNewDecFromStr("0.02"), sdk.MustNewDecFromStr("0.02"))
+func NewTestMsgCreateValidator(address sdk.ValAddress, pubKey ccrypto.PubKey, amt sdkmath.Int) *stakingtypes.MsgCreateValidator {
+	commission := stakingtypes.NewCommissionRates(
+		sdk.MustNewDecFromStr("0.05"),
+		sdk.MustNewDecFromStr("0.05"),
+		sdk.MustNewDecFromStr("0.05"),
+	)
+
 	out, err := stakingtypes.NewMsgCreateValidator(
-		address, pubKey, sdk.NewCoin("stake", amt),
-		stakingtypes.Description{}, commission, sdk.OneInt(),
+		address,
+		pubKey,
+		sdk.NewCoin("stake", amt),
+		stakingtypes.Description{},
+		commission,
+		sdk.OneInt(),
 	)
 	if err != nil {
 		panic(err)
 	}
+
 	return out
 }
 
-func NewTestMsgUnDelegateValidator(address sdk.ValAddress, amt sdk.Int) *stakingtypes.MsgUndelegate {
+func NewTestMsgUnDelegateValidator(address sdk.ValAddress, amt sdkmath.Int) *stakingtypes.MsgUndelegate {
 	msg := stakingtypes.NewMsgUndelegate(sdk.AccAddress(address), address, sdk.NewCoin("stake", amt))
 	return msg
 }
 
-func NewTestMsgDelegateValidator(address sdk.ValAddress, amt sdk.Int) *stakingtypes.MsgDelegate {
+func NewTestMsgDelegateValidator(address sdk.ValAddress, amt sdkmath.Int) *stakingtypes.MsgDelegate {
 	msg := stakingtypes.NewMsgDelegate(sdk.AccAddress(address), address, sdk.NewCoin("stake", amt))
 	return msg
 }

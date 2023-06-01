@@ -1147,35 +1147,35 @@ func RegisterQueryHandlerClient(ctx context.Context, mux *runtime.ServeMux, clie
 }
 
 var (
-	pattern_Query_Params_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "oracle", "v1beta1", "params"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_Params_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "oracle", "v1beta1", "params"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_BandRelayers_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "oracle", "v1beta1", "band_relayers"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_BandRelayers_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "oracle", "v1beta1", "band_relayers"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_BandPriceStates_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "oracle", "v1beta1", "band_price_states"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_BandPriceStates_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "oracle", "v1beta1", "band_price_states"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_BandIBCPriceStates_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "oracle", "v1beta1", "band_ibc_price_states"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_BandIBCPriceStates_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "oracle", "v1beta1", "band_ibc_price_states"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_PriceFeedPriceStates_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "oracle", "v1beta1", "pricefeed_price_states"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_PriceFeedPriceStates_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "oracle", "v1beta1", "pricefeed_price_states"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_CoinbasePriceStates_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "oracle", "v1beta1", "coinbase_price_states"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_CoinbasePriceStates_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "oracle", "v1beta1", "coinbase_price_states"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_PythPriceStates_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "oracle", "v1beta1", "pyth_price_states"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_PythPriceStates_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "oracle", "v1beta1", "pyth_price_states"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_ProviderPriceState_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4, 1, 0, 4, 1, 5, 5}, []string{"injective", "oracle", "v1beta1", "provider_price_state", "provider", "symbol"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_ProviderPriceState_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4, 1, 0, 4, 1, 5, 5}, []string{"injective", "oracle", "v1beta1", "provider_price_state", "provider", "symbol"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_OracleModuleState_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "oracle", "v1beta1", "module_state"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_OracleModuleState_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "oracle", "v1beta1", "module_state"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_HistoricalPriceRecords_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "oracle", "v1beta1", "historical_price_records"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_HistoricalPriceRecords_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "oracle", "v1beta1", "historical_price_records"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_OracleVolatility_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "oracle", "v1beta1", "volatility"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_OracleVolatility_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "oracle", "v1beta1", "volatility"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_OracleProvidersInfo_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "oracle", "v1beta1", "providers"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_OracleProvidersInfo_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "oracle", "v1beta1", "providers"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_OracleProviderPrices_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "oracle", "v1beta1", "provider_prices"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_OracleProviderPrices_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "oracle", "v1beta1", "provider_prices"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_OraclePrice_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "oracle", "v1beta1", "price"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_OraclePrice_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "oracle", "v1beta1", "price"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_PythPrice_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "oracle", "v1beta1", "pyth_price"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_PythPrice_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "oracle", "v1beta1", "pyth_price"}, "", runtime.AssumeColonVerbOpt(false)))
 )
 
 var (

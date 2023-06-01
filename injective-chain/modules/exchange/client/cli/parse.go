@@ -1,3 +1,4 @@
+//nolint:staticcheck // deprecated gov proposal flags
 package cli
 
 import (

@@ -5,12 +5,14 @@ import (
 	"os"
 	"strings"
 
-	"github.com/InjectiveLabs/metrics"
-	sdk "github.com/cosmos/cosmos-sdk/types"
-	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
-	"github.com/ethereum/go-ethereum/common"
+	"github.com/cosmos/cosmos-sdk/types/tx"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+
+	"github.com/InjectiveLabs/metrics"
+	sdk "github.com/cosmos/cosmos-sdk/types"
+	v1 "github.com/cosmos/cosmos-sdk/x/gov/types/v1"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 func CheckIfExceedDecimals(dec sdk.Dec, maxDecimals uint32) bool {
@@ -49,45 +51,62 @@ func (k *Keeper) checkIfMarketLaunchProposalExist(
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	exists := false
-	params := k.govKeeper.GetVotingParams(ctx)
+	params := k.govKeeper.GetParams(ctx)
 	// Note: we do 10 * voting period to iterate all active proposals safely
-	k.govKeeper.IterateActiveProposalsQueue(ctx, ctx.BlockTime().Add(10*params.VotingPeriod), func(proposal govtypes.Proposal) bool {
-		if proposal.ProposalType() != proposalType {
-			return false
-		}
-		switch proposalType {
-		case types.ProposalTypeExpiryFuturesMarketLaunch:
-			p := proposal.GetContent().(*types.ExpiryFuturesMarketLaunchProposal)
-			if marketID == types.NewExpiryFuturesMarketID(p.Ticker, p.QuoteDenom, p.OracleBase, p.OracleQuote, p.OracleType, p.Expiry) {
-				exists = true
-				return true
-			}
-		case types.ProposalTypePerpetualMarketLaunch:
-			p := proposal.GetContent().(*types.PerpetualMarketLaunchProposal)
-			if marketID == types.NewPerpetualMarketID(p.Ticker, p.QuoteDenom, p.OracleBase, p.OracleQuote, p.OracleType) {
-				exists = true
-				return true
-			}
-		case types.ProposalTypeBinaryOptionsMarketLaunch:
-			p := proposal.GetContent().(*types.BinaryOptionsMarketLaunchProposal)
-			if marketID == types.NewBinaryOptionsMarketID(p.Ticker, p.QuoteDenom, p.OracleSymbol, p.OracleProvider, p.OracleType) {
-				exists = true
-				return true
-			}
-		case types.ProposalTypeSpotMarketLaunch:
-			p := proposal.GetContent().(*types.SpotMarketLaunchProposal)
-			if marketID == types.NewSpotMarketID(p.BaseDenom, p.QuoteDenom) {
-				exists = true
-				return true
-			}
-		default:
-			return true
-		}
+	endTime := ctx.BlockTime().Add(10 * (*params.VotingPeriod))
 
-		return false
+	k.govKeeper.IterateActiveProposalsQueue(ctx, endTime, func(proposal v1.Proposal) bool {
+		found := proposalAlreadyExists(proposal, proposalType, marketID)
+
+		exists = found
+		return found
 	})
 
 	return exists
+}
+
+func proposalAlreadyExists(prop v1.Proposal, proposalType string, marketID common.Hash) bool {
+	msgs, err := tx.GetMsgs(prop.Messages, "proposal")
+	if err != nil {
+		return false
+	}
+
+	for _, msg := range msgs {
+		if legacyMsg, ok := msg.(*v1.MsgExecLegacyContent); ok {
+			//	1. msg is legacy
+			content, err := v1.LegacyContentFromMessage(legacyMsg)
+			if err != nil {
+				continue
+			}
+			if content.ProposalType() == proposalType {
+				switch proposalType {
+				case types.ProposalTypeExpiryFuturesMarketLaunch:
+					p := content.(*types.ExpiryFuturesMarketLaunchProposal)
+					if marketID == types.NewExpiryFuturesMarketID(p.Ticker, p.QuoteDenom, p.OracleBase, p.OracleQuote, p.OracleType, p.Expiry) {
+						return true
+					}
+				case types.ProposalTypePerpetualMarketLaunch:
+					p := content.(*types.PerpetualMarketLaunchProposal)
+					if marketID == types.NewPerpetualMarketID(p.Ticker, p.QuoteDenom, p.OracleBase, p.OracleQuote, p.OracleType) {
+						return true
+					}
+				case types.ProposalTypeBinaryOptionsMarketLaunch:
+					p := content.(*types.BinaryOptionsMarketLaunchProposal)
+					if marketID == types.NewBinaryOptionsMarketID(p.Ticker, p.QuoteDenom, p.OracleSymbol, p.OracleProvider, p.OracleType) {
+						return true
+					}
+				case types.ProposalTypeSpotMarketLaunch:
+					p := content.(*types.SpotMarketLaunchProposal)
+					if marketID == types.NewSpotMarketID(p.BaseDenom, p.QuoteDenom) {
+						return true
+					}
+				}
+			}
+
+		}
+	}
+
+	return false
 }
 
 // getReadableDec is a test utility function to return a readable representation of decimal strings

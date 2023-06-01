@@ -104,6 +104,13 @@
       }
     },
     {
+      "url": "./tmp-swagger-gen/cosmos/consensus/v1/query.swagger.json",
+      "operationIds": {
+        "rename": {
+          "Params": "ConsensusParams",
+        }
+      }
+    },{
       "url": "./tmp-swagger-gen/cosmos/distribution/v1beta1/query.swagger.json",
       "operationIds": {
         "rename": {
@@ -129,10 +136,10 @@
       }
     },
     {
-      "url": "./tmp-swagger-gen/cosmos/gov/v1beta1/query.swagger.json",
+      "url": "./tmp-swagger-gen/cosmos/gov/v1/query.swagger.json",
       "operationIds": {
         "rename": {
-          "Params": "GovParams"
+          "Params": "GovV1Params"
         }
       }
     },

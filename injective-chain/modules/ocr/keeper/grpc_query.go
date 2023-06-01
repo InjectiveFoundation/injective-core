@@ -3,6 +3,7 @@ package keeper
 import (
 	"context"
 
+	"cosmossdk.io/errors"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 
@@ -10,9 +11,9 @@ import (
 	"github.com/InjectiveLabs/metrics"
 )
 
-var _ types.QueryServer = &keeper{}
+var _ types.QueryServer = &Keeper{}
 
-func (k *keeper) Params(c context.Context, _ *types.QueryParamsRequest) (*types.QueryParamsResponse, error) {
+func (k *Keeper) Params(c context.Context, _ *types.QueryParamsRequest) (*types.QueryParamsResponse, error) {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(c)
@@ -25,13 +26,13 @@ func (k *keeper) Params(c context.Context, _ *types.QueryParamsRequest) (*types.
 	return res, nil
 }
 
-func (k *keeper) FeedConfig(c context.Context, req *types.QueryFeedConfigRequest) (*types.QueryFeedConfigResponse, error) {
+func (k *Keeper) FeedConfig(c context.Context, req *types.QueryFeedConfigRequest) (*types.QueryFeedConfigResponse, error) {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 	ctx := sdk.UnwrapSDKContext(c)
 
 	feedId := req.FeedId
 	if feedId == "" {
-		return nil, sdkerrors.Wrapf(sdkerrors.ErrInvalidRequest, "failed to read feed_id")
+		return nil, errors.Wrapf(sdkerrors.ErrInvalidRequest, "failed to read feed_id")
 	}
 
 	res := &types.QueryFeedConfigResponse{
@@ -42,14 +43,14 @@ func (k *keeper) FeedConfig(c context.Context, req *types.QueryFeedConfigRequest
 	return res, nil
 }
 
-func (k *keeper) FeedConfigInfo(c context.Context, req *types.QueryFeedConfigInfoRequest) (*types.QueryFeedConfigInfoResponse, error) {
+func (k *Keeper) FeedConfigInfo(c context.Context, req *types.QueryFeedConfigInfoRequest) (*types.QueryFeedConfigInfoResponse, error) {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(c)
 
 	feedId := req.FeedId
 	if feedId == "" {
-		return nil, sdkerrors.Wrapf(sdkerrors.ErrInvalidRequest, "failed to read feed_id")
+		return nil, errors.Wrapf(sdkerrors.ErrInvalidRequest, "failed to read feed_id")
 	}
 
 	res := &types.QueryFeedConfigInfoResponse{
@@ -60,14 +61,14 @@ func (k *keeper) FeedConfigInfo(c context.Context, req *types.QueryFeedConfigInf
 	return res, nil
 }
 
-func (k *keeper) LatestRound(c context.Context, req *types.QueryLatestRoundRequest) (*types.QueryLatestRoundResponse, error) {
+func (k *Keeper) LatestRound(c context.Context, req *types.QueryLatestRoundRequest) (*types.QueryLatestRoundResponse, error) {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(c)
 
 	feedId := req.FeedId
 	if feedId == "" {
-		return nil, sdkerrors.Wrapf(sdkerrors.ErrInvalidRequest, "failed to read feed_id")
+		return nil, errors.Wrapf(sdkerrors.ErrInvalidRequest, "failed to read feed_id")
 	}
 
 	latestRoundID := k.LatestAggregatorRoundID(ctx, feedId)
@@ -83,14 +84,14 @@ func (k *keeper) LatestRound(c context.Context, req *types.QueryLatestRoundReque
 	return res, nil
 }
 
-func (k *keeper) LatestTransmissionDetails(c context.Context, req *types.QueryLatestTransmissionDetailsRequest) (*types.QueryLatestTransmissionDetailsResponse, error) {
+func (k *Keeper) LatestTransmissionDetails(c context.Context, req *types.QueryLatestTransmissionDetailsRequest) (*types.QueryLatestTransmissionDetailsResponse, error) {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(c)
 
 	feedId := req.FeedId
 	if feedId == "" {
-		return nil, sdkerrors.Wrapf(sdkerrors.ErrInvalidRequest, "failed to read feed_id")
+		return nil, errors.Wrapf(sdkerrors.ErrInvalidRequest, "failed to read feed_id")
 	}
 
 	res := &types.QueryLatestTransmissionDetailsResponse{
@@ -103,12 +104,12 @@ func (k *keeper) LatestTransmissionDetails(c context.Context, req *types.QueryLa
 }
 
 // OwedAmount retrieves transmitter's owed amount
-func (k *keeper) OwedAmount(c context.Context, req *types.QueryOwedAmountRequest) (*types.QueryOwedAmountResponse, error) {
+func (k *Keeper) OwedAmount(c context.Context, req *types.QueryOwedAmountRequest) (*types.QueryOwedAmountResponse, error) {
 	panic("not implemented")
 }
 
 // OcrModuleState retrieves the entire OCR module's state
-func (k *keeper) OcrModuleState(c context.Context, _ *types.QueryModuleStateRequest) (*types.QueryModuleStateResponse, error) {
+func (k *Keeper) OcrModuleState(c context.Context, _ *types.QueryModuleStateRequest) (*types.QueryModuleStateResponse, error) {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(c)

@@ -1,21 +1,23 @@
+//nolint:staticcheck // deprecated gov proposal flags
 package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/cosmos/cosmos-sdk/x/authz"
-	"github.com/gogo/protobuf/grpc"
+	"github.com/cosmos/gogoproto/grpc"
 
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/client/tx"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authzcli "github.com/cosmos/cosmos-sdk/x/authz/client/cli"
 	govcli "github.com/cosmos/cosmos-sdk/x/gov/client/cli"
-	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
+	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types/v1beta1"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/spf13/cobra"
 
@@ -70,14 +72,17 @@ func NewTxCmd() *cobra.Command {
 		// mito
 		NewSubscribeToSpotVaultTxCmd(),
 		NewRedeemFromSpotVaultTxCmd(),
+		NewRedeemFromAmmVaultTxCmd(),
 		NewSubscribeToDerivativeVaultTxCmd(),
 		NewRedeemFromDerivativeVaultTxCmd(),
+		NewSubscribeToAmmVaultTxCmd(),
 		// authz
 		NewAuthzTxCmd(),
 		NewBatchUpdateAuthzTxCmd(),
 		// other
 		NewExchangeEnableProposalTxCmd(),
 		NewMarketForcedSettlementTxCmd(),
+		NewUpdateDenomDecimalsProposalTxCmd(),
 	)
 	return cmd
 }
@@ -441,152 +446,6 @@ func NewPerpetualMarketLaunchProposalTxCmd() *cobra.Command {
 	cmd.Flags().String(FlagMinPriceTickSize, "0.01", "min price tick size")
 	cmd.Flags().String(FlagMinQuantityTickSize, "0.01", "min quantity tick size")
 	cliflags.AddGovProposalFlags(cmd)
-	_ = &cobra.Command{
-		Use:   "propose-perpetual-market [flags]",
-		Args:  cobra.ExactArgs(0),
-		Short: "Submit a proposal to launch perpetual market",
-		Long: `Submit a proposal to launch perpetual market.
-
-		Example:
-		$ %s tx exchange propose-perpetual-market
-			--ticker="INJ/USDT" \
-			--quote-denom="usdt" \
-			--oracle-base="inj" \
-			--oracle-quote="usdt" \
-			--oracle-type="pricefeed" \
-			--oracle-scale-factor="0" \
-			--maker-fee-rate="0.001" \
-			--taker-fee-rate="0.001" \
-			--initial-margin-ratio="0.05" \
-			--maintenance-margin-ratio="0.02" \
-			--min-price-tick-size="0.0001" \
-			--min-quantity-tick-size="0.001" \
-			--title="INJ perpetual market" \
-			--description="XX" \
-			--deposit="1000000000000000000inj" \
-			--from=genesis \
-			--keyring-backend=file \
-			--yes
-		`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			clientCtx, err := client.GetClientTxContext(cmd)
-			if err != nil {
-				return err
-			}
-
-			ticker, err := cmd.Flags().GetString(FlagTicker)
-			if err != nil {
-				return err
-			}
-
-			quoteDenom, err := cmd.Flags().GetString(FlagQuoteDenom)
-			if err != nil {
-				return err
-			}
-			oracleBase, err := cmd.Flags().GetString(FlagOracleBase)
-			if err != nil {
-				return err
-			}
-			oracleQuote, err := cmd.Flags().GetString(FlagOracleQuote)
-			if err != nil {
-				return err
-			}
-			oracleTypeStr, err := cmd.Flags().GetString(FlagOracleType)
-			if err != nil {
-				return err
-			}
-
-			oracleType, err := oracletypes.GetOracleType(oracleTypeStr)
-			if err != nil {
-				return err
-			}
-
-			oracleScaleFactor, err := cmd.Flags().GetUint32(FlagOracleScaleFactor)
-			if err != nil {
-				return err
-			}
-
-			initialMarginRatio, err := decimalFromFlag(cmd, FlagInitialMarginRatio)
-			if err != nil {
-				return err
-			}
-
-			maintenanceMarginRatio, err := decimalFromFlag(cmd, FlagMaintenanceMarginRatio)
-			if err != nil {
-				return err
-			}
-
-			makerFeeRate, err := decimalFromFlag(cmd, FlagMakerFeeRate)
-			if err != nil {
-				return err
-			}
-
-			takerFeeRate, err := decimalFromFlag(cmd, FlagTakerFeeRate)
-			if err != nil {
-				return err
-			}
-
-			minPriceTickSizeStr, err := cmd.Flags().GetString(FlagMinPriceTickSize)
-			if err != nil {
-				return err
-			}
-			minQuantityTickSizeStr, err := cmd.Flags().GetString(FlagMinQuantityTickSize)
-			if err != nil {
-				return err
-			}
-
-			minPriceTickSize, err := sdk.NewDecFromStr(minPriceTickSizeStr)
-			if err != nil {
-				return err
-			}
-
-			minQuantityTickSize, err := sdk.NewDecFromStr(minQuantityTickSizeStr)
-			if err != nil {
-				return err
-			}
-
-			content, err := perpetualMarketLaunchArgsToContent(
-				cmd,
-				ticker,
-				quoteDenom,
-				oracleBase,
-				oracleQuote,
-				oracleScaleFactor,
-				oracleType,
-				initialMarginRatio,
-				maintenanceMarginRatio,
-				makerFeeRate,
-				takerFeeRate,
-				minPriceTickSize,
-				minQuantityTickSize,
-			)
-			if err != nil {
-				return err
-			}
-
-			from := clientCtx.GetFromAddress()
-
-			depositStr, err := cmd.Flags().GetString(govcli.FlagDeposit)
-			if err != nil {
-				return err
-			}
-			deposit, err := sdk.ParseCoinsNormalized(depositStr)
-			if err != nil {
-				return err
-			}
-
-			msg, err := govtypes.NewMsgSubmitProposal(content, deposit, from)
-			if err != nil {
-				return err
-			}
-
-			if err := msg.ValidateBasic(); err != nil {
-				return err
-			}
-
-			return tx.GenerateOrBroadcastTxCLI(clientCtx, cmd.Flags(), msg)
-		},
-	}
 	return cmd
 }
 
@@ -2433,13 +2292,13 @@ func NewUpdateDenomDecimalsProposalTxCmd() *cobra.Command {
 
 func NewDepositTxCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "deposit [amount] [flags]",
-		Args:  cobra.ExactArgs(1),
-		Short: "Submit message to transfer coins from the sender's bank balance into the default subaccount's exchange deposits.",
-		Long: `Submit message to transfer coins from the sender's bank balance into the default subaccount's exchange deposits.
+		Use:   "deposit [amount] [subaccount] [flags]",
+		Args:  cobra.ExactArgs(2),
+		Short: "Submit message to transfer coins from the sender's bank balance into subaccount's exchange deposits.",
+		Long: `Submit message to transfer coins from the sender's bank balance into subaccount's exchange deposits.
 
 		Example:
-		$ %s tx exchange deposit 10000inj --from=genesis --keyring-backend=file --yes
+		$ %s tx exchange deposit 10000inj 0xc6fe5d33615a1c52c08018c47e8bc53646a0e101000000000000000000000001 --from=genesis --keyring-backend=file --yes
 		`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clientCtx, err := client.GetClientTxContext(cmd)
@@ -2454,11 +2313,13 @@ func NewDepositTxCmd() *cobra.Command {
 				return err
 			}
 
-			subaccountID := types.SdkAddressToSubaccountID(from)
+			if args[1] == "" {
+				return errors.New("subaccount id cannot be empty")
+			}
 
 			msg := &types.MsgDeposit{
 				Sender:       from.String(),
-				SubaccountId: subaccountID.Hex(),
+				SubaccountId: args[1],
 				Amount:       amount,
 			}
 
@@ -2611,7 +2472,7 @@ func NewAuthzTxCmd() *cobra.Command {
 				clientCtx.GetFromAddress(),
 				grantee,
 				authorization,
-				expirationDate,
+				&expirationDate,
 			)
 			if err != nil {
 				return err
@@ -2676,7 +2537,7 @@ func NewBatchUpdateAuthzTxCmd() *cobra.Command {
 				clientCtx.GetFromAddress(),
 				grantee,
 				authorization,
-				expirationDate,
+				&expirationDate,
 			)
 			if err != nil {
 				return err
@@ -2848,21 +2709,6 @@ func getDerivativeMarketIdFromTicker(ticker string, ctx grpc.ClientConn) (any, e
 		return ticker, nil
 	}
 	return market.MarketId, nil
-}
-
-func perpetualMarketLaunchArgsToContent(cmd *cobra.Command, ticker, quoteDenom, oracleBase, oracleQuote string, oracleScaleFactor uint32, oracleType oracletypes.OracleType, initialMarginRatio, maintenanceMarginRatio, makerFeeRate, takerFeeRate, minPriceTickSize, minQuantityTickSize sdk.Dec) (govtypes.Content, error) {
-	title, err := cmd.Flags().GetString(govcli.FlagTitle)
-	if err != nil {
-		return nil, err
-	}
-
-	description, err := cmd.Flags().GetString(govcli.FlagDescription)
-	if err != nil {
-		return nil, err
-	}
-
-	content := types.NewPerpetualMarketLaunchProposal(title, description, ticker, quoteDenom, oracleBase, oracleQuote, oracleScaleFactor, oracleType, initialMarginRatio, maintenanceMarginRatio, makerFeeRate, takerFeeRate, minPriceTickSize, minQuantityTickSize)
-	return content, nil
 }
 
 func expiryFuturesMarketLaunchArgsToContent(cmd *cobra.Command, ticker, quoteDenom, oracleBase, oracleQuote string, oracleScaleFactor uint32, oracleType oracletypes.OracleType, expiry int64, initialMarginRatio, maintenanceMarginRatio, makerFeeRate, takerFeeRate, minPriceTickSize, minQuantityTickSize sdk.Dec) (govtypes.Content, error) {

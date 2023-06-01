@@ -1,11 +1,12 @@
 package keeper
 
 import (
+	"fmt"
+
+	"cosmossdk.io/errors"
 	"github.com/cosmos/cosmos-sdk/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/pkg/errors"
 
 	"github.com/InjectiveLabs/metrics"
 
@@ -37,7 +38,7 @@ func (k *Keeper) GetDerivativeMarketPrice(ctx sdk.Context, oracleBase, oracleQuo
 	price := k.OracleKeeper.GetPrice(ctx, oracleType, oracleBase, oracleQuote)
 	if price == nil || price.IsNil() {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrapf(types.ErrInvalidOracle, "type %s base %s quote %s", oracleType.String(), oracleBase, oracleQuote)
+		return nil, errors.Wrapf(types.ErrInvalidOracle, "type %s base %s quote %s", oracleType.String(), oracleBase, oracleQuote)
 	}
 
 	scaledPrice := types.GetScaledPrice(*price, oracleScaleFactor)
@@ -52,7 +53,7 @@ func (k *Keeper) GetDerivativeMarketCumulativePrice(ctx sdk.Context, oracleBase,
 	cumulativePrice := k.OracleKeeper.GetCumulativePrice(ctx, oracleType, oracleBase, oracleQuote)
 	if cumulativePrice == nil || cumulativePrice.IsNil() {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrapf(types.ErrInvalidOracle, "type %s base %s quote %s", oracleType.String(), oracleBase, oracleQuote)
+		return nil, errors.Wrapf(types.ErrInvalidOracle, "type %s base %s quote %s", oracleType.String(), oracleBase, oracleQuote)
 	}
 
 	return cumulativePrice, nil
@@ -261,21 +262,76 @@ func (k *Keeper) populateDerivativeMarketInfo(ctx sdk.Context, marketID common.H
 	}
 }
 
-func (k *Keeper) GetAllFullDerivativeMarkets(ctx sdk.Context) []*types.FullDerivativeMarket {
+// FullDerivativeMarketFiller function that adds data to a full derivative market entity
+type FullDerivativeMarketFiller func(sdk.Context, *types.FullDerivativeMarket)
+
+// FullDerivativeMarketWithMarkPrice adds the mark price to a full derivative market
+func FullDerivativeMarketWithMarkPrice(k *Keeper) func(sdk.Context, *types.FullDerivativeMarket) {
+	return func(ctx sdk.Context, market *types.FullDerivativeMarket) {
+		m := market.GetMarket()
+		markPrice, err := k.GetDerivativeMarketPrice(ctx, m.OracleBase, m.OracleQuote, m.OracleScaleFactor, m.OracleType)
+		if err != nil {
+			market.MarkPrice = sdk.Dec{}
+		} else {
+			market.MarkPrice = *markPrice
+		}
+	}
+}
+
+// FullDerivativeMarketWithInfo adds market info to a full derivative market
+func FullDerivativeMarketWithInfo(k *Keeper) func(sdk.Context, *types.FullDerivativeMarket) {
+	return func(ctx sdk.Context, market *types.FullDerivativeMarket) {
+		mID := market.GetMarket().MarketID()
+		if market.GetMarket().GetIsPerpetual() {
+			market.Info = &types.FullDerivativeMarket_PerpetualInfo{
+				PerpetualInfo: &types.PerpetualMarketState{
+					MarketInfo:  k.GetPerpetualMarketInfo(ctx, mID),
+					FundingInfo: k.GetPerpetualMarketFunding(ctx, mID),
+				},
+			}
+		} else {
+			market.Info = &types.FullDerivativeMarket_FuturesInfo{
+				FuturesInfo: k.GetExpiryFuturesMarketInfo(ctx, mID),
+			}
+		}
+	}
+}
+
+// FullDerivativeMarketWithMidPriceToB adds mid-price and ToB to a full derivative market
+func FullDerivativeMarketWithMidPriceToB(k *Keeper) func(sdk.Context, *types.FullDerivativeMarket) {
+	return func(ctx sdk.Context, market *types.FullDerivativeMarket) {
+		midPrice, bestBuy, bestSell := k.GetDerivativeMidPriceAndTOB(ctx, market.GetMarket().MarketID())
+		market.MidPriceAndTob = &types.MidPriceAndTOB{
+			MidPrice:      midPrice,
+			BestBuyPrice:  bestBuy,
+			BestSellPrice: bestSell,
+		}
+	}
+}
+
+func (k *Keeper) FindFullDerivativeMarkets(ctx sdk.Context, filter MarketFilter, fillers ...FullDerivativeMarketFiller) []*types.FullDerivativeMarket {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	fullMarkets := make([]*types.FullDerivativeMarket, 0)
+
+	// Add default fillers
+	fillers = append([]FullDerivativeMarketFiller{
+		FullDerivativeMarketWithMarkPrice(k),
+		FullDerivativeMarketWithInfo(k),
+	}, fillers...)
+
 	appendMarket := func(m *types.DerivativeMarket) (stop bool) {
-		price, err := k.GetDerivativeMarketPrice(ctx, m.OracleBase, m.OracleQuote, m.OracleScaleFactor, m.OracleType)
-		if err != nil {
-			price = &sdk.Dec{}
+		if !filter(m) {
+			return false
 		}
 
 		fullMarket := &types.FullDerivativeMarket{
-			Market:    m,
-			MarkPrice: *price,
+			Market: m,
 		}
-		k.populateDerivativeMarketInfo(ctx, m.MarketID(), m.IsPerpetual, fullMarket)
+
+		for _, filler := range fillers {
+			filler(ctx, fullMarket)
+		}
 
 		fullMarkets = append(fullMarkets, fullMarket)
 		return false
@@ -285,18 +341,33 @@ func (k *Keeper) GetAllFullDerivativeMarkets(ctx sdk.Context) []*types.FullDeriv
 	return fullMarkets
 }
 
-// GetAllDerivativeMarkets returns all derivative markets.
-func (k *Keeper) GetAllDerivativeMarkets(ctx sdk.Context) []*types.DerivativeMarket {
+func (k *Keeper) GetAllFullDerivativeMarkets(ctx sdk.Context) []*types.FullDerivativeMarket {
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+
+	return k.FindFullDerivativeMarkets(ctx, AllMarketFilter)
+}
+
+// FindDerivativeMarkets returns a filtered list of derivative markets.
+func (k *Keeper) FindDerivativeMarkets(ctx sdk.Context, filter MarketFilter) []*types.DerivativeMarket {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	markets := make([]*types.DerivativeMarket, 0)
 	appendMarket := func(p *types.DerivativeMarket) (stop bool) {
-		markets = append(markets, p)
+		if filter(p) {
+			markets = append(markets, p)
+		}
 		return false
 	}
 
 	k.IterateDerivativeMarkets(ctx, nil, appendMarket)
 	return markets
+}
+
+// GetAllDerivativeMarkets returns all derivative markets.
+func (k *Keeper) GetAllDerivativeMarkets(ctx sdk.Context) []*types.DerivativeMarket {
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+
+	return k.FindDerivativeMarkets(ctx, AllMarketFilter)
 }
 
 // GetAllActiveDerivativeMarkets returns all active derivative markets.
@@ -517,7 +588,7 @@ func (k *Keeper) ExecuteDerivativeMarketParamUpdateProposal(ctx sdk.Context, p *
 
 	if prevMarket == nil {
 		metrics.ReportFuncCall(k.svcTags)
-		return errors.Errorf("market is not available, market_id %s", p.MarketId)
+		return fmt.Errorf("market is not available, market_id %s", p.MarketId)
 	}
 
 	// cancel resting orders in the market when it shuts down
@@ -560,7 +631,7 @@ func (k *Keeper) ExecuteDerivativeMarketParamUpdateProposal(ctx sdk.Context, p *
 		p.Status,
 		p.OracleParams,
 	); err != nil {
-		return sdkerrors.Wrap(err, "UpdateDerivativeMarketParam failed during ExecuteDerivativeMarketParamUpdateProposal")
+		return errors.Wrap(err, "UpdateDerivativeMarketParam failed during ExecuteDerivativeMarketParamUpdateProposal")
 	}
 
 	return nil
@@ -620,13 +691,13 @@ func (k *Keeper) UpdateDerivativeMarketParam(
 
 	insuranceFund := k.insuranceKeeper.GetInsuranceFund(ctx, marketID)
 	if insuranceFund == nil {
-		return sdkerrors.Wrapf(insurancetypes.ErrInsuranceFundNotFound, "ticker %s marketID %s", market.Ticker, marketID.Hex())
+		return errors.Wrapf(insurancetypes.ErrInsuranceFundNotFound, "ticker %s marketID %s", market.Ticker, marketID.Hex())
 	} else {
 		shouldUpdateInsuranceFundOracleParams := insuranceFund.OracleBase != market.OracleBase || insuranceFund.OracleQuote != market.OracleQuote || insuranceFund.OracleType != market.OracleType
 		if shouldUpdateInsuranceFundOracleParams {
 			oracleParams = types.NewOracleParams(market.OracleBase, market.OracleQuote, market.OracleScaleFactor, market.OracleType)
 			if err := k.insuranceKeeper.UpdateInsuranceFundOracleParams(ctx, marketID, oracleParams); err != nil {
-				return sdkerrors.Wrap(err, "UpdateInsuranceFundOracleParams failed during UpdateDerivativeMarketParam")
+				return errors.Wrap(err, "UpdateInsuranceFundOracleParams failed during UpdateDerivativeMarketParam")
 			}
 		}
 	}

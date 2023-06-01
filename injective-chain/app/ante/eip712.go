@@ -4,22 +4,23 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/pkg/errors"
 	log "github.com/xlab/suplog"
 
-	chainsdk "github.com/InjectiveLabs/sdk-go"
-	"github.com/InjectiveLabs/sdk-go/typeddata"
+	"cosmossdk.io/errors"
 	"github.com/cosmos/cosmos-sdk/codec"
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
 	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
+	txtypes "github.com/cosmos/cosmos-sdk/types/tx"
 	"github.com/cosmos/cosmos-sdk/types/tx/signing"
 	authante "github.com/cosmos/cosmos-sdk/x/auth/ante"
-	"github.com/cosmos/cosmos-sdk/x/auth/legacy/legacytx"
+	"github.com/cosmos/cosmos-sdk/x/auth/migrations/legacytx"
 	authsigning "github.com/cosmos/cosmos-sdk/x/auth/signing"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	ethsecp256k1 "github.com/ethereum/go-ethereum/crypto/secp256k1"
+
+	"github.com/InjectiveLabs/injective-core/injective-chain/app/ante/typeddata"
 
 	secp256k1 "github.com/InjectiveLabs/injective-core/injective-chain/crypto/ethsecp256k1"
 	chaintypes "github.com/InjectiveLabs/injective-core/injective-chain/types"
@@ -49,7 +50,7 @@ func (svd Eip712SigVerificationDecorator) AnteHandle(ctx sdk.Context, tx sdk.Tx,
 	}
 	sigTx, ok := tx.(authsigning.SigVerifiableTx)
 	if !ok {
-		return ctx, sdkerrors.Wrap(sdkerrors.ErrTxDecode, "invalid transaction type")
+		return ctx, errors.Wrap(sdkerrors.ErrTxDecode, "invalid transaction type")
 	}
 
 	// stdSigs contains the sequence number, account number, and signatures.
@@ -63,7 +64,7 @@ func (svd Eip712SigVerificationDecorator) AnteHandle(ctx sdk.Context, tx sdk.Tx,
 
 	// check that signer length and signature length are the same
 	if len(sigs) != len(signerAddrs) {
-		return ctx, sdkerrors.Wrapf(sdkerrors.ErrUnauthorized, "invalid number of signer;  expected: %d, got %d", len(signerAddrs), len(sigs))
+		return ctx, errors.Wrapf(sdkerrors.ErrUnauthorized, "invalid number of signer;  expected: %d, got %d", len(signerAddrs), len(sigs))
 	}
 
 	for i, sig := range sigs {
@@ -75,12 +76,12 @@ func (svd Eip712SigVerificationDecorator) AnteHandle(ctx sdk.Context, tx sdk.Tx,
 		// retrieve pubkey
 		pubKey := acc.GetPubKey()
 		if !simulate && pubKey == nil {
-			return ctx, sdkerrors.Wrap(sdkerrors.ErrInvalidPubKey, "pubkey on account is not set")
+			return ctx, errors.Wrap(sdkerrors.ErrInvalidPubKey, "pubkey on account is not set")
 		}
 
 		// Check account sequence number.
 		if sig.Sequence != acc.GetSequence() {
-			return ctx, sdkerrors.Wrapf(
+			return ctx, errors.Wrapf(
 				sdkerrors.ErrWrongSequence,
 				"account sequence mismatch, expected %d, got %d", acc.GetSequence(), sig.Sequence,
 			)
@@ -102,10 +103,10 @@ func (svd Eip712SigVerificationDecorator) AnteHandle(ctx sdk.Context, tx sdk.Tx,
 		if !simulate {
 			err := VerifySignatureEIP712(pubKey, signerData, sig.Data, svd.signModeHandler, tx.(authsigning.Tx))
 			if err != nil {
-				log.WithError(err).Debugln("Eip712SigVerificationDecorator failed to verify signature")
+				log.WithError(err).Errorln("Eip712SigVerificationDecorator failed to verify signature")
 
 				errMsg := fmt.Sprintf("signature verification failed; please verify account number (%d) and chain-id (%s)", accNum, chainID)
-				return ctx, sdkerrors.Wrap(sdkerrors.ErrUnauthorized, errMsg)
+				return ctx, errors.Wrap(sdkerrors.ErrUnauthorized, errMsg)
 
 			}
 		}
@@ -151,6 +152,7 @@ func VerifySignatureEIP712(
 				Gas:    tx.GetGas(),
 			},
 			msgs, tx.GetMemo(),
+			nil,
 		)
 
 		var chainID uint64
@@ -164,7 +166,7 @@ func VerifySignatureEIP712(
 
 		if txWithExtensions, ok := tx.(authante.HasExtensionOptionsTx); ok {
 			if opts := txWithExtensions.GetExtensionOptions(); len(opts) > 0 {
-				var optIface chaintypes.ExtensionOptionsWeb3TxI
+				var optIface txtypes.ExtensionOptionI
 				if err := chainTypesCodec.UnpackAny(opts[0], &optIface); err != nil {
 					err = errors.Wrap(err, "failed to proto-unpack ExtensionOptionsWeb3Tx")
 					return err
@@ -186,7 +188,7 @@ func VerifySignatureEIP712(
 
 						feePayerSig = extOpt.FeePayerSig
 						if len(feePayerSig) == 0 {
-							return errors.New("no feePayerSig provided in ExtensionOptionsWeb3Tx")
+							return fmt.Errorf("no feePayerSig provided in ExtensionOptionsWeb3Tx")
 						}
 
 						feeDelegated = true
@@ -207,11 +209,11 @@ func VerifySignatureEIP712(
 		var sigHash []byte
 
 		if feeDelegated {
-			feeDelegation := &chainsdk.FeeDelegationOptions{
+			feeDelegation := &FeeDelegationOptions{
 				FeePayer: feePayer,
 			}
 
-			typedData, err = chainsdk.WrapTxToEIP712(chainTypesCodec, chainID, msgs[0], txBytes, feeDelegation)
+			typedData, err = WrapTxToEIP712(chainTypesCodec, chainID, msgs[0], txBytes, feeDelegation)
 			if err != nil {
 				err = errors.Wrap(err, "failed to pack tx data in EIP712 object")
 				return err
@@ -239,11 +241,11 @@ func VerifySignatureEIP712(
 			}).Address().Bytes())
 
 			if !recoveredFeePayerAcc.Equals(feePayer) {
-				err = errors.New("failed to verify delegated fee payer sig")
+				err = fmt.Errorf("failed to verify delegated fee payer sig")
 				return err
 			}
 		} else {
-			typedData, err = chainsdk.WrapTxToEIP712(chainTypesCodec, chainID, msgs[0], txBytes, nil)
+			typedData, err = WrapTxToEIP712(chainTypesCodec, chainID, msgs[0], txBytes, nil)
 			if err != nil {
 				err = errors.Wrap(err, "failed to pack tx data in EIP712 object")
 				return err

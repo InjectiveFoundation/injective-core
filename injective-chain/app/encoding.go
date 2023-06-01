@@ -2,45 +2,35 @@ package app
 
 import (
 	"github.com/cosmos/cosmos-sdk/client"
-	amino "github.com/cosmos/cosmos-sdk/codec"
+	sdkcodec "github.com/cosmos/cosmos-sdk/codec"
 	"github.com/cosmos/cosmos-sdk/codec/types"
-	"github.com/cosmos/cosmos-sdk/simapp/params"
 	"github.com/cosmos/cosmos-sdk/x/auth/tx"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/codec"
 )
 
+type EncodingConfig struct {
+	InterfaceRegistry types.InterfaceRegistry
+	Marshaler         sdkcodec.Codec
+	TxConfig          client.TxConfig
+	Amino             *sdkcodec.LegacyAmino
+}
+
 // MakeEncodingConfig creates an EncodingConfig for testing
-func MakeEncodingConfig() params.EncodingConfig {
-
-	cdc := amino.NewLegacyAmino()
+func MakeEncodingConfig() EncodingConfig {
+	cdc := sdkcodec.NewLegacyAmino()
 	interfaceRegistry := types.NewInterfaceRegistry()
-	marshaler := amino.NewProtoCodec(interfaceRegistry)
-
-	encodingConfig := params.EncodingConfig{
+	marshaler := sdkcodec.NewProtoCodec(interfaceRegistry)
+	encodingConfig := EncodingConfig{
 		InterfaceRegistry: interfaceRegistry,
 		Marshaler:         marshaler,
-		TxConfig:          NewTxConfig(marshaler),
+		TxConfig:          tx.NewTxConfig(marshaler, tx.DefaultSignModes),
 		Amino:             cdc,
 	}
 
-	codec.RegisterLegacyAminoCodec(encodingConfig.Amino)
-	ModuleBasics.RegisterLegacyAminoCodec(encodingConfig.Amino)
 	codec.RegisterInterfaces(encodingConfig.InterfaceRegistry)
+	codec.RegisterLegacyAminoCodec(encodingConfig.Amino)
 	ModuleBasics.RegisterInterfaces(encodingConfig.InterfaceRegistry)
+	ModuleBasics.RegisterLegacyAminoCodec(encodingConfig.Amino)
 	return encodingConfig
-}
-
-type txConfig struct {
-	cdc amino.ProtoCodecMarshaler
-	client.TxConfig
-}
-
-// NewTxConfig returns a new protobuf TxConfig using the provided ProtoCodec and sign modes. The
-// first enabled sign mode will become the default sign mode.
-func NewTxConfig(marshaler amino.ProtoCodecMarshaler) client.TxConfig {
-	return &txConfig{
-		marshaler,
-		tx.NewTxConfig(marshaler, tx.DefaultSignModes),
-	}
 }

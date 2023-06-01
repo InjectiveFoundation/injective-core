@@ -8,10 +8,18 @@ import (
 )
 
 // GetParams returns the total set of oracle parameters.
-func (k *Keeper) GetParams(ctx sdk.Context) (params types.Params) {
+func (k *Keeper) GetParams(ctx sdk.Context) types.Params {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
-	k.paramSpace.GetParamSet(ctx, &params)
+	store := ctx.KVStore(k.storeKey)
+	bz := store.Get(types.ParamsKey)
+	if bz == nil {
+		return types.Params{}
+	}
+
+	var params types.Params
+	k.cdc.MustUnmarshal(bz, &params)
+
 	return params
 }
 
@@ -19,5 +27,6 @@ func (k *Keeper) GetParams(ctx sdk.Context) (params types.Params) {
 func (k *Keeper) SetParams(ctx sdk.Context, params types.Params) {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
-	k.paramSpace.SetParamSet(ctx, &params)
+	store := ctx.KVStore(k.storeKey)
+	store.Set(types.ParamsKey, k.cdc.MustMarshal(&params))
 }

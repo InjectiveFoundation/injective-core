@@ -3,9 +3,9 @@ package keeper
 import (
 	"context"
 
+	"cosmossdk.io/errors"
 	"github.com/InjectiveLabs/metrics"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/types"
 )
@@ -33,12 +33,12 @@ func (k Keeper) RequestBandIBCRates(goCtx context.Context, msg *types.MsgRequest
 
 	if !bandIBCParams.BandIbcEnabled {
 		k.Logger(ctx).Error("Cannot process new band ibc request. BandIBC is disabled.")
-		return nil, sdkerrors.Wrapf(types.ErrInvalidBandIBCRequest, "BandIBC is disabled")
+		return nil, errors.Wrapf(types.ErrInvalidBandIBCRequest, "BandIBC is disabled")
 	}
 
 	bandIBCOracleRequest := k.GetBandIBCOracleRequest(ctx, msg.RequestId)
 	if bandIBCOracleRequest == nil {
-		return nil, sdkerrors.Wrapf(types.ErrInvalidBandIBCRequest, "BandIBC oracle request not found. Should be created using governance first")
+		return nil, errors.Wrapf(types.ErrInvalidBandIBCRequest, "BandIBC oracle request not found. Should be created using governance first")
 	}
 
 	if err := k.RequestBandIBCOraclePrices(ctx, bandIBCOracleRequest); err != nil {

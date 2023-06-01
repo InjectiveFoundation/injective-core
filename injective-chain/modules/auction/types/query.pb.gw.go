@@ -267,11 +267,11 @@ func RegisterQueryHandlerClient(ctx context.Context, mux *runtime.ServeMux, clie
 }
 
 var (
-	pattern_Query_AuctionParams_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "auction", "v1beta1", "params"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_AuctionParams_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "auction", "v1beta1", "params"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_CurrentAuctionBasket_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "auction", "v1beta1", "basket"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_CurrentAuctionBasket_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "auction", "v1beta1", "basket"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_AuctionModuleState_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "auction", "v1beta1", "module_state"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_AuctionModuleState_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "auction", "v1beta1", "module_state"}, "", runtime.AssumeColonVerbOpt(false)))
 )
 
 var (

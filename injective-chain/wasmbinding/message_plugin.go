@@ -3,6 +3,7 @@ package wasmbinding
 import (
 	"encoding/json"
 
+	"cosmossdk.io/errors"
 	wasmkeeper "github.com/CosmWasm/wasmd/x/wasm/keeper"
 	wasmvmtypes "github.com/CosmWasm/wasmvm/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -50,13 +51,13 @@ func (m *CustomMessenger) DispatchMsg(ctx sdk.Context, contractAddr sdk.AccAddre
 
 	var wrappedContractMsg bindings.InjectiveMsgWrapper
 	if err := json.Unmarshal(msg.Custom, &wrappedContractMsg); err != nil {
-		return nil, nil, sdkerrors.Wrap(err, "Error parsing msg data")
+		return nil, nil, errors.Wrap(err, "Error parsing msg data")
 	}
 
 	var contractMsg bindings.InjectiveMsg
 
 	if err := json.Unmarshal(wrappedContractMsg.MsgData, &contractMsg); err != nil {
-		return nil, nil, sdkerrors.Wrap(err, "injective msg")
+		return nil, nil, errors.Wrap(err, "injective msg")
 	}
 
 	var sdkMsg sdk.Msg
@@ -88,7 +89,7 @@ func (m *CustomMessenger) DispatchMsg(ctx sdk.Context, contractAddr sdk.AccAddre
 
 		err = m.bankKeeper.SendCoins(ctx, contractAddr, rcpt, sdk.NewCoins(mint.Amount))
 		if err != nil {
-			return nil, nil, sdkerrors.Wrap(err, "sending newly minted coins from message")
+			return nil, nil, errors.Wrap(err, "sending newly minted coins from message")
 		}
 		// merge the events together
 		events = append(events, ctx.EventManager().Events()...)
@@ -166,8 +167,8 @@ func (m *CustomMessenger) DispatchMsg(ctx sdk.Context, contractAddr sdk.AccAddre
 	// wasmx messages
 	case contractMsg.UpdateContractMsg != nil:
 		sdkMsg = contractMsg.UpdateContractMsg
-	case contractMsg.DeactiveContractMsg != nil:
-		sdkMsg = contractMsg.DeactiveContractMsg
+	case contractMsg.DeactivateContractMsg != nil:
+		sdkMsg = contractMsg.DeactivateContractMsg
 	case contractMsg.ActivateContractMsg != nil:
 		sdkMsg = contractMsg.ActivateContractMsg
 	default:
@@ -206,7 +207,7 @@ func (m *CustomMessenger) handleSdkMessage(ctx sdk.Context, contractAddr sdk.Add
 	// make sure this account can send it
 	for _, acct := range msg.GetSigners() {
 		if !acct.Equals(contractAddr) {
-			return nil, sdkerrors.Wrap(sdkerrors.ErrUnauthorized, "contract doesn't have permission")
+			return nil, errors.Wrap(sdkerrors.ErrUnauthorized, "contract doesn't have permission")
 		}
 	}
 
@@ -221,18 +222,18 @@ func (m *CustomMessenger) handleSdkMessage(ctx sdk.Context, contractAddr sdk.Add
 	// proto messages and has registered all `Msg services`, then this
 	// path should never be called, because all those Msgs should be
 	// registered within the `msgServiceRouter` already.
-	return nil, sdkerrors.Wrapf(sdkerrors.ErrUnknownRequest, "can't route message %+v", msg)
+	return nil, errors.Wrapf(sdkerrors.ErrUnknownRequest, "can't route message %+v", msg)
 }
 
 // parseAddress parses address from bech32 string and verifies its format.
 func parseAddress(addr string) (sdk.AccAddress, error) {
 	parsed, err := sdk.AccAddressFromBech32(addr)
 	if err != nil {
-		return nil, sdkerrors.Wrap(err, "address from bech32")
+		return nil, errors.Wrap(err, "address from bech32")
 	}
 	err = sdk.VerifyAddressFormat(parsed)
 	if err != nil {
-		return nil, sdkerrors.Wrap(err, "verify address format")
+		return nil, errors.Wrap(err, "verify address format")
 	}
 	return parsed, nil
 }

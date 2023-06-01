@@ -691,19 +691,19 @@ func RegisterQueryHandlerClient(ctx context.Context, mux *runtime.ServeMux, clie
 }
 
 var (
-	pattern_Query_Params_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"chainlink", "ocr", "v1beta1", "params"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_Params_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"chainlink", "ocr", "v1beta1", "params"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_FeedConfig_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"chainlink", "ocr", "v1beta1", "feed_config", "feed_id"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_FeedConfig_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"chainlink", "ocr", "v1beta1", "feed_config", "feed_id"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_FeedConfigInfo_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"chainlink", "ocr", "v1beta1", "feed_config_info", "feed_id"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_FeedConfigInfo_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"chainlink", "ocr", "v1beta1", "feed_config_info", "feed_id"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_LatestRound_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"chainlink", "ocr", "v1beta1", "latest_round", "feed_id"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_LatestRound_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"chainlink", "ocr", "v1beta1", "latest_round", "feed_id"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_LatestTransmissionDetails_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"chainlink", "ocr", "v1beta1", "latest_transmission_details", "feed_id"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_LatestTransmissionDetails_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"chainlink", "ocr", "v1beta1", "latest_transmission_details", "feed_id"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_OwedAmount_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"chainlink", "ocr", "v1beta1", "owed_amount", "transmitter"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_OwedAmount_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"chainlink", "ocr", "v1beta1", "owed_amount", "transmitter"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_OcrModuleState_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"chainlink", "ocr", "v1beta1", "module_state"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Query_OcrModuleState_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"chainlink", "ocr", "v1beta1", "module_state"}, "", runtime.AssumeColonVerbOpt(false)))
 )
 
 var (

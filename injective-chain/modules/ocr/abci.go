@@ -1,11 +1,11 @@
 package ocr
 
 import (
+	abci "github.com/cometbft/cometbft/abci/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	abci "github.com/tendermint/tendermint/abci/types"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/ocr/keeper"
-	// abci "github.com/tendermint/tendermint/abci/types"
+	// abci "github.com/cometbft/cometbft/abci/types"
 )
 
 // BeginBlocker runs on every begin block

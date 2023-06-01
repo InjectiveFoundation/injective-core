@@ -26,3 +26,4 @@ The `exchange` module enables the exchange of tokens on two types of markets:
 9. **[End Block](08_end_block.md)**
 10. **[Events](09_events.md)**
 11. **[Params](10_params.md)**
+12. **[MsgPrivilegedExecuteContract](11_msg_privileged_execute_contract.md)**

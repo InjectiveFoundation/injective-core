@@ -2,11 +2,12 @@ package keeper
 
 import (
 	"context"
-	"github.com/ethereum/go-ethereum/common"
 	"strings"
 
+	"github.com/ethereum/go-ethereum/common"
+
+	"cosmossdk.io/errors"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 
 	"github.com/InjectiveLabs/metrics"
 
@@ -232,7 +233,7 @@ func (k *Keeper) OraclePrice(c context.Context, req *types.QueryOraclePriceReque
 
 	if pricePairState == nil || pricePairState.PairPrice.IsNil() {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrapf(types.ErrInvalidOracleRequest, "type %s base %s quote %s", req.OracleType.String(), req.Base, req.Quote)
+		return nil, errors.Wrapf(types.ErrInvalidOracleRequest, "type %s base %s quote %s", req.OracleType.String(), req.Base, req.Quote)
 	}
 
 	response := types.QueryOraclePriceResponse{

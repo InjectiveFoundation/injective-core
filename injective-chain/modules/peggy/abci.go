@@ -257,6 +257,15 @@ func (h *BlockHandler) valsetSlashing(ctx sdk.Context, params *types.Params) {
 					if !currentBondedSet[i].IsJailed() {
 						h.k.StakingKeeper.Jail(ctx, cons)
 					}
+
+					// nolint:errcheck //ignored on purpose
+					ctx.EventManager().EmitTypedEvent(&types.EventValidatorSlash{
+						Power:            consPower,
+						Reason:           "missing_valset_confirm",
+						ConsensusAddress: consAddr.String(),
+						OperatorAddress:  currentBondedSet[i].OperatorAddress,
+						Moniker:          currentBondedSet[i].GetMoniker(),
+					})
 				}
 			}
 		}
@@ -302,6 +311,15 @@ func (h *BlockHandler) valsetSlashing(ctx sdk.Context, params *types.Params) {
 						if !validator.IsJailed() {
 							h.k.StakingKeeper.Jail(ctx, valConsAddr)
 						}
+
+						// nolint:errcheck //ignored on purpose
+						ctx.EventManager().EmitTypedEvent(&types.EventValidatorSlash{
+							Power:            consPower,
+							Reason:           "missing_valset_confirm",
+							ConsensusAddress: validator.String(),
+							OperatorAddress:  validator.OperatorAddress,
+							Moniker:          validator.GetMoniker(),
+						})
 					}
 				}
 			}
@@ -365,6 +383,15 @@ func (h *BlockHandler) batchSlashing(ctx sdk.Context, params *types.Params) {
 				if !currentBondedSet[i].IsJailed() {
 					h.k.StakingKeeper.Jail(ctx, cons)
 				}
+				
+				// nolint:errcheck //ignored on purpose
+				ctx.EventManager().EmitTypedEvent(&types.EventValidatorSlash{
+					Power:            consPower,
+					Reason:           "missing_batch_confirm",
+					ConsensusAddress: currentBondedSet[i].String(),
+					OperatorAddress:  currentBondedSet[i].OperatorAddress,
+					Moniker:          currentBondedSet[i].GetMoniker(),
+				})
 			}
 		}
 

@@ -1,9 +1,10 @@
 package ocr
 
 import (
+	"cosmossdk.io/errors"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
-	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
+	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types/v1beta1"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/ocr/keeper"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/ocr/types"
@@ -18,7 +19,7 @@ func NewOcrProposalHandler(k keeper.Keeper) govtypes.Handler {
 		case *types.SetBatchConfigProposal:
 			return handleBatchSetConfigProposal(ctx, k, c)
 		default:
-			return sdkerrors.Wrapf(sdkerrors.ErrUnknownRequest, "unrecognized ocr proposal content type: %T", c)
+			return errors.Wrapf(sdkerrors.ErrUnknownRequest, "unrecognized ocr proposal content type: %T", c)
 		}
 	}
 }
@@ -30,7 +31,7 @@ func handleSetConfigProposal(ctx sdk.Context, k keeper.Keeper, p *types.SetConfi
 
 	linkDenom := k.LinkDenom(ctx)
 	if linkDenom != p.Config.ModuleParams.LinkDenom {
-		return sdkerrors.Wrapf(sdkerrors.ErrInvalidCoins, "expected LINK denom %s but got %s", linkDenom, p.Config.ModuleParams.LinkDenom)
+		return errors.Wrapf(sdkerrors.ErrInvalidCoins, "expected LINK denom %s but got %s", linkDenom, p.Config.ModuleParams.LinkDenom)
 	}
 
 	feedId := p.Config.ModuleParams.FeedId
@@ -53,7 +54,7 @@ func handleBatchSetConfigProposal(ctx sdk.Context, k keeper.Keeper, p *types.Set
 
 	linkDenom := k.LinkDenom(ctx)
 	if linkDenom != p.LinkDenom {
-		return sdkerrors.Wrapf(sdkerrors.ErrInvalidCoins, "expected LINK denom %s but got %s", linkDenom, p.LinkDenom)
+		return errors.Wrapf(sdkerrors.ErrInvalidCoins, "expected LINK denom %s but got %s", linkDenom, p.LinkDenom)
 	}
 
 	for _, feed := range p.FeedProperties {

@@ -5,9 +5,9 @@ import (
 	"math/big"
 	"sort"
 
+	"cosmossdk.io/errors"
 	"github.com/cosmos/cosmos-sdk/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/InjectiveLabs/metrics"
@@ -105,14 +105,14 @@ func (k *Keeper) RemoveFromOutgoingPoolAndRefund(ctx sdk.Context, txId uint64, s
 
 	if !sender.Equals(txSender) {
 		metrics.ReportFuncError(k.svcTags)
-		return sdkerrors.Wrapf(types.ErrInvalid, "Invalid sender address")
+		return errors.Wrapf(types.ErrInvalid, "Invalid sender address")
 	}
 
 	// An inconsistent entry should never enter the store, but this is the ideal place to exploit
 	// it such a bug if it did ever occur, so we should double check to be really sure
 	if tx.Erc20Fee.Contract != tx.Erc20Token.Contract {
 		metrics.ReportFuncError(k.svcTags)
-		return sdkerrors.Wrapf(types.ErrInvalid, "Inconsistent tokens to cancel!: %s %s", tx.Erc20Fee.Contract, tx.Erc20Token.Contract)
+		return errors.Wrapf(types.ErrInvalid, "Inconsistent tokens to cancel!: %s %s", tx.Erc20Fee.Contract, tx.Erc20Token.Contract)
 	}
 
 	found := false
@@ -124,14 +124,14 @@ func (k *Keeper) RemoveFromOutgoingPoolAndRefund(ctx sdk.Context, txId uint64, s
 	}
 	if !found {
 		metrics.ReportFuncError(k.svcTags)
-		return sdkerrors.Wrapf(types.ErrInvalid, "txId %d is not in unbatched pool! Must be in batch!", txId)
+		return errors.Wrapf(types.ErrInvalid, "txId %d is not in unbatched pool! Must be in batch!", txId)
 	}
 
 	// delete this tx from both indexes
 	err = k.removeFromUnbatchedTXIndex(ctx, common.HexToAddress(tx.Erc20Token.Contract), tx.Erc20Fee, txId)
 	if err != nil {
 		metrics.ReportFuncError(k.svcTags)
-		return sdkerrors.Wrapf(types.ErrInvalid, "txId %d not in unbatched index! Must be in a batch!", txId)
+		return errors.Wrapf(types.ErrInvalid, "txId %d not in unbatched index! Must be in a batch!", txId)
 	}
 	k.removePoolEntry(ctx, txId)
 
@@ -162,11 +162,11 @@ func (k *Keeper) RemoveFromOutgoingPoolAndRefund(ctx sdk.Context, txId uint64, s
 		// mint coins in module for prep to send
 		if err := k.bankKeeper.MintCoins(ctx, types.ModuleName, totalToRefundCoins); err != nil {
 			metrics.ReportFuncError(k.svcTags)
-			return sdkerrors.Wrapf(err, "mint vouchers coins: %s", totalToRefundCoins)
+			return errors.Wrapf(err, "mint vouchers coins: %s", totalToRefundCoins)
 		}
 		if err = k.bankKeeper.SendCoinsFromModuleToAccount(ctx, types.ModuleName, sender, totalToRefundCoins); err != nil {
 			metrics.ReportFuncError(k.svcTags)
-			return sdkerrors.Wrap(err, "transfer vouchers")
+			return errors.Wrap(err, "transfer vouchers")
 		}
 	}
 
@@ -224,7 +224,7 @@ func (k *Keeper) removeFromUnbatchedTXIndex(ctx sdk.Context, tokenContract commo
 	bz := store.Get(idxKey)
 	if bz == nil {
 		metrics.ReportFuncError(k.svcTags)
-		return sdkerrors.Wrap(types.ErrUnknown, "fee")
+		return errors.Wrap(types.ErrUnknown, "fee")
 	}
 
 	k.cdc.MustUnmarshal(bz, &idSet)
@@ -241,7 +241,7 @@ func (k *Keeper) removeFromUnbatchedTXIndex(ctx sdk.Context, tokenContract commo
 	}
 
 	metrics.ReportFuncError(k.svcTags)
-	return sdkerrors.Wrap(types.ErrUnknown, "tx id")
+	return errors.Wrap(types.ErrUnknown, "tx id")
 }
 
 func (k *Keeper) setPoolEntry(ctx sdk.Context, outgoingTransferTx *types.OutgoingTransferTx) error {

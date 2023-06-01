@@ -1,10 +1,11 @@
 package keeper
 
 import (
+	sdkmath "cosmossdk.io/math"
+	"github.com/InjectiveLabs/metrics"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/insurance/types"
-	"github.com/InjectiveLabs/metrics"
 )
 
 // ExportNextShareDenomId returns the next share denom id
@@ -40,7 +41,7 @@ func (k *Keeper) getNextShareDenomId(ctx sdk.Context) uint64 {
 }
 
 // MintShareTokens mint share tokens to an address and increase total share variable of insurance fund
-func (k *Keeper) MintShareTokens(ctx sdk.Context, fund *types.InsuranceFund, addr sdk.AccAddress, shares sdk.Int) (*types.InsuranceFund, error) {
+func (k *Keeper) MintShareTokens(ctx sdk.Context, fund *types.InsuranceFund, addr sdk.AccAddress, shares sdkmath.Int) (*types.InsuranceFund, error) {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	amount := sdk.Coins{sdk.NewCoin(fund.ShareDenom(), shares)}
@@ -61,7 +62,7 @@ func (k *Keeper) MintShareTokens(ctx sdk.Context, fund *types.InsuranceFund, add
 }
 
 // BurnShareTokens burn share tokens locked on insurance module
-func (k *Keeper) BurnShareTokens(ctx sdk.Context, fund *types.InsuranceFund, shares sdk.Int) (*types.InsuranceFund, error) {
+func (k *Keeper) BurnShareTokens(ctx sdk.Context, fund *types.InsuranceFund, shares sdkmath.Int) (*types.InsuranceFund, error) {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	shareAmount := sdk.Coins{sdk.NewCoin(fund.ShareDenom(), shares)}

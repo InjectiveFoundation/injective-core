@@ -2,13 +2,13 @@ package keeper
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	sdkerrors "cosmossdk.io/errors"
 	"github.com/InjectiveLabs/metrics"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/pkg/errors"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 )

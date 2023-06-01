@@ -3,9 +3,9 @@ package keeper
 import (
 	"context"
 
+	"cosmossdk.io/errors"
 	"github.com/InjectiveLabs/metrics"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/ethereum/go-ethereum/common"
 	log "github.com/xlab/suplog"
 
@@ -46,7 +46,7 @@ func (k BinaryOptionsMsgServer) InstantBinaryOptionsMarketLaunch(goCtx context.C
 	if k.checkIfMarketLaunchProposalExist(ctx, types.ProposalTypeBinaryOptionsMarketLaunch, marketID) {
 		metrics.ReportFuncError(k.svcTags)
 		log.Infof("the binary options market launch proposal already exists: marketID=%s", marketID.Hex())
-		return nil, sdkerrors.Wrapf(types.ErrMarketLaunchProposalAlreadyExists, "the binary options market launch proposal already exists: marketID=%s", marketID.Hex())
+		return nil, errors.Wrapf(types.ErrMarketLaunchProposalAlreadyExists, "the binary options market launch proposal already exists: marketID=%s", marketID.Hex())
 	}
 
 	_, err = k.BinaryOptionsMarketLaunch(
@@ -85,7 +85,7 @@ func (k BinaryOptionsMsgServer) CreateBinaryOptionsLimitOrder(goCtx context.Cont
 	if market == nil {
 		k.Logger(ctx).Error("active binary options market doesn't exist", "marketId", msg.Order.MarketId)
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrapf(types.ErrBinaryOptionsMarketNotFound, "marketID %s", msg.Order.MarketId)
+		return nil, errors.Wrapf(types.ErrBinaryOptionsMarketNotFound, "marketID %s", msg.Order.MarketId)
 	}
 
 	requiredMargin := msg.Order.GetRequiredBinaryOptionsMargin(market.OracleScaleFactor)
@@ -117,7 +117,7 @@ func (k BinaryOptionsMsgServer) CreateBinaryOptionsMarketOrder(goCtx context.Con
 	if market == nil {
 		k.Logger(ctx).Error("active binary options market doesn't exist", "marketId", msg.Order.MarketId)
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrapf(types.ErrBinaryOptionsMarketNotFound, "marketID %s", msg.Order.MarketId)
+		return nil, errors.Wrapf(types.ErrBinaryOptionsMarketNotFound, "marketID %s", msg.Order.MarketId)
 	}
 
 	requiredMargin := msg.Order.GetRequiredBinaryOptionsMargin(market.OracleScaleFactor)
@@ -172,18 +172,18 @@ func (k BinaryOptionsMsgServer) AdminUpdateBinaryOptionsMarket(goCtx context.Con
 	if market == nil {
 		k.Logger(ctx).Error("binary options market doesn't exist", "marketID", msg.MarketId)
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrapf(types.ErrBinaryOptionsMarketNotFound, "marketID %s", msg.MarketId)
+		return nil, errors.Wrapf(types.ErrBinaryOptionsMarketNotFound, "marketID %s", msg.MarketId)
 	}
 
 	if market.Admin != msg.Sender {
 		k.Logger(ctx).Error("message sender is not an admin of binary options market", "sender", msg.Sender, "admin", market.Admin)
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrapf(types.ErrSenderIsNotAnAdmin, "sender %s, admin %s", msg.Sender, market.Admin)
+		return nil, errors.Wrapf(types.ErrSenderIsNotAnAdmin, "sender %s, admin %s", msg.Sender, market.Admin)
 	}
 
 	if market.Status == types.MarketStatus_Demolished {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrapf(types.ErrInvalidMarketStatus, "can't update market that was demolished already")
+		return nil, errors.Wrapf(types.ErrInvalidMarketStatus, "can't update market that was demolished already")
 	}
 
 	expTimestamp, settlementTimestamp := market.ExpirationTimestamp, market.SettlementTimestamp
@@ -191,11 +191,11 @@ func (k BinaryOptionsMsgServer) AdminUpdateBinaryOptionsMarket(goCtx context.Con
 	if msg.ExpirationTimestamp > 0 {
 		if msg.ExpirationTimestamp <= ctx.BlockTime().Unix() {
 			metrics.ReportFuncError(k.svcTags)
-			return nil, sdkerrors.Wrapf(types.ErrInvalidExpiry, "expiration timestamp %d is in the past", msg.ExpirationTimestamp)
+			return nil, errors.Wrapf(types.ErrInvalidExpiry, "expiration timestamp %d is in the past", msg.ExpirationTimestamp)
 		}
 		if market.Status != types.MarketStatus_Active {
 			metrics.ReportFuncError(k.svcTags)
-			return nil, sdkerrors.Wrap(types.ErrInvalidExpiry, "cannot change expiration time of an expired market")
+			return nil, errors.Wrap(types.ErrInvalidExpiry, "cannot change expiration time of an expired market")
 		}
 		expTimestamp = msg.ExpirationTimestamp
 	}
@@ -203,17 +203,17 @@ func (k BinaryOptionsMsgServer) AdminUpdateBinaryOptionsMarket(goCtx context.Con
 	if msg.SettlementTimestamp > 0 {
 		if msg.SettlementTimestamp <= ctx.BlockTime().Unix() {
 			metrics.ReportFuncError(k.svcTags)
-			return nil, sdkerrors.Wrapf(types.ErrInvalidSettlement, "SettlementTimestamp %d should be in future", msg.SettlementTimestamp)
+			return nil, errors.Wrapf(types.ErrInvalidSettlement, "SettlementTimestamp %d should be in future", msg.SettlementTimestamp)
 		}
 		if msg.SettlementTimestamp <= expTimestamp {
 			metrics.ReportFuncError(k.svcTags)
-			return nil, sdkerrors.Wrap(types.ErrInvalidSettlement, "settlement time must be after expiration time")
+			return nil, errors.Wrap(types.ErrInvalidSettlement, "settlement time must be after expiration time")
 		}
 		settlementTimestamp = msg.SettlementTimestamp
 	}
 
 	if expTimestamp >= settlementTimestamp {
-		return nil, sdkerrors.Wrap(types.ErrInvalidExpiry, "expiration timestamp should be prior to settlement timestamp")
+		return nil, errors.Wrap(types.ErrInvalidExpiry, "expiration timestamp should be prior to settlement timestamp")
 	}
 
 	// we convert it to UpdateProposal type to not duplicate the code

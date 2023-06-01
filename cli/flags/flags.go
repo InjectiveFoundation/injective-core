@@ -3,11 +3,11 @@ package flags
 import (
 	"fmt"
 
+	tmcli "github.com/cometbft/cometbft/libs/cli"
 	"github.com/cosmos/cosmos-sdk/client/flags"
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
 	govcli "github.com/cosmos/cosmos-sdk/x/gov/client/cli"
 	"github.com/spf13/cobra"
-	tmcli "github.com/tendermint/tendermint/libs/cli"
 )
 
 // AddQueryFlagsToCmd adds common flags to a module query command.
@@ -42,7 +42,7 @@ func AddTxFlagsToCmd(cmd *cobra.Command) {
 	cmd.Flags().String(flags.FlagKeyringBackend, keyring.BackendFile, "Select keyring's backend (os|file|kwallet|pass|test|memory)")
 	cmd.Flags().String(flags.FlagSignMode, "", "Choose sign mode (direct|amino-json), this is an advanced feature")
 	cmd.Flags().Uint64(flags.FlagTimeoutHeight, 0, "Set a block timeout height to prevent the tx from being committed past a certain height")
-	cmd.Flags().String(flags.FlagFeeAccount, "", "Fee account pays fees for the transaction instead of deducting from the signer")
+	cmd.Flags().String(flags.FlagFeePayer, "", "Fee payer pays fees for the transaction instead of deducting from the signer")
 	cmd.Flags().String(flags.FlagChainID, "", "chain-id")
 
 	// --gas can accept integers and "auto"
@@ -54,6 +54,7 @@ func AddTxFlagsToCmd(cmd *cobra.Command) {
 	}
 }
 
+//nolint:staticcheck // deprecated gov proposal flags
 func AddGovProposalFlags(cmd *cobra.Command) {
 	cmd.Flags().String(govcli.FlagTitle, "", "title of proposal")
 	cmd.Flags().String(govcli.FlagDescription, "", "description of proposal")

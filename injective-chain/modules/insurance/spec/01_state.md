@@ -35,9 +35,9 @@ type InsuranceFund struct {
 	// a redemption request before the underwriter can claim his tokens
 	RedemptionNoticePeriodDuration time.Duration 
 	// balance of fund
-	Balance sdk.Int 
+	Balance sdkmath.Int 
 	// total share tokens minted
-	TotalShare sdk.Int 
+	TotalShare sdkmath.Int 
 	// marketID of the derivative market
 	MarketId string 
 	// ticker of the derivative market

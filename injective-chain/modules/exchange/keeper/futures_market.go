@@ -1,9 +1,9 @@
 package keeper
 
 import (
+	"cosmossdk.io/errors"
 	"github.com/cosmos/cosmos-sdk/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/InjectiveLabs/metrics"
@@ -32,26 +32,26 @@ func (k *Keeper) ExpiryFuturesMarketLaunch(
 
 	if !k.IsDenomValid(ctx, quoteDenom) {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, nil, sdkerrors.Wrapf(types.ErrInvalidQuoteDenom, "denom %s does not exist in supply", quoteDenom)
+		return nil, nil, errors.Wrapf(types.ErrInvalidQuoteDenom, "denom %s does not exist in supply", quoteDenom)
 	}
 
 	marketID := types.NewExpiryFuturesMarketID(ticker, quoteDenom, oracleBase, oracleQuote, oracleType, expiry)
 	if k.HasDerivativeMarket(ctx, marketID, true) || k.HasDerivativeMarket(ctx, marketID, false) {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, nil, sdkerrors.Wrapf(types.ErrExpiryFuturesMarketExists, "ticker %s quoteDenom %s oracle base %s quote %s expiry %d", ticker, quoteDenom, oracleBase, oracleQuote, expiry)
+		return nil, nil, errors.Wrapf(types.ErrExpiryFuturesMarketExists, "ticker %s quoteDenom %s oracle base %s quote %s expiry %d", ticker, quoteDenom, oracleBase, oracleQuote, expiry)
 	}
 
 	if oracleType == oracletypes.OracleType_BandIBC {
 		nonIBCBandMarketID := types.NewExpiryFuturesMarketID(ticker, quoteDenom, oracleBase, oracleQuote, oracletypes.OracleType_Band, expiry)
 		if k.HasDerivativeMarket(ctx, nonIBCBandMarketID, true) || k.HasDerivativeMarket(ctx, nonIBCBandMarketID, false) {
 			metrics.ReportFuncError(k.svcTags)
-			return nil, nil, sdkerrors.Wrapf(types.ErrExpiryFuturesMarketExists, "marketID %s with a promoted Band IBC oracle already exists ticker %s quoteDenom %s", nonIBCBandMarketID.Hex(), ticker, quoteDenom)
+			return nil, nil, errors.Wrapf(types.ErrExpiryFuturesMarketExists, "marketID %s with a promoted Band IBC oracle already exists ticker %s quoteDenom %s", nonIBCBandMarketID.Hex(), ticker, quoteDenom)
 		}
 	}
 
 	if expiry <= ctx.BlockTime().Unix() {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, nil, sdkerrors.Wrapf(types.ErrExpiryFuturesMarketExpired, "ticker %s quoteDenom %s oracleBase %s oracleQuote %s expiry %d expired. Current blocktime %d", ticker, quoteDenom, oracleBase, oracleQuote, expiry, ctx.BlockTime().Unix())
+		return nil, nil, errors.Wrapf(types.ErrExpiryFuturesMarketExpired, "ticker %s quoteDenom %s oracleBase %s oracleQuote %s expiry %d expired. Current blocktime %d", ticker, quoteDenom, oracleBase, oracleQuote, expiry, ctx.BlockTime().Unix())
 	}
 
 	_, err := k.GetDerivativeMarketPrice(ctx, oracleBase, oracleQuote, oracleScaleFactor, oracleType)
@@ -62,7 +62,7 @@ func (k *Keeper) ExpiryFuturesMarketLaunch(
 
 	if !k.insuranceKeeper.HasInsuranceFund(ctx, marketID) {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, nil, sdkerrors.Wrapf(insurancetypes.ErrInsuranceFundNotFound, "ticker %s marketID %s", ticker, marketID.Hex())
+		return nil, nil, errors.Wrapf(insurancetypes.ErrInsuranceFundNotFound, "ticker %s marketID %s", ticker, marketID.Hex())
 	}
 
 	market := &types.DerivativeMarket{

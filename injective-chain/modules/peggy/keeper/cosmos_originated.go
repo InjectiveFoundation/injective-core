@@ -1,13 +1,15 @@
 package keeper
 
 import (
+	sdkmath "cosmossdk.io/math"
 	"github.com/cosmos/cosmos-sdk/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
 
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/peggy/types"
 	"github.com/InjectiveLabs/metrics"
+
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/peggy/types"
 )
 
 func (k *Keeper) GetCosmosOriginatedDenom(ctx sdk.Context, tokenContract common.Address) (string, bool) {
@@ -84,7 +86,7 @@ func (k *Keeper) DenomToERC20Lookup(ctx sdk.Context, denomStr string) (isCosmosO
 
 // RewardToERC20Lookup is a specialized function wrapping DenomToERC20Lookup designed to validate
 // the validator set reward any time we generate a validator set
-func (k *Keeper) RewardToERC20Lookup(ctx sdk.Context, coin sdk.Coin) (common.Address, sdk.Int) {
+func (k *Keeper) RewardToERC20Lookup(ctx sdk.Context, coin sdk.Coin) (common.Address, sdkmath.Int) {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	if coin.Denom == "" || coin.Amount.BigInt() == nil || coin.Amount == sdk.NewInt(0) {

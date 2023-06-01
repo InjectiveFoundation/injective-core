@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	// "github.com/tendermint/tendermint/libs/rand"
-	"math/rand"
 
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/exported"
+
+	abci "github.com/cometbft/cometbft/abci/types"
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/codec"
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
@@ -15,10 +16,8 @@ import (
 	simtypes "github.com/cosmos/cosmos-sdk/types/simulation"
 	authkeeper "github.com/cosmos/cosmos-sdk/x/auth/keeper"
 	bankkeeper "github.com/cosmos/cosmos-sdk/x/bank/keeper"
-	"github.com/gorilla/mux"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/spf13/cobra"
-	abci "github.com/tendermint/tendermint/abci/types"
 
 	"github.com/InjectiveLabs/metrics"
 
@@ -33,6 +32,8 @@ var (
 	_ module.AppModule      = AppModule{}
 	_ module.AppModuleBasic = AppModuleBasic{}
 )
+
+const ConsensusVersion = 2
 
 // app module Basics object
 type AppModuleBasic struct{}
@@ -66,11 +67,6 @@ func (b AppModuleBasic) ValidateGenesis(cdc codec.JSONCodec, config client.TxEnc
 	return genesisState.Validate()
 }
 
-// RegisterRESTRoutes performs a no-op as the wasmx module doesn't expose REST
-// endpoints
-func (AppModuleBasic) RegisterRESTRoutes(clientCtx client.Context, rtr *mux.Router) {
-}
-
 func (b AppModuleBasic) RegisterGRPCGatewayRoutes(c client.Context, serveMux *runtime.ServeMux) {
 	if err := types.RegisterQueryHandlerClient(context.Background(), serveMux, types.NewQueryClient(c)); err != nil {
 		panic(err)
@@ -96,11 +92,10 @@ type AppModule struct {
 	bankKeeper     bankkeeper.Keeper
 	exchangeKeeper exchangekeeper.Keeper
 	blockHandler   *BlockHandler
+	legacySubspace exported.Subspace
 }
 
-func (am AppModule) ConsensusVersion() uint64 {
-	return 1
-}
+func (am AppModule) ConsensusVersion() uint64 { return ConsensusVersion }
 
 // NewAppModule creates a new AppModule Object
 func NewAppModule(
@@ -108,6 +103,7 @@ func NewAppModule(
 	accountKeeper authkeeper.AccountKeeper,
 	bankKeeper bankkeeper.Keeper,
 	exchangeKeeper exchangekeeper.Keeper,
+	legacySubspace exported.Subspace,
 ) AppModule {
 	return AppModule{
 		AppModuleBasic: AppModuleBasic{},
@@ -120,6 +116,7 @@ func NewAppModule(
 		bankKeeper:     bankKeeper,
 		exchangeKeeper: exchangeKeeper,
 		blockHandler:   NewBlockHandler(keeper),
+		legacySubspace: legacySubspace,
 	}
 }
 
@@ -129,22 +126,19 @@ func (AppModule) Name() string {
 
 func (am AppModule) RegisterInvariants(ir sdk.InvariantRegistry) {}
 
-func (am AppModule) Route() sdk.Route {
-	return sdk.NewRoute(types.RouterKey, NewHandler(am.keeper))
-}
-
 func (am AppModule) QuerierRoute() string {
 	return types.RouterKey
-}
-
-func (am AppModule) LegacyQuerierHandler(amino *codec.LegacyAmino) sdk.Querier {
-	return nil
 }
 
 // RegisterServices registers module services.
 func (am AppModule) RegisterServices(cfg module.Configurator) {
 	types.RegisterMsgServer(cfg.MsgServer(), wasmxkeeper.NewMsgServerImpl(am.keeper))
 	types.RegisterQueryServer(cfg.QueryServer(), &am.keeper)
+
+	migrator := wasmxkeeper.NewMigrator(am.keeper, am.legacySubspace)
+	if err := cfg.RegisterMigration(types.ModuleName, 1, migrator.Migrate1to2); err != nil {
+		panic(fmt.Sprintf("failed to migrate wasmx from version 1 to 2: %v", err))
+	}
 }
 
 func (am AppModule) BeginBlock(ctx sdk.Context, block abci.RequestBeginBlock) {
@@ -173,12 +167,8 @@ func (am AppModule) ExportGenesis(ctx sdk.Context, cdc codec.JSONCodec) json.Raw
 func (am AppModule) GenerateGenesisState(input *module.SimulationState) {
 }
 
-func (am AppModule) ProposalContents(simState module.SimulationState) []simtypes.WeightedProposalContent {
-	return []simtypes.WeightedProposalContent{}
-}
-
-func (am AppModule) RandomizedParams(r *rand.Rand) []simtypes.ParamChange {
-	return []simtypes.ParamChange{}
+func (am AppModule) ProposalMsgs(simState module.SimulationState) []simtypes.WeightedProposalMsg {
+	return []simtypes.WeightedProposalMsg{}
 }
 
 func (am AppModule) RegisterStoreDecoder(decoderRegistry sdk.StoreDecoderRegistry) {

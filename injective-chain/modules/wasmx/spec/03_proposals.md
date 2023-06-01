@@ -18,6 +18,8 @@ type ContractRegistrationRequest struct {
 	AllowUpdating bool
 	CodeId uint64
     ContractAdmin string 
+	GranterAddress string
+	FundMode FundingMode
 }
 ```
 
@@ -30,7 +32,22 @@ type ContractRegistrationRequest struct {
 - `AllowUpdating`-  defines wether contract owner can migrate it without need to register again (if false only current code_id will be allowed to be executed)
 - `CodeId` -  code_id of the contract being registered - will be verified on execution to allow last minute change (after votes were cast)
 - `AdminAddress` - optional address of admin account (that  will be allowed to pause or update contract params)
+- `GranterAddress` - address of an account which granted funds for execution. Must be set if `FundMode` is other than `SelfFunded` (see below for an explanation) 
 
+`FundingMode` indicates how the contract will fund its own execution. 
+
+```go
+enum FundingMode {
+    Unspecified = 0;
+    SelfFunded = 1;
+    GrantOnly = 2; 
+    Dual = 3;      
+}
+```
+
+- `SelfFunded` - contract will use its own funds to execute.
+- `GrantOnly` - contract wil only use funds provided by the grant.
+- `Dual` - contract will first deplete grant's funds before using its own.
 
 ### ContractRegistrationRequestProposal
 

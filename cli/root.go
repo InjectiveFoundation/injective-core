@@ -3,7 +3,7 @@ package cli
 import (
 	"fmt"
 
-	"github.com/gogo/protobuf/grpc"
+	"github.com/cosmos/gogoproto/grpc"
 	"github.com/spf13/cobra"
 )
 

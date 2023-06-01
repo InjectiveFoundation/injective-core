@@ -4,17 +4,17 @@ import (
 	"math"
 	"sort"
 
+	"cosmossdk.io/errors"
+	sdkmath "cosmossdk.io/math"
 	"github.com/InjectiveLabs/metrics"
+	"github.com/cometbft/cometbft/libs/log"
 	"github.com/cosmos/cosmos-sdk/codec"
 	"github.com/cosmos/cosmos-sdk/store/prefix"
+	storetypes "github.com/cosmos/cosmos-sdk/store/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	distrtypes "github.com/cosmos/cosmos-sdk/x/distribution/types"
-	paramtypes "github.com/cosmos/cosmos-sdk/x/params/types"
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/pkg/errors"
-	"github.com/tendermint/tendermint/libs/log"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/peggy/types"
 
@@ -24,15 +24,13 @@ import (
 
 // Keeper maintains the link to storage and exposes getter/setter methods for the various parts of the state machine
 type Keeper struct {
-	StakingKeeper types.StakingKeeper
+	cdc      codec.Codec         // The wire codec for binary encoding/decoding.
+	storeKey storetypes.StoreKey // Unexposed key to access store from sdk.Context
 
-	storeKey   sdk.StoreKey // Unexposed key to access store from sdk.Context
-	paramSpace paramtypes.Subspace
-
-	cdc               codec.Codec // The wire codec for binary encoding/decoding.
+	StakingKeeper     types.StakingKeeper
 	bankKeeper        types.BankKeeper
-	SlashingKeeper    types.SlashingKeeper
 	DistKeeper        types.DistributionKeeper
+	SlashingKeeper    types.SlashingKeeper
 	exchangeMsgServer exchangetypes.MsgServer
 
 	AttestationHandler interface {
@@ -41,6 +39,9 @@ type Keeper struct {
 
 	svcTags  metrics.Tags
 	grpcTags metrics.Tags
+
+	// address authorized to execute MsgUpdateParams. Default: gov module
+	authority string
 }
 
 func (k *Keeper) Logger(ctx sdk.Context) log.Logger {
@@ -48,18 +49,27 @@ func (k *Keeper) Logger(ctx sdk.Context) log.Logger {
 }
 
 // NewKeeper returns a new instance of the peggy keeper
-func NewKeeper(cdc codec.Codec, storeKey sdk.StoreKey, paramSpace paramtypes.Subspace, stakingKeeper types.StakingKeeper, bankKeeper types.BankKeeper, slashingKeeper types.SlashingKeeper, distKeeper types.DistributionKeeper, exchangeKeeper exchangekeeper.Keeper) Keeper {
+func NewKeeper(
+	cdc codec.Codec,
+	storeKey storetypes.StoreKey,
+	stakingKeeper types.StakingKeeper,
+	bankKeeper types.BankKeeper,
+	slashingKeeper types.SlashingKeeper,
+	distKeeper types.DistributionKeeper,
+	exchangeKeeper exchangekeeper.Keeper,
+	authority string,
+) Keeper {
 	exchangeMsgServer := exchangekeeper.NewMsgServerImpl(exchangeKeeper)
 
 	k := Keeper{
 		cdc:               cdc,
-		paramSpace:        paramSpace,
 		storeKey:          storeKey,
 		StakingKeeper:     stakingKeeper,
 		bankKeeper:        bankKeeper,
 		DistKeeper:        distKeeper,
 		SlashingKeeper:    slashingKeeper,
 		exchangeMsgServer: exchangeMsgServer,
+		authority:         authority,
 		svcTags: metrics.Tags{
 			"svc": "peggy_k",
 		},
@@ -69,11 +79,6 @@ func NewKeeper(cdc codec.Codec, storeKey sdk.StoreKey, paramSpace paramtypes.Sub
 	}
 
 	k.AttestationHandler = NewAttestationHandler(bankKeeper, k)
-
-	// set KeyTable if it has not already been set
-	if !k.paramSpace.HasKeyTable() {
-		k.paramSpace = paramSpace.WithKeyTable(types.ParamKeyTable())
-	}
 
 	return k
 }
@@ -579,7 +584,7 @@ func (k *Keeper) GetCurrentValset(ctx sdk.Context) *types.Valset {
 	// get the reward from the params store
 	reward := k.GetParams(ctx).ValsetReward
 	var rewardToken common.Address
-	var rewardAmount sdk.Int
+	var rewardAmount sdkmath.Int
 	if reward.Denom == "" {
 		// the case where a validator has 'no reward'. The 'no reward' value is interpreted as having a zero
 		// address for the ERC20 token and a zero value for the reward amount. Since we store a coin with the
@@ -607,7 +612,7 @@ func (k *Keeper) getStore(ctx sdk.Context) sdk.KVStore {
 // make use of the tokens which would otherwise be lost
 func (k Keeper) SendToCommunityPool(ctx sdk.Context, coins sdk.Coins) error {
 	if err := k.bankKeeper.SendCoinsFromModuleToModule(ctx, types.ModuleName, distrtypes.ModuleName, coins); err != nil {
-		return sdkerrors.Wrap(err, "transfer to community pool failed")
+		return errors.Wrap(err, "transfer to community pool failed")
 	}
 	feePool := k.DistKeeper.GetFeePool(ctx)
 	feePool.CommunityPool = feePool.CommunityPool.Add(sdk.NewDecCoinsFromCoins(coins...)...)
@@ -616,16 +621,21 @@ func (k Keeper) SendToCommunityPool(ctx sdk.Context, coins sdk.Coins) error {
 }
 
 /////////////////////////////
-//       PARAMETERS        //
+//       PARAMS        //
 /////////////////////////////
 
 // GetParams returns the parameters from the store
 func (k *Keeper) GetParams(ctx sdk.Context) *types.Params {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
-	params := new(types.Params)
+	store := k.getStore(ctx)
+	bz := store.Get(types.ParamKey)
+	if bz == nil {
+		return nil
+	}
 
-	k.paramSpace.GetParamSet(ctx, params)
+	params := &types.Params{}
+	k.cdc.MustUnmarshal(bz, params)
 
 	return params
 }
@@ -634,68 +644,68 @@ func (k *Keeper) GetParams(ctx sdk.Context) *types.Params {
 func (k *Keeper) SetParams(ctx sdk.Context, params *types.Params) {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
-	k.paramSpace.SetParamSet(ctx, params)
+	store := k.getStore(ctx)
+	bz := k.cdc.MustMarshal(params)
+	store.Set(types.ParamKey, bz)
 }
 
 // GetBridgeContractAddress returns the bridge contract address on ETH
 func (k *Keeper) GetBridgeContractAddress(ctx sdk.Context) common.Address {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
-	var bridgeContractAddressHex string
+	params := k.GetParams(ctx)
+	if params == nil {
+		return common.Address{}
+	}
 
-	k.paramSpace.Get(ctx, types.ParamsStoreKeyBridgeContractAddress, &bridgeContractAddressHex)
-
-	return common.HexToAddress(bridgeContractAddressHex)
+	return common.HexToAddress(params.BridgeEthereumAddress)
 }
 
 // GetBridgeChainID returns the chain id of the ETH chain we are running against
 func (k *Keeper) GetBridgeChainID(ctx sdk.Context) uint64 {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
-	var bridgeChainID uint64
+	params := k.GetParams(ctx)
+	if params == nil {
+		return 0
+	}
 
-	k.paramSpace.Get(ctx, types.ParamsStoreKeyBridgeContractChainID, &bridgeChainID)
-
-	return bridgeChainID
+	return params.BridgeChainId
 }
 
 func (k *Keeper) GetPeggyID(ctx sdk.Context) string {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
-	var peggyID string
+	params := k.GetParams(ctx)
+	if params == nil {
+		return ""
+	}
 
-	k.paramSpace.Get(ctx, types.ParamsStoreKeyPeggyID, &peggyID)
-
-	return peggyID
-}
-
-// nolint:all
-func (k *Keeper) setPeggyID(ctx sdk.Context, v string) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
-
-	k.paramSpace.Set(ctx, types.ParamsStoreKeyPeggyID, v)
+	return params.PeggyId
 }
 
 // GetCosmosCoinDenom returns native cosmos coin denom
 func (k *Keeper) GetCosmosCoinDenom(ctx sdk.Context) string {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
-	var denom string
+	params := k.GetParams(ctx)
+	if params == nil {
+		return ""
+	}
 
-	k.paramSpace.Get(ctx, types.ParamsStoreKeyCosmosCoinDenom, &denom)
-
-	return denom
+	return params.CosmosCoinDenom
 }
 
 // GetCosmosCoinERC20Contract returns the Cosmos coin ERC20 contract address
 func (k *Keeper) GetCosmosCoinERC20Contract(ctx sdk.Context) common.Address {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
-	var contractAddress string
+	params := k.GetParams(ctx)
+	if params == nil {
+		return common.Address{}
+	}
 
-	k.paramSpace.Get(ctx, types.ParamsStoreKeyCosmosCoinErc20Contract, &contractAddress)
-
-	return common.HexToAddress(contractAddress)
+	return common.HexToAddress(params.CosmosCoinErc20Contract)
 }
 
 func (k *Keeper) UnpackAttestationClaim(attestation *types.Attestation) (types.EthereumClaim, error) {

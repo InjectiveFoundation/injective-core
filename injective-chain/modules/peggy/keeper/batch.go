@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"fmt"
 
+	"cosmossdk.io/errors"
 	"github.com/cosmos/cosmos-sdk/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/peggy/types"
@@ -27,7 +27,7 @@ func (k *Keeper) BuildOutgoingTXBatch(ctx sdk.Context, contractAddress common.Ad
 
 	if maxElements == 0 {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrap(types.ErrInvalid, "max elements value")
+		return nil, errors.Wrap(types.ErrInvalid, "max elements value")
 	}
 
 	lastBatch := k.GetLastOutgoingBatchByTokenType(ctx, contractAddress)
@@ -40,13 +40,13 @@ func (k *Keeper) BuildOutgoingTXBatch(ctx sdk.Context, contractAddress common.Ad
 		currentFees := k.GetBatchFeesByTokenType(ctx, contractAddress)
 		if currentFees == nil {
 			metrics.ReportFuncError(k.svcTags)
-			return nil, sdkerrors.Wrap(types.ErrInvalid, "error getting fees from tx pool")
+			return nil, errors.Wrap(types.ErrInvalid, "error getting fees from tx pool")
 		}
 
 		lastFees := lastBatch.GetFees()
 		if lastFees.GT(currentFees.TotalFees) {
 			metrics.ReportFuncError(k.svcTags)
-			return nil, sdkerrors.Wrap(types.ErrInvalid, "new batch would not be more profitable")
+			return nil, errors.Wrap(types.ErrInvalid, "new batch would not be more profitable")
 		}
 	}
 

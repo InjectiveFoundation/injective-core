@@ -5,13 +5,14 @@ import (
 	"strconv"
 	"time"
 
+	"cosmossdk.io/errors"
 	bandPacket "github.com/bandprotocol/bandchain-packet/packet"
 	"github.com/cosmos/cosmos-sdk/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
-	clienttypes "github.com/cosmos/ibc-go/v4/modules/core/02-client/types"
-	channeltypes "github.com/cosmos/ibc-go/v4/modules/core/04-channel/types"
-	host "github.com/cosmos/ibc-go/v4/modules/core/24-host"
+	clienttypes "github.com/cosmos/ibc-go/v7/modules/core/02-client/types"
+	channeltypes "github.com/cosmos/ibc-go/v7/modules/core/04-channel/types"
+	host "github.com/cosmos/ibc-go/v7/modules/core/24-host"
 
 	"github.com/InjectiveLabs/metrics"
 
@@ -287,13 +288,13 @@ func (k *Keeper) RequestBandIBCOraclePrices(
 
 	sourceChannelEnd, found := k.channelKeeper.GetChannel(ctx, sourcePortID, sourceChannel)
 	if !found {
-		return sdkerrors.Wrapf(sdkerrors.ErrUnknownRequest, "unknown channel %s port %s", sourceChannel, sourcePortID)
+		return errors.Wrapf(sdkerrors.ErrUnknownRequest, "unknown channel %s port %s", sourceChannel, sourcePortID)
 	}
 
 	// retrieve the dynamic capability for this channel
 	channelCap, ok := k.scopedKeeper.GetCapability(ctx, host.ChannelCapabilityPath(sourcePortID, sourceChannel))
 	if !ok {
-		return sdkerrors.Wrap(channeltypes.ErrChannelCapabilityNotFound, "module does not own channel capability")
+		return errors.Wrap(channeltypes.ErrChannelCapabilityNotFound, "module does not own channel capability")
 	}
 
 	destinationPort := sourceChannelEnd.Counterparty.PortId
@@ -301,7 +302,7 @@ func (k *Keeper) RequestBandIBCOraclePrices(
 	sequence, found := k.channelKeeper.GetNextSequenceSend(ctx, sourcePortID, sourceChannel)
 
 	if !found {
-		return sdkerrors.Wrapf(sdkerrors.ErrUnknownRequest, "unknown sequence number for channel %s port %s", sourceChannel, sourcePortID)
+		return errors.Wrapf(sdkerrors.ErrUnknownRequest, "unknown sequence number for channel %s port %s", sourceChannel, sourcePortID)
 	}
 
 	clientID := k.GetBandIBCLatestClientID(ctx) + 1
@@ -320,7 +321,15 @@ func (k *Keeper) RequestBandIBCOraclePrices(
 	)
 
 	// Send packet to IBC, authenticating with channelCap
-	err = k.channelKeeper.SendPacket(ctx, channelCap, packet)
+	_, err = k.channelKeeper.SendPacket(
+		ctx,
+		channelCap,
+		packet.SourcePort,
+		packet.SourceChannel,
+		packet.TimeoutHeight,
+		packet.TimeoutTimestamp,
+		packet.Data,
+	)
 	if err != nil {
 		return err
 	}

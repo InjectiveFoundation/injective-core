@@ -3,11 +3,11 @@ package keeper
 import (
 	"sync"
 
+	"cosmossdk.io/errors"
 	"github.com/InjectiveLabs/metrics"
 	"github.com/cosmos/cosmos-sdk/store/prefix"
 	storetypes "github.com/cosmos/cosmos-sdk/store/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
@@ -141,7 +141,7 @@ func (k *Keeper) CancelConditionalDerivativeMarketOrder(
 	if order == nil {
 		k.Logger(ctx).Debug("Conditional Derivative Market Order doesn't exist to cancel", "marketId", marketID, "subaccountID", subaccountID, "orderHash", orderHash.Hex())
 		metrics.ReportFuncError(k.svcTags)
-		return sdkerrors.Wrap(types.ErrOrderDoesntExist, "Conditional Derivative Market Order doesn't exist")
+		return errors.Wrap(types.ErrOrderDoesntExist, "Conditional Derivative Market Order doesn't exist")
 	}
 
 	if order.IsVanilla() {
@@ -187,7 +187,7 @@ func (k *Keeper) CancelConditionalDerivativeLimitOrder(
 	if order == nil {
 		k.Logger(ctx).Debug("Conditional Derivative Limit Order doesn't exist to cancel", "marketId", marketID, "subaccountID", subaccountID, "orderHash", orderHash)
 		metrics.ReportFuncError(k.svcTags)
-		return sdkerrors.Wrap(types.ErrOrderDoesntExist, "Conditional Derivative Limit Order doesn't exist")
+		return errors.Wrap(types.ErrOrderDoesntExist, "Conditional Derivative Limit Order doesn't exist")
 	}
 
 	refundAmount := order.GetCancelRefundAmount(market.GetTakerFeeRate())

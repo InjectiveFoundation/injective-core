@@ -1,13 +1,12 @@
 package keeper
 
 import (
+	"errors"
 	"fmt"
 
-	"github.com/pkg/errors"
-
+	sdkerrors "cosmossdk.io/errors"
 	"github.com/InjectiveLabs/metrics"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
@@ -119,6 +118,10 @@ func (k *Keeper) ExecuteBatchUpdateOrders(
 			market = m
 		} else {
 			market = k.GetSpotMarketByID(ctx, marketID)
+			if market == nil {
+				k.Logger(ctx).Debug("failed to cancel spot limit order for non-existent market", "marketID", marketID.Hex())
+				continue
+			}
 			spotMarkets[marketID] = market
 		}
 
@@ -139,6 +142,10 @@ func (k *Keeper) ExecuteBatchUpdateOrders(
 			market = m
 		} else {
 			market = k.GetDerivativeMarketByID(ctx, marketID)
+			if market == nil {
+				k.Logger(ctx).Debug("failed to cancel derivative limit order for non-existent market", "marketID", marketID.Hex())
+				continue
+			}
 			derivativeMarkets[marketID] = market
 		}
 		subaccountID := types.MustGetSubaccountIDOrDeriveFromNonce(sender, derivativeOrderToCancel.SubaccountId)
@@ -158,6 +165,10 @@ func (k *Keeper) ExecuteBatchUpdateOrders(
 			market = m
 		} else {
 			market = k.GetBinaryOptionsMarketByID(ctx, marketID)
+			if market == nil {
+				k.Logger(ctx).Debug("failed to cancel binary options limit order for non-existent market", "marketID", marketID.Hex())
+				continue
+			}
 			binaryOptionsMarkets[marketID] = market
 		}
 		subaccountID := types.MustGetSubaccountIDOrDeriveFromNonce(sender, binaryOptionsOrderToCancel.SubaccountId)
@@ -182,6 +193,10 @@ func (k *Keeper) ExecuteBatchUpdateOrders(
 			market = m
 		} else {
 			market = k.GetSpotMarketByID(ctx, marketID)
+			if market == nil {
+				k.Logger(ctx).Debug("failed to create spot limit order for non-existent market", "marketID", marketID.Hex())
+				continue
+			}
 			spotMarkets[marketID] = market
 		}
 
@@ -212,6 +227,10 @@ func (k *Keeper) ExecuteBatchUpdateOrders(
 			market = m
 		} else {
 			market, markPrice = k.GetDerivativeMarketWithMarkPrice(ctx, marketID, true)
+			if market == nil {
+				k.Logger(ctx).Debug("failed to create derivative limit order for non-existent market", "marketID", marketID.Hex())
+				continue
+			}
 			derivativeMarkets[marketID] = market
 			markPrices[marketID] = markPrice
 		}
@@ -251,6 +270,10 @@ func (k *Keeper) ExecuteBatchUpdateOrders(
 			market = m
 		} else {
 			market = k.GetBinaryOptionsMarket(ctx, marketID, true)
+			if market == nil {
+				k.Logger(ctx).Debug("failed to create binary options limit order for non-existent market", "marketID", marketID.Hex())
+				continue
+			}
 			binaryOptionsMarkets[marketID] = market
 		}
 
