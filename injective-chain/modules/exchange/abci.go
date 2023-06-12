@@ -101,7 +101,6 @@ func (h *BlockHandler) EndBlocker(ctx sdk.Context) {
 
 	if isPanicked := triggerMarketOrders(cacheCtx, false); !isPanicked {
 		writeCache()
-		ctx.EventManager().EmitEvents(cacheCtx.EventManager().Events())
 	} else {
 		triggerMarketOrders(ctx, true)
 	}
@@ -210,7 +209,6 @@ func (h *BlockHandler) EndBlocker(ctx sdk.Context) {
 	cacheCtx, writeCache = ctx.CacheContext()
 	if isPanicked := triggerLimitOrders(cacheCtx, false); !isPanicked {
 		writeCache()
-		ctx.EventManager().EmitEvents(cacheCtx.EventManager().Events())
 	} else {
 		triggerLimitOrders(ctx, true)
 	}
@@ -331,7 +329,6 @@ func triggerMarketOrdersForMarket(ctx sdk.Context, k keeper.Keeper, triggeredMar
 					ctx.Logger().Debug("Trigger of market order failed: ", err.Error())
 				}
 				writeCache()
-				ctx.EventManager().EmitEvents(cacheCtx.EventManager().Events())
 			}()
 			continue
 		}
@@ -358,7 +355,6 @@ func triggerLimitOrdersForMarket(ctx sdk.Context, k keeper.Keeper, triggeredMark
 					ctx.Logger().Debug("Trigger of limit order failed: ", err.Error())
 				}
 				writeCache()
-				ctx.EventManager().EmitEvents(cacheCtx.EventManager().Events())
 			}()
 			continue
 		}

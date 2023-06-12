@@ -359,7 +359,6 @@ func (k DerivativesMsgServer) LiquidatePosition(goCtx context.Context, msg *type
 		}
 	} else {
 		writeCache()
-		ctx.EventManager().EmitEvents(cacheCtx.EventManager().Events())
 	}
 
 	return &types.MsgLiquidatePositionResponse{}, nil

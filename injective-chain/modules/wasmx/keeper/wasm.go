@@ -150,7 +150,6 @@ func (k *Keeper) executeMetered(ctx sdk.Context, contractAddr sdk.AccAddress, co
 		return nil, err
 	} else {
 		commit()
-		ctx.EventManager().EmitEvents(subCtx.EventManager().Events())
 	}
 
 	k.Logger(ctx).Debug("✅ Executed the contract successfully", contractAddr)
