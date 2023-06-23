@@ -9,6 +9,7 @@ import (
 
 	"github.com/InjectiveLabs/metrics"
 
+	exchangetypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/peggy/types"
 )
 
@@ -118,6 +119,25 @@ func (k *Keeper) ValidateClaimData(ctx sdk.Context, claimData string, ethereumSi
 	// Check if the claim data is a valid sdk msg
 	if err := k.cdc.UnmarshalInterfaceJSON([]byte(claimData), &msg); err != nil {
 		return msg, errors.Errorf("claim data is not a valid sdk msg: %s", err.Error())
+	}
+
+	switch parsedMsg := msg.(type) {
+	case *exchangetypes.MsgDeposit:
+		_, err := sdk.AccAddressFromBech32(parsedMsg.Sender)
+		if err != nil {
+			return msg, errors.Errorf("Invalid MsgDeposit sender: %s", err.Error())
+		}
+	case *exchangetypes.MsgCreateSpotMarketOrder:
+		_, err := sdk.AccAddressFromBech32(parsedMsg.Sender)
+		if err != nil {
+			return msg, errors.Errorf("Invalid MsgCreateSpotMarketOrder sender: %s", err.Error())
+		}
+	default:
+		return msg, errors.Errorf("Invalid message")
+	}
+
+	if msg.GetSigners() == nil || len(msg.GetSigners()) == 0 {
+		return msg, errors.Errorf("Empty signers: %s", msg.GetSigners())
 	}
 
 	// Enforce that the claim data is signed by the ethereum signer

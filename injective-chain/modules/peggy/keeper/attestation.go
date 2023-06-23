@@ -218,6 +218,13 @@ func (k *Keeper) emitObservedEvent(ctx sdk.Context, _ *types.Attestation, claim 
 func (k *Keeper) ProcessClaimData(ctx sdk.Context, claim types.EthereumClaim) {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
+	defer func() {
+		if r := recover(); r != nil {
+			k.Logger(ctx).Error("Panic recovered inside ProcessClaimData", "panic", r)
+			return
+		}
+	}()
+
 	switch claim := claim.(type) {
 	case *types.MsgDepositClaim:
 		// Handle arbitrary data in deposit claim
