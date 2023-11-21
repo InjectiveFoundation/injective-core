@@ -44,13 +44,13 @@ $ ./injectived.sh
 
 Voila! You have now successfully setup a full node on the Injective Chain.
 
-If you'd like to install injectived for toolchain use on MacOS, here are the steps:
+### Install for MacOS
 1. Build from source
-```bash
-git clone https://github.com/OpenDeFiFoundation/injective-core.git
-cd injective-core
-make install
-```
+   ```bash
+   git clone https://github.com/OpenDeFiFoundation/injective-core.git
+   cd injective-core
+   make install
+   ```
 
 2. update ``.zshrc`` - Add these lines to your ``~/.zshrc`` file:
    ```bash
