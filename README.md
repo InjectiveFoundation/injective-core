@@ -45,21 +45,23 @@ $ ./injectived.sh
 Voila! You have now successfully setup a full node on the Injective Chain.
 
 ### Install for MacOS
+Note: for any mention of ZSH, replace it with Bash if applicable. for example, `~/.bashrc`
+
 1. Build from source
    ```bash
-   git clone https://github.com/OpenDeFiFoundation/injective-core.git
+   git clone https://github.com/InjectiveLabs/injective-core.git
    cd injective-core
    make install
    ```
 
-2. update ``.zshrc`` - Add these lines to your ``~/.zshrc`` file:
+2. Update `.zshrc` - Add these lines to your `~/.zshrc` file:
    ```bash
    export GOPATH=$HOME/go
    export PATH=$PATH:$(go env GOPATH)/bin
    export GOPRIVATE=github.com/InjectiveLabs/injective-core
    ```
 
-3. refresh your ``~/.zshrc`` file
+3. Refresh your `~/.zshrc` file
    ```bash
    source ~/.zshrc
    ```
@@ -68,7 +70,6 @@ Voila! You have now successfully setup a full node on the Injective Chain.
    ```bash
    injectived version
    ```
-
 
 ## Generating the module specification docs
 ```bash
