@@ -12,7 +12,7 @@ Exchange can easily set up a client (such as a web app UI or mobile app UI) and 
 
 ## Guide 
 
-[Build a DEX with Injective TS](https://github.com/InjectiveLabs/injective-ts/wiki/08BuildingADex)
+[Build a DEX with Injective TS](https://github.com/InjectiveLabs/injective-ts/wiki/08BuildingDappsDex)
 
 ## Contents
 

@@ -128,6 +128,18 @@ func handleBatchExchangeModificationProposal(ctx sdk.Context, k keeper.Keeper, p
 		}
 	}
 
+	if p.FeeDiscountProposal != nil {
+		if err := handleFeeDiscountProposal(ctx, k, p.FeeDiscountProposal); err != nil {
+			return err
+		}
+	}
+
+	for _, proposal := range p.MarketForcedSettlementProposals {
+		if err := handleMarketForcedSettlementProposal(ctx, k, proposal); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -691,32 +703,16 @@ func handleFeeDiscountProposal(ctx sdk.Context, k keeper.Keeper, p *types.FeeDis
 	binaryOptionsMarkets := k.GetAllBinaryOptionsMarkets(ctx)
 	minimalProtocolFeeRate := k.GetMinimalProtocolFeeRate(ctx)
 
-	for _, market := range spotMarkets {
-		if !market.MakerFeeRate.IsNegative() {
-			continue
-		}
-		smallestTakerFeeRate := sdk.OneDec().Sub(maxTakerDiscount).Mul(market.TakerFeeRate)
-		if err := types.ValidateMakerWithTakerFee(market.MakerFeeRate, smallestTakerFeeRate, market.RelayerFeeShareRate, minimalProtocolFeeRate); err != nil {
-			return err
-		}
-	}
+	allMarkets := append(keeper.ConvertSpotMarkets(spotMarkets), keeper.ConvertDerivativeMarkets(derivativeMarkets)...)
+	allMarkets = append(allMarkets, keeper.ConvertBinaryOptionsMarkets(binaryOptionsMarkets)...)
+	filteredMarkets := keeper.RemoveMarketsByIds(allMarkets, p.Schedule.DisqualifiedMarketIds)
 
-	for _, market := range derivativeMarkets {
-		if !market.MakerFeeRate.IsNegative() {
+	for _, market := range filteredMarkets {
+		if !market.GetMakerFeeRate().IsNegative() {
 			continue
 		}
-		smallestTakerFeeRate := sdk.OneDec().Sub(maxTakerDiscount).Mul(market.TakerFeeRate)
-		if err := types.ValidateMakerWithTakerFee(market.MakerFeeRate, smallestTakerFeeRate, market.RelayerFeeShareRate, minimalProtocolFeeRate); err != nil {
-			return err
-		}
-	}
-
-	for _, market := range binaryOptionsMarkets {
-		if !market.MakerFeeRate.IsNegative() {
-			continue
-		}
-		smallestTakerFeeRate := sdk.OneDec().Sub(maxTakerDiscount).Mul(market.TakerFeeRate)
-		if err := types.ValidateMakerWithTakerFee(market.MakerFeeRate, smallestTakerFeeRate, market.RelayerFeeShareRate, minimalProtocolFeeRate); err != nil {
+		smallestTakerFeeRate := sdk.OneDec().Sub(maxTakerDiscount).Mul(market.GetTakerFeeRate())
+		if err := types.ValidateMakerWithTakerFee(market.GetMakerFeeRate(), smallestTakerFeeRate, market.GetRelayerFeeShareRate(), minimalProtocolFeeRate); err != nil {
 			return err
 		}
 	}

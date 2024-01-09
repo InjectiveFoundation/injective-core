@@ -9,6 +9,8 @@ import (
 )
 
 const (
+	AuthzRoute        = "authz"
+	StakingRoute      = "staking"
 	OracleRoute       = "oracle"
 	ExchangeRoute     = "exchange"
 	TokenFactoryRoute = "tokenfactory"
@@ -35,6 +37,10 @@ func CustomQuerier(qp *QueryPlugin) func(ctx sdk.Context, request json.RawMessag
 		var err error
 
 		switch contractQuery.Route {
+		case AuthzRoute:
+			bz, err = qp.HandleAuthzQuery(ctx, contractQuery.QueryData)
+		case StakingRoute:
+			bz, err = qp.HandleStakingQuery(ctx, contractQuery.QueryData)
 		case OracleRoute:
 			bz, err = qp.HandleOracleQuery(ctx, contractQuery.QueryData)
 		case ExchangeRoute:

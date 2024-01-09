@@ -3,6 +3,7 @@ package bindings
 import (
 	sdkmath "cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/cosmos/cosmos-sdk/x/authz"
 	"github.com/cosmos/cosmos-sdk/x/feegrant"
 
 	exchangetypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
@@ -12,17 +13,24 @@ import (
 // InjectiveQuery contains custom injective queries.
 type InjectiveQuery struct {
 	AuctionQuery
+	AuthzQuery
 	ExchangeQuery
 	InsuranceQuery
 	FeeGrantQuery
 	OcrQuery
+	StakingQuery
 	OracleQuery
 	PeggyQuery
 	TokenfactoryQuery
 	WasmxQuery
 }
 
-type AuctionQuery struct {
+type AuctionQuery struct{}
+
+type AuthzQuery struct {
+	Grants        *authz.QueryGrantsRequest        `json:"grants,omitempty"`
+	GranterGrants *authz.QueryGranterGrantsRequest `json:"granter_grants,omitempty"`
+	GranteeGrants *authz.QueryGranteeGrantsRequest `json:"grantee_grants,omitempty"`
 }
 
 type ExchangeQuery struct {
@@ -55,23 +63,13 @@ type ExchangeQuery struct {
 	DenomDecimals                                   *exchangetypes.QueryDenomDecimalsRequest                            `json:"denom_decimals"`
 }
 
-type SubaccountDepositQueryResponse struct {
-	Deposits *exchangetypes.Deposit `json:"deposits"`
-}
-
-type DerivativeMarketQueryResponse struct {
-	Market *FullDerivativeMarketQuery `protobuf:"bytes,1,opt,name=market,proto3" json:"market,omitempty"`
-}
-
-type FullDerivativeMarketQuery struct {
-	Market    *exchangetypes.DerivativeMarket                   `protobuf:"bytes,1,opt,name=market,proto3" json:"market,omitempty"`
-	Info      *exchangetypes.FullDerivativeMarket_PerpetualInfo `json:"info"`
-	MarkPrice sdk.Dec                                           `protobuf:"bytes,4,opt,name=mark_price,json=markPrice,proto3,customtype=github.com/cosmos/cosmos-sdk/types.Dec" json:"mark_price"`
-}
-
 type InsuranceQuery struct{}
 
 type OcrQuery struct{}
+
+type StakingQuery struct {
+	StakedAmount *StakingDelegationAmount `json:"staked_amount,omitempty"`
+}
 
 type OracleQuery struct {
 	OracleParams     *oracletypes.QueryParamsRequest           `json:"oracle_params,omitempty"`
@@ -101,6 +99,20 @@ type FeeGrantQuery struct {
 	AllowancesByGranter *feegrant.QueryAllowancesByGranterRequest `json:"allowances_by_granter"`
 }
 
+type SubaccountDepositQueryResponse struct {
+	Deposits *exchangetypes.Deposit `json:"deposits"`
+}
+
+type DerivativeMarketQueryResponse struct {
+	Market *FullDerivativeMarketQuery `protobuf:"bytes,1,opt,name=market,proto3" json:"market,omitempty"`
+}
+
+type FullDerivativeMarketQuery struct {
+	Market    *exchangetypes.DerivativeMarket                   `protobuf:"bytes,1,opt,name=market,proto3" json:"market,omitempty"`
+	Info      *exchangetypes.FullDerivativeMarket_PerpetualInfo `json:"info"`
+	MarkPrice sdk.Dec                                           `protobuf:"bytes,4,opt,name=mark_price,json=markPrice,proto3,customtype=github.com/cosmos/cosmos-sdk/types.Dec" json:"mark_price"`
+}
+
 type DenomAdmin struct {
 	Subdenom string `json:"subdenom"`
 }
@@ -125,4 +137,13 @@ type DenomCreationFeeResponse struct {
 
 type RegisteredContractInfo struct {
 	ContractAddress string `json:"contract_address"`
+}
+
+type StakingDelegationAmount struct {
+	DelegatorAddress string `json:"delegator_address"`
+	MaxDelegations   uint16 `json:"max_delegations"`
+}
+
+type StakingDelegationAmountResponse struct {
+	StakedAmount sdkmath.Int `json:"staked_amount"`
 }

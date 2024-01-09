@@ -1,8 +1,8 @@
 package wasmbinding
 
 import (
-	"github.com/CosmWasm/wasmd/x/wasm"
 	wasmkeeper "github.com/CosmWasm/wasmd/x/wasm/keeper"
+	authzkeeper "github.com/cosmos/cosmos-sdk/x/authz/keeper"
 	bankkeeper "github.com/cosmos/cosmos-sdk/x/bank/keeper"
 	feegrantkeeper "github.com/cosmos/cosmos-sdk/x/feegrant/keeper"
 
@@ -14,6 +14,7 @@ import (
 )
 
 func RegisterCustomPlugins(
+	authzKeeper *authzkeeper.Keeper,
 	bankBaseKeeper bankkeeper.BaseKeeper,
 	exchangeKeeper *exchangekeeper.Keeper,
 	feegrantKeeper *feegrantkeeper.Keeper,
@@ -22,7 +23,7 @@ func RegisterCustomPlugins(
 	wasmxKeeper *wasmxkeeper.Keeper,
 	router wasmkeeper.MessageRouter,
 ) []wasmkeeper.Option {
-	wasmQueryPlugin := NewQueryPlugin(exchangeKeeper, oracleKeeper, &bankBaseKeeper, tokenFactoryKeeper, wasmxKeeper, feegrantKeeper)
+	wasmQueryPlugin := NewQueryPlugin(authzKeeper, exchangeKeeper, oracleKeeper, &bankBaseKeeper, tokenFactoryKeeper, wasmxKeeper, feegrantKeeper)
 
 	queryPluginOpt := wasmkeeper.WithQueryPlugins(&wasmkeeper.QueryPlugins{
 		Custom: CustomQuerier(wasmQueryPlugin),
@@ -32,7 +33,7 @@ func RegisterCustomPlugins(
 		CustomMessageDecorator(router, bankBaseKeeper, exchangeKeeper, tokenFactoryKeeper),
 	)
 
-	return []wasm.Option{
+	return []wasmkeeper.Option{
 		queryPluginOpt,
 		messengerDecoratorOpt,
 	}

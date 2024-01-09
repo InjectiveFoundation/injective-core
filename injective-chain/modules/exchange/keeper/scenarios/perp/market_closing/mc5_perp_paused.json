@@ -1,0 +1,33 @@
+{
+  "numAccounts": 2,
+  "numDerivativeMarkets": 1,
+  "seed": 1658339268842048000,
+  "actions": [
+    {
+      "actionType": "derivativeLimitOrder",
+      "price": 90,
+      "quantity": 100,
+      "accountIndex": 0,
+      "isLong": true
+    },
+    {
+      "actionType": "derivativeLimitOrder",
+      "price": 100,
+      "quantity": 100,
+      "accountIndex": 0,
+      "isLong": false
+    },
+    {
+      "actionType": "endblocker",
+      "actionId": "setup"
+    },
+    {
+      "actionType": "updateMarket",
+      "marketType": "derivative",
+      "marketStatus": "Paused"
+    },
+    {
+      "actionType": "endblocker"
+    }
+  ]
+}

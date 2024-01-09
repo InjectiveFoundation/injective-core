@@ -87,7 +87,9 @@ func NewSubscribeToSpotVaultTxCmd() *cobra.Command {
 			var ok bool
 
 			if quoteAmountFlag == "" && baseAmountFlag == "" {
-				return fmt.Errorf("expected either quote or base amount or both, got but got neither")
+				return fmt.Errorf(
+					"expected either quote or base amount or both, got but got neither",
+				)
 			}
 
 			if quoteAmountFlag != "" {
@@ -221,7 +223,9 @@ func NewSubscribeToAmmVaultTxCmd() *cobra.Command {
 			var ok bool
 
 			if quoteAmountFlag == "" && baseAmountFlag == "" {
-				return fmt.Errorf("expected either quote or base amount or both, got but got neither")
+				return fmt.Errorf(
+					"expected either quote or base amount or both, got but got neither",
+				)
 			}
 
 			if quoteAmountFlag != "" {
@@ -318,7 +322,8 @@ func NewSubscribeToAmmVaultTxCmd() *cobra.Command {
 
 	cmd.Flags().String(FlagSubscriptionQuoteAmount, "", "quote amount to subscribe with")
 	cmd.Flags().String(FlagSubscriptionBaseAmount, "", "base amount to subscribe with")
-	cmd.Flags().Int64(FlagSubscriptionMaxPenalty, MAX_PENALTY_DEFAULT_VALUE, "max penalty % to accept when redeeming only with single side <0,100>; 1 by default")
+	cmd.Flags().
+		Int64(FlagSubscriptionMaxPenalty, MAX_PENALTY_DEFAULT_VALUE, "max penalty % to accept when redeeming only with single side <0,100>; 1 by default")
 
 	cliflags.AddTxFlagsToCmd(cmd)
 	return cmd
@@ -398,7 +403,8 @@ func NewRedeemFromSpotVaultTxCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().Int64(FlagSubscriptionMaxPenalty, MAX_PENALTY_DEFAULT_VALUE, "max penalty % to accept when redeeming only with single side <0,100>; 1 by default")
+	cmd.Flags().
+		Int64(FlagSubscriptionMaxPenalty, MAX_PENALTY_DEFAULT_VALUE, "max penalty % to accept when redeeming only with single side <0,100>; 1 by default")
 	cliflags.AddTxFlagsToCmd(cmd)
 	return cmd
 }
@@ -477,7 +483,8 @@ func NewRedeemFromAmmVaultTxCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().Int64(FlagSubscriptionMaxPenalty, MAX_PENALTY_DEFAULT_VALUE, "max penalty % to accept when redeeming only with single side <0,100>; 1 by default")
+	cmd.Flags().
+		Int64(FlagSubscriptionMaxPenalty, MAX_PENALTY_DEFAULT_VALUE, "max penalty % to accept when redeeming only with single side <0,100>; 1 by default")
 	cliflags.AddTxFlagsToCmd(cmd)
 	return cmd
 }
@@ -576,7 +583,8 @@ func NewSubscribeToDerivativeVaultTxCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().Int64(FlagSubscriptionMaxPenalty, MAX_PENALTY_DEFAULT_VALUE, "max penalty % to accept when subscribing without position <0,100>; 1 by default")
+	cmd.Flags().
+		Int64(FlagSubscriptionMaxPenalty, MAX_PENALTY_DEFAULT_VALUE, "max penalty % to accept when subscribing without position <0,100>; 1 by default")
 	cliflags.AddTxFlagsToCmd(cmd)
 	return cmd
 }
@@ -613,7 +621,10 @@ func NewRedeemFromDerivativeVaultTxCmd() *cobra.Command {
 					redemptionType = "QuoteOnly"
 				case "PositionAndQuote":
 				default:
-					return fmt.Errorf("invalid redemption type. Only 'QuoteOnly' and 'PositionAndQuote' are supported, but '%s' was given", args[3])
+					return fmt.Errorf(
+						"invalid redemption type. Only 'QuoteOnly' and 'PositionAndQuote' are supported, but '%s' was given",
+						args[3],
+					)
 				}
 			}
 
@@ -668,7 +679,88 @@ func NewRedeemFromDerivativeVaultTxCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().Int64(FlagSubscriptionMaxPenalty, MAX_PENALTY_DEFAULT_VALUE, "max penalty % to accept when redeeming without position <0,100>; 1 by default")
+	cmd.Flags().
+		Int64(FlagSubscriptionMaxPenalty, MAX_PENALTY_DEFAULT_VALUE, "max penalty % to accept when redeeming without position <0,100>; 1 by default")
+	cliflags.AddTxFlagsToCmd(cmd)
+	return cmd
+}
+
+func NewPrivilegedExecuteContractTxCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "privileged-execute-contract [contract address] [wasmx execution data message] --from=genesis --keyring-backend=file --yes",
+		Args:  cobra.ExactArgs(2),
+		Short: "Executes any smart contract message with privileged actions for the exchange module as part of the contract's response data.",
+		Long: `Executes any smart contract message with privileged actions for the exchange module as part of the contract's response data.
+
+		Example:
+		$ %s tx exchange privileged-execute-contract inj1zlwdkv49rmsug0pnwu6fmwnl267lfr34yvhwgp '{"origin":"inj17gkuet8f6pssxd8nycm3qr9d9y699rupv6397z", "name":"Subscribe", "args": {"Subscribe":{"args": {"subscriber_subaccount_id":"0xf22dccace9d0610334f32637100cad2934528f81000000000000000000000000"}}}}' --from=wasm --funds=1000000000000000000inj,10000000peggy0xdAC17F958D2ee523a2206206994597C13D831ec7
+		`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clientCtx, err := client.GetClientTxContext(cmd)
+			if err != nil {
+				return err
+			}
+
+			contractAddress := args[0]
+			sdk.MustAccAddressFromBech32(contractAddress)
+			rawMessage := args[1]
+
+			fromAddress := clientCtx.GetFromAddress().String()
+
+			fundsStr, err := cmd.Flags().GetString(FlagFunds)
+			if err != nil {
+				return err
+			}
+
+			var amountStr string
+
+			if fundsStr == "" {
+				amountStr = ""
+			} else {
+
+				amount, err := sdk.ParseCoinsNormalized(fundsStr)
+				if err != nil {
+					return err
+				}
+
+				amountStr = amount.String()
+			}
+
+			asMap := make(map[string]interface{})
+			err = json.Unmarshal([]byte(rawMessage), &asMap)
+			if err != nil {
+				return err
+			}
+
+			execData := wasmxtypes.ExecutionData{
+				Origin: asMap["origin"].(string),
+				Name:   asMap["name"].(string),
+				Args:   asMap["args"],
+			}
+
+			var execDataBytes []byte
+			execDataBytes, err = json.Marshal(execData)
+			if err != nil {
+				return err
+			}
+
+			msg := &types.MsgPrivilegedExecuteContract{
+				Sender:          fromAddress,
+				Funds:           amountStr,
+				ContractAddress: contractAddress,
+				Data:            string(execDataBytes),
+			}
+
+			if err := msg.ValidateBasic(); err != nil {
+				return err
+			}
+
+			return tx.GenerateOrBroadcastTxCLI(clientCtx, cmd.Flags(), msg)
+		},
+	}
+
+	cmd.Flags().
+		String(FlagFunds, "", "funds to pass to the contract")
 	cliflags.AddTxFlagsToCmd(cmd)
 	return cmd
 }
@@ -680,7 +772,10 @@ func getSlippage(cmd *cobra.Command) (Slippage, error) {
 	}
 
 	if maxPenaltyFlag < 0 || maxPenaltyFlag > 100 {
-		return Slippage{}, fmt.Errorf("max penalty has to be within <0,100>, but %d was given", maxPenaltyFlag)
+		return Slippage{}, fmt.Errorf(
+			"max penalty has to be within <0,100>, but %d was given",
+			maxPenaltyFlag,
+		)
 	}
 
 	penaltyDec := sdk.NewDecFromInt(math.NewInt(maxPenaltyFlag))

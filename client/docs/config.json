@@ -13,7 +13,8 @@
           "Params": "ExchangeParams"
         }
       }
-    },{
+    },
+    {
       "url": "./tmp-swagger-gen/injective/wasmx/v1/query.swagger.json",
       "operationIds": {
         "rename": {
@@ -107,10 +108,11 @@
       "url": "./tmp-swagger-gen/cosmos/consensus/v1/query.swagger.json",
       "operationIds": {
         "rename": {
-          "Params": "ConsensusParams",
+          "Params": "ConsensusParams"
         }
       }
-    },{
+    },
+    {
       "url": "./tmp-swagger-gen/cosmos/distribution/v1beta1/query.swagger.json",
       "operationIds": {
         "rename": {
@@ -213,6 +215,14 @@
       "operationIds": {
         "rename": {
           "Params": "IBCConnectionParams"
+        }
+      }
+    },
+    {
+      "url": "tmp-swagger-gen/packetforward/v1/query.swagger.json",
+      "operationIds": {
+        "rename": {
+          "Params": "PacketForwardParams"
         }
       }
     },

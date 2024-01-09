@@ -1,17 +1,9 @@
 #install packages for build layer
-FROM golang:1.19-alpine as builder
-RUN apk add --no-cache git gcc make libc-dev linux-headers
-RUN set -eux; apk add --no-cache ca-certificates build-base
+FROM golang:1.19-bookworm as builder
+RUN apt install git gcc make libc-dev
 
-ADD https://github.com/CosmWasm/wasmvm/releases/download/v1.2.3/libwasmvm_muslc.aarch64.a /lib/libwasmvm_muslc.aarch64.a
-ADD https://github.com/CosmWasm/wasmvm/releases/download/v1.2.3/libwasmvm_muslc.x86_64.a /lib/libwasmvm_muslc.x86_64.a
-RUN sha256sum /lib/libwasmvm_muslc.aarch64.a | grep d6904bc0082d6510f1e032fc1fd55ffadc9378d963e199afe0f93dd2667c0160
-RUN sha256sum /lib/libwasmvm_muslc.x86_64.a | grep bb8ffda690b15765c396266721e45516cb3021146fd4de46f7daeda5b0d82c86
-
-#Set architecture
-RUN apk --print-arch > ./architecture
-RUN cp /lib/libwasmvm_muslc.$(cat ./architecture).a /lib/libwasmvm_muslc.a
-RUN rm ./architecture
+ADD https://github.com/CosmWasm/wasmvm/releases/download/v1.5.0/libwasmvm.x86_64.so /lib/libwasmvm.x86_64.so
+ADD https://github.com/CosmWasm/wasmvm/releases/download/v1.5.0/libwasmvm.aarch64.so /lib/libwasmvm.aarch64.so
 
 #build binary
 WORKDIR /src
@@ -22,24 +14,27 @@ RUN go mod download
 COPY . .
 
 #build binary
-RUN LEDGER_ENABLED=false BUILD_TAGS=muslc LINK_STATICALLY=true make install-ci
+RUN LEDGER_ENABLED=false make install-ci
 
 #install gex
 RUN go install github.com/cosmos/gex@latest
 
 #build main container
-FROM alpine:latest
-RUN apk add --no-cache ca-certificates curl tree python3 py3-pip
-RUN pip3 install --upgrade pip && \
-    pip3 install --no-cache-dir awscli && \
-    rm -rf /var/cache/apk/*
+FROM debian:bookworm-slim
 COPY --from=builder /go/bin/* /usr/local/bin/
 COPY --from=builder /src/injectived.sh .
+
+RUN apt update && apt install -y curl lz4 wget procps
+
+RUN apt-get clean && apt-get autoclean && apt-get autoremove && rm -rf /var/lib/apt/lists/\* /tmp/\* /var/tmp/*
+
+ADD https://github.com/CosmWasm/wasmvm/releases/download/v1.5.0/libwasmvm.x86_64.so /lib/libwasmvm.x86_64.so
+ADD https://github.com/CosmWasm/wasmvm/releases/download/v1.5.0/libwasmvm.aarch64.so /lib/libwasmvm.aarch64.so
 
 #configure container
 VOLUME /apps/data
 WORKDIR /apps/data
-EXPOSE 26657 26656 10337 9900 9091
+EXPOSE 26657 26656 10337 9900 9091 9999
 
 #default command
 CMD sh /injectived.sh

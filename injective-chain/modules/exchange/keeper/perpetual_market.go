@@ -62,9 +62,7 @@ func (k *Keeper) PerpetualMarketLaunch(
 
 	// Get next hour
 	defaultFundingInterval := k.GetDefaultFundingInterval(ctx)
-	// nolint:all
-	// nextFundingTimestamp = floor(blockTime / 3600) * 3600 + 3600
-	nextFundingTimestamp := (ctx.BlockTime().Unix()/defaultFundingInterval)*defaultFundingInterval + defaultFundingInterval
+	nextFundingTimestamp := getNextIntervalTimestamp(ctx.BlockTime().Unix(), defaultFundingInterval)
 
 	market := &types.DerivativeMarket{
 		Ticker:                 ticker,

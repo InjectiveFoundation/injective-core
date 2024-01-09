@@ -1,9 +1,8 @@
 package keeper
 
 import (
-	sdk "github.com/cosmos/cosmos-sdk/types"
-
 	"github.com/InjectiveLabs/metrics"
+	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/keeper/ordermatching"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
@@ -176,8 +175,9 @@ func (k *Keeper) PersistSpotMatchingExecution(ctx sdk.Context, batchSpotMatching
 
 		for idx := range execution.LimitOrderExecutionEvent {
 			if execution.LimitOrderExecutionEvent[idx] != nil {
+				tradeEvent := execution.LimitOrderExecutionEvent[idx]
 				// nolint:errcheck //ignored on purpose
-				ctx.EventManager().EmitTypedEvent(execution.LimitOrderExecutionEvent[idx])
+				ctx.EventManager().EmitTypedEvent(tradeEvent)
 			}
 		}
 

@@ -6,14 +6,19 @@ import (
 
 	"cosmossdk.io/errors"
 	wasmvmtypes "github.com/CosmWasm/wasmvm/types"
+	cdctypes "github.com/cosmos/cosmos-sdk/codec/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
+	"github.com/cosmos/cosmos-sdk/x/authz"
+	authzkeeper "github.com/cosmos/cosmos-sdk/x/authz/keeper"
 	bankkeeper "github.com/cosmos/cosmos-sdk/x/bank/keeper"
 	"github.com/cosmos/cosmos-sdk/x/feegrant"
 	"github.com/ethereum/go-ethereum/common"
 
 	wasmxkeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/keeper"
 	wasmxtypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/types"
+
+	feegrantkeeper "github.com/cosmos/cosmos-sdk/x/feegrant/keeper"
 
 	exchangekeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/keeper"
 	exchangetypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
@@ -22,10 +27,10 @@ import (
 	tokenfactorykeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/tokenfactory/keeper"
 	tokenfactorytypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/tokenfactory/types"
 	"github.com/InjectiveLabs/injective-core/injective-chain/wasmbinding/bindings"
-	feegrantkeeper "github.com/cosmos/cosmos-sdk/x/feegrant/keeper"
 )
 
 type QueryPlugin struct {
+	authzKeeper        *authzkeeper.Keeper
 	bankKeeper         *bankkeeper.BaseKeeper
 	exchangeKeeper     *exchangekeeper.Keeper
 	feegrantKeeper     *feegrantkeeper.Keeper
@@ -36,6 +41,7 @@ type QueryPlugin struct {
 
 // NewQueryPlugin returns a reference to a new QueryPlugin.
 func NewQueryPlugin(
+	ak *authzkeeper.Keeper,
 	ek *exchangekeeper.Keeper,
 	ok *oraclekeeper.Keeper,
 	bk *bankkeeper.BaseKeeper,
@@ -44,6 +50,7 @@ func NewQueryPlugin(
 	fgk *feegrantkeeper.Keeper,
 ) *QueryPlugin {
 	return &QueryPlugin{
+		authzKeeper:        ak,
 		bankKeeper:         bk,
 		exchangeKeeper:     ek,
 		feegrantKeeper:     fgk,
@@ -51,6 +58,136 @@ func NewQueryPlugin(
 		tokenFactoryKeeper: tfk,
 		wasmxKeeper:        wk,
 	}
+}
+
+func ForceMarshalJSONAny(msgAny *cdctypes.Any) {
+	compatMsg := map[string]interface{}{
+		"type_url": msgAny.TypeUrl,
+		"value":    msgAny.Value,
+	}
+	bz, err := json.Marshal(compatMsg)
+	if err != nil {
+		panic(err)
+	}
+
+	err = msgAny.UnmarshalJSON(bz)
+	if err != nil {
+		panic(err)
+	}
+}
+
+func (qp QueryPlugin) HandleAuthzQuery(ctx sdk.Context, queryData json.RawMessage) ([]byte, error) {
+	var query bindings.AuthzQuery
+	if err := json.Unmarshal(queryData, &query); err != nil {
+		return nil, errors.Wrap(err, "Error parsing Injective AuthzQuery")
+	}
+
+	var bz []byte
+	var err error
+
+	switch {
+	case query.Grants != nil:
+		req := query.Grants
+		var grant *authz.QueryGrantsResponse
+
+		grant, err = qp.authzKeeper.Grants(ctx, req)
+		if err != nil {
+			return nil, errors.Wrap(err, "Error querying grants")
+		}
+
+		for _, g := range grant.Grants {
+			if g.Authorization != nil {
+				ForceMarshalJSONAny(g.Authorization)
+			}
+		}
+
+		bz, err = json.Marshal(&authz.QueryGrantsResponse{
+			Grants:     grant.Grants,
+			Pagination: grant.Pagination,
+		})
+	case query.GranterGrants != nil:
+		req := query.GranterGrants
+		var grant *authz.QueryGranterGrantsResponse
+
+		grant, err = qp.authzKeeper.GranterGrants(ctx, req)
+		if err != nil {
+			return nil, errors.Wrap(err, "Error querying granter grants")
+		}
+
+		for _, g := range grant.Grants {
+			if g.Authorization != nil {
+				ForceMarshalJSONAny(g.Authorization)
+			}
+		}
+
+		bz, err = json.Marshal(&authz.QueryGranteeGrantsResponse{
+			Grants:     grant.Grants,
+			Pagination: grant.Pagination,
+		})
+	case query.GranteeGrants != nil:
+		req := query.GranteeGrants
+		var grant *authz.QueryGranteeGrantsResponse
+
+		grant, err = qp.authzKeeper.GranteeGrants(ctx, req)
+		if err != nil {
+			return nil, errors.Wrap(err, "Error querying grantee grants")
+		}
+
+		for _, g := range grant.Grants {
+			if g.Authorization != nil {
+				ForceMarshalJSONAny(g.Authorization)
+			}
+		}
+
+		bz, err = json.Marshal(&authz.QueryGranteeGrantsResponse{
+			Grants:     grant.Grants,
+			Pagination: grant.Pagination,
+		})
+	default:
+		return nil, wasmvmtypes.UnsupportedRequest{Kind: fmt.Sprintf("unknown authz query variant: %+v", string(queryData))}
+	}
+
+	if err != nil {
+		return nil, errors.Wrap(sdkerrors.ErrJSONMarshal, err.Error())
+	}
+
+	return bz, nil
+}
+
+func (qp QueryPlugin) HandleStakingQuery(ctx sdk.Context, queryData json.RawMessage) ([]byte, error) {
+	var query bindings.StakingQuery
+	if err := json.Unmarshal(queryData, &query); err != nil {
+		return nil, errors.Wrap(err, "Error parsing Injective StakingQuery")
+	}
+
+	var bz []byte
+	var err error
+
+	switch {
+	case query.StakedAmount != nil:
+		req := query.StakedAmount
+
+		var delegatorAccAddress sdk.AccAddress
+		delegatorAccAddress, err = sdk.AccAddressFromBech32(req.DelegatorAddress)
+
+		if err != nil {
+			return nil, err
+		}
+
+		stakedINJ := qp.exchangeKeeper.CalculateStakedAmountWithoutCache(ctx, delegatorAccAddress, req.MaxDelegations)
+
+		bz, err = json.Marshal(bindings.StakingDelegationAmountResponse{
+			StakedAmount: stakedINJ,
+		})
+	default:
+		return nil, wasmvmtypes.UnsupportedRequest{Kind: fmt.Sprintf("unknown staking query variant: %+v", string(queryData))}
+	}
+
+	if err != nil {
+		return nil, errors.Wrap(sdkerrors.ErrJSONMarshal, err.Error())
+	}
+
+	return bz, nil
 }
 
 func (qp QueryPlugin) HandleOracleQuery(ctx sdk.Context, queryData json.RawMessage) ([]byte, error) {

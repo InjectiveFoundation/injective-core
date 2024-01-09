@@ -5,8 +5,8 @@ title: Set Up Keyring
 
 # Setting up the keyring
 
-:::note
-This document describes how to configure and use the keyring and its various backends for an Injective Chain node. 
+:::tip
+This document describes how to configure and use the keyring and its various backends for an Injective Chain node. `injectived` should be installed prior to setting up the keyring. See [the Install `injectived` page](../../develop/tools/injectived/install) for more information.
 :::
 
 The keyring holds the private/public keypairs used to interact with the node. For instance, a validator key needs to be set up before running the Injective node, so that blocks can be correctly signed. The private key can be stored in different locations, called "backends", such as a file or the operating system's own key storage.
@@ -103,10 +103,6 @@ The `memory` backend stores keys in memory. The keys are immediately deleted aft
 **Provided for testing purposes only. The `memory` backend is not recommended for use in production environments**.
 
 ## Adding keys to the keyring
-
-:::warning
-Make sure you can build your own binary, and replace `injectived` with the name of your binary in the snippets.
-:::
 
 You can use `injectived keys` for help about the keys command and `injectived keys [command] --help` for more information about a particular subcommand.
 

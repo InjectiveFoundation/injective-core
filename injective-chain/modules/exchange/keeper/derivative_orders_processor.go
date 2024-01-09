@@ -58,7 +58,7 @@ func (k *Keeper) GetClearingPriceFromMatching(lastBuyPrice, lastSellPrice, markP
 
 func (k *Keeper) GetDerivativeMatchingExecutionData(
 	ctx sdk.Context,
-	market MarketI,
+	market DerivativeMarketI,
 	markPrice sdk.Dec,
 	funding *types.PerpetualMarketFunding,
 	transientBuyOrders, transientSellOrders []*types.DerivativeLimitOrder,
@@ -205,7 +205,7 @@ func (k *Keeper) GetDerivativeMatchingExecutionData(
 // ExecuteDerivativeMarketOrderImmediately executes market order immediately (without waiting for end-blocker). Used for atomic orders execution by smart contract, and for liquidations
 func (k *Keeper) ExecuteDerivativeMarketOrderImmediately(
 	ctx sdk.Context,
-	market MarketI,
+	market DerivativeMarketI,
 	markPrice sdk.Dec,
 	funding *types.PerpetualMarketFunding,
 	marketOrder *types.DerivativeMarketOrder,
@@ -281,7 +281,7 @@ func (k *Keeper) ExecuteDerivativeMarketOrderImmediately(
 
 func (k *Keeper) GetDerivativeMarketOrderExecutionData(
 	ctx sdk.Context,
-	market MarketI,
+	market DerivativeMarketI,
 	marketOrderTradeFeeRate sdk.Dec,
 	markPrice sdk.Dec,
 	funding *types.PerpetualMarketFunding,
@@ -427,7 +427,7 @@ func (k *Keeper) executeDerivativeMarketOrders(
 // NOTE: clearingPrice may be Nil
 func (k *Keeper) processDerivativeMarketOrderbookMatchingResults(
 	ctx sdk.Context,
-	market MarketI,
+	market DerivativeMarketI,
 	funding *types.PerpetualMarketFunding,
 	marketOrders []*types.DerivativeMarketOrder,
 	marketFillQuantities []sdk.Dec,
@@ -463,6 +463,7 @@ func (k *Keeper) processDerivativeMarketOrderbookMatchingResults(
 					FillQuantity: sdk.ZeroDec(),
 				},
 				OrderHash: o.Hash(),
+				Cid:       o.Cid(),
 			}
 		} else {
 			stateExpansions[idx] = k.applyPositionDeltaAndGetDerivativeMarketOrderStateExpansion(
@@ -590,7 +591,7 @@ func (k *Keeper) fillPositionStateCache(
 
 func (k *Keeper) applyPositionDeltaAndGetDerivativeMarketOrderStateExpansion(
 	ctx sdk.Context,
-	market MarketI,
+	market DerivativeMarketI,
 	funding *types.PerpetualMarketFunding,
 	order *types.DerivativeMarketOrder,
 	positionStates map[common.Hash]*PositionState,
@@ -687,6 +688,7 @@ func (k *Keeper) applyPositionDeltaAndGetDerivativeMarketOrderStateExpansion(
 			FillQuantity: fillQuantity,
 		},
 		OrderHash: order.Hash(),
+		Cid:       order.Cid(),
 	}
 
 	return &stateExpansion
@@ -696,7 +698,7 @@ func (k *Keeper) applyPositionDeltaAndGetDerivativeMarketOrderStateExpansion(
 // NOTE: clearingPrice may be Nil
 func (k *Keeper) processRestingDerivativeLimitOrderbookFills(
 	ctx sdk.Context,
-	market MarketI,
+	market DerivativeMarketI,
 	funding *types.PerpetualMarketFunding,
 	fills *DerivativeOrderbookFills,
 	isBuy bool,
@@ -731,7 +733,7 @@ func (k *Keeper) processRestingDerivativeLimitOrderbookFills(
 // NOTE: clearingPrice can be nil
 func (k *Keeper) applyPositionDeltaAndGetDerivativeLimitOrderStateExpansion(
 	ctx sdk.Context,
-	market MarketI,
+	market DerivativeMarketI,
 	funding *types.PerpetualMarketFunding,
 	isBuy bool,
 	isTransient bool,
@@ -870,6 +872,7 @@ func (k *Keeper) applyPositionDeltaAndGetDerivativeLimitOrderStateExpansion(
 			CancelQuantity: sdk.ZeroDec(),
 		},
 		OrderHash: order.Hash(),
+		Cid:       order.Cid(),
 	}
 
 	return &stateExpansion
@@ -877,7 +880,7 @@ func (k *Keeper) applyPositionDeltaAndGetDerivativeLimitOrderStateExpansion(
 
 func (k *Keeper) adjustPositionMarginIfNecessary(
 	ctx sdk.Context,
-	market MarketI,
+	market DerivativeMarketI,
 	subaccountID common.Hash,
 	position *types.Position,
 	availableBalanceChange, totalBalanceChange sdk.Dec,

@@ -9,6 +9,8 @@ This section describes the commands available from `injectived`, the command lin
 
 :::tip
 Several `injectived` commands require subcommands, arguments, or flags to operate. To view this information, run the `injectived` command with the `--help` or `-h` flag. See [`query`](#query) or [`tx`](#tx) for usage examples of the help flag.
+
+For the `chain-id` argument, `injective-1` should be used for Mainnet, and `injective-888` should be used for Testnet.
 :::
 
 
@@ -89,7 +91,7 @@ injectived gentx <key-name> <amount><coin-denominator>
 **Example**
 
 ```bash
-injectived gentx myKey 100000000000inj --home=/path/to/home/dir --keyring-backend=os --chain-id=test-chain-1 \
+injectived gentx myKey 100000000000inj --home=/path/to/home/dir --keyring-backend=os --chain-id=injective-1 \
     --moniker="myValidator" \
     --commission-max-change-rate=0.01 \
     --commission-max-rate=1.0 \
@@ -171,7 +173,7 @@ injectived migrate <target version> <path-to-genesis-file>
 **Example**
 
 ```bash
-injectived migrate v1.9.0 /path/to/genesis.json --chain-id=testnet --genesis-time=2023-03-07T17:00:00Z 
+injectived migrate v1.9.0 /path/to/genesis.json --chain-id=injective-888 --genesis-time=2023-03-07T17:00:00Z 
 ```
 <br/>
 

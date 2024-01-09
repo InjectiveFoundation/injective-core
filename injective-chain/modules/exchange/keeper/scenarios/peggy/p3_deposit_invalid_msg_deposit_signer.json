@@ -1,0 +1,21 @@
+{
+  "numAccounts": 1,
+  "seed": 1658339268842048000,
+  "actions": [
+    {
+      "actionType": "endblocker",
+      "actionId": "setup"
+    },
+    {
+      "actionType": "peggyDepositClaim",
+      "amount": 123456787,
+      "token_contract": "0x11A227e1aAb93Ad76646663381A94Fdaa3256FCF",
+      "cosmos_receiver": "inj14eutluwnxq3uztlv00kzv5f0e6w8c84p0l3ufw",
+      "arbitrary_data": "{\"sender\": \"inj1tpmwkd0psrutlqd4ytjq7pugj5dedjys9u0wd3\",\"subaccount_id\":\"0xAE78bfF1d33023c12Fec7bEC26512fCE9c7c1ea1000000000000000000000002\", \"amount\": {\"amount\":\"123456787\", \"denom\":\"peggy0x11A227e1aAb93Ad76646663381A94Fdaa3256FCF\"}}",
+      "arbitrary_data_type": "exchangetypes.MsgDeposit"
+    },
+    {
+      "actionType": "endblocker"
+    }
+  ]
+}

@@ -1,93 +1,90 @@
 ---
-sidebar_position: 3
-title: CW20 deployment guide on Testnet
+sidebar_position: 4
+title: CW20 Testnet Deployment Guide
 ---
 
-# Cosmwasm deployment guide on Testnet
+# Cosmwasm Testnet Deployment Guide
 
-This guide will get you started compiling, storing and instantiaing `cw20` smart contracts on Injective Testnet. 
+This guide will get you started deploying `cw20` smart contracts on Injective Testnet. We'll use the `cw20-base` contract from [CosmWasm's collection of specifications and contracts](https://github.com/CosmWasm/cw-plus) designed for production use on real networks.
 
-In this guide will use the `cw20-base` contract from the [CosmWasm collection of specification and contracts](https://github.com/CosmWasm/cw-plus) designed for use on real networks. 
+`cw20-base` is a basic implementation of a `cw20` compatible contract that can be imported in any custom contract you want to build on. It contains a straightforward but complete implementation of the cw20 spec along with all extensions. `cw20-base` can be deployed as-is or imported by other contracts.
 
-> Check the [Injective CosmWasm contracts](https://github.com/InjectiveLabs/cw-injective)
+## 1. Compile CosmWasm Contracts
 
- 
-The `cw20-base` is a basic implementation of a `cw20` compatible contract that can be imported in any custom contract you want to build on it, a straightforward, but complete implementation of the cw20 spec along with all extensions. Can be deployed as-is, or imported by other contracts.
+In this step, we will get all CW production template contracts and compile them using the [CosmWasm Rust Optimizer](https://github.com/CosmWasm/rust-optimizer) Docker image for compiling multiple contracts ( called `workspace-optimizer`)—see [here](https://hub.docker.com/r/cosmwasm/workspace-optimizer/tags) (x86) or [here](https://hub.docker.com/r/cosmwasm/workspace-optimizer-arm64/tags) (ARM) for latest versions. This process may take a bit of time and CPU power. 
 
-## 1. Compile CosmWasm contracts
-
-In this step we will get all CW contracts and compile them so we can use them later on, this porcess can take a bit of time and CPU. 
-
-```
+```bash
 git clone https://github.com/CosmWasm/cw-plus
 cd cw-plus
 ```
 
-Non M1 Mac devices:
-```
+Non ARM (Non-Apple silicon) devices:
+```bash
 docker run --rm -v "$(pwd)":/code \
 --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
 --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-cosmwasm/workspace-optimizer:0.12.11
+cosmwasm/workspace-optimizer:0.12.12
 ```
 
-Alternatively for the M1 mac devices please use:
-```
+Alternatively for Apple silicon devices (M1, M2, etc.) please use:
+```bash
 docker run --rm -v "$(pwd)":/code \
 --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
 --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-cosmwasm/workspace-optimizer-arm64:0.12.11
+cosmwasm/workspace-optimizer-arm64:0.12.12
 ```
 
-You should have the wasm contracts complied under the `artifacts` directory. The docker script
-builds all of the CW contracts in the repo, and we will start by deploying the `cw20_base.wasm` 
-contract or `cw20_base-aarch64.wasm` for Mac M1.
+The docker script builds and optimizes all the CW contracts in the repo, with the compiled contracts located under the `artifacts` directory. Now we can deploy the `cw20_base.wasm`
+contract (`cw20_base-aarch64.wasm` if compiled on an ARM device).
 
-Write down the directory to which you have cloned `cw-plus` repo (easiest way to obtain is is to execute pwd once in that directory).
+## 2. Download Dockerised Injective Chain Binary 
 
-## 2. Download dockerised Injective Chain binary 
+A Docker image has been prepared to make this guide easier. Alternatively, you can follow the [installation instructions](../../tools/injectived/install) for `injectived` and run it locally.
 
-We prepared a Docker image of the Injective chain.
+:::tip
+If you install `injectived` from the binary, ignore the docker commands—the `injectived` commands can be run directly from your command line.
+:::
+
+If you're on Apple silicon make sure to use an ARM image for injective-core.
 
 ```
+    public.ecr.aws/l9h3g6c6/injective-core:v1.10.1
+--> public.ecr.aws/l9h3g6c6/injective-core:v1.10.1-arm
+```
+
+Executing this command will make the docker container execute indefinitely.
+
+```bash
 docker run --name="injective-core-v1.10.1" \
 -v=<directory_to_which_you_cloned_cw-plus>/artifacts:/var/artifacts \
 --entrypoint=sh public.ecr.aws/l9h3g6c6/injective-core:v1.10.1 \
--c "tail -F anything"
-```
-Note: ` -v=<directory_to_which_you_cloned_cw-plus> ` must be an absolute path, and it is easy to find runnign `pwd` inside the CosmWasm/cw-plus repo. 
-
-If you're on M1 make sure to use an arm image for injective-core.
-
-```
-public.ecr.aws/l9h3g6c6/injective-core:v1.10.1
-public.ecr.aws/l9h3g6c6/injective-core:v1.10.1-arm
+-c "tail -F anything"-
 ```
 
-Executing that command will make the docker container execute indefinitely.
+Note: `directory_to_which_you_cloned_cw-plus` must be an absolute path. The absolute path can easily be found by running the `pwd` command from inside the cw-plus directory.
 
-Open a new terminal and get in the Docker container to inilitialise the chain.
+Open a new terminal and access the Docker container to initialize the chain.
 
-```
+```bash
 docker exec -it injective-core-v1.10.1 sh
 ```
 
-Let’s start by adding ```jq``` dependency, which will be needed later on:
+Let’s start by adding the `jq` dependency, a lightweight command line JSON processor, which we will need later on.
 
-```
+```bash
 # inside the "injective-core-v1.10.1" container
 apk add jq
 ```
 
-Now we can proceed to local chain initalisation and adding a test user (when prompted use 12345678 as password). We will use it only to generate a new private key that later on will be used for signing messages on the testnet.
+We can now add a test user (when prompted use 12345678 as password). We will use it only to generate a new private key that will later on be used to sign messages on the testnet.
 
-```
+```bash
 # inside the "injective-core-v1.10.1" container
 injectived keys add testuser
 ```
 
 **OUTPUT**
-```
+```bash
 - name: testuser
   type: local
   address: inj1gwpnskafpjn4dg5uarh6cc5s68gv86589zcfxp
@@ -101,27 +98,23 @@ It is the only way to recover your account if you ever forget your password.
 insect among shuffle give skirt wet nut solid siren divorce young find adapt neither mouse pupil shallow tower hen artefact spice dentist river envelope
 ```
 
+Take a moment to write down the address or export it as an env variable, as you will need it to proceed:
 
-Take a moment to write down the address, you will need it,  or export it as an env variable.
-
-```
-# inside the "injective-core-v1.10.1" container
+```bash
+# inside the "injective-core-staging" container
 export INJ_ADDRESS= <your inj address>
 ```
+:::info
+Fund your recently generated test address with the [Injective test faucet](https://faucet.injective.network/).
+:::
 
-Add some test toekns to your recently generated test address with the Injective testnet faucet.
+Now you have successfully created `testuser` on Injective Testnet. The `testuser` address should have `10000000000000000000` INJ balance. 
 
-```
-https://testnet.faucet.injective.network/
-```
-
-Now you have successfully created testuser on Injective testnet. The testuser should have `10000000000000000000` INJ balance. 
-
-Search for your address in the testnet [Injective explorer](https://testnet.explorer.injective.network/) to check your balance. 
+To confirm, search for your address on the [Injective Testnet Explorer](https://testnet.explorer.injective.network/) to check your balance.
 
 Alternatively, you can verify it by querying the bank balance - [https://k8s.testnet.lcd.injective.network/swagger/#/Query/AllBalances](https://k8s.testnet.lcd.injective.network/swagger/#/Query/AllBalances)  or with curl:
 
-```
+```bash
 curl -X GET "https://k8s.testnet.lcd.injective.network/cosmos/bank/v1beta1/balances/<your_INJ_address>" -H "accept: application/json"
 ```
 
@@ -322,7 +315,7 @@ txhash: 3355ACA991590CB8BB1D819D9ECB6A901C9F1963E2DB73703ECDEB29EE08D5BD
 ```
 
 
-Inspecting the output more closely, we can see the code_id of `514` for the contract
+Inspecting the output more closely, we can see the `code_id` of `514` for the contract
 
 ```bash
 logs:
@@ -355,17 +348,17 @@ logs:
   msg_index: 0
 ```
 
-Export your code id as ENV varible. You can skip this step and manually add it on the next step. 
+Export your `code_id` as an ENV varible. You can skip this step and manually add it on the next step. 
 
 ```
 export CODE_ID= <code_id of your stored contract>
 ```
 
-We’ve now uploaded the code template, next step is to instantiate it.
+We’ve now uploaded the code template, but we still to instantiate it.
 
 ### 4. Instantiate the contract
 
-Before instantiating the contract, notice the CW-20 contract function signature for `instantiate`. 
+Before instantiating the contract, let's take a look at the CW-20 contract function signature for `instantiate`. 
 
 ```rust
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -377,7 +370,7 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
 ```
 
-Notably, it contains the InstantiateMsg parameter which contains the token name, symbol and other details. 
+Notably, it contains the `InstantiateMsg` parameter which contains the token name, symbol, decimals, and other details. 
 
 ```rust
 #[derive(Serialize, Deserialize, JsonSchema, Debug, Clone, PartialEq)]
@@ -391,7 +384,13 @@ pub struct InstantiateMsg {
 }
 ```
 
-To call this function to instantiate the contract, simply run the CLI command with the code_id you got on the previous step, along with the JSON encoded initialization arguments and a label (a human-readable name for this contract in lists). 
+The first step of instantiating the contract is to select an address to supply with our initial CW20 token allocation. In our case, we can use the testuser address (env variable INJ_ADDRESS) we previously set up, but feel free to generate new addresses and keys.
+
+:::caution
+Make sure you have the private keys for the address you choose—you won't be able to test token transfers from the address otherwise. In addition, the chosen address must be a valid address on the chain (the address must have received funds at some point in the past) and must have balances to pay for gas when executing the contract.
+:::
+
+Run the CLI command with the `code_id` we obtained from uploading the contract (env variable `CODE_ID`) along with the JSON encoded initialization arguments (with your selected address) and a label (a human-readable name for this contract in lists) to instantiate the contract:
 
 ```bash
 INIT='{"name":"InjectiveTestCoin","symbol":"ITC","decimals":6,"initial_balances":[{"address":"'$INJ_ADDRESS'","amount":"69420"}],"mint":{"minter":"'$INJ_ADDRESS'"},"marketing":{}}'
@@ -418,8 +417,7 @@ txhash: 8B1EE838441A33A6CA04C27A4CF05B0FA57E076594E9CF60E31D5E49FDD85814
 You can find the contract address and metadata on 
 - The [testnet explorer](https://testnet.explorer.injective.network/contracts/) 
 - Querying the API [contract code](https://k8s.testnet.lcd.injective.network/swagger/#/Query/ContractsByCode) and [code info](https://k8s.testnet.lcd.injective.network/swagger/#/Query/ContractInfo) 
-- or by CLI query
-
+- or by CLI query:
 
 ```bash
 CONTRACT=$(injectived query wasm list-contract-by-code $CODE_ID --node=https://k8s.testnet.tm.injective.network:443 --output json | jq -r '.contracts[-1]')
@@ -443,7 +441,7 @@ contract_info:
 
 ### 5. Querying Data
 
-The entire contract state can be queried with 
+The entire contract state can be queried with:
 
 ```bash
 injectived query wasm contract-state all $CONTRACT --node=https://k8s.testnet.tm.injective.network:443
@@ -466,7 +464,7 @@ pagination:
   total: "0"
 ```
 
-The individual user’s token balance can also be queried with
+The individual user’s token balance can also be queried with:
 
 ```bash
 BALANCE_QUERY='{"balance": {"address": "inj1gwpnskafpjn4dg5uarh6cc5s68gv86589zcfxp"}}'
@@ -486,8 +484,7 @@ TRANSFER='{"transfer":{"recipient":"'$(echo $RECIPIENT)'","amount":"420"}}'
 yes 12345678 | injectived tx wasm execute $CONTRACT "$TRANSFER" --from=$(echo $INJ_ADDRESS) --chain-id="injective-888" --yes --gas-prices=500000000inj --gas=20000000 --node=https://k8s.testnet.tm.injective.network:443
 ```
 
-Then confirm the balance transfer occurred successfully with
-
+Then confirm the balance transfer occurred successfully with:
 
 ```bash
 # inside the "injective-core-v1.10.1" container
@@ -496,9 +493,19 @@ BALANCE_QUERY='{"balance": {"address": "'$(echo $INJ_ADDRESS)'"}}'
 injectived query wasm contract-state smart $CONTRACT "$BALANCE_QUERY" --node=https://k8s.testnet.tm.injective.network:443 --output json
 ```
 
+**Output:**
+```bash
+{"data":{"balance":"69000"}}
+```
+
 ```bash
 # inside the "injective-core-v1.10.1" container
 # recipient's address balance query
 BALANCE_QUERY='{"balance": {"address": "'$(echo $RECIPIENT)'"}}'
 injectived query wasm contract-state smart $CONTRACT "$BALANCE_QUERY" --node=https://k8s.testnet.tm.injective.network:443 --output json
+```
+
+**Output:**
+```bash
+{"data":{"balance":"420"}}
 ```

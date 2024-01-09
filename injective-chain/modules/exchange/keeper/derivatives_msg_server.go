@@ -2,9 +2,8 @@ package keeper
 
 import (
 	"context"
-	"fmt"
-
 	"errors"
+	"fmt"
 
 	sdkerrors "cosmossdk.io/errors"
 	"github.com/InjectiveLabs/metrics"
@@ -12,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	wasmxtypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/types"
 )
 
 type DerivativesMsgServer struct {
@@ -34,7 +34,12 @@ func (k DerivativesMsgServer) InstantPerpetualMarketLaunch(goCtx context.Context
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
-	if !k.GetIsInstantDerivativeMarketLaunchEnabled(ctx) {
+	sender := sdk.MustAccAddressFromBech32(msg.Sender)
+
+	accessConfig := k.wasmViewKeeper.GetParams(ctx).CodeUploadAccess
+	isRegistrationAllowed := wasmxtypes.IsAllowed(accessConfig, sender)
+
+	if !k.GetIsInstantDerivativeMarketLaunchEnabled(ctx) && !isRegistrationAllowed {
 		return nil, types.ErrFeatureDisabled
 	}
 
@@ -139,7 +144,7 @@ func (k *Keeper) createDerivativeLimitOrder(
 	ctx sdk.Context,
 	sender sdk.AccAddress,
 	order *types.DerivativeOrder,
-	market MarketI,
+	market DerivativeMarketI,
 	markPrice sdk.Dec,
 ) (hash common.Hash, err error) {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
@@ -235,7 +240,7 @@ func (k DerivativesMsgServer) BatchCreateDerivativeLimitOrders(goCtx context.Con
 	}, nil
 }
 
-func (k *Keeper) createDerivativeMarketOrder(ctx sdk.Context, sender sdk.AccAddress, derivativeOrder *types.DerivativeOrder, market MarketI, markPrice sdk.Dec) (orderHash common.Hash, results *types.DerivativeMarketOrderResults, err error) {
+func (k *Keeper) createDerivativeMarketOrder(ctx sdk.Context, sender sdk.AccAddress, derivativeOrder *types.DerivativeOrder, market DerivativeMarketI, markPrice sdk.Dec) (orderHash common.Hash, results *types.DerivativeMarketOrderResults, err error) {
 	var (
 		subaccountID = types.MustGetSubaccountIDOrDeriveFromNonce(sender, derivativeOrder.OrderInfo.SubaccountId)
 		marketID     = derivativeOrder.MarketID()
@@ -328,13 +333,16 @@ func (k DerivativesMsgServer) CancelDerivativeOrder(goCtx context.Context, msg *
 
 	var (
 		marketID     = common.HexToHash(msg.MarketId)
-		orderHash    = common.HexToHash(msg.OrderHash)
 		sender       = sdk.MustAccAddressFromBech32(msg.Sender)
 		subaccountID = types.MustGetSubaccountIDOrDeriveFromNonce(sender, msg.SubaccountId)
+		identifier   = types.GetOrderIdentifier(msg.OrderHash, msg.Cid)
 	)
 
 	market := k.GetDerivativeMarketByID(ctx, marketID)
-	if err := k.cancelDerivativeOrder(ctx, subaccountID, orderHash, market, marketID, msg.OrderMask); err != nil {
+
+	err := k.cancelDerivativeOrder(ctx, subaccountID, identifier, market, marketID, msg.OrderMask)
+
+	if err != nil {
 		return nil, err
 	}
 
@@ -344,8 +352,24 @@ func (k DerivativesMsgServer) CancelDerivativeOrder(goCtx context.Context, msg *
 func (k *Keeper) cancelDerivativeOrder(
 	ctx sdk.Context,
 	subaccountID common.Hash,
+	identifier any,
+	market DerivativeMarketI,
+	marketID common.Hash,
+	orderMask int32,
+) error {
+	orderHash, err := k.getOrderHashFromIdentifier(ctx, subaccountID, identifier)
+	if err != nil {
+		return err
+	}
+
+	return k.cancelDerivativeOrderByOrderHash(ctx, subaccountID, orderHash, market, marketID, orderMask)
+}
+
+func (k *Keeper) cancelDerivativeOrderByOrderHash(
+	ctx sdk.Context,
+	subaccountID common.Hash,
 	orderHash common.Hash,
-	market MarketI,
+	market DerivativeMarketI,
 	marketID common.Hash,
 	orderMask int32,
 ) (err error) {
@@ -455,6 +479,7 @@ func (k DerivativesMsgServer) BatchCancelDerivativeOrders(goCtx context.Context,
 			SubaccountId: msg.Data[idx].SubaccountId,
 			OrderHash:    msg.Data[idx].OrderHash,
 			OrderMask:    msg.Data[idx].OrderMask,
+			Cid:          msg.Data[idx].Cid,
 		}); err != nil {
 			metrics.ReportFuncError(k.svcTags)
 		} else {

@@ -45,7 +45,7 @@ COPY --from=builder /src/injectived.sh .
 #configure container
 VOLUME /apps/data
 WORKDIR /apps/data
-EXPOSE 26657 26656 10337 9900 9091
+EXPOSE 26657 26656 10337 9900 9091 9999
 
 #default command
 CMD sh /injectived.sh

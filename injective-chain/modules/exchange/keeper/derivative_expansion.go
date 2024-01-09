@@ -22,4 +22,5 @@ type DerivativeOrderStateExpansion struct {
 	LimitOrderFilledDelta  *types.DerivativeLimitOrderDelta
 	MarketOrderFilledDelta *types.DerivativeMarketOrderDelta
 	OrderHash              common.Hash
+	Cid                    string
 }

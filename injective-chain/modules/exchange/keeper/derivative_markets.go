@@ -35,12 +35,21 @@ func (k *Keeper) SetDerivativesExchangeEnabled(ctx sdk.Context) {
 func (k *Keeper) GetDerivativeMarketPrice(ctx sdk.Context, oracleBase, oracleQuote string, oracleScaleFactor uint32, oracleType oracletypes.OracleType) (*sdk.Dec, error) {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
-	price := k.OracleKeeper.GetPrice(ctx, oracleType, oracleBase, oracleQuote)
+	var price *sdk.Dec
+
+	if oracleType == oracletypes.OracleType_Provider {
+		// oracleBase should be used for symbol and oracleQuote should be used for price for provider oracles
+		symbol := oracleBase
+		provider := oracleQuote
+		price = k.OracleKeeper.GetProviderPrice(ctx, provider, symbol)
+	} else {
+		price = k.OracleKeeper.GetPrice(ctx, oracleType, oracleBase, oracleQuote)
+	}
+
 	if price == nil || price.IsNil() {
 		metrics.ReportFuncError(k.svcTags)
 		return nil, errors.Wrapf(types.ErrInvalidOracle, "type %s base %s quote %s", oracleType.String(), oracleBase, oracleQuote)
 	}
-
 	scaledPrice := types.GetScaledPrice(*price, oracleScaleFactor)
 
 	return &scaledPrice, nil
@@ -481,7 +490,7 @@ func (k *Keeper) handleDerivativeFeeDecreaseForConditionals(ctx sdk.Context, ord
 	}
 }
 
-func (k *Keeper) handleDerivativeFeeIncrease(ctx sdk.Context, orderbook []*types.DerivativeLimitOrder, newMakerFeeRate sdk.Dec, prevMarket MarketI) {
+func (k *Keeper) handleDerivativeFeeIncrease(ctx sdk.Context, orderbook []*types.DerivativeLimitOrder, newMakerFeeRate sdk.Dec, prevMarket DerivativeMarketI) {
 	isExtraFeeChargeRequired := newMakerFeeRate.IsPositive()
 	if !isExtraFeeChargeRequired {
 		return
@@ -528,7 +537,7 @@ func (k *Keeper) handleDerivativeFeeIncrease(ctx sdk.Context, orderbook []*types
 	}
 }
 
-func (k *Keeper) handleDerivativeFeeIncreaseForConditionals(ctx sdk.Context, orderbook *types.ConditionalDerivativeOrderBook, prevFeeRate, newFeeRate sdk.Dec, prevMarket MarketI) {
+func (k *Keeper) handleDerivativeFeeIncreaseForConditionals(ctx sdk.Context, orderbook *types.ConditionalDerivativeOrderBook, prevFeeRate, newFeeRate sdk.Dec, prevMarket DerivativeMarketI) {
 	isExtraFeeChargeRequired := newFeeRate.IsPositive()
 	if !isExtraFeeChargeRequired {
 		return
@@ -650,10 +659,18 @@ func (k *Keeper) UpdateDerivativeMarketParam(
 	market := k.GetDerivativeMarketByID(ctx, marketID)
 
 	isActiveStatusChange := market.IsActive() && status != types.MarketStatus_Active || (market.IsInactive() && status == types.MarketStatus_Active)
+
+	shouldUpdateNextFundingTimestamp := false
+
 	if isActiveStatusChange {
 		isEnabled := true
 		if market.Status != types.MarketStatus_Active {
 			isEnabled = false
+
+			if market.IsPerpetual {
+				// the next funding timestamp should be updated if the market status changes to active
+				shouldUpdateNextFundingTimestamp = true
+			}
 		}
 		k.DeleteDerivativeMarket(ctx, marketID, isEnabled)
 	}
@@ -675,10 +692,14 @@ func (k *Keeper) UpdateDerivativeMarketParam(
 	}
 
 	var perpetualMarketInfo *types.PerpetualMarketInfo = nil
-	isUpdatingFundingRate := hourlyInterestRate != nil || hourlyFundingRateCap != nil
+	isUpdatingFundingRate := shouldUpdateNextFundingTimestamp || hourlyInterestRate != nil || hourlyFundingRateCap != nil
 
 	if isUpdatingFundingRate {
 		perpetualMarketInfo = k.GetPerpetualMarketInfo(ctx, marketID)
+
+		if shouldUpdateNextFundingTimestamp {
+			perpetualMarketInfo.NextFundingTimestamp = getNextIntervalTimestamp(ctx.BlockTime().Unix(), perpetualMarketInfo.FundingInterval)
+		}
 
 		if hourlyFundingRateCap != nil {
 			perpetualMarketInfo.HourlyFundingRateCap = *hourlyFundingRateCap

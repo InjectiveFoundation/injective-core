@@ -6,42 +6,44 @@ title: Join Testnet
 # Join the Network
 
 ## Hardware Specification
-Validators should expect to provision one or more data center locations with redundant power, networking, firewalls, HSMs and servers.
+Node operators should expect to provision one or more data center locations with redundant power, networking, firewalls, HSMs and servers.
 
-We initially recommend this minimum hardware specifications and they might rise as network usage increases.
+The minimum hardware specifications are as follows, though they might rise as network usage increases:
 
 ```
-4+ vCPU x64 2.0+ GHz
+6+ vCPU x64
 32+ GB RAM
-1TB+ SSD
+500 GB+ SSD
 ```
 
-## Install injectived and peggo
+## Install `injectived` and `peggo`
+
+See the [Injective chain releases repo](https://github.com/InjectiveLabs/testnet/releases) for the most recent releases. Non-validator node operators do not need to install `peggo`.
 
 ```bash
-wget https://github.com/InjectiveLabs/testnet/releases/download/v1.10.2-1678712142/linux-amd64.zip
+wget https://github.com/InjectiveLabs/testnet/releases/download/v1.11.1-1685205489/linux-amd64.zip
 unzip linux-amd64.zip
 sudo mv peggo /usr/bin
 sudo mv injectived /usr/bin
 sudo mv libwasmvm.x86_64.so /usr/lib 
 ```
 
-## Initialize a new Injective Chain node
+## Initialize a New Injective Chain Node
 
-Before actually running the Injective Chain node, we need to initialize the chain, and most importantly its genesis file.
+Before running the Injective Chain node, we need to initialize the chain as well as the node's genesis file:
 
-```
+```bash
 # The argument <moniker> is the custom username of your node, it should be human-readable.
 export MONIKER=<moniker>
-# the Injective Chain has a chain-id of "injective-888"
+# Injective Testnet has a chain-id of "injective-888"
 injectived init $MONIKER --chain-id injective-888
 ```
 
-Running this command will create `injectived` default configuration files at `~/.injectived`.
+Running the `init` command will create `injectived` default configuration files at `~/.injectived`.
 
-## Prepare configuration to join Testnet
+## Prepare Configuration to Join Testnet
 
-You should now update the default configuration with the Testnet's genesis file and application config file, as well as configure your persistent peers with a seed node.  
+You should now update the default configuration with the Testnet's genesis file and application config file, as well as configure your persistent peers with seed nodes.
 
 ```bash
 git clone https://github.com/InjectiveLabs/testnet.git
@@ -60,7 +62,7 @@ You can also run verify the checksum of the genesis checksum - a4abe4e1f5511d4c2
 sha256sum ~/.injectived/config/genesis.json
 ```
 
-## Configure systemd service for injectived
+## Configure `systemd` Service for `injectived`
 
 Edit the config at `/etc/systemd/system/injectived.service`:
 ```bash
@@ -94,18 +96,9 @@ journalctl -u injectived -f
 
 ## Sync with the network
 
-```bash
-sudo systemctl stop injectived
-aws s3 sync --acl public-read --no-sign-request --delete s3://injective-snapshots/testnet/injectived/data $HOME/.injectived/data
-aws s3 sync --acl public-read --no-sign-request --delete s3://injective-snapshots/testnet/injectived/wasm $HOME/.injectived/wasm
-sudo systemctl start injectived
-```
+Refer to the Polkachu guide [here](https://polkachu.com/testnets/injective/snapshots) to download a snapshot and sync with the network.
 
 
 ### Support
 
-For any further questions, you can always connect with the Injective Team via Discord, Telegram, and email.
-
-[Discord](https://discord.gg/injective)
-[Telegram](https://t.me/joininjective)
-[E-mail](mailto:contact@injectivelabs.org)
+For any further questions, you can always connect with the Injective Team via [Discord](https://discord.gg/injective), [Telegram](https://t.me/joininjective), or [email](mailto:contact@injectivelabs.org).

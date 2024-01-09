@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	"fmt"
+	injectivechain "github.com/InjectiveLabs/injective-core/injective-chain/app"
+	"github.com/spf13/cast"
 	"io"
 	"net/http"
 	"os"
@@ -53,14 +56,17 @@ const (
 	FlagTrace              = "trace"
 	FlagInvCheckPeriod     = "inv-check-period"
 
-	FlagPruning              = "pruning"
-	FlagPruningKeepRecent    = "pruning-keep-recent"
-	FlagPruningKeepEvery     = "pruning-keep-every"
-	FlagPruningInterval      = "pruning-interval"
-	FlagIndexEvents          = "index-events"
-	FlagMinRetainBlocks      = "min-retain-blocks"
-	FlagMultiStoreCommitSync = "multistore-commit-sync"
-	FlagIAVLCacheSize        = "iavl-cache-size"
+	FlagPruning                       = "pruning"
+	FlagPruningKeepRecent             = "pruning-keep-recent"
+	FlagPruningKeepEvery              = "pruning-keep-every"
+	FlagPruningInterval               = "pruning-interval"
+	FlagIndexEvents                   = "index-events"
+	FlagMinRetainBlocks               = "min-retain-blocks"
+	FlagMultiStoreCommitSync          = "multistore-commit-sync"
+	FlagIAVLCacheSize                 = "iavl-cache-size"
+	FlagStreamServer                  = "chainstream-server"
+	FlagStreamServerBufferCapacity    = "chainstream-buffer-cap"
+	FlagStreamPublisherBufferCapacity = "chainstream-publisher-buffer-cap"
 )
 
 // GRPC-related flags.
@@ -165,6 +171,10 @@ which accepts a path for the resulting pprof file.
 	// add iavl flag
 	cmd.Flags().Int(FlagIAVLCacheSize, 500000, "Configure IAVL cache size for app")
 
+	// add chainstream server flag
+	cmd.Flags().String(FlagStreamServer, "", "Configure ChainStream server")
+	cmd.Flags().Uint(FlagStreamServerBufferCapacity, 100, "Configure ChainStream server buffer capacity for each connected client")
+	cmd.Flags().Uint(FlagStreamPublisherBufferCapacity, 100, "Configure ChainStream publisher buffer capacity")
 	cmd.Flags().Bool(server.FlagDisableIAVLFastNode, true, "Define if fast node IAVL should be disabled (default true)")
 	return cmd
 }
@@ -196,7 +206,7 @@ func startInProcess(ctx *server.Context, clientCtx client.Context, appCreator ty
 	}
 
 	traceWriterFile := ctx.Viper.GetString(flagTraceStore)
-	db, err := openDB(home)
+	db, err := openDB(home, server.GetAppDBBackend(ctx.Viper))
 	if err != nil {
 		log.WithError(err).Errorln("failed to open DB")
 		return err
@@ -318,6 +328,31 @@ func startInProcess(ctx *server.Context, clientCtx client.Context, appCreator ty
 		}
 	}
 
+	if injApp, ok := app.(*injectivechain.InjectiveApp); ok {
+		// start chainstream server
+		chainStreamServeAddr := cast.ToString(ctx.Viper.Get(FlagStreamServer))
+		buffCap := cast.ToUint(ctx.Viper.Get(FlagStreamServerBufferCapacity))
+		if buffCap == 0 {
+			return fmt.Errorf("invalid buffer capacity %d. Please set a positive value greater than 0", buffCap)
+		}
+		injApp.ChainStreamServer.WithBufferCapacity(buffCap)
+		pubBuffCap := cast.ToUint(ctx.Viper.Get(FlagStreamPublisherBufferCapacity))
+		if pubBuffCap == 0 {
+			return fmt.Errorf("invalid publisher buffer capacity %d. Please set a positive value greater than 0", pubBuffCap)
+		}
+		injApp.EventPublisher.WithBufferCapacity(pubBuffCap)
+		if chainStreamServeAddr != "" {
+			// events are forwarded to StreamEvents channel in cosmos-sdk
+			injApp.EnableStreamer = true
+			if err = injApp.EventPublisher.Run(context.Background()); err != nil {
+				log.WithError(err).Errorln("failed to start event publisher")
+			}
+			if err = injApp.ChainStreamServer.Serve(chainStreamServeAddr); err != nil {
+				log.WithError(err).Errorln("failed to start chainstream server")
+			}
+		}
+	}
+
 	closer.Bind(func() {
 		if tmNode.IsRunning() {
 			_ = tmNode.Stop()
@@ -344,6 +379,14 @@ func startInProcess(ctx *server.Context, clientCtx client.Context, appCreator ty
 
 		if grpcSrv != nil {
 			grpcSrv.Stop()
+		}
+
+		if injApp, ok := app.(*injectivechain.InjectiveApp); ok {
+			err := injApp.EventPublisher.Stop()
+			if err != nil {
+				log.WithError(err).Errorln("failed to stop event publisher")
+			}
+			injApp.ChainStreamServer.Stop()
 		}
 
 		log.Infoln("Bye!")
@@ -407,9 +450,9 @@ func StartGRPCWeb(grpcSrv *grpc.Server, parsedConfig sdkconfig.Config) (*http.Se
 	return grpcWebSrv, grpcWebSrvDone, nil
 }
 
-func openDB(rootDir string) (cometbftdb.DB, error) {
+func openDB(rootDir string, backendType cometbftdb.BackendType) (cometbftdb.DB, error) {
 	dataDir := filepath.Join(rootDir, "data")
-	return cometbftdb.NewGoLevelDB("application", dataDir)
+	return cometbftdb.NewDB("application", backendType, dataDir)
 }
 
 func openTraceWriter(traceWriterFile string) (w io.Writer, err error) {

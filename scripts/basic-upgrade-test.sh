@@ -1,7 +1,7 @@
 #!/bin/bash
 
 PASSPHRASE="12345678"
-TX_OPTS="--from=genesis  --chain-id=injective-1 --gas-prices 500000000inj --broadcast-mode=block --yes"
+TX_OPTS="--from=genesis  --chain-id=injective-1 --gas-prices 500000000inj --broadcast-mode=sync --yes"
 
 # calculate halt height
 CUR_HEIGHT=$(curl -sS localhost:26657/block | jq .result.block.header.height | tr -d '"')
@@ -18,12 +18,14 @@ vote() {
         yes $PASSPHRASE | injectived tx gov vote $PROPOSAL_ID yes $TX_OPTS
 }
 
-
-yes $PASSPHRASE | injectived tx gov submit-proposal software-upgrade v1.11 \
- --title "Injective Protocol 1.11 Dry Run" \
- --description "Injective Upgrade 1.11" \
+yes $PASSPHRASE | injectived tx gov submit-legacy-proposal software-upgrade v1.12 \
+ --title "Injective Protocol 1.12 Dry Run" \
+ --description "Injective Upgrade 1.12" \
  --upgrade-height $HALT_HEIGHT \
- --deposit 500000000000000000000inj $TX_OPTS
+ --deposit 500000000000000000000inj $TX_OPTS \
+ --no-validate
+
+sleep 3
 
 fetch_proposal_id
 vote $proposal

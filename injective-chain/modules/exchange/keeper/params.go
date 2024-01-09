@@ -183,3 +183,7 @@ func (k *Keeper) SetParams(ctx sdk.Context, params types.Params) {
 	store := k.getStore(ctx)
 	store.Set(types.ParamsKey, k.cdc.MustMarshal(&params))
 }
+
+func (k *Keeper) IsPostOnlyMode(ctx sdk.Context) bool {
+	return k.GetParams(ctx).PostOnlyModeHeightThreshold > ctx.BlockHeight()
+}

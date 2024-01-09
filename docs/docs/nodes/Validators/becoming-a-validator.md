@@ -140,6 +140,16 @@ Alternatively, you can always use the Injective CLI to send a delegation transac
 injectived tx staking delegate [validator-addr] [amount] --from $VALIDATOR_KEY_NAME --keyring-backend=file --yes --node=tcp://localhost:26657
 ```
 
+### Step 6: (Recommended) Connecting Your Validator Identity with Keybase
+
+By adding your Keybase pubkey to your validator identity information in Injective, you can automatically pull in your Keybase public profile information in client applications like the Injective Hub and Explorer. Here's how to connect your validator identity with your Keybase pubkey:
+
+1. Create a validator profile on Keybase at [https://keybase.io/](https://keybase.io/) and make sure it's complete.
+2. Add your validator identity pubkey to Injective:
+    - Send a `MsgEditValidator` to update your `Identity` validator identity with your Keybase pubkey. You can also use this message to change your website, contact email, and other details.
+
+That's it! Once you've connected your validator identity with Keybase, the Injective Explorer and Hub can automatically pull in your brand identity, and other public profile information.
+
 ### Next Steps
 
 Next, proceed to setup your Ethereum Bridge Relayer. This is a necessary step in order to prevent your validator from being slashed. You should do this immediately after setting up your validator.

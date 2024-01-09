@@ -92,9 +92,9 @@ func (k *Keeper) CleanupHistoricalPriceRecords(ctx sdk.Context) {
 	}
 
 	for _, ref := range symbolsToCleanup {
-		exisingOrEmptyRecord, omitted := k.GetHistoricalPriceRecords(ctx, ref.Oracle, ref.Symbol, before)
+		existingOrEmptyRecord, omitted := k.GetHistoricalPriceRecords(ctx, ref.Oracle, ref.Symbol, before)
 		if omitted {
-			k.setHistoricalPriceRecords(ctx, ref.Oracle, ref.Symbol, exisingOrEmptyRecord)
+			k.setHistoricalPriceRecords(ctx, ref.Oracle, ref.Symbol, existingOrEmptyRecord)
 		}
 	}
 }

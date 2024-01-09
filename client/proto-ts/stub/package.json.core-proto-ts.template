@@ -5,7 +5,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "sideEffects": "false",
+  "sideEffects": false,
   "main": "./cjs/index.js",
   "module": "./esm/index.js",
   "repository": {

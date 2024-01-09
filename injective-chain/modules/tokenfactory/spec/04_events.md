@@ -25,10 +25,10 @@ message EventMintTFDenom {
 }
 ```
 
-An EventBurnTFDenom is emitted upon MsgBurn execution, which burns a new token factory denom amount from a user.
+An EventBurnDenom is emitted upon MsgBurn execution, which burns a specified amount for any denom for a user.
 
 ```protobuf
-message EventBurnTFDenom {
+message EventBurnDenom {
   string burner_address = 1;
   cosmos.base.v1beta1.Coin amount = 2 [(gogoproto.nullable) = false];
 }

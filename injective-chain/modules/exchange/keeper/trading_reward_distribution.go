@@ -31,7 +31,8 @@ func (k *Keeper) distributeTradingRewardsForAccount(
 		accountRewardAmount := accountPoints.Points.Mul(availableRewardForDenom.ToDec()).Quo(totalPoints).TruncateInt()
 
 		if coin.Denom == chaintypes.InjectiveCoin && accountRewardAmount.GT(injRewardStakedRequirementThreshold) {
-			stakedINJ := k.CalculateStakedAmountWithoutCache(ctx, accountPoints.Account)
+			maxDelegations := uint16(10)
+			stakedINJ := k.CalculateStakedAmountWithoutCache(ctx, accountPoints.Account, maxDelegations)
 			minRewardAboveThreshold := injRewardStakedRequirementThreshold
 
 			// at least X amount of INJ (e.g. 100 INJ), but otherwise not more than the staked amount

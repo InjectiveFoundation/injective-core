@@ -10,7 +10,7 @@ import (
 )
 
 type DerivativeBatchExecutionData struct {
-	Market MarketI
+	Market DerivativeMarketI
 
 	MarkPrice sdk.Dec
 	Funding   *types.PerpetualMarketFunding
@@ -165,7 +165,7 @@ func (d *DerivativeMarketOrderExpansionData) SetExecutionData(
 }
 
 func (e *DerivativeMatchingExpansionData) GetLimitMatchingDerivativeBatchExecutionData(
-	market MarketI,
+	market DerivativeMarketI,
 	markPrice sdk.Dec,
 	funding *types.PerpetualMarketFunding,
 	positionStates map[common.Hash]*PositionState,
@@ -398,7 +398,7 @@ func (e *DerivativeMarketOrderExpansionData) applyCancellationsAndGetDerivativeL
 }
 
 func (e *DerivativeMarketOrderExpansionData) getMarketDerivativeBatchExecutionData(
-	market MarketI,
+	market DerivativeMarketI,
 	markPrice sdk.Dec,
 	funding *types.PerpetualMarketFunding,
 	positionStates map[common.Hash]*PositionState,
@@ -472,7 +472,7 @@ func mergeDerivativeLimitOrderFilledDeltas(d1, d2 []*types.DerivativeLimitOrderD
 func ApplyDeltasAndGetDerivativeOrderBatchEvent(
 	isBuy bool,
 	executionType types.ExecutionType,
-	market MarketI,
+	market DerivativeMarketI,
 	funding *types.PerpetualMarketFunding,
 	stateExpansions []*DerivativeOrderStateExpansion,
 	depositDeltas types.DepositDeltas,
@@ -530,6 +530,7 @@ func ApplyDeltasAndGetDerivativeOrderBatchEvent(
 				Fee:                 realizedTradeFee,
 				OrderHash:           expansion.OrderHash.Bytes(),
 				FeeRecipientAddress: expansion.FeeRecipient.Bytes(),
+				Cid:                 expansion.Cid,
 			}
 			trades = append(trades, tradeLog)
 		}

@@ -48,7 +48,7 @@ type DerivativeMarketOrderbook struct {
 	orderIdx       int
 
 	k              *Keeper
-	market         MarketI
+	market         DerivativeMarketI
 	markPrice      sdk.Dec
 	marketID       common.Hash
 	funding        *types.PerpetualMarketFunding
@@ -59,7 +59,7 @@ func (k *Keeper) NewDerivativeMarketOrderbook(
 	isBuy bool,
 	isLiquidation bool,
 	derivativeMarketOrders []*types.DerivativeMarketOrder,
-	market MarketI,
+	market DerivativeMarketI,
 	markPrice sdk.Dec,
 	funding *types.PerpetualMarketFunding,
 	positionStates map[common.Hash]*PositionState,

@@ -529,15 +529,17 @@ func CreateTestEnv(t *testing.T) TestInput {
 		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
 	)
 
+	exchangeKeeper := new(exchangekeeper.Keeper)
 	insuranceKeeper := insurancekeeper.NewKeeper(
 		marshaler,
 		keyInsurance,
 		accountKeeper,
 		bankKeeper,
+		exchangeKeeper,
 		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
 	)
 
-	exchangeKeeper := exchangekeeper.NewKeeper(
+	*exchangeKeeper = exchangekeeper.NewKeeper(
 		marshaler,
 		keyExchange,
 		tkeyExchange,
@@ -558,7 +560,7 @@ func CreateTestEnv(t *testing.T) TestInput {
 		bankKeeper,
 		slashingKeeper,
 		distKeeper,
-		exchangeKeeper,
+		*exchangeKeeper,
 		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
 	)
 
@@ -578,7 +580,7 @@ func CreateTestEnv(t *testing.T) TestInput {
 		BankKeeper:     bankKeeper,
 		StakingKeeper:  *stakingKeeper,
 		SlashingKeeper: slashingKeeper,
-		ExchangeKeeper: exchangeKeeper,
+		ExchangeKeeper: *exchangeKeeper,
 		DistKeeper:     distKeeper,
 		GovKeeper:      *govKeeper,
 		Context:        ctx,

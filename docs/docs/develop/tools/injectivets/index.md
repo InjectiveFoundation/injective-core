@@ -10,6 +10,10 @@ title: InjectiveTS Overview
 
 :wrench: [Github Repo](https://github.com/InjectiveLabs/injective-ts)
 
+:wrench: [TS SDK Repo](https://github.com/InjectiveLabs/injective-ts/tree/master/packages/sdk-ts)
+
+:wrench: [TS SDK Examples Repo](https://github.com/InjectiveLabs/injective-sdk-ts-example)
+
 | Topic      | Description | 
 | :---        |    :----   |          
 | [Getting Started](https://github.com/InjectiveLabs/injective-ts/wiki/00GettingStarted)     | Getting started in developing dApps on Injective  | 

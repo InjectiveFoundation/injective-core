@@ -57,6 +57,7 @@ type ExchangeMsg struct {
 	InstantExpiryFuturesMarketLaunch *exchangetypes.MsgInstantExpiryFuturesMarketLaunch `json:"instant_expiry_futures_market_launch,omitempty"`
 	BatchUpdateOrders                *exchangetypes.MsgBatchUpdateOrders                `json:"batch_update_orders,omitempty"`
 	PrivilegedExecuteContract        *exchangetypes.MsgPrivilegedExecuteContract        `json:"privileged_execute_contract,omitempty"`
+	RewardsOptOut                    *exchangetypes.MsgRewardsOptOut                    `json:"rewards_opt_out,omitempty"`
 }
 
 type FeeGrantMsg struct {

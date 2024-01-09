@@ -197,10 +197,10 @@ func (k *Keeper) setAccountFeeDiscountTier(
 func (k *Keeper) CalculateStakedAmountWithoutCache(
 	ctx sdk.Context,
 	trader sdk.AccAddress,
+	maxDelegations uint16,
 ) sdkmath.Int {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
-	maxDelegations := uint16(10)
 	delegations := k.StakingKeeper.GetDelegatorDelegations(ctx, trader, maxDelegations)
 	totalStaked := sdk.ZeroInt()
 

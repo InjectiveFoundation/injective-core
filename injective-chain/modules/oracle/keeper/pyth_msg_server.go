@@ -27,6 +27,10 @@ func NewPythMsgServerImpl(keeper Keeper) PythMsgServer {
 func (k Keeper) RelayPythPrices(goCtx context.Context, msg *types.MsgRelayPythPrices) (*types.MsgRelayPythPricesResponse, error) {
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
+	if len(msg.PriceAttestations) == 0 {
+		return &types.MsgRelayPythPricesResponse{}, nil
+	}
+
 	pythContract, err := sdk.AccAddressFromBech32(k.GetParams(ctx).PythContract)
 	if err != nil {
 		return nil, types.ErrPythContractNotFound

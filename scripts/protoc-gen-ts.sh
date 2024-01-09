@@ -14,11 +14,17 @@ cp ../proto/buf.gen.ts.yaml proto/buf.gen.ts.yaml
 cp -r ../proto/injective proto/
 
 # download third_party API definitions
-buf export buf.build/cosmos/cosmos-sdk:v0.47.0 --output=third_party
+git clone https://github.com/InjectiveLabs/cosmos-sdk.git -b v0.47.3-inj-9 --depth 1 --single-branch
+git clone https://github.com/InjectiveLabs/wasmd -b v0.45.0-inj --depth 1 --single-branch
+
+buf export ./cosmos-sdk --output=third_party
+buf export ./wasmd --exclude-imports --output=./third_party
 buf export https://github.com/cosmos/ibc-go.git --exclude-imports --output=third_party
 buf export https://github.com/tendermint/tendermint.git --exclude-imports --output=third_party
-buf export https://github.com/CosmWasm/wasmd.git --exclude-imports --output=./third_party
 buf export https://github.com/cosmos/ics23.git --exclude-imports --output=./third_party
+buf export https://github.com/cosmos/ibc-apps.git --exclude-imports --output=./third_party --path=middleware/packet-forward-middleware/proto && mv ./third_party/middleware/packet-forward-middleware/proto/packetforward ./third_party
+
+rm -rf ./cosmos-sdk && rm -rf ./wasmd
 
 proto_dirs=$(find . -path -prune -o -name '*.proto' -print0 | xargs -0 -n1 dirname | sort | uniq)
 for dir in $proto_dirs; do
@@ -32,7 +38,6 @@ cd ..
 rm -fr $TS_BUILD_DIR
 
 # cd proto
-
 # # download third_party API definitions
 # buf export https://github.com/cosmos/ibc-go.git --output=./third_party
 # buf export https://github.com/cosmos/cosmos-sdk.git --exclude-imports --output=./third_party

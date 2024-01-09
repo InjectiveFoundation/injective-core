@@ -295,6 +295,15 @@ func (k msgServer) DepositClaim(c context.Context, msg *types.MsgDepositClaim) (
 		return nil, errors.Wrap(sdkerrors.ErrorInvalidSigner, "validator not in active set")
 	}
 
+	// Check if the claim data is a valid sdk.Msg. If not, ignore the data
+	if msg.Data != "" {
+		ethereumSenderInjAccAddr := sdk.AccAddress(common.FromHex(msg.EthereumSender))
+		if _, err := k.ValidateClaimData(ctx, msg.Data, ethereumSenderInjAccAddr); err != nil {
+			k.Logger(ctx).Info("claim data is not a valid sdk.Msg", err)
+			msg.Data = ""
+		}
+	}
+
 	any, err := codectypes.NewAnyWithValue(msg)
 	if err != nil {
 		metrics.ReportFuncError(k.svcTags)

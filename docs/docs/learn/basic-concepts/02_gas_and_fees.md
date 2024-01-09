@@ -19,15 +19,19 @@ The concept of Gas represents the amount of computational effort required to exe
 
 The Injective Chain utilizes the concept of gas to track the resource usage of operations during execution. Operations on the Cosmos SDK (which the Injective Protocol is built on) are represented as read or writes done to the chain's store.
 
-A fee is calculated and charged to the user during a message execution. This fee is
-calculated from the sum of all gas consumed in a message execution:
+A fee is calculated and charged to the user during a message execution. This fee is calculated from the sum of all gas consumed in a message execution:
 
 ```
 fee = gas * gas price
 ```
 
-Gas is used to make sure that operations do not require an excess amount of
-computational power to complete and as a way to deter bad-acting users from spamming the network.
+Gas is used to make sure that operations do not require an excess amount of computational power to complete and to deter bad-acting users from spamming the network.
+
+:::tip minimum gas price
+The minimum gas price set by validators is currently 500,000,000inj. To find the amount paid in INJ, multiply the gas price by the gas amount and divide by 1e18 (INJ has 18 decimals).
+
+For example: if gas wanted is 104,519, then gas fees = 500,000,000 * 104,519 / 1e18 = 0.0000522595 INJ
+:::
 
 ## Cosmos SDK `Gas`
 

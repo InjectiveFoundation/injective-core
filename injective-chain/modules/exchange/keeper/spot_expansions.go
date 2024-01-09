@@ -2,7 +2,6 @@ package keeper
 
 import (
 	"bytes"
-
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
@@ -43,6 +42,7 @@ type spotOrderStateExpansion struct {
 	OrderPrice              sdk.Dec
 	SubaccountID            common.Hash
 	TraderAddress           string
+	Cid                     string
 }
 
 func (e *spotOrderStateExpansion) UpdateFromDepositDeltas(
@@ -186,6 +186,7 @@ func (k *Keeper) getSpotLimitSellStateExpansion(
 		OrderHash:              order.Hash(),
 		SubaccountID:           order.SubaccountID(),
 		TraderAddress:          order.SdkAccAddress().String(),
+		Cid:                    order.Cid(),
 	}
 	return &stateExpansion
 }
@@ -274,6 +275,7 @@ func (k *Keeper) getRestingSpotLimitBuyStateExpansion(
 		OrderHash:              orderHash,
 		SubaccountID:           order.SubaccountID(),
 		TraderAddress:          order.SdkAccAddress().String(),
+		Cid:                    order.Cid(),
 	}
 	return &stateExpansion
 }
@@ -349,6 +351,7 @@ func (k *Keeper) getTransientSpotLimitBuyStateExpansion(
 		OrderHash:              orderHash,
 		SubaccountID:           order.SubaccountID(),
 		TraderAddress:          order.SdkAccAddress().String(),
+		Cid:                    order.Cid(),
 	}
 	return &stateExpansion
 }
@@ -407,6 +410,7 @@ func GetBatchExecutionEventsFromSpotLimitOrderStateExpansions(
 			Fee:                 realizedTradeFee,
 			OrderHash:           expansion.OrderHash.Bytes(),
 			FeeRecipientAddress: expansion.FeeRecipient.Bytes(),
+			Cid:                 expansion.Cid,
 		})
 	}
 	limitOrderBatchEvent.Trades = trades

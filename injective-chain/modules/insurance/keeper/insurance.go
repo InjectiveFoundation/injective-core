@@ -228,9 +228,15 @@ func (k *Keeper) WithdrawFromInsuranceFund(ctx sdk.Context, marketID common.Hash
 
 	fund.Balance = fund.Balance.Sub(amount)
 	k.SetInsuranceFund(ctx, fund)
+	coinAmount := sdk.NewCoin(fund.DepositDenom, amount)
 
-	coinAmount := sdk.NewCoins(sdk.NewCoin(fund.DepositDenom, amount))
-	return k.bankKeeper.SendCoinsFromModuleToModule(ctx, types.ModuleName, exchangetypes.ModuleName, coinAmount)
+	// nolint:errcheck //ignored on purpose
+	ctx.EventManager().EmitTypedEvent(&types.EventInsuranceWithdraw{
+		MarketId:     fund.MarketId,
+		MarketTicker: fund.MarketTicker,
+		Withdrawal:   coinAmount,
+	})
+	return k.bankKeeper.SendCoinsFromModuleToModule(ctx, types.ModuleName, exchangetypes.ModuleName, sdk.NewCoins(coinAmount))
 }
 
 // SetInsuranceFund set insurance into keeper
@@ -301,9 +307,19 @@ func (k *Keeper) CreateInsuranceFund(
 	// record total supply for share tokens
 	fund.Balance = fund.Balance.Add(deposit.Amount)
 
-	// mint 1.000000 token to initiator
-	initialSupply := types.InsuranceFundInitialSupply
-	fund, err = k.MintShareTokens(ctx, fund, sender, initialSupply)
+	// mint the minimum protocol owned liquidity to the insurance module
+	if err := k.bankKeeper.MintCoins(
+		ctx,
+		types.ModuleName,
+		sdk.Coins{sdk.NewCoin(fund.ShareDenom(), types.InsuranceFundProtocolOwnedLiquiditySupply)},
+	); err != nil {
+		metrics.ReportFuncError(k.svcTags)
+		return err
+	}
+
+	fund.AddTotalShare(types.InsuranceFundProtocolOwnedLiquiditySupply)
+
+	fund, err = k.MintShareTokens(ctx, fund, sender, types.InsuranceFundCreatorSupply)
 	if err != nil {
 		metrics.ReportFuncError(k.svcTags)
 		return err
@@ -329,6 +345,8 @@ func (k *Keeper) CreateInsuranceFund(
 		},
 		Base:    shareBaseDenom,
 		Display: shareDisplayDenom,
+		Name:    fmt.Sprintf("%s share token", ticker),
+		Symbol:  fmt.Sprintf("INSURANCE-%s", ticker),
 	})
 
 	return nil
@@ -345,9 +363,9 @@ func (k *Keeper) UnderwriteInsuranceFund(ctx sdk.Context, underwriter sdk.AccAdd
 		return errors.Wrapf(types.ErrInsuranceFundNotFound, "insurance fund for %s does not exist", marketID.Hex())
 	}
 
-	// create insurance fund object
-	totalBalance := fund.Balance
-	totalShareAmount := fund.TotalShare
+	if deposit.Denom != fund.DepositDenom {
+		return types.ErrInvalidDepositDenom
+	}
 
 	// send coins to module account
 	err := k.bankKeeper.SendCoinsFromAccountToModule(ctx, underwriter, types.ModuleName, sdk.Coins{deposit})
@@ -356,41 +374,16 @@ func (k *Keeper) UnderwriteInsuranceFund(ctx sdk.Context, underwriter sdk.AccAdd
 		return err
 	}
 
-	// mint share tokens to distributer
 	var shareTokenAmount sdkmath.Int
-	switch {
-	case totalBalance.IsZero() && totalShareAmount.IsZero():
-		// provide initial supply
-		shareTokenAmount = types.InsuranceFundInitialSupply
-	case totalBalance.IsZero() && totalShareAmount.IsPositive():
-		// we change shared denom for insurance fund to start fresh insurance
-		fund.InsurancePoolTokenDenom = types.ShareDenomFromId(k.getNextShareDenomId(ctx))
-		fund.TotalShare = sdk.ZeroInt()
-		shareTokenAmount = types.InsuranceFundInitialSupply
-		shareDisplayDenom := fmt.Sprintf("INSURANCE-%s", marketID.String())
-		k.bankKeeper.SetDenomMetaData(ctx, banktypes.Metadata{
-			Description: fmt.Sprintf("The share token of the insurance fund %s", marketID.Hex()),
-			DenomUnits: []*banktypes.DenomUnit{
-				{
-					Denom:    fund.InsurancePoolTokenDenom,
-					Exponent: 0,
-					Aliases:  nil,
-				},
-				{
-					Denom:    shareDisplayDenom,
-					Exponent: 6,
-					Aliases:  nil,
-				},
-			},
-			Base:    fund.InsurancePoolTokenDenom,
-			Display: shareDisplayDenom,
-		})
-	case totalBalance.IsPositive() && totalShareAmount.IsZero():
-		// this case could happen when a person donate in this address
-		// we distribute initial supply in this case
-		shareTokenAmount = types.InsuranceFundInitialSupply
-	default:
-		shareTokenAmount = totalShareAmount.Mul(deposit.Amount).Quo(totalBalance)
+	if fund.TotalShare.Equal(types.InsuranceFundProtocolOwnedLiquiditySupply) || fund.Balance.LTE(sdk.ZeroInt()) {
+		// when there is only protocol liquidity share left in the fund,
+		// we refresh the fund with a new supply of minted share tokens
+		if err := k.refreshInsuranceFund(ctx, marketID, fund); err != nil {
+			return err
+		}
+		shareTokenAmount = types.InsuranceFundCreatorSupply
+	} else {
+		shareTokenAmount = fund.TotalShare.Mul(deposit.Amount).Quo(fund.Balance)
 	}
 
 	// increase fund balance
@@ -409,6 +402,49 @@ func (k *Keeper) UnderwriteInsuranceFund(ctx sdk.Context, underwriter sdk.AccAdd
 		MarketId:    marketID.Hex(),
 		Deposit:     deposit,
 		Shares:      sdk.NewCoin(fund.ShareDenom(), shareTokenAmount),
+	})
+
+	return nil
+}
+
+func (k *Keeper) refreshInsuranceFund(
+	ctx sdk.Context,
+	marketID common.Hash,
+	fund *types.InsuranceFund,
+) error {
+	// we change shared denom for insurance fund to start fresh insurance
+	nextShareDenomID := k.getNextShareDenomId(ctx)
+	fund.InsurancePoolTokenDenom = types.ShareDenomFromId(nextShareDenomID)
+	fund.TotalShare = types.InsuranceFundProtocolOwnedLiquiditySupply
+
+	if err := k.bankKeeper.MintCoins(
+		ctx,
+		types.ModuleName,
+		sdk.NewCoins(sdk.NewCoin(fund.ShareDenom(), types.InsuranceFundProtocolOwnedLiquiditySupply)),
+	); err != nil {
+		metrics.ReportFuncError(k.svcTags)
+		return err
+	}
+
+	shareDisplayDenom := fmt.Sprintf("INSURANCE-%s", marketID.String())
+	k.bankKeeper.SetDenomMetaData(ctx, banktypes.Metadata{
+		Description: fmt.Sprintf("The share token of the insurance fund %s", marketID.Hex()),
+		DenomUnits: []*banktypes.DenomUnit{
+			{
+				Denom:    fund.InsurancePoolTokenDenom,
+				Exponent: 0,
+				Aliases:  nil,
+			},
+			{
+				Denom:    shareDisplayDenom,
+				Exponent: 6,
+				Aliases:  nil,
+			},
+		},
+		Base:    fund.InsurancePoolTokenDenom,
+		Display: shareDisplayDenom,
+		Name:    fmt.Sprintf("%s share token", fund.MarketTicker),
+		Symbol:  fmt.Sprintf("INSURANCE-%s", fund.MarketTicker),
 	})
 
 	return nil
@@ -491,6 +527,13 @@ func (k *Keeper) RequestInsuranceFundRedemption(ctx sdk.Context, sender sdk.AccA
 	// nolint:errcheck //ignored on purpose
 	ctx.EventManager().EmitTypedEvent(&types.EventRequestRedemption{Schedule: schedule})
 
+	if k.isMarketDemolishedOrExpired(ctx, marketID) {
+		if err := k.withdrawRedemption(ctx, schedule); err != nil {
+			metrics.ReportFuncError(k.svcTags)
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -502,74 +545,97 @@ func (k *Keeper) WithdrawAllMaturedRedemptions(ctx sdk.Context) error {
 	iterator := k.globalRedemptionIterator(ctx)
 	defer iterator.Close()
 
+	// caches result of k.isMarketDemolishedOrExpired
+	isMarketDemolishedOrExpiredCache := map[string]bool{}
+
 	for ; iterator.Valid(); iterator.Next() {
 		schedule := k.unmarshalRedemptionSchedule(iterator.Value())
-		if schedule.ClaimableRedemptionTime.After(ctx.BlockTime()) {
-			// end iteration earlier if it is after current time
-			break
+
+		isMarketDemolishedOrExpired, ok := isMarketDemolishedOrExpiredCache[schedule.MarketId]
+		if !ok {
+			isMarketDemolishedOrExpired = k.isMarketDemolishedOrExpired(ctx, common.HexToHash(schedule.MarketId))
+			isMarketDemolishedOrExpiredCache[schedule.MarketId] = isMarketDemolishedOrExpired
 		}
 
-		// check if insurance exists
-		marketID := common.HexToHash(schedule.MarketId)
-		fund := k.GetInsuranceFund(ctx, marketID)
-		if fund == nil {
-			metrics.ReportFuncError(k.svcTags)
-			// Note: insurance fund is never deleted and it should exist if it's put on redemption schedule
-			return errors.Wrapf(types.ErrInsuranceFundNotFound, "insurance fund %s does not exist", marketID.Hex())
-		}
-		// convert string address to bytes
-		redeemer, err := sdk.AccAddressFromBech32(schedule.Redeemer)
-		if err != nil {
-			metrics.ReportFuncError(k.svcTags)
-			return err
-		}
-
-		// delete schedule
-		k.deleteRedemptionSchedule(ctx, *schedule)
-
-		// if redemption share doesn't match the fund's current share denom, burn the shares
-		if fund.ShareDenom() != schedule.RedemptionAmount.Denom {
-			err := k.bankKeeper.BurnCoins(ctx, types.ModuleName, sdk.NewCoins(schedule.RedemptionAmount))
-			if err != nil {
-				// Note: error can happen when redemption amount is invalid coin or module does not have enough balance
+		shouldWithdraw := isMarketDemolishedOrExpired || ctx.BlockTime().After(schedule.ClaimableRedemptionTime)
+		if shouldWithdraw {
+			// use cacheCtx so one redemption failing does not block others
+			cacheCtx, writeCache := ctx.CacheContext()
+			if err := k.withdrawRedemption(cacheCtx, schedule); err != nil {
 				metrics.ReportFuncError(k.svcTags)
-			}
-			continue
-		}
-
-		// send deposit tokens to redeemer - this should come before burn for correct calculation
-		shareAmount := schedule.RedemptionAmount.Amount
-
-		redeemCoin := k.getRedemptionAmountFromShare(*fund, shareAmount)
-		if redeemCoin.Amount.IsPositive() {
-			err = k.bankKeeper.SendCoinsFromModuleToAccount(ctx, types.ModuleName, redeemer, sdk.Coins{redeemCoin})
-			if err != nil {
-				// Note: error can happen when redeemCoin is invalid coin or module does not have enough balance
-				metrics.ReportFuncError(k.svcTags)
+				k.Logger(ctx).Error("failed to withdraw redemption", err)
 				continue
 			}
+			writeCache()
 		}
-
-		// burn share tokens locked on module
-		fund, err = k.BurnShareTokens(ctx, fund, shareAmount)
-		if err != nil {
-			// Note: error can happen when shareAmount is too big or module does not have enough balance
-			metrics.ReportFuncError(k.svcTags)
-			continue
-		}
-
-		// record total balance
-		fund.Balance = fund.Balance.Sub(redeemCoin.Amount)
-
-		k.SetInsuranceFund(ctx, fund)
-
-		// nolint:errcheck //ignored on purpose
-		ctx.EventManager().EmitTypedEvent(&types.EventWithdrawRedemption{
-			Schedule:   schedule,
-			RedeemCoin: redeemCoin,
-		})
 	}
 
+	return nil
+}
+
+// withdrawRedemption executes withdrawal of the specified redemption schedule
+func (k *Keeper) withdrawRedemption(ctx sdk.Context, schedule *types.RedemptionSchedule) error {
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+
+	// check if insurance exists
+	marketID := common.HexToHash(schedule.MarketId)
+	fund := k.GetInsuranceFund(ctx, marketID)
+	if fund == nil {
+		metrics.ReportFuncError(k.svcTags)
+		// Note: insurance fund is never deleted and it should exist if it's put on redemption schedule
+		return errors.Wrapf(types.ErrInsuranceFundNotFound, "insurance fund %s does not exist", marketID.Hex())
+	}
+	// convert string address to bytes
+	redeemer, err := sdk.AccAddressFromBech32(schedule.Redeemer)
+	if err != nil {
+		metrics.ReportFuncError(k.svcTags)
+		return err
+	}
+
+	// delete schedule
+	k.deleteRedemptionSchedule(ctx, *schedule)
+
+	// if redemption share doesn't match the fund's current share denom, burn the shares
+	if fund.ShareDenom() != schedule.RedemptionAmount.Denom {
+		err := k.bankKeeper.BurnCoins(ctx, types.ModuleName, sdk.NewCoins(schedule.RedemptionAmount))
+		if err != nil {
+			// Note: error can happen when redemption amount is invalid coin or module does not have enough balance
+			metrics.ReportFuncError(k.svcTags)
+		}
+		return nil
+	}
+
+	// send deposit tokens to redeemer - this should come before burn for correct calculation
+	shareAmount := schedule.RedemptionAmount.Amount
+
+	redeemCoin := k.getRedemptionAmountFromShare(*fund, shareAmount)
+	if redeemCoin.Amount.IsPositive() {
+		err = k.bankKeeper.SendCoinsFromModuleToAccount(ctx, types.ModuleName, redeemer, sdk.Coins{redeemCoin})
+		if err != nil {
+			// Note: error can happen when redeemCoin is invalid coin or module does not have enough balance
+			metrics.ReportFuncError(k.svcTags)
+			return nil
+		}
+	}
+
+	// burn share tokens locked on module
+	fund, err = k.BurnShareTokens(ctx, fund, shareAmount)
+	if err != nil {
+		// Note: error can happen when shareAmount is too big or module does not have enough balance
+		metrics.ReportFuncError(k.svcTags)
+		return nil
+	}
+
+	// record total balance
+	fund.Balance = fund.Balance.Sub(redeemCoin.Amount)
+
+	k.SetInsuranceFund(ctx, fund)
+
+	// nolint:errcheck //ignored on purpose
+	ctx.EventManager().EmitTypedEvent(&types.EventWithdrawRedemption{
+		Schedule:   schedule,
+		RedeemCoin: redeemCoin,
+	})
 	return nil
 }
 
@@ -590,4 +656,20 @@ func (k *Keeper) UpdateInsuranceFundOracleParams(
 	fund.OracleQuote = oracleParams.OracleQuote
 	k.SetInsuranceFund(ctx, fund)
 	return nil
+}
+
+// isMarketDemolishedOrExpired returns whether the market is demolished or expired.
+func (k *Keeper) isMarketDemolishedOrExpired(ctx sdk.Context, marketID common.Hash) bool {
+	if market := k.exchangeKeeper.GetDerivativeMarketByID(ctx, marketID); market != nil {
+		return isDemolishedOrExpiredMarketStatus(market.Status)
+	} else if market := k.exchangeKeeper.GetBinaryOptionsMarketByID(ctx, marketID); market != nil {
+		return isDemolishedOrExpiredMarketStatus(market.Status)
+	} else if market := k.exchangeKeeper.GetSpotMarketByID(ctx, marketID); market != nil {
+		return isDemolishedOrExpiredMarketStatus(market.Status)
+	}
+	return false
+}
+
+func isDemolishedOrExpiredMarketStatus(status exchangetypes.MarketStatus) bool {
+	return status == exchangetypes.MarketStatus_Demolished || status == exchangetypes.MarketStatus_Expired
 }

@@ -20,5 +20,6 @@ export { default as CosmwasmIcon } from './CosmwasmIcon';
 export { default as ChainupIcon } from './ChainupIcon';
 export { default as TransactionIcon } from './TransactionIcon';
 export { default as WalletIcon } from './WalletIcon';
+export { default as YoutubeIcon } from './YoutubeIcon';
 
 

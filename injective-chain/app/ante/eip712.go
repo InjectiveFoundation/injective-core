@@ -1,6 +1,7 @@
 package ante
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 
@@ -101,13 +102,16 @@ func (svd Eip712SigVerificationDecorator) AnteHandle(ctx sdk.Context, tx sdk.Tx,
 		}
 
 		if !simulate {
-			err := VerifySignatureEIP712(pubKey, signerData, sig.Data, svd.signModeHandler, tx.(authsigning.Tx))
+			typedData, err := GenerateTypedDataAndVerifySignatureEIP712(pubKey, signerData, sig.Data, tx.(authsigning.Tx))
 			if err != nil {
 				log.WithError(err).Errorln("Eip712SigVerificationDecorator failed to verify signature")
+				errMsg := fmt.Sprintf("signature verification failed: %s; please verify account number (%d) and chain-id (%s)", err.Error(), accNum, chainID)
+				if typedData != nil {
+					bz, _ := json.Marshal(typedData)
+					errMsg = fmt.Sprintf("%s, eip712: %s", errMsg, string(bz))
+				}
 
-				errMsg := fmt.Sprintf("signature verification failed; please verify account number (%d) and chain-id (%s)", accNum, chainID)
 				return ctx, errors.Wrap(sdkerrors.ErrUnauthorized, errMsg)
-
 			}
 		}
 	}
@@ -115,7 +119,10 @@ func (svd Eip712SigVerificationDecorator) AnteHandle(ctx sdk.Context, tx sdk.Tx,
 	return next(ctx, tx, simulate)
 }
 
-var chainTypesCodec codec.ProtoCodecMarshaler
+var (
+	chainTypesCodec codec.ProtoCodecMarshaler
+	GlobalCdc       = codec.NewProtoCodec(codectypes.NewInterfaceRegistry())
+)
 
 func init() {
 	registry := codectypes.NewInterfaceRegistry()
@@ -125,40 +132,30 @@ func init() {
 
 // VerifySignature verifies a transaction signature contained in SignatureData abstracting over different signing modes
 // and single vs multi-signatures.
-func VerifySignatureEIP712(
+func GenerateTypedDataAndVerifySignatureEIP712(
 	pubKey cryptotypes.PubKey,
 	signerData authsigning.SignerData,
 	sigData signing.SignatureData,
-	handler authsigning.SignModeHandler,
 	tx authsigning.Tx,
-) error {
+) (*typeddata.TypedData, error) {
 	switch data := sigData.(type) {
 	case *signing.SingleSignatureData:
-		if data.SignMode != signing.SignMode_SIGN_MODE_LEGACY_AMINO_JSON {
-			return fmt.Errorf("unexpected SignatureData %T: wrong SignMode", sigData)
+		var eip712Wrapper EIP712Wrapper
+		switch data.SignMode {
+		case signing.SignMode_SIGN_MODE_LEGACY_AMINO_JSON:
+			eip712Wrapper = WrapTxToEIP712
+		case signing.SignMode_SIGN_MODE_EIP712_V2:
+			eip712Wrapper = WrapTxToEIP712V2
+		default:
+			return nil, fmt.Errorf("unexpected SignatureData %T: wrong SignMode: %v", sigData, data.SignMode)
 		}
 
 		// @contract: this code is reached only when Msg has Web3Tx extension (so this custom Ante handler flow),
 		// and the signature is SIGN_MODE_LEGACY_AMINO_JSON which is supported for EIP712 for now
-
 		msgs := tx.GetMsgs()
-		txBytes := legacytx.StdSignBytes(
-			signerData.ChainID,
-			signerData.AccountNumber,
-			signerData.Sequence,
-			tx.GetTimeoutHeight(),
-			legacytx.StdFee{
-				Amount: tx.GetFee(),
-				Gas:    tx.GetGas(),
-			},
-			msgs, tx.GetMemo(),
-			nil,
-		)
-
-		var chainID uint64
-		var err error
-
 		var (
+			chainID      uint64
+			err          error
 			feePayer     sdk.AccAddress
 			feePayerSig  []byte
 			feeDelegated bool
@@ -166,10 +163,10 @@ func VerifySignatureEIP712(
 
 		if txWithExtensions, ok := tx.(authante.HasExtensionOptionsTx); ok {
 			if opts := txWithExtensions.GetExtensionOptions(); len(opts) > 0 {
-				var optIface txtypes.ExtensionOptionI
+				var optIface txtypes.TxExtensionOptionI
 				if err := chainTypesCodec.UnpackAny(opts[0], &optIface); err != nil {
 					err = errors.Wrap(err, "failed to proto-unpack ExtensionOptionsWeb3Tx")
-					return err
+					return nil, err
 				} else if extOpt, ok := optIface.(*chaintypes.ExtensionOptionsWeb3Tx); ok {
 					// chainID in EIP712 typed data is allowed to not match signerData.ChainID,
 					// but limited to certain options: 1 (mainnet), 5 (Goerli), thus Metamask will
@@ -183,12 +180,12 @@ func VerifySignatureEIP712(
 						feePayer, err = sdk.AccAddressFromBech32(extOpt.FeePayer)
 						if err != nil {
 							err = errors.Wrap(err, "failed to parse feePayer from ExtensionOptionsWeb3Tx")
-							return err
+							return nil, err
 						}
 
 						feePayerSig = extOpt.FeePayerSig
 						if len(feePayerSig) == 0 {
-							return fmt.Errorf("no feePayerSig provided in ExtensionOptionsWeb3Tx")
+							return nil, fmt.Errorf("no feePayerSig provided in ExtensionOptionsWeb3Tx")
 						}
 
 						feeDelegated = true
@@ -201,39 +198,41 @@ func VerifySignatureEIP712(
 			chainID, err = strconv.ParseUint(signerData.ChainID, 10, 64)
 			if err != nil {
 				err = errors.Wrapf(err, "failed to parse chainID: %s", signerData.ChainID)
-				return err
+				return nil, err
 			}
 		}
 
 		var typedData typeddata.TypedData
 		var sigHash []byte
 
+		feeInfo := legacytx.StdFee{
+			Amount: tx.GetFee(),
+			Gas:    tx.GetGas(),
+		}
 		if feeDelegated {
 			feeDelegation := &FeeDelegationOptions{
 				FeePayer: feePayer,
 			}
 
-			typedData, err = WrapTxToEIP712(chainTypesCodec, chainID, msgs[0], txBytes, feeDelegation)
+			typedData, err = eip712Wrapper(GlobalCdc, chainID, &signerData, tx.GetTimeoutHeight(), tx.GetMemo(), feeInfo, msgs, feeDelegation)
 			if err != nil {
-				err = errors.Wrap(err, "failed to pack tx data in EIP712 object")
-				return err
+				return nil, errors.Wrap(err, "failed to pack tx data in EIP712 object")
 			}
 
 			sigHash, err = typeddata.ComputeTypedDataHash(typedData)
 			if err != nil {
-				return err
+				return &typedData, err
 			}
 
 			feePayerPubkey, err := ethsecp256k1.RecoverPubkey(sigHash, feePayerSig)
 			if err != nil {
 				err = errors.Wrap(err, "failed to recover delegated fee payer from sig")
-				return err
+				return &typedData, err
 			}
 
 			ecPubKey, err := ethcrypto.UnmarshalPubkey(feePayerPubkey)
 			if err != nil {
-				err = errors.Wrap(err, "failed to unmarshal recovered fee payer pubkey")
-				return err
+				return &typedData, errors.Wrap(err, "failed to unmarshal recovered fee payer pubkey")
 			}
 
 			recoveredFeePayerAcc := sdk.AccAddress((&secp256k1.PubKey{
@@ -241,34 +240,32 @@ func VerifySignatureEIP712(
 			}).Address().Bytes())
 
 			if !recoveredFeePayerAcc.Equals(feePayer) {
-				err = fmt.Errorf("failed to verify delegated fee payer sig")
-				return err
+				return &typedData, fmt.Errorf("failed to verify delegated fee payer sig")
 			}
 		} else {
-			typedData, err = WrapTxToEIP712(chainTypesCodec, chainID, msgs[0], txBytes, nil)
+			typedData, err = eip712Wrapper(GlobalCdc, chainID, &signerData, tx.GetTimeoutHeight(), tx.GetMemo(), feeInfo, msgs, nil)
 			if err != nil {
-				err = errors.Wrap(err, "failed to pack tx data in EIP712 object")
-				return err
+				return &typedData, errors.Wrap(err, "failed to pack tx data in EIP712 object")
 			}
 
 			sigHash, err = typeddata.ComputeTypedDataHash(typedData)
 			if err != nil {
-				return err
+				return &typedData, err
 			}
 		}
 
 		if len(data.Signature) != 65 {
-			return fmt.Errorf("signature length doesnt match typical [R||S||V] signature 65 bytes")
+			return &typedData, fmt.Errorf("signature length doesnt match typical [R||S||V] signature 65 bytes")
 		}
 
 		// VerifySignature of secp256k1 accepts 64 byte signature [R||S]
 		// WARNING! Under NO CIRCUMSTANCES try to use pubKey.VerifySignature there
 		if !ethsecp256k1.VerifySignature(pubKey.Bytes(), sigHash, data.Signature[:len(data.Signature)-1]) {
-			return fmt.Errorf("unable to verify signer signature of EIP712 typed data")
+			return &typedData, fmt.Errorf("unable to verify signer signature of EIP712 typed data")
 		}
 
-		return nil
+		return &typedData, nil
 	default:
-		return fmt.Errorf("unexpected SignatureData %T", sigData)
+		return nil, fmt.Errorf("unexpected SignatureData %T", sigData)
 	}
 }

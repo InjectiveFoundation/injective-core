@@ -94,6 +94,7 @@ func (k *Keeper) PersistSingleDerivativeMarketOrderExecution(
 	if execution.MarketBuyOrderExecutionEvent != nil {
 		// nolint:errcheck //ignored on purpose
 		ctx.EventManager().EmitTypedEvent(execution.MarketBuyOrderExecutionEvent)
+
 		// nolint:errcheck //ignored on purpose
 		ctx.EventManager().EmitTypedEvent(execution.RestingLimitSellOrderExecutionEvent)
 	}

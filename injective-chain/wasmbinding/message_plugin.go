@@ -2,6 +2,7 @@ package wasmbinding
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"cosmossdk.io/errors"
 	wasmkeeper "github.com/CosmWasm/wasmd/x/wasm/keeper"
@@ -171,8 +172,10 @@ func (m *CustomMessenger) DispatchMsg(ctx sdk.Context, contractAddr sdk.AccAddre
 		sdkMsg = contractMsg.DeactivateContractMsg
 	case contractMsg.ActivateContractMsg != nil:
 		sdkMsg = contractMsg.ActivateContractMsg
+	case contractMsg.RewardsOptOut != nil:
+		sdkMsg = contractMsg.RewardsOptOut
 	default:
-		return nil, nil, wasmvmtypes.UnsupportedRequest{Kind: "Unknown Injective Wasm Message"}
+		return nil, nil, wasmvmtypes.UnsupportedRequest{Kind: fmt.Sprintf("Unknown Injective Wasm Message: %T", contractMsg)}
 	}
 
 	return m.handleSdkMessageWithResults(ctx, contractAddr, sdkMsg)

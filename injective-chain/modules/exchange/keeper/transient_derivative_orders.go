@@ -42,6 +42,9 @@ func (k *Keeper) SetNewTransientDerivativeLimitOrderWithMetadata(
 	subaccountKey := types.GetLimitOrderIndexKey(marketID, isBuy, subaccountID, orderHash)
 	ordersIndexStore.Set(subaccountKey, key)
 
+	// Set cid => orderHash
+	k.setCid(ctx, true, subaccountID, order.OrderInfo.GetCid(), marketID, order.IsBuy(), orderHash)
+
 	if metadata == nil {
 		metadata = k.GetSubaccountOrderbookMetadata(ctx, marketID, subaccountID, order.IsBuy())
 	}
@@ -242,6 +245,8 @@ func (k *Keeper) SetTransientDerivativeMarketOrder(
 	bz := k.cdc.MustMarshal(marketOrder)
 	ordersStore.Set(key, bz)
 
+	k.setCid(ctx, true, order.SubaccountID(), order.Cid(), marketID, order.IsBuy(), orderHash)
+
 	// set derivative order markets indicator store
 	key = types.GetDerivativeMarketTransientMarketsKey(marketID, order.OrderType.IsBuy())
 	if !store.Has(key) {
@@ -263,11 +268,12 @@ func (k *Keeper) DeleteDerivativeMarketOrder(
 	ordersStore := prefix.NewStore(store, types.DerivativeMarketOrdersPrefix)
 	key := types.GetOrderByPriceKeyPrefix(marketID, order.OrderType.IsBuy(), order.OrderInfo.Price, common.BytesToHash(order.OrderHash))
 	ordersStore.Delete(key)
+	k.deleteCid(ctx, true, order.SubaccountID(), order.Cid())
 }
 
 func (k *Keeper) CancelAllTransientDerivativeLimitOrdersBySubaccountID(
 	ctx sdk.Context,
-	market MarketI,
+	market DerivativeMarketI,
 	subaccountID common.Hash,
 ) {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
@@ -468,7 +474,7 @@ func (k *Keeper) GetTransientDerivativeLimitOrderBySubaccountIDAndHash(
 // CancelTransientDerivativeLimitOrder cancels the transient derivative limit order
 func (k *Keeper) CancelTransientDerivativeLimitOrder(
 	ctx sdk.Context,
-	market MarketI,
+	market DerivativeMarketI,
 	order *types.DerivativeLimitOrder,
 ) error {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
@@ -557,6 +563,9 @@ func (k *Keeper) DeleteTransientDerivativeLimitOrder(
 	// delete from normal subaccount order store as well
 	store := k.getStore(ctx)
 	store.Delete(subaccountOrderKey)
+
+	// delete cid
+	k.deleteCid(ctx, true, order.SubaccountID(), order.Cid())
 }
 
 // CancelAllDerivativeMarketOrdersBySubaccountID cancels all of the derivative market orders for a given subaccount and marketID.

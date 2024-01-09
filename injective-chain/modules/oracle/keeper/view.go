@@ -55,7 +55,11 @@ func (k *Keeper) GetPricePairState(ctx sdk.Context, oracletype types.OracleType,
 
 	if oracletype == types.OracleType_PriceFeed {
 		priceFeedState := k.GetPriceFeedPriceState(ctx, base, quote)
-		pricePairPriceFeedState := types.PricePairState{
+		if priceFeedState == nil {
+			return nil
+		}
+
+		pricePairPriceFeedState := &types.PricePairState{
 			PairPrice:            priceFeedState.Price,
 			BasePrice:            sdk.Dec{},
 			QuotePrice:           sdk.Dec{},
@@ -64,7 +68,8 @@ func (k *Keeper) GetPricePairState(ctx sdk.Context, oracletype types.OracleType,
 			BaseTimestamp:        priceFeedState.Timestamp,
 			QuoteTimestamp:       priceFeedState.Timestamp,
 		}
-		return &pricePairPriceFeedState
+
+		return pricePairPriceFeedState
 	}
 
 	basePriceState := k.GetPriceState(ctx, base, oracletype)

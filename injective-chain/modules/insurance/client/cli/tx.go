@@ -36,6 +36,9 @@ func NewCreateInsuranceFundTxCmd() *cobra.Command {
 		Short: "Create and broadcast a message to create insurance fund",
 		Long: `Create and broadcast a message to create insurance fund.
 
+		Disclaimer: A small portion of shares (1%) will be reserved by the fund itself (protocol owned liquidity). 
+		A value of 1 USD is recommended as first subscription.
+
 		Example:
 		$ %s tx insurance create-insurance-fund
 			--ticker="ticker"

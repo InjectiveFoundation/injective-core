@@ -1,0 +1,1 @@
+f767bb123603ffc2658062f8a4f52ffd508d68765b829aaa4db5386ce7ee08f8  ./target/wasm32-unknown-unknown/release/wasm_hook_example.wasm

@@ -102,6 +102,10 @@ func NewHandler(k keeper.Keeper) sdk.Handler {
 			res, err := msgServer.LiquidatePosition(sdk.WrapSDKContext(ctx), msg)
 			return sdk.WrapServiceResult(ctx, res, err)
 
+		case *types.MsgEmergencySettleMarket:
+			res, err := msgServer.EmergencySettleMarket(sdk.WrapSDKContext(ctx), msg)
+			return sdk.WrapServiceResult(ctx, res, err)
+
 		case *types.MsgIncreasePositionMargin:
 			res, err := msgServer.IncreasePositionMargin(sdk.WrapSDKContext(ctx), msg)
 			return sdk.WrapServiceResult(ctx, res, err)

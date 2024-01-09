@@ -21,7 +21,8 @@ func (k Keeper) InitGenesis(ctx sdk.Context, genState types.GenesisState) {
 		if err != nil {
 			panic(err)
 		}
-		err = k.createDenomAfterValidation(ctx, creator, genDenom.GetDenom())
+
+		err = k.createDenomAfterValidation(ctx, creator, genDenom.GetDenom(), genDenom.GetName(), genDenom.GetSymbol())
 		if err != nil {
 			panic(err)
 		}
@@ -39,7 +40,7 @@ func (k Keeper) ExportGenesis(ctx sdk.Context) *types.GenesisState {
 	defer iterator.Close()
 	for ; iterator.Valid(); iterator.Next() {
 		denom := string(iterator.Value())
-
+		metadata, _ := k.bankKeeper.GetDenomMetaData(ctx, denom)
 		authorityMetadata, err := k.GetAuthorityMetadata(ctx, denom)
 		if err != nil {
 			panic(err)
@@ -48,6 +49,8 @@ func (k Keeper) ExportGenesis(ctx sdk.Context) *types.GenesisState {
 		genDenoms = append(genDenoms, types.GenesisDenom{
 			Denom:             denom,
 			AuthorityMetadata: authorityMetadata,
+			Name: metadata.GetName(),
+			Symbol: metadata.GetSymbol(),
 		})
 	}
 

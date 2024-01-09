@@ -50,4 +50,5 @@ const (
 	FlagSubscriptionBaseAmount   = "base-amount"
 	FlagSubscriptionMaxPenalty   = "max-penalty"
 	FlagSubscriptionMinIncentive = "min-incentive"
+	FlagFunds                    = "funds"
 )

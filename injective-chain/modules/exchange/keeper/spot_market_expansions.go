@@ -119,6 +119,7 @@ func (k *Keeper) getSpotMarketOrderStateExpansion(
 		OrderPrice:              order.OrderInfo.Price,
 		SubaccountID:            order.SubaccountID(),
 		TraderAddress:           order.SdkAccAddress().String(),
+		Cid:                     order.Cid(),
 	}
 	return &stateExpansion
 }

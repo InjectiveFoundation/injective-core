@@ -17,7 +17,7 @@ import (
 
 func (k *Keeper) moveCoinsIntoInsuranceFund(
 	ctx sdk.Context,
-	market MarketI,
+	market DerivativeMarketI,
 	insuranceFundPaymentAmount sdkmath.Int,
 ) error {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
@@ -183,11 +183,26 @@ func (k DerivativesMsgServer) handleNegativeLiquidationPayout(
 	return shouldSettleMarket, nil
 }
 
+func (k DerivativesMsgServer) EmergencySettleMarket(goCtx context.Context, msg *types.MsgEmergencySettleMarket) (*types.MsgEmergencySettleMarketResponse, error) {
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+
+	_, err := k.liquidatePosition(goCtx, &types.MsgLiquidatePosition{
+		Sender:       msg.Sender,
+		MarketId:     msg.MarketId,
+		SubaccountId: msg.SubaccountId,
+	}, true)
+	return &types.MsgEmergencySettleMarketResponse{}, err
+}
+
 func (k DerivativesMsgServer) LiquidatePosition(goCtx context.Context, msg *types.MsgLiquidatePosition) (*types.MsgLiquidatePositionResponse, error) {
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	return k.liquidatePosition(goCtx, msg, false)
+}
+
+func (k DerivativesMsgServer) liquidatePosition(goCtx context.Context, msg *types.MsgLiquidatePosition, isEmergencySettlingMarket bool) (*types.MsgLiquidatePositionResponse, error) {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
-
 	cacheCtx, writeCache := ctx.CacheContext()
 
 	var (
@@ -240,7 +255,9 @@ func (k DerivativesMsgServer) LiquidatePosition(goCtx context.Context, msg *type
 	// Step 1c: Cancel all conditional orders created by the position holder in the given market
 	k.CancelAllConditionalDerivativeOrdersBySubaccountIDAndMarket(cacheCtx, market, positionSubaccountID, true, true)
 
-	liquidationMarketOrder := types.NewMarketOrderForLiquidation(position, positionSubaccountID, liquidatorAddr)
+	marketOrderWorstPrice := position.GetLiquidationMarketOrderWorstPrice(markPrice, funding)
+
+	liquidationMarketOrder := types.NewMarketOrderForLiquidation(position, positionSubaccountID, liquidatorAddr, marketOrderWorstPrice)
 
 	// 2. Check and increment Subaccount Nonce, Compute Order Hash
 	subaccountNonce := k.IncrementSubaccountTradeNonce(cacheCtx, positionSubaccountID)
@@ -248,6 +265,27 @@ func (k DerivativesMsgServer) LiquidatePosition(goCtx context.Context, msg *type
 	if err != nil {
 		metrics.ReportFuncError(k.svcTags)
 		return nil, err
+	}
+
+	if isEmergencySettlingMarket {
+		var orderType types.OrderType
+
+		if position.IsLong {
+			orderType = types.OrderType_BUY
+		} else {
+			orderType = types.OrderType_SELL
+		}
+
+		msg.Order = &types.DerivativeOrder{
+			MarketId: marketID.Hex(),
+			OrderInfo: types.OrderInfo{
+				SubaccountId: "0",
+				Price:        markPrice,
+				Quantity:     position.Quantity,
+			},
+			OrderType: orderType,
+			Margin:    position.Quantity.Mul(markPrice),
+		}
 	}
 
 	liquidationMarketOrder.OrderHash = orderHash.Bytes()
@@ -263,7 +301,9 @@ func (k DerivativesMsgServer) LiquidatePosition(goCtx context.Context, msg *type
 
 		isMaker := true
 		liquidatorOrderHash, err = k.ensureValidDerivativeOrder(cacheCtx, msg.Order, market, metadata, markPrice, false, nil, isMaker)
-		if err != nil {
+
+		// for emergency settling markets, we allow an invalid order, all order state changes are reverted later anyways
+		if err != nil && !isEmergencySettlingMarket {
 			metrics.ReportFuncError(k.svcTags)
 			return nil, err
 		}
@@ -350,6 +390,10 @@ func (k DerivativesMsgServer) LiquidatePosition(goCtx context.Context, msg *type
 			LostFundsFromAvailableDuringPayout: lostFundsFromAvailableDuringPayout,
 			LostFundsFromOrderCancels:          sdk.ZeroDec(),
 		})
+	}
+
+	if isEmergencySettlingMarket && !shouldSettleMarket {
+		return nil, types.ErrInvalidEmergencySettle
 	}
 
 	if shouldSettleMarket {

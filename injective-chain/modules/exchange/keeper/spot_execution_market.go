@@ -1,9 +1,8 @@
 package keeper
 
 import (
-	sdk "github.com/cosmos/cosmos-sdk/types"
-
 	"github.com/InjectiveLabs/metrics"
+	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 
@@ -74,6 +73,7 @@ func GetSpotMarketOrderBatchExecutionData(
 			Fee:                 realizedTradeFee,
 			OrderHash:           expansion.OrderHash.Bytes(),
 			FeeRecipientAddress: expansion.FeeRecipient.Bytes(),
+			Cid:                 expansion.Cid,
 		}
 		marketOrderTradingRewardPoints.AddPointsForAddress(expansion.TraderAddress, expansion.TradingRewardPoints)
 	}

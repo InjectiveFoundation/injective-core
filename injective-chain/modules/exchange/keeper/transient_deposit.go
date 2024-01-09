@@ -1,12 +1,12 @@
 package keeper
 
 import (
+	"github.com/InjectiveLabs/metrics"
 	"github.com/cosmos/cosmos-sdk/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
-	"github.com/InjectiveLabs/metrics"
 )
 
 // SetTransientDeposit sets a subaccount's deposit in the transient store for a given denom.

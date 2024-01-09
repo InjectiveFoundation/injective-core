@@ -2257,6 +2257,9 @@ paths:
                       whether instant
 
                       derivative market launch is enabled
+                  post_only_mode_height_threshold:
+                    type: string
+                    format: int64
             description: >-
               QueryExchangeParamsRequest is the response type for the
               Query/ExchangeParams
@@ -2794,9 +2797,12 @@ paths:
         - name: trade_history_options.max_age
           description: >-
             MaxAge restricts the trade records oldest age in seconds from the
-            current block time to consider.
+            current
 
-            A value of 0 means use all the records present on the chain.
+            block time to consider. A value of 0 means use all the records
+            present on
+
+            the chain.
           in: query
           required: false
           type: string
@@ -3110,6 +3116,9 @@ paths:
                           whether instant
 
                           derivative market launch is enabled
+                      post_only_mode_height_threshold:
+                        type: string
+                        format: int64
                     description: params defines all the parameters of related to exchange.
                   spot_markets:
                     type: array
@@ -3324,6 +3333,8 @@ paths:
                                   quantity:
                                     type: string
                                     title: quantity of the order
+                                  cid:
+                                    type: string
                               order_type:
                                 title: order types
                                 type: string
@@ -3392,6 +3403,8 @@ paths:
                                   quantity:
                                     type: string
                                     title: quantity of the order
+                                  cid:
+                                    type: string
                               order_type:
                                 title: order types
                                 type: string
@@ -4053,6 +4066,8 @@ paths:
                                   quantity:
                                     type: string
                                     title: quantity of the order
+                                  cid:
+                                    type: string
                               order_type:
                                 title: order types
                                 type: string
@@ -4111,6 +4126,8 @@ paths:
                                   quantity:
                                     type: string
                                     title: quantity of the order
+                                  cid:
+                                    type: string
                               order_type:
                                 title: order types
                                 type: string
@@ -4167,6 +4184,8 @@ paths:
                                   quantity:
                                     type: string
                                     title: quantity of the order
+                                  cid:
+                                    type: string
                               order_type:
                                 title: order types
                                 type: string
@@ -4225,6 +4244,8 @@ paths:
                                   quantity:
                                     type: string
                                     title: quantity of the order
+                                  cid:
+                                    type: string
                               order_type:
                                 title: order types
                                 type: string
@@ -6065,7 +6086,9 @@ paths:
     get:
       summary: >-
         QueryMarketIDFromVault returns the market ID for a given vault
-        subaccount ID
+        subaccount
+
+        ID
       operationId: QueryMarketIDFromVault
       responses:
         '200':
@@ -9170,11 +9193,6 @@ paths:
             - BandIBC
             - Provider
           default: Unspecified
-        - name: base_info.scale_factor
-          in: query
-          required: false
-          type: integer
-          format: int64
         - name: quote_info.symbol
           in: query
           required: false
@@ -9197,11 +9215,6 @@ paths:
             - BandIBC
             - Provider
           default: Unspecified
-        - name: quote_info.scale_factor
-          in: query
-          required: false
-          type: integer
-          format: int64
         - name: oracle_history_options.max_age
           description: >-
             MaxAge restricts the oracle price records oldest age in seconds from
@@ -12748,7 +12761,9 @@ paths:
                 title: GenesisState struct
             description: >-
               QueryModuleStateResponse is the response type for the
-              Query/PeggyModuleState RPC method.
+              Query/PeggyModuleState
+
+              RPC method.
         default:
           description: An unexpected error response.
           schema:
@@ -15807,6 +15822,10 @@ paths:
 
                             permission, but is planned to be extended to the
                             future.
+                        name:
+                          type: string
+                        symbol:
+                          type: string
                       description: >-
                         GenesisDenom defines a tokenfactory denom that is
                         defined within genesis
@@ -50206,6 +50225,49 @@ paths:
                         }
       tags:
         - Query
+  /ibc/apps/packetforward/v1/params:
+    get:
+      summary: Params queries all parameters of the packetforward module.
+      operationId: PacketForwardParams
+      responses:
+        '200':
+          description: A successful response.
+          schema:
+            type: object
+            properties:
+              params:
+                description: params defines the parameters of the module.
+                type: object
+                properties:
+                  fee_percentage:
+                    type: string
+            description: >-
+              QueryParamsResponse is the response type for the Query/Params RPC
+              method.
+        default:
+          description: An unexpected error response.
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              code:
+                type: integer
+                format: int32
+              message:
+                type: string
+              details:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    type_url:
+                      type: string
+                    value:
+                      type: string
+                      format: byte
+      tags:
+        - Query
   /cosmwasm/wasm/v1/code:
     get:
       summary: Codes gets the metadata for all stored wasm codes
@@ -53991,6 +54053,8 @@ definitions:
                 quantity:
                   type: string
                   title: quantity of the order
+                cid:
+                  type: string
             order_type:
               title: order types
               type: string
@@ -54043,6 +54107,8 @@ definitions:
                 quantity:
                   type: string
                   title: quantity of the order
+                cid:
+                  type: string
             order_type:
               title: order types
               type: string
@@ -54093,6 +54159,8 @@ definitions:
                 quantity:
                   type: string
                   title: quantity of the order
+                cid:
+                  type: string
             order_type:
               title: order types
               type: string
@@ -54145,6 +54213,8 @@ definitions:
                 quantity:
                   type: string
                   title: quantity of the order
+                cid:
+                  type: string
             order_type:
               title: order types
               type: string
@@ -54208,6 +54278,8 @@ definitions:
           quantity:
             type: string
             title: quantity of the order
+          cid:
+            type: string
       order_type:
         title: order types
         type: string
@@ -54350,6 +54422,8 @@ definitions:
           quantity:
             type: string
             title: quantity of the order
+          cid:
+            type: string
       order_type:
         title: order types
         type: string
@@ -54416,6 +54490,8 @@ definitions:
                 quantity:
                   type: string
                   title: quantity of the order
+                cid:
+                  type: string
             order_type:
               title: order types
               type: string
@@ -55135,6 +55211,9 @@ definitions:
               instant
 
               derivative market launch is enabled
+          post_only_mode_height_threshold:
+            type: string
+            format: int64
         description: params defines all the parameters of related to exchange.
       spot_markets:
         type: array
@@ -55339,6 +55418,8 @@ definitions:
                       quantity:
                         type: string
                         title: quantity of the order
+                      cid:
+                        type: string
                   order_type:
                     title: order types
                     type: string
@@ -55403,6 +55484,8 @@ definitions:
                       quantity:
                         type: string
                         title: quantity of the order
+                      cid:
+                        type: string
                   order_type:
                     title: order types
                     type: string
@@ -56038,6 +56121,8 @@ definitions:
                       quantity:
                         type: string
                         title: quantity of the order
+                      cid:
+                        type: string
                   order_type:
                     title: order types
                     type: string
@@ -56092,6 +56177,8 @@ definitions:
                       quantity:
                         type: string
                         title: quantity of the order
+                      cid:
+                        type: string
                   order_type:
                     title: order types
                     type: string
@@ -56144,6 +56231,8 @@ definitions:
                       quantity:
                         type: string
                         title: quantity of the order
+                      cid:
+                        type: string
                   order_type:
                     title: order types
                     type: string
@@ -56198,6 +56287,8 @@ definitions:
                       quantity:
                         type: string
                         title: quantity of the order
+                      cid:
+                        type: string
                   order_type:
                     title: order types
                     type: string
@@ -56379,6 +56470,8 @@ definitions:
       quantity:
         type: string
         title: quantity of the order
+      cid:
+        type: string
   injective.exchange.v1beta1.OrderSide:
     type: string
     enum:
@@ -56601,6 +56694,9 @@ definitions:
         title: |-
           is_instant_derivative_market_launch_enabled defines whether instant
           derivative market launch is enabled
+      post_only_mode_height_threshold:
+        type: string
+        format: int64
   injective.exchange.v1beta1.PerpetualMarketFunding:
     type: object
     properties:
@@ -57842,6 +57938,9 @@ definitions:
               instant
 
               derivative market launch is enabled
+          post_only_mode_height_threshold:
+            type: string
+            format: int64
     description: >-
       QueryExchangeParamsRequest is the response type for the
       Query/ExchangeParams
@@ -58495,6 +58594,9 @@ definitions:
                   instant
 
                   derivative market launch is enabled
+              post_only_mode_height_threshold:
+                type: string
+                format: int64
             description: params defines all the parameters of related to exchange.
           spot_markets:
             type: array
@@ -58703,6 +58805,8 @@ definitions:
                           quantity:
                             type: string
                             title: quantity of the order
+                          cid:
+                            type: string
                       order_type:
                         title: order types
                         type: string
@@ -58767,6 +58871,8 @@ definitions:
                           quantity:
                             type: string
                             title: quantity of the order
+                          cid:
+                            type: string
                       order_type:
                         title: order types
                         type: string
@@ -59410,6 +59516,8 @@ definitions:
                           quantity:
                             type: string
                             title: quantity of the order
+                          cid:
+                            type: string
                       order_type:
                         title: order types
                         type: string
@@ -59464,6 +59572,8 @@ definitions:
                           quantity:
                             type: string
                             title: quantity of the order
+                          cid:
+                            type: string
                       order_type:
                         title: order types
                         type: string
@@ -59516,6 +59626,8 @@ definitions:
                           quantity:
                             type: string
                             title: quantity of the order
+                          cid:
+                            type: string
                       order_type:
                         title: order types
                         type: string
@@ -59570,6 +59682,8 @@ definitions:
                           quantity:
                             type: string
                             title: quantity of the order
+                          cid:
+                            type: string
                       order_type:
                         title: order types
                         type: string
@@ -60392,6 +60506,8 @@ definitions:
           quantity:
             type: string
             title: quantity of the order
+          cid:
+            type: string
       order_type:
         title: order types
         type: string
@@ -60503,6 +60619,8 @@ definitions:
                 quantity:
                   type: string
                   title: quantity of the order
+                cid:
+                  type: string
             order_type:
               title: order types
               type: string
@@ -60663,9 +60781,12 @@ definitions:
         format: uint64
         description: >-
           MaxAge restricts the trade records oldest age in seconds from the
-          current block time to consider.
+          current
 
-          A value of 0 means use all the records present on the chain.
+          block time to consider. A value of 0 means use all the records present
+          on
+
+          the chain.
       include_raw_history:
         type: boolean
         title: |-
@@ -63026,9 +63147,6 @@ definitions:
           - BandIBC
           - Provider
         default: Unspecified
-      scale_factor:
-        type: integer
-        format: int64
   injective.oracle.v1beta1.Params:
     type: object
     properties:
@@ -66877,7 +66995,9 @@ definitions:
         title: GenesisState struct
     description: >-
       QueryModuleStateResponse is the response type for the
-      Query/PeggyModuleState RPC method.
+      Query/PeggyModuleState
+
+      RPC method.
   injective.peggy.v1.QueryOutgoingTxBatchesResponse:
     type: object
     properties:
@@ -67353,6 +67473,10 @@ definitions:
           Admin
 
           permission, but is planned to be extended to the future.
+      name:
+        type: string
+      symbol:
+        type: string
     description: |-
       GenesisDenom defines a tokenfactory denom that is defined within genesis
       state. The structure contains DenomAuthorityMetadata which defines the
@@ -67402,6 +67526,10 @@ definitions:
                 one Admin
 
                 permission, but is planned to be extended to the future.
+            name:
+              type: string
+            symbol:
+              type: string
           description: >-
             GenesisDenom defines a tokenfactory denom that is defined within
             genesis
@@ -67507,6 +67635,10 @@ definitions:
                     only one Admin
 
                     permission, but is planned to be extended to the future.
+                name:
+                  type: string
+                symbol:
+                  type: string
               description: >-
                 GenesisDenom defines a tokenfactory denom that is defined within
                 genesis
@@ -88193,6 +88325,22 @@ definitions:
     description: |-
       Version defines the versioning scheme used to negotiate the IBC verison in
       the connection handshake.
+  packetforward.v1.Params:
+    type: object
+    properties:
+      fee_percentage:
+        type: string
+    description: Params defines the set of packetforward parameters.
+  packetforward.v1.QueryParamsResponse:
+    type: object
+    properties:
+      params:
+        description: params defines the parameters of the module.
+        type: object
+        properties:
+          fee_percentage:
+            type: string
+    description: QueryParamsResponse is the response type for the Query/Params RPC method.
   cosmwasm.wasm.v1.AbsoluteTxPosition:
     type: object
     properties:

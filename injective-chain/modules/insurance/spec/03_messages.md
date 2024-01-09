@@ -42,6 +42,10 @@ message MsgCreateInsuranceFund {
   that the insurance fund corresponds to.
 - `InitialDeposit` specifies the initial deposit amount used to underwrite the insurance fund.
 
+Disclaimer: When creating an insurance fund a small portion of shares (1%) will be reserved by the fund itself (protocol owned liquidity). A value of 1 USD is recommended as first subscription.
+
+Motivation behind this feature is to avoid potential rounding issues when underwriting to a fund. For example, without having protocol owned liquidity, if the original fund creator would take out most of their shares leaving but a small amount, the value of the share token could diverge drastically from the original value. The next underwriter would then have to provide a much larger deposit despite gaining the same amount of shares.  
+
 ## Msg/Underwrite
 
 `MsgUnderwrite` defines a message to underwrite an insurance fund

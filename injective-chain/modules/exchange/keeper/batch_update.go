@@ -126,9 +126,9 @@ func (k *Keeper) ExecuteBatchUpdateOrders(
 		}
 
 		subaccountID := types.MustGetSubaccountIDOrDeriveFromNonce(sender, spotOrderToCancel.SubaccountId)
-		orderHash := common.HexToHash(spotOrderToCancel.OrderHash)
 
-		err := k.cancelSpotLimitOrder(ctx, subaccountID, orderHash, market, marketID)
+		err := k.cancelSpotLimitOrder(ctx, subaccountID, spotOrderToCancel.GetIdentifier(), market, marketID)
+
 		if err == nil {
 			spotCancelSuccesses[idx] = true
 		}
@@ -149,10 +149,10 @@ func (k *Keeper) ExecuteBatchUpdateOrders(
 			derivativeMarkets[marketID] = market
 		}
 		subaccountID := types.MustGetSubaccountIDOrDeriveFromNonce(sender, derivativeOrderToCancel.SubaccountId)
-		orderHash := common.HexToHash(derivativeOrderToCancel.OrderHash)
 
-		if err := k.cancelDerivativeOrder(ctx, subaccountID, orderHash, market, marketID, derivativeOrderToCancel.OrderMask); err != nil {
-		} else {
+		err := k.cancelDerivativeOrder(ctx, subaccountID, derivativeOrderToCancel.GetIdentifier(), market, marketID, derivativeOrderToCancel.OrderMask)
+
+		if err == nil {
 			derivativeCancelSuccesses[idx] = true
 		}
 	}
@@ -172,10 +172,10 @@ func (k *Keeper) ExecuteBatchUpdateOrders(
 			binaryOptionsMarkets[marketID] = market
 		}
 		subaccountID := types.MustGetSubaccountIDOrDeriveFromNonce(sender, binaryOptionsOrderToCancel.SubaccountId)
-		orderHash := common.HexToHash(binaryOptionsOrderToCancel.OrderHash)
 
-		if err := k.cancelDerivativeOrder(ctx, subaccountID, orderHash, market, marketID, binaryOptionsOrderToCancel.OrderMask); err != nil {
-		} else {
+		err := k.cancelDerivativeOrder(ctx, subaccountID, binaryOptionsOrderToCancel.GetIdentifier(), market, marketID, binaryOptionsOrderToCancel.OrderMask)
+
+		if err == nil {
 			binaryOptionsCancelSuccesses[idx] = true
 		}
 	}
@@ -294,7 +294,7 @@ func (k *Keeper) ExecuteBatchUpdateOrders(
 	}
 
 	if !orderFailEvent.IsEmpty() {
-		// nolint:errcheck //ignored on purpose
+		// nolint:errcheck // ignored on purpose
 		ctx.EventManager().EmitTypedEvent(&orderFailEvent)
 	}
 

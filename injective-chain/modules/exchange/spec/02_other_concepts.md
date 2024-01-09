@@ -21,6 +21,25 @@ concurrency for efficient data processing.
 Note: beyond just executing settlement, the design must also take into account market data dissemination requirements
 for off-chain consumption.
 
+## Atomic Market Order Execution
+
+A common request from new applications built on Cosmwasm is for the ability to be notified upon the execution of an order. In the regular order execution flow, this would not be possible, since the Frequent Batch Auctions (FBA) are executed inside the EndBlocker. To circumvent the FBA, the new type of atomic market orders is introduced. For the privilege of executing such an atomic market order instantly, an additional trading fee is imposed. To calculate the fee of an atomic market order, the market's taker fee is multiplied by the market types's `AtomicMarketOrderFeeMultiplier`.
+
+- `SpotAtomicMarketOrderFeeMultiplier`
+- `DerivativeAtomicMarketOrderFeeMultiplier`
+- `BinaryOptionsAtomicMarketOrderFeeMultiplier`
+
+These multipliers are defined the global exchange parameters. In addition, the exchange parameters also define the `AtomicMarketOrderAccessLevel` which specifies the minimum access level required to execute an atomic market order.
+
+```golang
+const (
+	AtomicMarketOrderAccessLevel_Nobody                         AtomicMarketOrderAccessLevel = 0
+	AtomicMarketOrderAccessLevel_BeginBlockerSmartContractsOnly AtomicMarketOrderAccessLevel = 1
+	AtomicMarketOrderAccessLevel_SmartContractsOnly             AtomicMarketOrderAccessLevel = 2
+	AtomicMarketOrderAccessLevel_Everyone                       AtomicMarketOrderAccessLevel = 3
+)
+```
+
 ## Trading Rewards
 
 Governance approves a **TradingRewardCampaignLaunchProposal** which specifies:

@@ -74,7 +74,7 @@ export * as CosmosTxV1Beta1Tx from "./cosmos/tx/v1beta1/tx";
 // export * as CosmosProtoCosmos from "./cosmos_proto/cosmos";
 export * as CosmwasmWasmV1Genesis from "./cosmwasm/wasm/v1/genesis";
 export * as CosmwasmWasmV1Ibc from "./cosmwasm/wasm/v1/ibc";
-export * as CosmwasmWasmV1Proposal from "./cosmwasm/wasm/v1/proposal";
+export * as CosmwasmWasmV1Proposal from "./cosmwasm/wasm/v1/proposal_legacy";
 export * as CosmwasmWasmV1Query from "./cosmwasm/wasm/v1/query";
 export * as CosmwasmWasmV1Tx from "./cosmwasm/wasm/v1/tx";
 export * as CosmwasmWasmV1Types from "./cosmwasm/wasm/v1/types";
@@ -121,6 +121,7 @@ export * as InjectiveExchangeV1Beta1Genesis from "./injective/exchange/v1beta1/g
 export * as InjectiveExchangeV1Beta1Query from "./injective/exchange/v1beta1/query";
 export * as InjectiveExchangeV1Beta1Exchange from "./injective/exchange/v1beta1/exchange";
 export * as InjectiveExchangeV1Beta1Tx from "./injective/exchange/v1beta1/tx";
+export * as InjectiveExchangeV1Beta1Proposal from "./injective/exchange/v1beta1/proposal";
 export * as InjectiveInsuranceV1Beta1Genesis from "./injective/insurance/v1beta1/genesis";
 export * as InjectiveInsuranceV1Beta1Query from "./injective/insurance/v1beta1/query";
 export * as InjectiveInsuranceV1Beta1Insurance from "./injective/insurance/v1beta1/insurance";

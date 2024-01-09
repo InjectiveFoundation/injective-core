@@ -33,12 +33,6 @@ func (k Keeper) mintTo(ctx sdk.Context, amount sdk.Coin, mintTo string) error {
 }
 
 func (k Keeper) burnFrom(ctx sdk.Context, amount sdk.Coin, burnFrom string) error {
-	// verify that denom is an x/tokenfactory denom
-	_, _, err := types.DeconstructDenom(amount.Denom)
-	if err != nil {
-		return err
-	}
-
 	if !amount.IsPositive() {
 		return types.ErrAmountNotPositive
 	}

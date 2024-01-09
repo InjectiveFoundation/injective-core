@@ -17,8 +17,6 @@ The repo of the Injective Exchange Client can be found [here](https://github.com
 
 Injective API nodes have two purposes: 1) serving as a data layer for the protocol and 2) providing fee delegation service.
 
-The repo of the Injective API Provider can be found [here](https://github.com/InjectiveLabs/injective-exchange).
-
 ### Purpose 1: Data Layer
 Injective API nodes index block events obtained from the Injective Chain and serve as a data layer for external clients. Due to the fact that the API nodes solely rely on publicly available data obtained from the Injective Chain, anyone can permissionlessly run their own API node and obtain a trustless data layer for interacting with the Injective Protocol. 
 

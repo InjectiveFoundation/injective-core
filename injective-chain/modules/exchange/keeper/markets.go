@@ -17,12 +17,16 @@ type MarketI interface {
 	GetMakerFeeRate() sdk.Dec
 	GetTakerFeeRate() sdk.Dec
 	GetRelayerFeeShareRate() sdk.Dec
-	GetIsPerpetual() bool
 	GetQuoteDenom() string
-	GetInitialMarginRatio() sdk.Dec
-	GetOracleScaleFactor() uint32
 	StatusSupportsOrderCancellations() bool
 	GetMarketStatus() types.MarketStatus
+}
+
+type DerivativeMarketI interface {
+	MarketI
+	GetIsPerpetual() bool
+	GetInitialMarginRatio() sdk.Dec
+	GetOracleScaleFactor() uint32
 }
 
 type MarketIDQuoteDenomMakerFee struct {
@@ -76,11 +80,59 @@ func ChainMarketFilter(filters ...MarketFilter) MarketFilter {
 	}
 }
 
-func (k *Keeper) FindDerivativeAndBinaryOptionsMarkets(ctx sdk.Context, filter MarketFilter) []MarketI {
+func RemoveMarketsByIds(markets []MarketI, marketIdsToRemove []string) []MarketI {
+	marketIdMap := make(map[string]bool)
+	for _, id := range marketIdsToRemove {
+		marketIdMap[id] = true
+	}
+
+	return FilterMarkets(markets, func(m MarketI) bool {
+		_, exists := marketIdMap[m.MarketID().Hex()]
+		return !exists
+	})
+}
+
+func FilterMarkets(markets []MarketI, filterFunc MarketFilter) []MarketI {
+	var filtered []MarketI
+
+	for _, market := range markets {
+		if filterFunc(market) {
+			filtered = append(filtered, market)
+		}
+	}
+
+	return filtered
+}
+
+func ConvertSpotMarkets(markets []*types.SpotMarket) []MarketI {
+	converted := make([]MarketI, 0, len(markets))
+	for _, market := range markets {
+		converted = append(converted, market)
+	}
+	return converted
+}
+
+func ConvertDerivativeMarkets(markets []*types.DerivativeMarket) []MarketI {
+	converted := make([]MarketI, 0, len(markets))
+	for _, market := range markets {
+		converted = append(converted, market)
+	}
+	return converted
+}
+
+func ConvertBinaryOptionsMarkets(markets []*types.BinaryOptionsMarket) []MarketI {
+	converted := make([]MarketI, 0, len(markets))
+	for _, market := range markets {
+		converted = append(converted, market)
+	}
+	return converted
+}
+
+func (k *Keeper) FindDerivativeAndBinaryOptionsMarkets(ctx sdk.Context, filter MarketFilter) []DerivativeMarketI {
 	derivativeMarkets := k.FindDerivativeMarkets(ctx, filter)
 	binaryOptionsMarkets := k.FindBinaryOptionsMarkets(ctx, filter)
 
-	markets := make([]MarketI, 0, len(derivativeMarkets)+len(binaryOptionsMarkets))
+	markets := make([]DerivativeMarketI, 0, len(derivativeMarkets)+len(binaryOptionsMarkets))
 	for _, m := range derivativeMarkets {
 		markets = append(markets, m)
 	}
@@ -91,11 +143,11 @@ func (k *Keeper) FindDerivativeAndBinaryOptionsMarkets(ctx sdk.Context, filter M
 	return markets
 }
 
-func (k *Keeper) GetAllDerivativeAndBinaryOptionsMarkets(ctx sdk.Context) []MarketI {
+func (k *Keeper) GetAllDerivativeAndBinaryOptionsMarkets(ctx sdk.Context) []DerivativeMarketI {
 	derivativeMarkets := k.GetAllDerivativeMarkets(ctx)
 	binaryOptionsMarkets := k.GetAllBinaryOptionsMarkets(ctx)
 
-	markets := make([]MarketI, 0, len(derivativeMarkets)+len(binaryOptionsMarkets))
+	markets := make([]DerivativeMarketI, 0, len(derivativeMarkets)+len(binaryOptionsMarkets))
 	for _, m := range derivativeMarkets {
 		markets = append(markets, m)
 	}
@@ -106,7 +158,7 @@ func (k *Keeper) GetAllDerivativeAndBinaryOptionsMarkets(ctx sdk.Context) []Mark
 	return markets
 }
 
-func (k *Keeper) GetDerivativeOrBinaryOptionsMarket(ctx sdk.Context, marketID common.Hash, isEnabled *bool) MarketI {
+func (k *Keeper) GetDerivativeOrBinaryOptionsMarket(ctx sdk.Context, marketID common.Hash, isEnabled *bool) DerivativeMarketI {
 	isEnabledToCheck := true
 
 	shouldOnlyCheckOneStatus := isEnabled != nil
@@ -142,7 +194,7 @@ func (k *Keeper) GetDerivativeOrBinaryOptionsMarket(ctx sdk.Context, marketID co
 	return nil
 }
 
-func (k *Keeper) GetDerivativeOrBinaryOptionsMarketWithMarkPrice(ctx sdk.Context, marketID common.Hash, isEnabled bool) (MarketI, sdk.Dec) {
+func (k *Keeper) GetDerivativeOrBinaryOptionsMarketWithMarkPrice(ctx sdk.Context, marketID common.Hash, isEnabled bool) (DerivativeMarketI, sdk.Dec) {
 	derivativeMarket := k.GetDerivativeMarket(ctx, marketID, isEnabled)
 	if derivativeMarket != nil {
 		price, err := k.GetDerivativeMarketPrice(ctx, derivativeMarket.OracleBase, derivativeMarket.OracleQuote, derivativeMarket.OracleScaleFactor, derivativeMarket.OracleType)

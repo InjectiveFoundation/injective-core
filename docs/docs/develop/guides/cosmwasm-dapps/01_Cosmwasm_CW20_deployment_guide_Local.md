@@ -1,25 +1,26 @@
 ---
-sidebar_position: 2
-title: CW20 deployment guide on your local environment  
+sidebar_position: 3
+title: CW20 Local Environment Deployment Guide
 ---
 
-# Cosmwasm CW20 deployment guide on Local
+# Cosmwasm CW20 Local Environment Deployment Guide
 
-This guide will get you started deploying CW-20 smart contracts on Injective Local net running on your computer. 
+This guide will get you started deploying `cw20` smart contracts on a local Injective network running on your computer. We'll use the `cw20-base` contract from [CosmWasm's collection of specifications and contracts](https://github.com/CosmWasm/cw-plus) designed for production use on real networks.
+
+`cw20-base` is a basic implementation of a `cw20` compatible contract that can be imported in any custom contract you want to build on. It contains a straightforward but complete implementation of the cw20 spec along with all extensions. `cw20-base` can be deployed as-is or imported by other contracts.
 
 ### 1. Installation
 
-Install Rust and other Cosmwasm dependencies by following the instructions 
+Install Go, Rust, and other Cosmwasm dependencies by following the instructions:
+1. [Go](https://docs.cosmwasm.com/docs/getting-started/installation#go)
+2. [Rust](https://docs.cosmwasm.com/docs/getting-started/installation#rust)
 
-1. [Go](https://docs.cosmwasm.com/docs/1.0/getting-started/installation/#go)
-2. [Rust](https://docs.cosmwasm.com/docs/1.0/getting-started/installation/#rust)
+### 2. Install the `injectived` Binary
 
-### 2. Install injectived from the binary
-
-The easiest way to install `injectived` and Injective core is by downloading a pre-built binary for your operating system. Download the Injective Chain binaries from the official releases.
+The easiest way to install `injectived` and Injective core is by downloading a pre-built binary for your operating system. Download the most recent Injective Chain binaries from [the official releases repo](https://github.com/InjectiveLabs/injective-chain-releases).
 
 ```bash
-wget https://github.com/InjectiveLabs/injective-chain-releases/releases/download/v1.9.0-1673970775/linux-amd64.zip
+wget https://github.com/InjectiveLabs/injective-chain-releases/releases/download/v1.10.0-1679065799/linux-amd64.zip
 ```
 
 This zip file will contain three binaries and a virtual machine:
@@ -27,7 +28,6 @@ This zip file will contain three binaries and a virtual machine:
 - **`peggo`** - the Injective Chain ERC-20 bridge relayer daemon
 - **`injective-exchange`** - the Injective Exchange daemon
 - **`libwasmvm.x86_64.so`** - the wasm virtual machine which is needed to execute smart contracts.
-- **`setup.sh`** - the script to initialize your local Injective chain.
 
 Unzip and add `injectived`, to your `/usr/bin`. Also add `libwasmvm.x86_64.so` to user library path `/usr/lib`.
 
@@ -39,55 +39,54 @@ sudo mv injectived /usr/bin
 sudo mv libwasmvm.x86_64.so /usr/lib
 ```
 
-Confirm your version matches the output below
+Confirm your version matches the output below (your output may be slightly different if a newer version is available):
 
 ```bash
 injectived version
-Version dev (3c87354f5)
-Compiled at 20230113-2015 using Go go1.18.3 (amd64)
+Version v1.10.0 (bf0b93dca)
+Compiled at 20230317-2113 using Go go1.19.4 (amd64)
 ```
 
-Download setup.sh
+Download `setup.sh`, the script to initialize your local Injective chain.
 ```bash
-wget https://github.com/InjectiveLabs/injective-chain-releases/blob/master/scripts/setup.sh
+wget https://raw.githubusercontent.com/InjectiveLabs/injective-chain-releases/master/scripts/setup.sh
 ```
 
-Initialize the chain and start the binary
+Initialize the chain and start the binary:
 
 ```bash
 ./setup.sh && injectived start
 ```
 
-### 3. Compile CosmWasm contracts 
+### 3. Compile CosmWasm Contracts 
 
-In this step we will get all CW contracts and compile them so we can use them later on, this porcess can take a bit of time and CPU. 
+In this step, we will get all CW production template contracts and compile them using the [CosmWasm Rust Optimizer](https://github.com/CosmWasm/rust-optimizer) Docker image for compiling multiple contracts (called `workspace-optimizer`)—see [here](https://hub.docker.com/r/cosmwasm/workspace-optimizer/tags) (x86) or [here](https://hub.docker.com/r/cosmwasm/workspace-optimizer-arm64/tags) (ARM) for latest versions. This process may take a bit of time and CPU power. 
 
-```
+```bash
 git clone https://github.com/CosmWasm/cw-plus
 cd cw-plus
 ```
 
-Non M1 Mac devices:
-```
+Non ARM (Non-Apple silicon) devices:
+```bash
 docker run --rm -v "$(pwd)":/code \
 --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
 --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-cosmwasm/workspace-optimizer:0.12.11
+cosmwasm/workspace-optimizer:0.12.12
 ```
 
-Alternatively for the M1 mac devices please use:
-```
+Alternatively for Apple silicon devices (M1, M2, etc.) please use:
+```bash
 docker run --rm -v "$(pwd)":/code \
 --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
 --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-cosmwasm/workspace-optimizer-arm64:0.12.11
+cosmwasm/workspace-optimizer-arm64:0.12.12
 ```
 
-You should have the wasm contracts complied under the `artifacts` directory. The docker script
-builds all of the CW contracts in the repo, and we will start by deploying the `cw20_base.wasm` 
-contract or `cw20_base-aarch64.wasm` for Mac M1.
+The docker script builds and optimizes all the CW contracts in the repo, with the compiled contracts located under the `artifacts` directory. Now we can deploy the `cw20_base.wasm`
+contract (`cw20_base-aarch64.wasm` if compiled on an ARM device).
 
-### 4. Upload the cosmwasm contract to the chain
+### 4. Upload the CosmWasm Contract to the Chain
 
 ```bash
 # inside the CosmWasm/cw-plus repo 
@@ -275,7 +274,7 @@ tx:
 txhash: 4CFB63A47570C4CFBE8E669273B26BEF6EAFF922C07480CA42180C52219CE784
 ```
 
-Inspecting the output more closely, we can see the code_id of `1` for the contract
+Inspecting the output more closely, we can see the `code_id` of 1 for the contract
 
 ```bash
 logs:
@@ -308,11 +307,11 @@ logs:
   msg_index: 0
 ```
 
-We’ve now uploaded the code template and now need to instantiate it.
+We’ve uploaded the contract code, but we still need to instantiate the contract.
 
-### 4. Instantiate the contract
+### 4. Instantiate the Contract
 
-Before instantiating the contract, notice the CW-20 contract function signature for `instantiate`. 
+Before instantiating the contract, let's take a look at the CW-20 contract function signature for `instantiate`. 
 
 ```rust
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -324,7 +323,7 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
 ```
 
-Notably, it contains the InstantiateMsg parameter which contains the token name, symbol and other details. 
+Notably, it contains the `InstantiateMsg` parameter which contains the token name, symbol, decimals, and other details. 
 
 ```rust
 #[derive(Serialize, Deserialize, JsonSchema, Debug, Clone, PartialEq)]
@@ -338,11 +337,32 @@ pub struct InstantiateMsg {
 }
 ```
 
-To call this function to instantiate the contract, simply run the CLI command with the code_id `1` along with the JSON encoded initialization arguments and a label (a human-readable name for this contract in lists). 
+The first step of instantiating the contract is to select an address to supply with our initial CW20 token allocation. In our case, we can just use the genesis address since we have the keys already set up, but feel free to generate new addresses and keys.
+
+:::caution
+Make sure you have the private keys for the address you choose—you won't be able to test token transfers from the address otherwise. In addition, the chosen address must be a valid address on the chain (the address must have received funds at some point in the past) and must have balances to pay for gas when executing the contract.
+:::
+
+To find the genesis address, run:
+```bash
+yes 12345678 | injectived keys show genesis
+```
+
+**Output:**
+```bash
+- name: genesis
+  type: local
+  address: inj10cfy5e6qt2zy55q2w2ux2vuq862zcyf4fmfpj3
+  pubkey: '{"@type":"/injective.crypto.v1beta1.ethsecp256k1.PubKey","key":"ArtVkg9feLXjD4p6XRtWxVpvJUDhrcqk/5XYLsQI4slb"}'
+  mnemonic: ""
+```
+
+Run the CLI command with `code_id` `1` along with the JSON encoded initialization arguments (with your selected address) and a label (a human-readable name for this contract in lists) to instantiate the contract:
 
 ```bash
+CODE_ID=1
 INIT='{"name":"Albcoin","symbol":"ALB","decimals":6,"initial_balances":[{"address":"inj10cfy5e6qt2zy55q2w2ux2vuq862zcyf4fmfpj3","amount":"69420"}],"mint":{"minter":"inj10cfy5e6qt2zy55q2w2ux2vuq862zcyf4fmfpj3"},"marketing":{}}'
-yes 12345678 | injectived tx wasm instantiate 1 $INIT --label="Albcoin Token" --from=genesis --chain-id="injective-1" --yes --gas-prices=500000000inj --gas=20000000 --no-admin
+yes 12345678 | injectived tx wasm instantiate $CODE_ID $INIT --label="Albcoin Token" --from=genesis --chain-id="injective-1" --yes --gas-prices=500000000inj --gas=20000000 --no-admin
 ```
 
 Now the address of the instantiated contract can be obtained on [http://localhost:10337/swagger/#/Query/ContractsByCode](http://localhost:10337/swagger/#/Query/ContractsByCode)
@@ -350,7 +370,6 @@ Now the address of the instantiated contract can be obtained on [http://localhos
 And the contract info meta data can be obtained on [http://localhost:10337/swagger/#/Query/ContractInfo](http://localhost:10337/swagger/#/Query/ContractInfo)  or by CLI query 
 
 ```bash
-CODE_ID=1
 CONTRACT=$(injectived query wasm list-contract-by-code $CODE_ID --output json | jq -r '.contracts[-1]')
 injectived query wasm contract $CONTRACT
 ```
@@ -373,7 +392,7 @@ contract_info:
 
 ### 5. Querying Data
 
-The entire contract state can be queried with 
+The entire contract state can be queried with:
 
 ```bash
 injectived query wasm contract-state all $CONTRACT
@@ -397,7 +416,7 @@ pagination:
 ```
     
 
-The individual user’s token balance can also be queried with
+The individual user’s token balance can also be queried with:
 
 ```bash
 BALANCE_QUERY='{"balance": {"address": "inj10cfy5e6qt2zy55q2w2ux2vuq862zcyf4fmfpj3"}}'
@@ -405,7 +424,7 @@ injectived query wasm contract-state smart $CONTRACT "$BALANCE_QUERY" --output j
 ```
 
 **Output:**
-```
+```bash
 {"data":{"balance":"69420"}}
 ```
 
@@ -416,7 +435,7 @@ TRANSFER='{"transfer":{"recipient":"inj1dzqd00lfd4y4qy2pxa0dsdwzfnmsu27hgttswz",
 yes 12345678 | injectived tx wasm execute $CONTRACT "$TRANSFER" --from genesis --chain-id="injective-1" --yes --gas-prices=500000000inj --gas=20000000
 ```
 
-Then confirm the balance transfer occurred successfully with
+Then confirm the balance transfer occurred successfully with:
 
 ```bash
 # first address balance query
@@ -424,8 +443,19 @@ BALANCE_QUERY='{"balance": {"address": "inj10cfy5e6qt2zy55q2w2ux2vuq862zcyf4fmfp
 injectived query wasm contract-state smart $CONTRACT "$BALANCE_QUERY" --output json
 ```
 
+**Output:**
+```bash
+{"data":{"balance":"69000"}}
+```
+
+And confirm the recipient received the funds:
 ```bash
 # recipient's address balance query
 BALANCE_QUERY='{"balance": {"address": "inj1dzqd00lfd4y4qy2pxa0dsdwzfnmsu27hgttswz"}}'
 injectived query wasm contract-state smart $CONTRACT "$BALANCE_QUERY" --output json
+```
+
+**Output:**
+```bash
+{"data":{"balance":"420"}}
 ```

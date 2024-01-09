@@ -1,6 +1,8 @@
 package keeper
 
 import (
+	"fmt"
+
 	"cosmossdk.io/errors"
 	"github.com/InjectiveLabs/metrics"
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -12,7 +14,7 @@ import (
 func (k *Keeper) ensureValidDerivativeOrder(
 	ctx sdk.Context,
 	derivativeOrder *types.DerivativeOrder,
-	market MarketI,
+	market DerivativeMarketI,
 	metadata *types.SubaccountOrderbookMetadata,
 	markPrice sdk.Dec,
 	isMarketOrder bool,
@@ -33,10 +35,21 @@ func (k *Keeper) ensureValidDerivativeOrder(
 		return orderHash, err
 	}
 
+	// reject if client order id is already used
+	if k.existsCid(ctx, subaccountID, derivativeOrder.OrderInfo.Cid) {
+		return orderHash, types.ErrClientOrderIdAlreadyExists
+	}
+
 	doesOrderCrossTopOfBook := k.DerivativeOrderCrossesTopOfBook(ctx, derivativeOrder)
 
+	isPostOnlyMode := k.IsPostOnlyMode(ctx)
+
+	if isMarketOrder && isPostOnlyMode {
+		return orderHash, errors.Wrapf(types.ErrPostOnlyMode, fmt.Sprintf("cannot create market orders in post only mode until height %d", k.GetParams(ctx).PostOnlyModeHeightThreshold))
+	}
+
 	// enforce that post only limit orders don't cross the top of the book
-	if derivativeOrder.OrderType.IsPostOnly() && doesOrderCrossTopOfBook {
+	if (derivativeOrder.OrderType.IsPostOnly() || isPostOnlyMode) && doesOrderCrossTopOfBook {
 		metrics.ReportFuncError(k.svcTags)
 		return orderHash, types.ErrExceedsTopOfBookPrice
 	}

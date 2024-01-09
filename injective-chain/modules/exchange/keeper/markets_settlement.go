@@ -7,6 +7,7 @@ import (
 	"github.com/InjectiveLabs/metrics"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	oracletypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/types"
 )
 
 type DeficitPositions struct {
@@ -25,7 +26,17 @@ func (k *Keeper) ProcessMarketsScheduledToSettle(ctx sdk.Context) {
 		market := k.GetDerivativeMarketByID(ctx, marketID)
 
 		if marketSettlementInfo.SettlementPrice.IsZero() {
-			latestPrice := k.OracleKeeper.GetPrice(ctx, market.OracleType, market.OracleBase, market.OracleQuote)
+			var latestPrice *sdk.Dec
+
+			if market.OracleType == oracletypes.OracleType_Provider {
+				// oracleBase should be used for symbol and oracleQuote should be used for price for provider oracles
+				symbol := market.OracleBase
+				provider := market.OracleQuote
+				latestPrice = k.OracleKeeper.GetProviderPrice(ctx, provider, symbol)
+			} else {
+				latestPrice = k.OracleKeeper.GetPrice(ctx, market.OracleType, market.OracleBase, market.OracleQuote)
+			}
+
 			// defensive programming: should never happen since derivative markets should always have a valid oracle price
 			// nolint:all
 			if latestPrice == nil || latestPrice.IsNil() {
@@ -232,7 +243,7 @@ func getTotalMarginAndQuantity(positions []*types.DerivativePosition) (sdk.Dec, 
 	return totalMargin, totalQuantity
 }
 
-func getBinaryOptionsSocializedLossData(positions []*types.DerivativePosition, market MarketI) SocializedLossData {
+func getBinaryOptionsSocializedLossData(positions []*types.DerivativePosition, market DerivativeMarketI) SocializedLossData {
 	// liabilities =  ∑ (margin)
 	// assets = 10^oracleScaleFactor * ∑ (quantity) / 2
 	totalMarginLiabilities, totalQuantity := getTotalMarginAndQuantity(positions)
@@ -263,7 +274,7 @@ func getBinaryOptionsSocializedLossData(positions []*types.DerivativePosition, m
 
 func (k *Keeper) executeSocializedLoss(
 	ctx sdk.Context,
-	market MarketI,
+	market DerivativeMarketI,
 	marketFunding *types.PerpetualMarketFunding,
 	positions []*types.DerivativePosition,
 	settlementPrice sdk.Dec,
@@ -397,7 +408,7 @@ func (k *Keeper) executeSocializedLoss(
 
 func (k *Keeper) closeAllPositionsWithSettlePrice(
 	ctx sdk.Context,
-	market MarketI,
+	market DerivativeMarketI,
 	positions []*types.DerivativePosition,
 	settlementPrice sdk.Dec,
 	closingFeeRate sdk.Dec,
@@ -502,7 +513,7 @@ func (k *Keeper) closeAllPositionsWithSettlePrice(
 // SettleMarket settles derivative & binary options markets
 func (k *Keeper) SettleMarket(
 	ctx sdk.Context,
-	market MarketI,
+	market DerivativeMarketI,
 	closingFeeRate sdk.Dec,
 	settlementPrice *sdk.Dec,
 ) {

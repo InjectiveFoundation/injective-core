@@ -12,6 +12,10 @@
   },
   "actions": [
     {
+      "actionType": "priceOracle",
+      "spotsPrices": [10000000000000]
+    },
+    {
       "actionType": "spotLimitOrder",
       "price": 11,
       "quantity": 10,

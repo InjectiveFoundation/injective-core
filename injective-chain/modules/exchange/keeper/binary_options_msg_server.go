@@ -151,13 +151,17 @@ func (k BinaryOptionsMsgServer) CancelBinaryOptionsOrder(goCtx context.Context, 
 		sender       = sdk.MustAccAddressFromBech32(msg.Sender)
 		subaccountID = types.MustGetSubaccountIDOrDeriveFromNonce(sender, msg.SubaccountId)
 		marketID     = common.HexToHash(msg.MarketId)
-		orderHash    = common.HexToHash(msg.OrderHash)
+		identifier   = types.GetOrderIdentifier(msg.OrderHash, msg.Cid)
 	)
 
 	market := k.GetBinaryOptionsMarketByID(ctx, marketID)
-	if err := k.cancelDerivativeOrder(ctx, subaccountID, orderHash, market, marketID, msg.OrderMask); err != nil {
+
+	err := k.cancelDerivativeOrder(ctx, subaccountID, identifier, market, marketID, msg.OrderMask)
+
+	if err != nil {
 		return nil, err
 	}
+
 	return &types.MsgCancelBinaryOptionsOrderResponse{}, nil
 }
 
@@ -242,6 +246,7 @@ func (k BinaryOptionsMsgServer) BatchCancelBinaryOptionsOrders(goCtx context.Con
 			MarketId:     msg.Data[idx].MarketId,
 			SubaccountId: msg.Data[idx].SubaccountId,
 			OrderHash:    msg.Data[idx].OrderHash,
+			Cid:          msg.Data[idx].Cid,
 		}); err != nil {
 			metrics.ReportFuncError(k.svcTags)
 		} else {

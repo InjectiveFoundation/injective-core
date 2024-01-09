@@ -1,40 +1,42 @@
 # Overview
 
-It is highly recommended that you set up a local private network before joining a public network. This will help get familiar with the setup process, and provide an environment for testing. 
+It is highly recommended that you set up a local private network before joining a public network. This will help you get familiar with the setup process and provide an environment for testing. 
 
 **Private Network**
 
 - Join by setting up a standalone network locally
 
 **Public Network**
-- Join via public endpoints; or
+- Use the network via public endpoints; or
 - Join by running a node
 
-Anyone can setup their node with endpoints to communicate with the Injective blockchain, for convenience there are also some public endpoints available for querying the chain. These are recommended for development and testing purposes. For maximun control and reliability it's recommended to run your own node. 
+Anyone can set up their node with endpoints to communicate with the Injective blockchain. For convenience, there are also some public endpoints available to querying the chain. These are recommended for development and testing purposes. For maximum control and reliability, running your own node is recommended. 
 
-## Preperation For Running a Node
+## Preparation For Running a Node
 
-If you choose to run a node (either to set up the private network or join the public network), you have to set up the keyring. Also, you can also choose to intall Cosmovisor.
+If you choose to run a node (either to set up a private network or join the public network), you must set up the keyring. You can also choose to install [Cosmovisor](../../develop/tools/cosmovisor), which assists with chain upgrades for minimal downtime. 
 
 ## Interacting With The Node
 
-Once the node is up and running, there are a few ways to interact with a node, namely using the CLI (`injectived`), gPRC and REST endpoints
+Once the node is up and running, there are a few ways to interact with a node, namely using the gPRC endpoints, REST endpoints, or `injectived` CLI.
 
 ## Contents
 
 **Preparation**
 
 1. **[Set Up Keyring](./keyring.md)**
-1. **[Install Cosmosvisor](../../develop/tools/cosmovisor.md)**
+2. **[Install Cosmosvisor](../../develop/tools/cosmovisor.md)**
 
 
 **Join a Network**
 
-2. **[Set Up a Local Private Network](../RunNode/local.md)**
-3. **[Join via Public Endpoints](../../develop/public-endpoints.md)**
-4. **[Run Node and Join Testnet](../RunNode/testnet.md)**
-5. **[Run Node and Join Mainnet](../RunNode/mainnet.md)**
+1. **[Set Up a Local Private Network](../RunNode/local.md)**
+2. **[Join via Public Endpoints](../../develop/public-endpoints.md)**
+3. **[Run Node and Join Testnet](../RunNode/testnet.md)**
+4. **[Run Node and Join Mainnet](../RunNode/mainnet.md)**
+5. **[Upgrading Your Node](../RunNode/upgrade.md)**
+6. **[Running a Node for API Traders](../RunNode/api_traders.md)**
 
 **Interact with a Node**
 
-6. **[Interacting With The Node](../interact-node.md)**
+1. **[Interacting With a Node](../interact-node.md)**

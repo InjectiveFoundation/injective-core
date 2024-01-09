@@ -18,8 +18,9 @@ cp -r ../proto/injective proto/
 buf export buf.build/cosmos/cosmos-sdk:v0.47.0 --output=third_party
 buf export https://github.com/cosmos/ibc-go.git --exclude-imports --output=third_party
 buf export https://github.com/tendermint/tendermint.git --exclude-imports --output=third_party
-buf export https://github.com/CosmWasm/wasmd.git --exclude-imports --output=./third_party
+buf export buf.build/cosmwasm/wasmd:e65480838a1ded147ef53d35fa3bd9709a61226f --exclude-imports --output=./third_party
 buf export https://github.com/cosmos/ics23.git --exclude-imports --output=./third_party
+buf export https://github.com/cosmos/ibc-apps.git --exclude-imports --output=./third_party --path=middleware/packet-forward-middleware/proto && mv ./third_party/middleware/packet-forward-middleware/proto/packetforward ./third_party
 
 proto_dirs=$(find ./proto ./third_party -path -prune -o -name '*.proto' -print0 | xargs -0 -n1 dirname | sort | uniq)
 for dir in $proto_dirs; do

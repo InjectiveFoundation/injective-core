@@ -355,9 +355,10 @@ func (k *Keeper) IncrementSequenceAndEmitAllTransientOrderbookUpdates(
 		})
 	}
 
-	// nolint:errcheck // ignored on purpose
-	ctx.EventManager().EmitTypedEvent(&types.EventOrderbookUpdate{
+	event := &types.EventOrderbookUpdate{
 		SpotUpdates:       spotUpdates,
 		DerivativeUpdates: derivativeUpdates,
-	})
+	}
+	// nolint:errcheck // ignored on purpose
+	ctx.EventManager().EmitTypedEvent(event)
 }

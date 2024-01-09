@@ -18,7 +18,7 @@ import (
 // If shouldCancelReduceOnly is true, reduce-only orders are cancelled. If shouldCancelVanilla is true, vanilla orders are cancelled.
 func (k *Keeper) CancelAllRestingDerivativeLimitOrdersForSubaccount(
 	ctx sdk.Context,
-	market MarketI,
+	market DerivativeMarketI,
 	subaccountID common.Hash,
 	shouldCancelReduceOnly bool,
 	shouldCancelVanilla bool,
@@ -106,7 +106,7 @@ func (k *Keeper) CancelRestingDerivativeLimitOrdersForSubaccountUpToBalance(
 // CancelAllRestingDerivativeLimitOrders cancels all resting derivative limit orders for a given market.
 func (k *Keeper) CancelAllRestingDerivativeLimitOrders(
 	ctx sdk.Context,
-	market MarketI,
+	market DerivativeMarketI,
 ) {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
@@ -187,7 +187,7 @@ func (k *Keeper) IterateRestingDerivativeLimitOrderHashesBySubaccount(
 // CancelRestingDerivativeLimitOrder cancels the derivative limit order
 func (k *Keeper) CancelRestingDerivativeLimitOrder(
 	ctx sdk.Context,
-	market MarketI,
+	market DerivativeMarketI,
 	subaccountID common.Hash,
 	isBuy *bool,
 	orderHash common.Hash,
@@ -259,6 +259,9 @@ func (k *Keeper) SetNewDerivativeLimitOrderWithMetadata(
 	subaccountKey := types.GetLimitOrderIndexKey(marketID, isBuy, subaccountID, orderHash)
 	ordersIndexStore.Set(subaccountKey, priceKey)
 
+	// Set cid => orderHash
+	k.setCid(ctx, false, subaccountID, order.OrderInfo.Cid, marketID, order.IsBuy(), orderHash)
+
 	if metadata == nil {
 		metadata = k.GetSubaccountOrderbookMetadata(ctx, marketID, subaccountID, isBuy)
 	}
@@ -304,6 +307,7 @@ func (k *Keeper) UpdateDerivativeLimitOrdersFromFilledDeltas(
 			isBuy        = filledDelta.IsBuy()
 			price        = filledDelta.Price()
 			orderHash    = filledDelta.OrderHash()
+			cid          = filledDelta.Cid()
 		)
 		priceKey := types.GetLimitOrderByPriceKeyPrefix(marketID, isBuy, price, orderHash)
 		subaccountIndexKey := types.GetLimitOrderIndexKey(marketID, isBuy, subaccountID, orderHash)
@@ -336,6 +340,7 @@ func (k *Keeper) UpdateDerivativeLimitOrdersFromFilledDeltas(
 			if isResting {
 				ordersStore.Delete(priceKey)
 				ordersIndexStore.Delete(subaccountIndexKey)
+				k.deleteCid(ctx, false, subaccountID, filledDelta.Order.OrderInfo.Cid)
 			}
 
 			store.Delete(subaccountOrderKey)
@@ -347,9 +352,10 @@ func (k *Keeper) UpdateDerivativeLimitOrdersFromFilledDeltas(
 			}
 		} else {
 			orderBz := k.cdc.MustMarshal(filledDelta.Order)
-			// add transient order to index store since it's our first time seeing this order
+			// add transient order to index store and cid since it's our first time seeing this order
 			if !isResting {
 				ordersIndexStore.Set(subaccountIndexKey, priceKey)
+				k.setCid(ctx, false, subaccountID, cid, marketID, isBuy, orderHash)
 			}
 			ordersStore.Set(priceKey, orderBz)
 			subaccountOrder := &types.SubaccountOrder{
@@ -455,6 +461,9 @@ func (k *Keeper) DeleteDerivativeLimitOrder(
 
 	// delete from subaccount order store as well
 	store.Delete(subaccountOrderKey)
+
+	// delete cid
+	k.deleteCid(ctx, false, order.SubaccountID(), order.Cid())
 
 	// update orderbook metadata
 	k.DecrementOrderbookPriceLevelQuantity(ctx, marketID, isBuy, false, order.GetPrice(), order.GetFillable())

@@ -174,6 +174,7 @@ const config = {
         theme: lightCodeTheme,
         darkTheme: darkCodeTheme,
       },
+      
       algolia: {
         appId: "OSH0IFX0OC",
         apiKey: "b8c3930ea2d1ed063992787837d3567f",

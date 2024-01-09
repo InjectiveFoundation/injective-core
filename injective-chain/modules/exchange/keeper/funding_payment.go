@@ -4,8 +4,9 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 	"github.com/InjectiveLabs/metrics"
+
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 )
 
 func (k *Keeper) ProcessHourlyFundings(ctx sdk.Context) {
@@ -91,6 +92,11 @@ func capFundingRate(fundingRate, fundingRateCap sdk.Dec) sdk.Dec {
 	}
 
 	return fundingRate
+}
+
+// equivalent to floor(currTime / interval) * interval + interval
+func getNextIntervalTimestamp(currTime, interval int64) int64 {
+	return (currTime/interval)*interval + interval
 }
 
 func (k *Keeper) PersistPerpetualFundingInfo(ctx sdk.Context, perpetualVwapInfo DerivativeVwapInfo) {

@@ -41,9 +41,9 @@ func GetTxCmd() *cobra.Command {
 // NewCreateDenomCmd broadcast MsgCreateDenom
 func NewCreateDenomCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "create-denom [subdenom] [flags]",
+		Use:   "create-denom [subdenom] [name] [symbol] [flags]",
 		Short: "create a new denom from an account",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.ExactArgs(3),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clientCtx, err := client.GetClientTxContext(cmd)
 			if err != nil {
@@ -59,6 +59,8 @@ func NewCreateDenomCmd() *cobra.Command {
 			msg := types.NewMsgCreateDenom(
 				clientCtx.GetFromAddress().String(),
 				args[0],
+				args[1],
+				args[2],
 			)
 
 			return tx.GenerateOrBroadcastTxWithFactory(clientCtx, txf, msg)
@@ -209,9 +211,9 @@ func NewChangeAdminCmd() *cobra.Command {
 
 func NewSetDenomMetadataCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "set-denom-metadata [description] [base] [display] [name] [symbol] [denom-unit (json)]",
+		Use:   "set-denom-metadata [description] [base] [display] [name] [symbol] [uri] [uri-hash] [denom-unit (json)]",
 		Short: "Changes created denom's metadata. Must have admin authority to do so.",
-		Args:  cobra.ExactArgs(6),
+		Args:  cobra.ExactArgs(8),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clientCtx, err := client.GetClientTxContext(cmd)
 			if err != nil {
@@ -229,7 +231,9 @@ func NewSetDenomMetadataCmd() *cobra.Command {
 			display := args[2]
 			name := args[3]
 			symbol := args[4]
-			denomUnitsJSON := args[5]
+			uri := args[5]
+			uriHash := args[6]
+			denomUnitsJSON := args[7]
 
 			var denomUnits []*banktypes.DenomUnit
 			err = json.Unmarshal([]byte(denomUnitsJSON), &denomUnits)
@@ -246,6 +250,8 @@ func NewSetDenomMetadataCmd() *cobra.Command {
 					Display:     display,
 					Name:        name,
 					Symbol:      symbol,
+					URI:		 uri,
+					URIHash: 	 uriHash,
 				},
 			)
 

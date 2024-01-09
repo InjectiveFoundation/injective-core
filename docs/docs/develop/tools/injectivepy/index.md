@@ -1,5 +1,5 @@
 ---
-title: Injective PY Overview
+title: Injective Python Overview
 ---
 
 # Injective Python

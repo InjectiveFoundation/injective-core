@@ -32,7 +32,7 @@ type DerivativeLimitOrderbook struct {
 	currState *DerivativeOrderbookFills
 
 	k              *Keeper
-	market         MarketI
+	market         DerivativeMarketI
 	markPrice      sdk.Dec
 	marketID       common.Hash
 	funding        *types.PerpetualMarketFunding
@@ -43,7 +43,7 @@ func (k *Keeper) NewDerivativeLimitOrderbook(
 	ctx sdk.Context,
 	isBuy bool,
 	transientOrders []*types.DerivativeLimitOrder,
-	market MarketI,
+	market DerivativeMarketI,
 	markPrice sdk.Dec,
 	funding *types.PerpetualMarketFunding,
 	positionStates map[common.Hash]*PositionState,

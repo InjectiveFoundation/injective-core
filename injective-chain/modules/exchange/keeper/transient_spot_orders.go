@@ -43,6 +43,8 @@ func (k *Keeper) SetTransientSpotLimitOrder(
 	if !store.Has(key) {
 		store.Set(key, []byte{})
 	}
+
+	k.setCid(ctx, true, order.SubaccountID(), order.Cid(), marketID, isBuy, orderHash)
 }
 
 // GetAllTransientTraderSpotLimitOrders gets all the trimmed transient spot limit orders for a given subaccountID and marketID
@@ -203,6 +205,9 @@ func (k *Keeper) DeleteTransientSpotLimitOrder(
 
 	// delete from main spot order store
 	ordersStore.Delete(priceKey)
+
+	// delete cid
+	k.deleteCid(ctx, true, order.SubaccountID(), order.Cid())
 
 	// delete from subaccount index key store
 	subaccountKey := types.GetLimitOrderIndexKey(marketID, order.IsBuy(), order.SubaccountID(), order.Hash())
@@ -370,6 +375,8 @@ func (k *Keeper) SetTransientSpotMarketOrder(
 	key := types.GetOrderByPriceKeyPrefix(marketId, order.IsBuy(), marketOrder.OrderInfo.Price, orderHash)
 	bz := k.cdc.MustMarshal(marketOrder)
 	ordersStore.Set(key, bz)
+
+	k.setCid(ctx, true, order.SubaccountID(), order.Cid(), marketId, order.IsBuy(), orderHash)
 
 	// increment spot order markets total quantity indicator transient store
 	k.SetTransientMarketOrderIndicator(ctx, marketId, order.IsBuy())

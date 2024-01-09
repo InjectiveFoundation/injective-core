@@ -2,6 +2,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -104,7 +105,10 @@ func parseTradingRewardPointsUpdateProposalFlags(fs *pflag.FlagSet) (*exchangety
 }
 
 func parseBatchExchangeModificationsProposalFlags(fs *pflag.FlagSet) (*exchangetypes.BatchExchangeModificationProposal, error) {
-	proposalFile, _ := fs.GetString(govcli.FlagProposal)
+	proposalFile, err := fs.GetString(govcli.FlagProposal)
+	if err != nil {
+		return nil, err
+	}
 
 	bz, err := os.ReadFile(proposalFile)
 	if err != nil {
@@ -112,10 +116,14 @@ func parseBatchExchangeModificationsProposalFlags(fs *pflag.FlagSet) (*exchanget
 	}
 
 	content := exchangetypes.BatchExchangeModificationProposal{}
-	err = json.Unmarshal(bz, &content)
+	jsonDecoder := json.NewDecoder(bytes.NewReader(bz))
+	jsonDecoder.DisallowUnknownFields()
+
+	err = jsonDecoder.Decode(&content)
 	if err != nil {
 		return nil, err
 	}
+
 	return &content, nil
 }
 

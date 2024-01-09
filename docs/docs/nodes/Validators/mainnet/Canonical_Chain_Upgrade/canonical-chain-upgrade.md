@@ -89,10 +89,3 @@ Monday November 21th 2022
 Block number: [19761600](https://explorer.injective.network/block/19761600)
 
 Released Artifacts:  [Mainnet-10008-1668679102](https://github.com/InjectiveLabs/injective-chain-releases/releases/tag/v1.8.0-1668679102)
-
-### Version 10009
-Tuesday January 18th 2022
-
-Block number: [19761600](https://explorer.injective.network/block/24204000)
-
-Released Artifacts:  [Mainnet-10009-1673640888](https://github.com/InjectiveLabs/injective-chain-releases/releases/tag/v1.9.0-1673640888)

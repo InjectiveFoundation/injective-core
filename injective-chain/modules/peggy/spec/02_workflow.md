@@ -9,59 +9,64 @@ title: Workflow
 
 To recap, each operator is responsible for maintaining 3 secure processes:
 
-1. An Injective Chain Validator node (`injectived`) to sign blocks 
-1. A fully synced Ethereum full node
-1. The peggo orchestrator which runs: 
-   * An `Eth Signer`, which signs `Claims` with the `Operator`'s Ethereum keys and submits using [messages](./04_messages.md#Ethereum-Signer-messages). 
-   * An Ethereum `Oracle`, which observes events from Ethereum full nodes and relays them using [messages](./04_messages.md#Oracle-messages). 
-   * A `Relayer` which submits Valset updates and batch transactions to the Peggy contract on Ethereum
+1. An Injective Chain Validator node (`injectived`) to sign blocks
+2. A fully synced Ethereum full node
+3. The `peggo` orchestrator which runs:
+   * An `Eth Signer`, which signs new `Validator Set` updates and `Transaction Batch`es with the `Operator`'s Ethereum keys and submits using [messages](./04_messages.md#Ethereum-Signer-messages). 
+   * An `Oracle`, which observes events from Ethereum full nodes and relays them using [messages](./04_messages.md#Oracle-messages). 
+   * A `Relayer` which submits confirmed `Validator Set` updates and `Transaction Batch`es to the `Peggy Contract` on Ethereum
+   * A `Batch Requester` which observes (new) unbatched transactions on Injective and decides which of these to batch according to the cofigured `minBatchFeeUSD` value
 
-## Delegate Addresses
+Combined, these 3 entities accomplish 3 things:
+- Move assets from Ethereum to Injective
+- Move assets from Injective to Ethereum
+- Keep the `Peggy.sol` contract in sync with the active `Validator Set` on Injective 
 
-This document outlines the Ethereum signatures, all contract calls on [Peggy.sol](https://github.com/InjectiveLabs/peggo/blob/master/solidity/contracts/Peggy.sol) accept an array of signatures provided by a validator set stored in the contract.
+### Batch Requester
 
-Validators make these signatures with their `Delegate Ethereum address` this is an Ethereum address set by the validator using the [SetOrchestratorAddress](./04_messages.md#SetOrchestratorAddress) message. The validator signs over this Ethereum address, as well as an Injective Chain address for oracle operations and submits it to the chain to register these addresses for use in the Ethereum signer and oracle subsystems.
+The purpose of the `Batch Requester` is only in creating transaction batches (aggregated by specific token) on the Injective side.
+
+When a user wants to withdraw assets from Injective to Ethereum, they send a special transaction to Injective (`MsgSendToEth`) which is added to `Peggy Tx pool`. `Batch Requester` continually queries for unbatched transactions by asset type (token), determining whether it's worth to batch them. If for a specific asset a batch would satisfy `minBatchFeeUSD`, it informs `peggy` to bundle these transactions into a batch (`MsgRequestBatch`), so they could eventually be picked up by a `Relayer`.  
+
+### Eth Signer
+
+All contract calls on [Peggy.sol](https://github.com/InjectiveLabs/peggo/blob/master/solidity/contracts/Peggy.sol) accept an array of signatures provided by a validator set stored in the contract.
+
+Validators make these signatures with their `Delegate Ethereum address`: this is an Ethereum address set by the validator using the [SetOrchestratorAddress](./04_messages.md#SetOrchestratorAddress) message. The validator signs over this Ethereum address, as well as an Injective Chain address and submits it to the Injective chain to register these addresses for use in the signing flow (explained below) and `Oracle` subsystem.
 
 The `Delegate Ethereum address` then represents that validator on the Ethereum blockchain and will be added as a signing member of the multisig with a weighted voting power as close as possible to the Injective Chain voting power.
 
-## Signing flow
+The `Eth Signer` plays a crucial role in moving assets from Injective to Ethereum as well as keeping the Validator Set on `Peggy.sol` updated.
 
-The signing flow works as follows.
+Whenever there is an unconfirmed `Validator Set` update or unconfirmed `Transaction Batch` on Injective, this process fetches it from the `peggy` module, signs it with the provided Ethereum address and sends a `MsgValsetConfirm`/`MsgBatchConfirm` back to `peggy`. Failure to do in a certain amount of time will result in validator slashing. In other words, this process **must be running at all times**.  
 
-1. The Peggy module produces a `ValidatorSetRequest`or `BatchRequest`. These requests are placed into the store and act as coordination points for signatures
-1. `Ethereum Signer` processes query these requests and perform a signature with the `Delegate Ethereum Address`
-1. The `Ethereum Signer` submits the signature as a [transaction](./04_messages.md#Ethereum-Signer-Messages)
-1. The Peggy module verifies that the signature is made with the correct key and over the correct data before storing it
-1. `Relayers` now query these signatures and assemble them into an Ethereum contract call to submit to [Peggy.sol](https://github.com/InjectiveLabs/peggo/blob/master/solidity/contracts/Peggy.sol)
-1. The message is submitted and executed on the Ethereum chain
-
-## Ethereum to Injective Oracle
+### Oracle
 
 All `Operators` run an `Oracle` binary. This separate process monitors an Ethereum node for new events involving the `Peggy Contract` on the Ethereum chain. Every event that `Oracle` monitors has an event nonce. This nonce is a unique coordinating value for a `Claim`. Since every event that may need to be observed by the `Oracle` has a unique event nonce `Claims` can always refer to a unique event by specifying the event nonce.
 
-- An `Oracle` observes an event on the Ethereum chain, it packages this event into a `Claim` and submits this claim to the Injective Chain as an [Oracle message](./04_messages.md#Oracle-messages)
-- Within the Peggy module this `Claim` either creates or is added to an existing `Attestation` that matches the details of the `Claim` once more than 66% of the active `Validator` set has made a `Claim` that matches the given `Attestation` the `Attestation` is executed. This may mint tokens, burn tokens, or whatever is appropriate for this particular event.
-- In the event that the 2/3 of the validators can not agree on a single `Attestation`, the oracle is halted. This means no new events will be relayed from Ethereum until some of the validators change their votes. There is no slashing condition for this, with reasoning outlined in the [slashing spec](./05_slashing.md)
+1. An `Oracle` observes an event on the Ethereum chain, it packages this event into a `Claim` and submits it to the Injective Chain as an [Oracle message](./04_messages.md#Oracle-messages)
+2. Within the `peggy` module this `Claim` either creates or is added to an existing `Attestation` that matches the details of the `Claim`. Once more than 66% of the active `Validator` set has made a `Claim` that matches the given `Attestation` the `Attestation` is executed. This may mint tokens, burn tokens, or whatever is appropriate for this particular event. 
+3. In the event that the 2/3 of the validators can not agree on a single `Attestation`, the oracle is halted. This means no new events will be relayed from Ethereum until some of the validators change their votes. There is no slashing condition for this, with reasoning outlined in the [slashing spec](./05_slashing.md)
 
-## Relaying rewards
+### Relayer
 
-Relaying rewards cover all messages that need to be submitted to Ethereum from Injective. This includes Validator set updates and transaction batches. Keep in mind that these messages cost a variable amount of money based on wildly changing Ethereum gas prices and it's not unreasonable for a single batch to cost over a million gas.
+Relayers cover all messages that need to be submitted to Ethereum from Injective. This includes `Validator Set` updates and `Transaction Batch`es that the validators have confirmed on. Keep in mind that these messages cost a variable amount of money based on wildly changing Ethereum gas prices, so it's not unreasonable for a single batch to cost over a million gas.
 
 A major design decision for our relayer rewards was to always issue them on the Ethereum chain. This has downsides, namely some strange behavior in the case of validator set update rewards.
 
 But the upsides are undeniable, because the Ethereum messages pay `msg.sender` any existing bot in the Ethereum ecosystem will pick them up and try to submit them. This makes the relaying market much more competitive and less prone to cabal like behavior.
 
-### Types of Assets
+## Types of Assets
 
-#### Native Ethereum assets
+### Native Ethereum assets
 
-Any asset originating from Ethereum which implements the ERC-20 standard can be transferred from Ethereum to Injective by calling the `sendToCosmos` function on the [Peggy.sol](https://github.com/InjectiveLabs/peggo/blob/master/solidity/contracts/Peggy.sol) contract which transfers tokens from the sender's balance to the Peggy contract. 
+Any asset originating from Ethereum which implements the ERC-20 standard can be transferred from Ethereum to Injective by calling the `sendToInjective` function on the [Peggy.sol](https://github.com/InjectiveLabs/peggo/blob/master/solidity/contracts/Peggy.sol) contract which transfers tokens from the sender's balance to the Peggy contract. 
 
-The validators all run their oracle processes which submit MsgDepositClaim messages describing the deposit they have observed. Once more than 66% of all voting power has submitted a claim for this specific deposit representative tokens are minted and issued to the Injective Chain address that the sender requested.
+The validators all run their oracle processes which submit `MsgDepositClaim` messages describing the deposit they have observed. Once more than 66% of all voting power has submitted a claim for this specific deposit representative tokens are minted and issued to the Injective Chain address that the sender requested.
 
-The validators off-chain relayer process observe this event and submit `MsgDepositClaim` messages describing the deposit. Once more than 66% of all voting power has submitted a claim for this specific deposit, representative tokens are minted and issued to the Injective Chain address that the depositor specified. These representative tokens have a denomination prefix of `peggy` concatenated with the ERC-20 token hex address, e.g. `peggy0xdac17f958d2ee523a2206206994597c13d831ec7`. 
+These representative tokens have a denomination prefix of `peggy` concatenated with the ERC-20 token hex address, e.g. `peggy0xdac17f958d2ee523a2206206994597c13d831ec7`.
 
-#### Native Cosmos SDK assets
+### Native Cosmos SDK assets
 
 An asset native to a Cosmos SDK chain (e.g. ATOM) first must be represented on Ethereum before it's possible to bridge it. To do so,  the [Peggy contract](https://github.com/InjectiveLabs/peggo/blob/master/solidity/contracts/Peggy.sol) allows anyone to create a new ERC-20 token representing a Cosmos asset by calling the `deployERC20` function. 
 
@@ -102,7 +107,7 @@ A validator set is a series of Ethereum addresses with attached normalized power
 The Peggy contract then validates the data, updates the valset checkpoint, transfers valset rewards to sender and emits a `ValsetUpdateEvent`.
 4. **Acknowledging the `ValsetUpdateEvent` on Injective:** Orchestrators witnesses the `ValsetUpdateEvent` on Ethereum, and sends a `MsgValsetUpdatedClaim` which informs the Peggy module that a given Valset has been updated on Ethereum. 
 5. **Pruning Valsets on Injective:** Once a  2/3 majority of validators send their `MsgValsetUpdatedClaim` message for a given `ValsetUpdateEvent`, all the previous valsets are pruned from the peggy module state.
-6. **Valset Slashing:** Validators are responsible for signing and confirming the valsets as described in Step 2 and are subject to slashing for not doing so. Read more [valset slashing](./05_slashing.md) 
+6. **Valset Slashing:** Validators are responsible for signing and confirming the valsets as described in `Eth Signer` and are subject to slashing for not doing so. Read more [valset slashing](./05_slashing.md) 
 
 ----
 

@@ -110,29 +110,37 @@ func (k *Keeper) createSpotLimitOrder(
 		}
 	}
 
+	// 3. Reject if order does not comply to the market's min tick size
 	if err := order.CheckTickSize(market.MinPriceTickSize, market.MinQuantityTickSize); err != nil {
 		metrics.ReportFuncError(k.svcTags)
 		return orderHash, err
 	}
 
-	if order.OrderType.IsPostOnly() && k.SpotOrderCrossesTopOfBook(ctx, order) {
+	// 4. Check for post-only orders (or if in post-only mode) if order crosses tob
+	isPostOnlyMode := k.IsPostOnlyMode(ctx)
+	if (order.OrderType.IsPostOnly() || isPostOnlyMode) && k.SpotOrderCrossesTopOfBook(ctx, order) {
 		metrics.ReportFuncError(k.svcTags)
 		return orderHash, types.ErrExceedsTopOfBookPrice
 	}
 
-	// 3. Reject if the subaccount's available deposits does not have at least the required funds for the trade
+	// 5. Reject if the subaccount's available deposits does not have at least the required funds for the trade
 	balanceHoldIncrement, marginDenom := order.GetBalanceHoldAndMarginDenom(market)
 
-	// 4. Decrement the available balance or bank by the funds amount needed to fund the order
+	// 6. Reject order if cid is already used
+	if k.existsCid(ctx, subaccountID, order.OrderInfo.Cid) {
+		return orderHash, types.ErrClientOrderIdAlreadyExists
+	}
+
+	// 7. Decrement the available balance or bank by the funds amount needed to fund the order
 	if err := k.chargeAccount(ctx, subaccountID, marginDenom, balanceHoldIncrement); err != nil {
 		return orderHash, err
 	}
 
-	// 5. If Post Only, add the order to the resting orderbook
+	// 8. If Post Only, add the order to the resting orderbook
 	//    Otherwise store the order in the transient limit order store and transient market indicator store
 	spotLimitOrder := order.GetNewSpotLimitOrder(sender, orderHash)
 
-	// 4. store the order in the conditional spot limit order store
+	// 9a. store the order in the conditional spot limit order store
 	if order.IsConditional() {
 		markPrice := k.GetSpotMidPriceOrBestPrice(ctx, marketID)
 		if markPrice == nil {
@@ -142,6 +150,7 @@ func (k *Keeper) createSpotLimitOrder(
 		return orderHash, nil
 	}
 
+	// 9b. store the order in the spot limit order store or transient spot limit order store
 	if order.OrderType.IsPostOnly() {
 		k.SetNewSpotLimitOrder(ctx, spotLimitOrder, marketID, spotLimitOrder.IsBuy(), spotLimitOrder.Hash())
 
@@ -155,7 +164,7 @@ func (k *Keeper) createSpotLimitOrder(
 			sellOrders = append(sellOrders, spotLimitOrder)
 		}
 
-		// nolint:errcheck //ignored on purpose
+		// nolint:errcheck // ignored on purpose
 		ctx.EventManager().EmitTypedEvent(&types.EventNewSpotOrders{
 			MarketId:   marketID.Hex(),
 			BuyOrders:  buyOrders,
@@ -173,6 +182,10 @@ func (k SpotMsgServer) CreateSpotMarketOrder(goCtx context.Context, msg *types.M
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
+
+	if k.IsPostOnlyMode(ctx) {
+		return nil, sdkerrors.Wrapf(types.ErrPostOnlyMode, fmt.Sprintf("cannot create market orders in post only mode until height %d", k.GetParams(ctx).PostOnlyModeHeightThreshold))
+	}
 
 	var (
 		marketID     = common.HexToHash(msg.Order.MarketId)
@@ -196,7 +209,12 @@ func (k SpotMsgServer) CreateSpotMarketOrder(goCtx context.Context, msg *types.M
 		return nil, err
 	}
 
-	// 1b. Check access level if order type is atomic
+	// 1b. Reject order if client order id is already used
+	if k.existsCid(ctx, subaccountID, msg.Order.OrderInfo.Cid) {
+		return nil, types.ErrClientOrderIdAlreadyExists
+	}
+
+	// 1c. Check access level if order type is atomic
 	isAtomic := msg.Order.OrderType.IsAtomic()
 	if isAtomic {
 		err := k.ensureValidAccessLevelForAtomicExecution(ctx, sender)
@@ -207,6 +225,7 @@ func (k SpotMsgServer) CreateSpotMarketOrder(goCtx context.Context, msg *types.M
 
 	// 2. Check and increment Subaccount Nonce, Compute Order Hash
 	subaccountNonce := k.IncrementSubaccountTradeNonce(ctx, subaccountID)
+
 	orderHash, err := msg.Order.ComputeOrderHash(subaccountNonce.Nonce)
 	if err != nil {
 		metrics.ReportFuncError(k.svcTags)
@@ -292,7 +311,7 @@ func (k SpotMsgServer) BatchCreateSpotLimitOrders(goCtx context.Context, msg *ty
 		}
 	}
 	if !orderFailEvent.IsEmpty() {
-		// nolint:errcheck //ignored on purpose
+		// nolint:errcheck // ignored on purpose
 		ctx.EventManager().EmitTypedEvent(&orderFailEvent)
 	}
 
@@ -310,16 +329,33 @@ func (k SpotMsgServer) CancelSpotOrder(goCtx context.Context, msg *types.MsgCanc
 		sender       = sdk.MustAccAddressFromBech32(msg.Sender)
 		subaccountID = types.MustGetSubaccountIDOrDeriveFromNonce(sender, msg.SubaccountId)
 		marketID     = common.HexToHash(msg.MarketId)
-		orderHash    = common.HexToHash(msg.OrderHash)
+		identifier   = types.GetOrderIdentifier(msg.OrderHash, msg.Cid)
 	)
 
 	// Reject if spot market id does not reference an active, suspended or demolished spot market
 	market := k.GetSpotMarketByID(ctx, marketID)
-	err := k.cancelSpotLimitOrder(ctx, subaccountID, orderHash, market, marketID)
+
+	err := k.cancelSpotLimitOrder(ctx, subaccountID, identifier, market, marketID)
+
 	return &types.MsgCancelSpotOrderResponse{}, err
 }
 
 func (k *Keeper) cancelSpotLimitOrder(
+	ctx sdk.Context,
+	subaccountID common.Hash,
+	identifier any, // either order hash or cid
+	market *types.SpotMarket,
+	marketID common.Hash,
+) error {
+	orderHash, err := k.getOrderHashFromIdentifier(ctx, subaccountID, identifier)
+	if err != nil {
+		return err
+	}
+
+	return k.cancelSpotLimitOrderByOrderHash(ctx, subaccountID, orderHash, market, marketID)
+}
+
+func (k *Keeper) cancelSpotLimitOrderByOrderHash(
 	ctx sdk.Context,
 	subaccountID common.Hash,
 	orderHash common.Hash,
@@ -362,6 +398,7 @@ func (k SpotMsgServer) BatchCancelSpotOrders(goCtx context.Context, msg *types.M
 			MarketId:     msg.Data[idx].MarketId,
 			SubaccountId: msg.Data[idx].SubaccountId,
 			OrderHash:    msg.Data[idx].OrderHash,
+			Cid:          msg.Data[idx].Cid,
 		}); err != nil {
 			metrics.ReportFuncError(k.svcTags)
 		} else {

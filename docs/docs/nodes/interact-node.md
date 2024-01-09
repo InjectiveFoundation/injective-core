@@ -12,19 +12,18 @@ There are multiple ways to interact with a node: using the CLI, using gRPC or us
 
 ## Option 1: Using the CLI
 
-You can use the CLI (aka `injectived`) to interact with a node. If you are interact with your a node in your local private network, but sure the node is running in one terminal before you use the CLI.
+You can use the `injectived` CLI to interact with a node. If you are interacting with a node in your local private network, make sure the node is running in the terminal before you use the CLI.
 
-For more detilas of how to use `injectived`, go to [Using `injectived`](../develop/tools/injectived/02_using.md).
+For more details on how to use `injectived`, go to [Using `injectived`](../develop/tools/injectived/02_using.md).
 
 ## Option 2: Using gRPC
 
-The Protobuf ecosystem developed tools for different use cases, including code-generation from `*.proto` files into various languages. These tools allow the building of clients easily. Often, the client connection (i.e. the transport) can be plugged and replaced very easily. Let's explore one of the most popular transport: gRPC.
+The Protobuf ecosystem developed tools for different use cases, including code-generation from `*.proto` files into various languages. These tools allow clients to be built easily. Often, the client connection (i.e. the transport) can be plugged and replaced very easily. Let's explore a popular transport method, gRPC.
 
-Since the code generation library largely depends on your own tech stack, we will only present three alternatives:
+Since the code generation library largely depends on your own tech stack, we will only present two alternatives:
 
 - `grpcurl` for generic debugging and testing
-- programmatically via Go
-- CosmJS for JavaScript/TypeScript developers
+- programmatically via Go, Python, or TS
 
 ### grpcurl
 
@@ -72,7 +71,11 @@ grpcurl \
 
 Assuming the state at that block has not yet been pruned by the node, this query should return a non-empty response.
 
-### Programmatically via Go
+### Programmatically
+
+:::tip note
+The following examples are in Go, but the [Python](../../../develop/tools/injectivepy/) and [TS](../../../develop/tools/injectivets/) SDKs can also be used to programatically interact with a node/the Injective chain.
+:::
 
 The following snippet shows how to query the state using gRPC inside a Go program. The idea is to create a gRPC connection, and use the Protobuf-generated client code to query the gRPC server.
 
@@ -152,9 +155,10 @@ func queryState() error {
 }
 ```
 
-### CosmJS
+[//]: # (### CosmJS)
 
-CosmJS documentation can be found at [https://cosmos.github.io/cosmjs](https://cosmos.github.io/cosmjs). As of January 2021, CosmJS documentation is still work in progress.
+[//]: # ()
+[//]: # (CosmJS documentation can be found at [https://cosmos.github.io/cosmjs]&#40;https://cosmos.github.io/cosmjs&#41;. As of January 2021, CosmJS documentation is still work in progress.)
 
 ## Option 3: Using the REST Endpoints
 
@@ -193,6 +197,6 @@ Assuming the state at that block has not yet been pruned by the node, this query
 
 [CORS policies](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS) are not enabled by default to help with security. If you would like to use the rest-server in a public environment we recommend you provide a reverse proxy, this can be done with [nginx](https://www.nginx.com/). For testing and development purposes there is an `enabled-unsafe-cors` field inside `app.toml`.
 
-## Next {hide}
+## Sending Transactions
 
-Sending transactions using gRPC and REST requires some additional steps: generating the transaction, signing it, and finally broadcasting it. Read about [Creating transactions](../develop/tech-concepts/creating_transactions). 
+Sending transactions using gRPC and REST requires some additional steps: generating the transaction, signing it, and finally broadcasting it. Read more about creating transactions in [the Injective TS Repo Wiki](https://github.com/InjectiveLabs/injective-ts/wiki/03Transactions).

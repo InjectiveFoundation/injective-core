@@ -16,7 +16,7 @@ deps:
   - remote: buf.build
     owner: cosmwasm
     repository: wasmd
-    commit: a1300d1deb89456ea5c792cfd6130ce4
+    commit: 6f4f25f158344123aaf16b2019d36ed4
   - remote: buf.build
     owner: googleapis
     repository: googleapis

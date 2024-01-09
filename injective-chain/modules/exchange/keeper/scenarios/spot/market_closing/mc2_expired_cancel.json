@@ -37,8 +37,7 @@
       "orderId": "sell"
     },
     {
-      "actionType": "endblocker",
-      "actionId": "error"
+      "actionType": "endblocker"
     }
   ]
 }

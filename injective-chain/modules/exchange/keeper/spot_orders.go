@@ -39,6 +39,9 @@ func (k *Keeper) SetNewSpotLimitOrder(
 
 	// update the orderbook metadata
 	k.IncrementOrderbookPriceLevelQuantity(ctx, marketID, isBuy, true, order.GetPrice(), order.GetFillable())
+
+	// set the cid
+	k.setCid(ctx, false, order.SubaccountID(), order.Cid(), marketID, isBuy, orderHash)
 }
 
 // SetConditionalSpotMarketOrder stores conditional order in a store
@@ -136,7 +139,7 @@ func (k *Keeper) CancelAllRestingLimitOrdersFromSpotMarket(
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	cancelFunc := func(order *types.SpotLimitOrder) bool {
-		err := k.cancelSpotLimitOrder(ctx, order.SubaccountID(), order.Hash(), market, marketID)
+		err := k.cancelSpotLimitOrderByOrderHash(ctx, order.SubaccountID(), order.Hash(), market, marketID)
 		return err != nil
 	}
 
@@ -360,14 +363,14 @@ func (k *Keeper) CancelSpotLimitOrder(
 	// 3. Delete the order state from ordersStore and ordersIndexStore
 	k.DeleteSpotLimitOrder(ctx, marketID, isBuy, order)
 
-	// nolint:errcheck //ignored on purpose
+	// nolint:errcheck // ignored on purpose
 	ctx.EventManager().EmitTypedEvent(&types.EventCancelSpotOrder{
 		MarketId: marketID.Hex(),
 		Order:    *order,
 	})
 }
 
-// UpdateSpotLimitOrder updates SpotLimitOrder and order index in keeper.
+// UpdateSpotLimitOrder updates SpotLimitOrder, order index and cid in keeper.
 func (k *Keeper) UpdateSpotLimitOrder(
 	ctx sdk.Context,
 	marketID common.Hash,
@@ -376,25 +379,24 @@ func (k *Keeper) UpdateSpotLimitOrder(
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	store := k.getStore(ctx)
-	ordersStore := prefix.NewStore(store, types.SpotLimitOrdersPrefix)
-	ordersIndexStore := prefix.NewStore(store, types.SpotLimitOrdersIndexPrefix)
 
 	isBuy := orderDelta.Order.IsBuy()
-	price := orderDelta.Order.GetPrice()
 
-	priceKey := types.GetLimitOrderByPriceKeyPrefix(marketID, isBuy, price, orderDelta.Order.Hash())
-	subaccountIndexKey := types.GetLimitOrderIndexKey(marketID, isBuy, orderDelta.Order.SubaccountID(), orderDelta.Order.Hash())
+	// decrement orderbook metadata by the filled amount
+	k.DecrementOrderbookPriceLevelQuantity(ctx, marketID, isBuy, true, orderDelta.Order.GetPrice(), orderDelta.FillQuantity)
 
 	if orderDelta.Order.Fillable.IsZero() {
-		ordersStore.Delete(priceKey)
-		ordersIndexStore.Delete(subaccountIndexKey)
-	} else {
-		orderBz := k.cdc.MustMarshal(orderDelta.Order)
-		ordersStore.Set(priceKey, orderBz)
+		k.DeleteSpotLimitOrder(ctx, marketID, isBuy, orderDelta.Order)
+		return
 	}
 
-	// update orderbook metadata
-	k.DecrementOrderbookPriceLevelQuantity(ctx, marketID, isBuy, true, price, orderDelta.FillQuantity)
+	ordersStore := prefix.NewStore(store, types.SpotLimitOrdersPrefix)
+	price := orderDelta.Order.GetPrice()
+	priceKey := types.GetLimitOrderByPriceKeyPrefix(marketID, isBuy, price, orderDelta.Order.Hash())
+
+	orderBz := k.cdc.MustMarshal(orderDelta.Order)
+	ordersStore.Set(priceKey, orderBz)
+
 }
 
 // GetSpotLimitOrderByPrice returns active spot limit Order from hash and price.
@@ -485,6 +487,9 @@ func (k *Keeper) DeleteSpotLimitOrder(
 
 	// delete from subaccount index key store
 	ordersIndexStore.Delete(subaccountKey)
+
+	// delete cid
+	k.deleteCid(ctx, false, order.SubaccountID(), order.Cid())
 
 	// update orderbook metadata
 	k.DecrementOrderbookPriceLevelQuantity(ctx, marketID, isBuy, true, order.GetPrice(), order.GetFillable())

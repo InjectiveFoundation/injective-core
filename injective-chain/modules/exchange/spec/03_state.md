@@ -570,6 +570,8 @@ enum OrderType {
   TAKE_SELL = 6 [(gogoproto.enumvalue_customname) = "TAKE_SELL"];
   BUY_PO = 7 [(gogoproto.enumvalue_customname) = "BUY_PO"];
   SELL_PO = 8 [(gogoproto.enumvalue_customname) = "SELL_PO"];
+  BUY_ATOMIC = 9 [ (gogoproto.enumvalue_customname) = "BUY_ATOMIC" ];
+  SELL_ATOMIC = 10 [ (gogoproto.enumvalue_customname) = "SELL_ATOMIC" ];
 }
 
 enum MarketStatus {

@@ -7,22 +7,18 @@ import (
 
 	"github.com/cosmos/cosmos-sdk/client"
 
+	"github.com/InjectiveLabs/injective-core/cli"
 	cliflags "github.com/InjectiveLabs/injective-core/cli/flags"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/types"
 )
 
 // GetQueryCmd returns the parent command for all modules/wasmx CLi query commands.
 func GetQueryCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:                        types.ModuleName,
-		Short:                      "Querying commands for the wasmx module",
-		DisableFlagParsing:         true,
-		SuggestionsMinimumDistance: 2,
-		RunE:                       client.ValidateCmd,
-	}
+	cmd := cli.ModuleRootCommand(types.ModuleName, true)
 
 	cmd.AddCommand(
 		GetWasmxParamsCmd(),
+		GetContractInfoCmd(),
 	)
 	return cmd
 }
@@ -53,5 +49,16 @@ func GetWasmxParamsCmd() *cobra.Command {
 	}
 
 	cliflags.AddQueryFlagsToCmd(cmd)
+	return cmd
+}
+
+func GetContractInfoCmd() *cobra.Command {
+	cmd := cli.QueryCmd(
+		"contract-info <contract-address>",
+		"Gets contract ingo",
+		types.NewQueryClient,
+		&types.QueryContractRegistrationInfoRequest{}, nil, nil,
+	)
+
 	return cmd
 }

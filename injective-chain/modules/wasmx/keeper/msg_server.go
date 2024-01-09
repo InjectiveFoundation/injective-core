@@ -123,21 +123,6 @@ func (m msgServer) DeactivateRegistryContract(goCtx context.Context, msg *types.
 	return &types.MsgDeactivateContractResponse{}, nil
 }
 
-func isAllowed(accessConfig wasmtypes.AccessConfig, actor sdk.AccAddress) bool {
-	switch accessConfig.Permission {
-	case wasmtypes.AccessTypeOnlyAddress:
-		return accessConfig.Address == actor.String()
-	case wasmtypes.AccessTypeAnyOfAddresses:
-		for _, v := range accessConfig.Addresses {
-			if v == actor.String() {
-				return true
-			}
-		}
-		return false
-	}
-	return false
-}
-
 func (m msgServer) RegisterContract(goCtx context.Context, msg *types.MsgRegisterContract) (*types.MsgRegisterContractResponse, error) {
 	ctx := sdk.UnwrapSDKContext(goCtx)
 	params := m.Keeper.GetParams(ctx)
@@ -145,7 +130,7 @@ func (m msgServer) RegisterContract(goCtx context.Context, msg *types.MsgRegiste
 	sender := sdk.MustAccAddressFromBech32(msg.Sender)
 
 	accessConfig := m.wasmViewKeeper.GetParams(ctx).CodeUploadAccess
-	isRegistrationAllowed := isAllowed(accessConfig, sender)
+	isRegistrationAllowed := types.IsAllowed(accessConfig, sender)
 
 	if !isRegistrationAllowed {
 		return nil, sdkerrors.ErrUnauthorized.Wrap("Unauthorized to register contract")

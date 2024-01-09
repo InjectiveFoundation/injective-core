@@ -40,7 +40,7 @@ func (k msgServer) UpdateParams(c context.Context, msg *types.MsgUpdateParams) (
 func (k msgServer) CreateDenom(goCtx context.Context, msg *types.MsgCreateDenom) (*types.MsgCreateDenomResponse, error) {
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
-	denom, err := k.createDenom(ctx, msg.Sender, msg.Subdenom)
+	denom, err := k.createDenom(ctx, msg.Sender, msg.Subdenom, msg.GetName(), msg.GetSymbol())
 	if err != nil {
 		return nil, err
 	}
@@ -91,22 +91,13 @@ func (k msgServer) Mint(goCtx context.Context, msg *types.MsgMint) (*types.MsgMi
 func (k msgServer) Burn(goCtx context.Context, msg *types.MsgBurn) (*types.MsgBurnResponse, error) {
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
-	authorityMetadata, err := k.GetAuthorityMetadata(ctx, msg.Amount.GetDenom())
-	if err != nil {
-		return nil, err
-	}
-
-	if msg.Sender != authorityMetadata.GetAdmin() {
-		return nil, types.ErrUnauthorized
-	}
-
-	err = k.burnFrom(ctx, msg.Amount, msg.Sender)
+	err := k.burnFrom(ctx, msg.Amount, msg.Sender)
 	if err != nil {
 		return nil, err
 	}
 
 	// nolint:errcheck //ignored on purpose
-	ctx.EventManager().EmitTypedEvent(&types.EventBurnTFDenom{
+	ctx.EventManager().EmitTypedEvent(&types.EventBurnDenom{
 		BurnerAddress: getSdkAddressStringOrEmpty(msg.Sender),
 		Amount:        msg.Amount,
 	})

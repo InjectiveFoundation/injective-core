@@ -2,6 +2,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -43,15 +44,9 @@ const (
 
 // NewTxCmd returns a root CLI command handler for certain modules/wasmx transaction commands.
 func NewTxCmd() *cobra.Command {
-	txCmd := &cobra.Command{
-		Use:                        types.ModuleName,
-		Short:                      "Wasmx transactions subcommands",
-		DisableFlagParsing:         true,
-		SuggestionsMinimumDistance: 2,
-		RunE:                       client.ValidateCmd,
-	}
+	cmd := cli.ModuleRootCommand(types.ModuleName, false)
 
-	txCmd.AddCommand(
+	cmd.AddCommand(
 		NewContractRegistrationRequestProposalTxCmd(),
 		NewContractDeregistrationRequestProposalTxCmd(),
 		NewBatchStoreCodeProposalTxCmd(),
@@ -61,7 +56,7 @@ func NewTxCmd() *cobra.Command {
 		ExecuteContractCompatCmd(),
 		RegisterContractTxCmd(),
 	)
-	return txCmd
+	return cmd
 }
 
 func NewContractRegistrationRequestProposalTxCmd() *cobra.Command {
@@ -411,12 +406,12 @@ $ %s tx xwasm "batch-store-code-proposal \
 
 func ContractParamsUpdateTxCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "contract-params-update [flags]",
-		Args:  cobra.ExactArgs(0),
+		Use:   "contract-params-update <contract-address> [flags]",
+		Args:  cobra.ExactArgs(1),
 		Short: "Update registered contract params",
 		Long: `Update registered contract params (gas price, gas limit, admin address).
 			Example:
-			$ %s tx xwasm contract-params-update --contract-gas-limit 20000 --contract-gas-price "1000000000" --contract-address "inj14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9swvf72y" --contract-admin="inj1p7z8p649xspcey7wp5e4leqf7wa39kjjj6wja8" --from mykey
+			$ %s tx xwasm contract-params-update inj14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9swvf72y --contract-gas-limit 20000 --contract-gas-price "1000000000" --contract-admin="inj1p7z8p649xspcey7wp5e4leqf7wa39kjjj6wja8" --from mykey
 		`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clientCtx, err := client.GetClientTxContext(cmd)
@@ -424,34 +419,50 @@ func ContractParamsUpdateTxCmd() *cobra.Command {
 				return err
 			}
 
-			contractAddrStr, err := cmd.Flags().GetString(FlagContractAddress)
-			if err != nil {
-				return nil
+			contractAddrStr := args[0]
+
+			queryClient := types.NewQueryClient(clientCtx)
+
+			req := &types.QueryContractRegistrationInfoRequest{
+				ContractAddress: contractAddrStr,
 			}
 
-			contractGasLimit, err := cmd.Flags().GetUint64(FlagContractGasLimit)
+			res, err := queryClient.ContractRegistrationInfo(context.Background(), req)
 			if err != nil {
-				return nil
+				return err
 			}
 
-			contractAdminStr, err := cmd.Flags().GetString(FlagContractAdmin)
-			if err != nil {
-				contractAdminStr = ""
-			}
-			contractGasPrice, err := cmd.Flags().GetUint64(FlagContractGasPrice)
-			if err != nil {
-				return nil
+			if res.Contract == nil {
+				return fmt.Errorf("contract with address %s not found", contractAddrStr)
 			}
 
+			contract := res.Contract
 			fromAddress := clientCtx.GetFromAddress().String()
 
 			msg := &types.MsgUpdateContract{
 				Sender:          fromAddress,
 				ContractAddress: contractAddrStr,
-				GasLimit:        contractGasLimit,
-				GasPrice:        contractGasPrice,
-				AdminAddress:    contractAdminStr,
+				GasLimit:        contract.GasLimit,
+				GasPrice:        contract.GasPrice,
+				AdminAddress:    contract.AdminAddress,
 			}
+
+			cmd.Flags().Visit(func(f *pflag.Flag) {
+				switch f.Name {
+				case FlagContractGasLimit:
+					if contractGasLimit, err := cmd.Flags().GetUint64(FlagContractGasLimit); err == nil {
+						msg.GasLimit = contractGasLimit
+					}
+				case FlagContractAdmin:
+					if contractAdminStr, err := cmd.Flags().GetString(FlagContractAdmin); err == nil {
+						msg.AdminAddress = contractAdminStr
+					}
+				case FlagContractGasPrice:
+					if contractGasPrice, err := cmd.Flags().GetUint64(FlagContractGasPrice); err == nil {
+						msg.GasPrice = contractGasPrice
+					}
+				}
+			})
 
 			if err := msg.ValidateBasic(); err != nil {
 				return err
@@ -638,7 +649,7 @@ func parseBatchStoreCodeProposalFlags(fs *pflag.FlagSet) (*types.BatchStoreCodeP
 			p.InstantiatePermission = &wasmtypes.AccessConfig{}
 		}
 
-		hasEmptyInstantiatePermissions := p.InstantiatePermission.Permission == wasmtypes.AccessTypeUnspecified && p.InstantiatePermission.Address == ""
+		hasEmptyInstantiatePermissions := p.InstantiatePermission.Permission == wasmtypes.AccessTypeUnspecified && len(p.InstantiatePermission.Addresses) == 0
 		if hasEmptyInstantiatePermissions {
 			p.InstantiatePermission.Permission = wasmtypes.AccessTypeEverybody
 		}

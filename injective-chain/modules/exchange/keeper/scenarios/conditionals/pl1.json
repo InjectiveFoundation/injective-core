@@ -45,7 +45,7 @@
     },
     {
       "actionType": "derivativeLimitOrder",
-      "price": 10,
+      "price": 500,
       "quantity": 10,
       "accountIndex": 1,
       "isLong": true

@@ -5,12 +5,30 @@ This package contains CosmWasm integration points.
 This package provides first class support for:
 
 - Queries
-    - Denoms
+  - Auction
+  - Authz
+  - Exchange
     - Markets
     - Positions
+  - Fee Grant
+  - Insurance
+  - Ocr
+  - Oracle
     - Oracle Prices
+  - Peggy
+  - Token Factory
+    - Denoms
+  - Wasmx
 - Messages / Execution
-    - Executing exchange messages
+  - Auction
+  - Exchange
+  - Fee Grant
+  - Insurance
+  - Ocr
+  - Oracle
+  - Peggy
+  - Token Factory
+  - Wasmx
 
 ## Command line interface (CLI)
 
