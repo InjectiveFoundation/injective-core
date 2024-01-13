@@ -58,7 +58,6 @@ Note: for any mention of ZSH, replace it with Bash if applicable. for example, `
    ```bash
    export GOPATH=$HOME/go
    export PATH=$PATH:$(go env GOPATH)/bin
-   export GOPRIVATE=github.com/OpenDeFiFoundation/injective-core
    ```
 
 3. Refresh your `~/.zshrc` file
