@@ -68,10 +68,10 @@ func (q queryServer) AddressesByRole(c context.Context, req *types.QueryAddresse
 	}
 
 	addressesByRole := make([]string, 0)
-	for addr, roles := range ns.AddressRoles {
-		for _, role := range roles.Roles {
+	for _, addrRoles := range ns.AddressRoles {
+		for _, role := range addrRoles.Roles {
 			if role == req.Role {
-				addressesByRole = append(addressesByRole, addr)
+				addressesByRole = append(addressesByRole, addrRoles.Address)
 				break
 			}
 		}
@@ -90,7 +90,7 @@ func (q queryServer) VouchersForAddress(c context.Context, req *types.QueryVouch
 	store := q.getVouchersStore(ctx, req.Address)
 	iter := store.Iterator(nil, nil)
 
-	resp := &types.QueryVouchersForAddressResponse{Vouchers: make(map[string]*types.Voucher)}
+	resp := &types.QueryVouchersForAddressResponse{Vouchers: make([]*types.AddressVoucher, 0)}
 
 	for ; iter.Valid(); iter.Next() {
 		fromAddr := string(iter.Key())
@@ -100,7 +100,7 @@ func (q queryServer) VouchersForAddress(c context.Context, req *types.QueryVouch
 			return nil, err
 		}
 
-		resp.Vouchers[fromAddr] = voucher
+		resp.Vouchers = append(resp.Vouchers, &types.AddressVoucher{Address: fromAddr, Voucher: voucher})
 
 	}
 

@@ -15,10 +15,13 @@ cp ../proto/buf.gen.swagger.yaml proto/buf.gen.swagger.yaml
 cp -r ../proto/injective proto/
 
 # download third_party API definitions
-buf export buf.build/cosmos/cosmos-sdk:v0.47.0 --output=third_party
+git clone https://github.com/InjectiveLabs/cosmos-sdk.git -b v0.47.3-inj-9 --depth 1 --single-branch
+git clone https://github.com/InjectiveLabs/wasmd -b v0.45.0-inj --depth 1 --single-branch
+
+buf export ./cosmos-sdk --output=third_party
+buf export ./wasmd --exclude-imports --output=./third_party
 buf export https://github.com/cosmos/ibc-go.git --exclude-imports --output=third_party
 buf export https://github.com/tendermint/tendermint.git --exclude-imports --output=third_party
-buf export buf.build/cosmwasm/wasmd:e65480838a1ded147ef53d35fa3bd9709a61226f --exclude-imports --output=./third_party
 buf export https://github.com/cosmos/ics23.git --exclude-imports --output=./third_party
 buf export https://github.com/cosmos/ibc-apps.git --exclude-imports --output=./third_party --path=middleware/packet-forward-middleware/proto && mv ./third_party/middleware/packet-forward-middleware/proto/packetforward ./third_party
 

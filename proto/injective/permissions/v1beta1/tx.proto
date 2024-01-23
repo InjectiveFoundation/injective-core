@@ -86,9 +86,9 @@ message MsgUpdateNamespaceRoles {
   string namespace_denom =
       2; // namespace denom to which this updates are applied
 
-  map<string, uint32> role_permissions =
+  repeated Role role_permissions =
       3; // new role definitions or updated permissions for existing roles
-  map<string, Roles> address_roles =
+  repeated AddressRoles address_roles =
       4; // new addresses to add or new roles for existing addresses to
          // overwrite current roles
 }
@@ -101,8 +101,8 @@ message MsgRevokeNamespaceRoles {
 
   string namespace_denom =
       2; // namespace denom to which this updates are applied
-  map<string, Roles> address_roles_to_revoke =
-      3; // map of {"address" => array of roles to revoke from this address}
+  repeated AddressRoles address_roles_to_revoke =
+      3; // {"address" => array of roles to revoke from this address}
 }
 
 message MsgRevokeNamespaceRolesResponse {}
@@ -111,7 +111,8 @@ message MsgClaimVoucher {
   option (cosmos.msg.v1.signer) = "sender";
   string sender = 1 [ (gogoproto.moretags) = "yaml:\"sender\"" ];
 
-  string originator = 2; // address of the original voucher sender (typically a module address,
+  string originator =
+      2; // address of the original voucher sender (typically a module address,
          // a key from VouchersForAddress query response)
 }
 

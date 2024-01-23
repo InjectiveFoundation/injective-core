@@ -26,13 +26,18 @@ func (n *Namespace) Validate() error {
 
 	// role_permissions
 	hasEveryoneSet := false
-	for role, perm := range n.RolePermissions {
-		if role == EVERYONE {
+	foundRoles := make(map[string]struct{}, len(n.RolePermissions))
+	for _, rolePerm := range n.RolePermissions {
+		if rolePerm.Role == EVERYONE {
 			hasEveryoneSet = true
 		}
-		if perm > MaxPerm {
-			return errors.Wrapf(ErrInvalidPermission, "permissions for the role %s is bigger than maximum expected", role)
+		if _, ok := foundRoles[rolePerm.Role]; ok {
+			return errors.Wrapf(ErrInvalidPermission, "permissions for the role %s set multiple times?", rolePerm.Role)
 		}
+		if rolePerm.Permissions > MaxPerm {
+			return errors.Wrapf(ErrInvalidPermission, "permissions %d for the role %s is bigger than maximum expected %d", rolePerm.Permissions, rolePerm.Role, MaxPerm)
+		}
+		foundRoles[rolePerm.Role] = struct{}{}
 	}
 
 	if !hasEveryoneSet {
@@ -40,19 +45,23 @@ func (n *Namespace) Validate() error {
 	}
 
 	// address_roles
-	for addr, roles := range n.AddressRoles {
-		if _, err := sdk.AccAddressFromBech32(addr); err != nil {
-			return errors.Wrapf(err, "invalid address %s", addr)
+	foundAddresses := make(map[string]struct{}, len(n.AddressRoles))
+	for _, addrRoles := range n.AddressRoles {
+		if _, err := sdk.AccAddressFromBech32(addrRoles.Address); err != nil {
+			return errors.Wrapf(err, "invalid address %s", addrRoles.Address)
 		}
-
-		for _, role := range roles.Roles {
-			if _, ok := n.RolePermissions[role]; !ok {
+		if _, ok := foundAddresses[addrRoles.Address]; ok {
+			return errors.Wrapf(ErrInvalidRole, "address %s is assigned new roles multiple times?", addrRoles.Address)
+		}
+		for _, role := range addrRoles.Roles {
+			if _, ok := foundRoles[role]; !ok {
 				return errors.Wrapf(ErrUnknownRole, "role %s has no defined permissions", role)
 			}
 			if role == EVERYONE {
 				return errors.Wrapf(ErrInvalidRole, "role %s should not be explicitly attached to address, you need to remove address from the list completely instead", EVERYONE)
 			}
 		}
+		foundAddresses[addrRoles.Address] = struct{}{}
 	}
 
 	// existing wasm hook contract

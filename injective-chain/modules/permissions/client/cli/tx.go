@@ -6,10 +6,10 @@ import (
 
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/client/tx"
-	grpc1 "github.com/cosmos/gogoproto/grpc"
 	"github.com/spf13/cobra"
 
 	"github.com/InjectiveLabs/injective-core/cli"
+	cliflags "github.com/InjectiveLabs/injective-core/cli/flags"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/permissions/types"
 )
 
@@ -39,7 +39,7 @@ const (
 )
 
 func CreateNamespaceCmd() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "create-namespace <namespace.json>",
 		Args:  cobra.ExactArgs(1),
 		Short: "Create a denom namespace from a json file",
@@ -50,17 +50,28 @@ func CreateNamespaceCmd() *cobra.Command {
 
 			Where namespace.json contains:
 			{
-			  "denom": "inj",
-			  "wasm_hook": "inj1dzqd00lfd4y4qy2pxa0dsdwzfnmsu27hgttswz",
-			  "role_permissions": {
-				"admin": 7,
-				"minter": 1,
-			  },
-			  "address_roles": {
-				"inj1f2kdg34689x93cvw2y59z7y46dvz2fk8g3cggx": {
-				  "roles": ["admin"]
-				}
-			  }
+				"denom": "inj",
+				"wasm_hook": "inj1dzqd00lfd4y4qy2pxa0dsdwzfnmsu27hgttswz",
+				"role_permissions": [
+					{
+						"role": "admin",
+						"permissions": 7
+					},
+					{
+						"role": "minter",
+						"permissions": 1
+					}
+				],
+				"address_roles": [
+					{
+						"address": "inj122qtfcjfx9suvgr5s7rtqgfy8xvtjhm8uc4x9f",
+						"roles": ["whitelisted"]
+					},
+					{
+						"address": "inj1cml96vmptgw99syqrrz8az79xer2pcgp0a885r",
+						"roles": ["receiver"]
+					}
+				]
 			}
 		`,
 
@@ -92,6 +103,8 @@ func CreateNamespaceCmd() *cobra.Command {
 			return tx.GenerateOrBroadcastTxCLI(clientCtx, cmd.Flags(), msg)
 		},
 	}
+	cliflags.AddTxFlagsToCmd(cmd)
+	return cmd
 }
 
 func DeleteNamespaceCmd() *cobra.Command {
@@ -107,18 +120,57 @@ func DeleteNamespaceCmd() *cobra.Command {
 }
 
 func UpdateNamespaceCmd() *cobra.Command {
-	cmd := cli.TxCmd(
-		"update-namespace <denom> [flags]",
-		"Update existing namespace with new values",
-		&types.MsgUpdateNamespace{},
-		cli.FlagsMapping{
-			"WasmHook":    cli.Flag{Flag: fWasmHook},
-			"MintsPaused": cli.Flag{Flag: fMintsPaused},
-			"SendsPaused": cli.Flag{Flag: fSendsPaused},
-			"BurnsPaused": cli.Flag{Flag: fBurnsPaused},
+	cmd := &cobra.Command{
+		Use:   "update-namespace <denom> [flags]",
+		Args:  cobra.ExactArgs(1),
+		Short: "Update existing namespace params with new values",
+		Long:  `Update existing namespace params with new values`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clientCtx, err := client.GetClientTxContext(cmd)
+			if err != nil {
+				return err
+			}
+
+			msg := &types.MsgUpdateNamespace{
+				Sender:         clientCtx.GetFromAddress().String(),
+				NamespaceDenom: args[0],
+			}
+
+			if newWasmValue := cmd.Flags().Lookup(fWasmHook); newWasmValue.Changed {
+				msg.WasmHook = &types.MsgUpdateNamespace_MsgSetWasmHook{NewValue: newWasmValue.Value.String()}
+			}
+
+			if newSendsValue := cmd.Flags().Lookup(fSendsPaused); newSendsValue.Changed {
+				boolValue, err := cmd.Flags().GetBool(fSendsPaused)
+				if err != nil {
+					return err
+				}
+				msg.SendsPaused = &types.MsgUpdateNamespace_MsgSetSendsPaused{NewValue: boolValue}
+			}
+
+			if newMintsValue := cmd.Flags().Lookup(fMintsPaused); newMintsValue.Changed {
+				boolValue, err := cmd.Flags().GetBool(fMintsPaused)
+				if err != nil {
+					return err
+				}
+				msg.MintsPaused = &types.MsgUpdateNamespace_MsgSetMintsPaused{NewValue: boolValue}
+			}
+
+			if newBurnsValue := cmd.Flags().Lookup(fBurnsPaused); newBurnsValue.Changed {
+				boolValue, err := cmd.Flags().GetBool(fBurnsPaused)
+				if err != nil {
+					return err
+				}
+				msg.BurnsPaused = &types.MsgUpdateNamespace_MsgSetBurnsPaused{NewValue: boolValue}
+			}
+
+			if err := msg.ValidateBasic(); err != nil {
+				return err
+			}
+
+			return tx.GenerateOrBroadcastTxCLI(clientCtx, cmd.Flags(), msg)
 		},
-		nil,
-	)
+	}
 
 	cmd.Flags().String(fWasmHook, "", "Wasm contract address")
 	cmd.Flags().Bool(fSendsPaused, false, "Send tokens paused")
@@ -128,87 +180,134 @@ func UpdateNamespaceCmd() *cobra.Command {
 	cmd.Example = `injectived tx permissions update-namespace inj
 					--mints-paused false
 					--burns-paused false
-					--sends-paused true`
+					--sends-paused true
+					--wasm-hook inj1dzqd00lfd4y4qy2pxa0dsdwzfnmsu27hgttswz`
+
+	cliflags.AddTxFlagsToCmd(cmd)
 
 	return cmd
 }
 
 func UpdateNamespaceRolesCmd() *cobra.Command {
-	cmd := cli.TxCmd("update-namespace-roles <denom> [flags]",
-		"Update the namespace roles and permissions",
-		&types.MsgUpdateNamespaceRoles{},
-		cli.FlagsMapping{
-			"RolePermissions": cli.Flag{
-				Flag: fPermissions,
-				Transform: func(origV string, _ grpc1.ClientConn) (any, error) {
-					file, err := os.ReadFile(origV)
-					if err != nil {
-						return nil, err
+	cmd := &cobra.Command{
+		Use:   "update-namespace-roles <roles.json>",
+		Args:  cobra.ExactArgs(1),
+		Short: "Update the namespace roles and permissions",
+		Long: `"Update the namespace roles and permissions by adding or updating roles and new addresses.
+
+		Example:
+		$ %s tx permissions update-namespace-roles roles.json \
+
+			Where roles.json contains:
+			{
+				"namespace_denom": "inj",
+				"role_permissions": [
+					{
+						"role": "admin",
+						"permissions": 7
+					},
+					{
+						"role": "minter",
+						"permissions": 1
 					}
-
-					var perms map[string]int32
-					if err := json.Unmarshal(file, &perms); err != nil {
-						return nil, err
+				],
+				"address_roles": [
+					{
+						"address": "inj122qtfcjfx9suvgr5s7rtqgfy8xvtjhm8uc4x9f",
+						"roles": ["whitelisted"]
+					},
+					{
+						"address": "inj1cml96vmptgw99syqrrz8az79xer2pcgp0a885r",
+						"roles": ["receiver"]
 					}
+				]
+			}
+		`,
 
-					return perms, nil
-				},
-			},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clientCtx, err := client.GetClientTxContext(cmd)
+			if err != nil {
+				return err
+			}
 
-			"AddressRoles": cli.Flag{
-				Flag: fUpdateRoles,
-				Transform: func(origV string, _ grpc1.ClientConn) (any, error) {
-					file, err := os.ReadFile(origV)
-					if err != nil {
-						return nil, err
-					}
+			file, err := os.ReadFile(args[0])
+			if err != nil {
+				return err
+			}
 
-					var roles map[string]*types.Roles
-					if err := json.Unmarshal(file, &roles); err != nil {
-						return nil, err
-					}
+			msg := &types.MsgUpdateNamespaceRoles{}
+			if err := json.Unmarshal(file, &msg); err != nil {
+				return err
+			}
 
-					return roles, nil
-				},
-			},
+			msg.Sender = clientCtx.GetFromAddress().String()
+
+			if err := msg.ValidateBasic(); err != nil {
+				return err
+			}
+
+			return tx.GenerateOrBroadcastTxCLI(clientCtx, cmd.Flags(), msg)
 		},
-		nil,
-	)
+	}
 
-	cmd.Flags().String(fPermissions, "", "JSON file defining role permissions")
-	cmd.Flags().String(fUpdateRoles, "", "JSON file defining address' roles")
-
-	cmd.Example = `injectived tx permissions update-namespace-roles inj --permissions perms.json`
+	cliflags.AddTxFlagsToCmd(cmd)
 
 	return cmd
 }
 
 func RevokeNamespaceRoleCmd() *cobra.Command {
-	cmd := cli.TxCmd("revoke-namespace-roles <denom> [flag]",
-		"Revoke address roles in a specific namespace",
-		&types.MsgRevokeNamespaceRoles{},
-		cli.FlagsMapping{
-			"AddressRolesToRevoke": cli.Flag{
-				Flag: fRevokeRoles,
-				Transform: func(origV string, _ grpc1.ClientConn) (any, error) {
-					file, err := os.ReadFile(origV)
-					if err != nil {
-						return nil, err
-					}
+	cmd := &cobra.Command{
+		Use:   "revoke-namespace-roles <roles.json>",
+		Args:  cobra.ExactArgs(1),
+		Short: "Revoke address roles in a specific namespace",
+		Long: `"Revoke address roles in a specific namespace.
 
-					var revoked map[string]*types.Roles
-					if err := json.Unmarshal(file, &revoked); err != nil {
-						return nil, err
-					}
+		Example:
+		$ %s tx permissions revoke-namespace-roles roles.json \
 
-					return revoked, nil
-				},
-			},
+			Where roles.json contains:
+			{
+				"namespace_denom": "inj",
+				"address_roles_to_revoke": [
+					{
+						"address": "inj122qtfcjfx9suvgr5s7rtqgfy8xvtjhm8uc4x9f",
+						"roles": ["whitelisted"]
+					},
+					{
+						"address": "inj1cml96vmptgw99syqrrz8az79xer2pcgp0a885r",
+						"roles": ["receiver"]
+					}
+				]
+			}
+		`,
+
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clientCtx, err := client.GetClientTxContext(cmd)
+			if err != nil {
+				return err
+			}
+
+			file, err := os.ReadFile(args[0])
+			if err != nil {
+				return err
+			}
+
+			msg := &types.MsgRevokeNamespaceRoles{}
+			if err := json.Unmarshal(file, &msg); err != nil {
+				return err
+			}
+
+			msg.Sender = clientCtx.GetFromAddress().String()
+
+			if err := msg.ValidateBasic(); err != nil {
+				return err
+			}
+
+			return tx.GenerateOrBroadcastTxCLI(clientCtx, cmd.Flags(), msg)
 		},
-		nil,
-	)
+	}
 
-	cmd.Flags().String(fRevokeRoles, "", "JSON file indicating roles revoked")
+	cliflags.AddTxFlagsToCmd(cmd)
 
 	return cmd
 }

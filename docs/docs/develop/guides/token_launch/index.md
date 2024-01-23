@@ -26,7 +26,7 @@ injectived tx tokenfactory create-denom ak --from=gov --chain-id=injective-888 -
 ```
 
 :::tip
-1. In order to create a tokenfactory denom, you must pay 10 INJ.
+1. In order to create a tokenfactory denom, you must pay 0.1 INJ.
 2. Tokens are namespaced by the creator address to be permissionless and avoid name collision. In the example above, the subdenom is `ak` but the denom naming will be `factory/{creator address}/{subdenom}`.
 :::
 

@@ -12,6 +12,8 @@ Both Query and Tx functions follow the same principle: for general cases, you on
 
 Both of these mappings also support passing a Transform function, which has a signature of `func(origV string, ctx grpc.ClientConn) (tranformedV any, err error)` and is used when the input value needs additional handling before parsing into struct field.
 
+Additionally, flags have `UseDefaultIfOmitted` param which alter the behaviour when the flag was not provided by the user. If `false`, the flag will be completely skipped. Otherwise we will substitute it with default value.
+
 ## How it works
 
 1. It tries to fill the provided msg fields with inputs from cli arguments or flags:
@@ -73,7 +75,7 @@ func NewInstantSpotMarketLaunchTxCmd() *cobra.Command {
 		"instant-spot-market-launch <ticker> <base_denom> <quote_denom>",
 		"Launch spot market by paying listing fee without governance",
 		&types.MsgInstantSpotMarketLaunch{},
-		cli.FlagsMapping{"MinPriceTickSize": cli.Flag{Flag: FlagMinPriceTickSize}, "MinQuantityTickSize": cli.Flag{Flag: FlagMinQuantityTickSize}},
+		cli.FlagsMapping{"MinPriceTickSize": cli.Flag{Flag: FlagMinPriceTickSize, UseDefaultIfOmitted: true}, "MinQuantityTickSize": cli.Flag{Flag: FlagMinQuantityTickSize, UseDefaultIfOmitted: true}},
 		cli.ArgsMapping{},
 	)
 	cmd.Example = `tx exchange instant-spot-market-launch INJ/ATOM uinj uatom --min-price-tick-size=1000000000 --min-quantity-tick-size=1000000000000000`

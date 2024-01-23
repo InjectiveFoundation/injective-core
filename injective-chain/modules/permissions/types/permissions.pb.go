@@ -59,13 +59,13 @@ func (Action) EnumDescriptor() ([]byte, []int) {
 
 // Namespace defines a permissions namespace
 type Namespace struct {
-	Denom           string            `protobuf:"bytes,1,opt,name=denom,proto3" json:"denom,omitempty"`
-	WasmHook        string            `protobuf:"bytes,2,opt,name=wasm_hook,json=wasmHook,proto3" json:"wasm_hook,omitempty"`
-	MintsPaused     bool              `protobuf:"varint,3,opt,name=mints_paused,json=mintsPaused,proto3" json:"mints_paused,omitempty"`
-	SendsPaused     bool              `protobuf:"varint,4,opt,name=sends_paused,json=sendsPaused,proto3" json:"sends_paused,omitempty"`
-	BurnsPaused     bool              `protobuf:"varint,5,opt,name=burns_paused,json=burnsPaused,proto3" json:"burns_paused,omitempty"`
-	RolePermissions map[string]uint32 `protobuf:"bytes,6,rep,name=role_permissions,json=rolePermissions,proto3" json:"role_permissions,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"varint,2,opt,name=value,proto3"`
-	AddressRoles    map[string]*Roles `protobuf:"bytes,7,rep,name=address_roles,json=addressRoles,proto3" json:"address_roles,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	Denom           string          `protobuf:"bytes,1,opt,name=denom,proto3" json:"denom,omitempty"`
+	WasmHook        string          `protobuf:"bytes,2,opt,name=wasm_hook,json=wasmHook,proto3" json:"wasm_hook,omitempty"`
+	MintsPaused     bool            `protobuf:"varint,3,opt,name=mints_paused,json=mintsPaused,proto3" json:"mints_paused,omitempty"`
+	SendsPaused     bool            `protobuf:"varint,4,opt,name=sends_paused,json=sendsPaused,proto3" json:"sends_paused,omitempty"`
+	BurnsPaused     bool            `protobuf:"varint,5,opt,name=burns_paused,json=burnsPaused,proto3" json:"burns_paused,omitempty"`
+	RolePermissions []*Role         `protobuf:"bytes,6,rep,name=role_permissions,json=rolePermissions,proto3" json:"role_permissions,omitempty"`
+	AddressRoles    []*AddressRoles `protobuf:"bytes,7,rep,name=address_roles,json=addressRoles,proto3" json:"address_roles,omitempty"`
 }
 
 func (m *Namespace) Reset()         { *m = Namespace{} }
@@ -136,23 +136,75 @@ func (m *Namespace) GetBurnsPaused() bool {
 	return false
 }
 
-func (m *Namespace) GetRolePermissions() map[string]uint32 {
+func (m *Namespace) GetRolePermissions() []*Role {
 	if m != nil {
 		return m.RolePermissions
 	}
 	return nil
 }
 
-func (m *Namespace) GetAddressRoles() map[string]*Roles {
+func (m *Namespace) GetAddressRoles() []*AddressRoles {
 	if m != nil {
 		return m.AddressRoles
 	}
 	return nil
 }
 
+type AddressRoles struct {
+	Address string   `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
+	Roles   []string `protobuf:"bytes,2,rep,name=roles,proto3" json:"roles,omitempty"`
+}
+
+func (m *AddressRoles) Reset()         { *m = AddressRoles{} }
+func (m *AddressRoles) String() string { return proto.CompactTextString(m) }
+func (*AddressRoles) ProtoMessage()    {}
+func (*AddressRoles) Descriptor() ([]byte, []int) {
+	return fileDescriptor_6d25f3ecf3806c6c, []int{1}
+}
+func (m *AddressRoles) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *AddressRoles) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_AddressRoles.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *AddressRoles) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_AddressRoles.Merge(m, src)
+}
+func (m *AddressRoles) XXX_Size() int {
+	return m.Size()
+}
+func (m *AddressRoles) XXX_DiscardUnknown() {
+	xxx_messageInfo_AddressRoles.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_AddressRoles proto.InternalMessageInfo
+
+func (m *AddressRoles) GetAddress() string {
+	if m != nil {
+		return m.Address
+	}
+	return ""
+}
+
+func (m *AddressRoles) GetRoles() []string {
+	if m != nil {
+		return m.Roles
+	}
+	return nil
+}
+
 // Role is only used for storage
 type Role struct {
-	Name        string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Role        string `protobuf:"bytes,1,opt,name=role,proto3" json:"role,omitempty"`
 	Permissions uint32 `protobuf:"varint,2,opt,name=permissions,proto3" json:"permissions,omitempty"`
 }
 
@@ -160,7 +212,7 @@ func (m *Role) Reset()         { *m = Role{} }
 func (m *Role) String() string { return proto.CompactTextString(m) }
 func (*Role) ProtoMessage()    {}
 func (*Role) Descriptor() ([]byte, []int) {
-	return fileDescriptor_6d25f3ecf3806c6c, []int{1}
+	return fileDescriptor_6d25f3ecf3806c6c, []int{2}
 }
 func (m *Role) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -189,9 +241,9 @@ func (m *Role) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_Role proto.InternalMessageInfo
 
-func (m *Role) GetName() string {
+func (m *Role) GetRole() string {
 	if m != nil {
-		return m.Name
+		return m.Role
 	}
 	return ""
 }
@@ -201,50 +253,6 @@ func (m *Role) GetPermissions() uint32 {
 		return m.Permissions
 	}
 	return 0
-}
-
-type Roles struct {
-	Roles []string `protobuf:"bytes,1,rep,name=roles,proto3" json:"roles,omitempty"`
-}
-
-func (m *Roles) Reset()         { *m = Roles{} }
-func (m *Roles) String() string { return proto.CompactTextString(m) }
-func (*Roles) ProtoMessage()    {}
-func (*Roles) Descriptor() ([]byte, []int) {
-	return fileDescriptor_6d25f3ecf3806c6c, []int{2}
-}
-func (m *Roles) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *Roles) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_Roles.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *Roles) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Roles.Merge(m, src)
-}
-func (m *Roles) XXX_Size() int {
-	return m.Size()
-}
-func (m *Roles) XXX_DiscardUnknown() {
-	xxx_messageInfo_Roles.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_Roles proto.InternalMessageInfo
-
-func (m *Roles) GetRoles() []string {
-	if m != nil {
-		return m.Roles
-	}
-	return nil
 }
 
 // used in storage
@@ -336,15 +344,66 @@ func (m *Voucher) GetCoins() github_com_cosmos_cosmos_sdk_types.Coins {
 	return nil
 }
 
+type AddressVoucher struct {
+	Address string   `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
+	Voucher *Voucher `protobuf:"bytes,2,opt,name=voucher,proto3" json:"voucher,omitempty"`
+}
+
+func (m *AddressVoucher) Reset()         { *m = AddressVoucher{} }
+func (m *AddressVoucher) String() string { return proto.CompactTextString(m) }
+func (*AddressVoucher) ProtoMessage()    {}
+func (*AddressVoucher) Descriptor() ([]byte, []int) {
+	return fileDescriptor_6d25f3ecf3806c6c, []int{5}
+}
+func (m *AddressVoucher) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *AddressVoucher) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_AddressVoucher.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *AddressVoucher) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_AddressVoucher.Merge(m, src)
+}
+func (m *AddressVoucher) XXX_Size() int {
+	return m.Size()
+}
+func (m *AddressVoucher) XXX_DiscardUnknown() {
+	xxx_messageInfo_AddressVoucher.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_AddressVoucher proto.InternalMessageInfo
+
+func (m *AddressVoucher) GetAddress() string {
+	if m != nil {
+		return m.Address
+	}
+	return ""
+}
+
+func (m *AddressVoucher) GetVoucher() *Voucher {
+	if m != nil {
+		return m.Voucher
+	}
+	return nil
+}
+
 func init() {
 	proto.RegisterEnum("injective.permissions.v1beta1.Action", Action_name, Action_value)
 	proto.RegisterType((*Namespace)(nil), "injective.permissions.v1beta1.Namespace")
-	proto.RegisterMapType((map[string]*Roles)(nil), "injective.permissions.v1beta1.Namespace.AddressRolesEntry")
-	proto.RegisterMapType((map[string]uint32)(nil), "injective.permissions.v1beta1.Namespace.RolePermissionsEntry")
+	proto.RegisterType((*AddressRoles)(nil), "injective.permissions.v1beta1.AddressRoles")
 	proto.RegisterType((*Role)(nil), "injective.permissions.v1beta1.Role")
-	proto.RegisterType((*Roles)(nil), "injective.permissions.v1beta1.Roles")
 	proto.RegisterType((*RoleIDs)(nil), "injective.permissions.v1beta1.RoleIDs")
 	proto.RegisterType((*Voucher)(nil), "injective.permissions.v1beta1.Voucher")
+	proto.RegisterType((*AddressVoucher)(nil), "injective.permissions.v1beta1.AddressVoucher")
 }
 
 func init() {
@@ -352,45 +411,43 @@ func init() {
 }
 
 var fileDescriptor_6d25f3ecf3806c6c = []byte{
-	// 593 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x54, 0x4d, 0x6e, 0xd3, 0x40,
-	0x14, 0x8e, 0x1b, 0xa7, 0x49, 0xc7, 0xad, 0x6a, 0x46, 0x59, 0xa4, 0x41, 0x75, 0x43, 0xd4, 0x45,
-	0x84, 0x54, 0x9b, 0x86, 0x0d, 0x8a, 0x60, 0xd1, 0xa4, 0x46, 0x58, 0x82, 0x28, 0x18, 0xda, 0x05,
-	0x9b, 0x68, 0x6c, 0x8f, 0x12, 0x93, 0x78, 0x26, 0xf2, 0xd8, 0x41, 0xb9, 0x05, 0x17, 0xe0, 0x02,
-	0x9c, 0xa4, 0xcb, 0x2e, 0x59, 0x01, 0x4a, 0x2e, 0x82, 0x66, 0xc6, 0x38, 0xae, 0xa8, 0x80, 0x95,
-	0xe7, 0x7d, 0xef, 0x7b, 0xdf, 0x9b, 0xf7, 0xe3, 0x01, 0x56, 0x48, 0x3e, 0x62, 0x3f, 0x09, 0x97,
-	0xd8, 0x5a, 0xe0, 0x38, 0x0a, 0x19, 0x0b, 0x29, 0x61, 0xd6, 0xf2, 0xdc, 0xc3, 0x09, 0x3a, 0x2f,
-	0x62, 0xe6, 0x22, 0xa6, 0x09, 0x85, 0xc7, 0x79, 0x80, 0x59, 0x74, 0x66, 0x01, 0xcd, 0xfa, 0x84,
-	0x4e, 0xa8, 0x60, 0x5a, 0xfc, 0x24, 0x83, 0x9a, 0x86, 0x4f, 0x59, 0x44, 0x99, 0xe5, 0x21, 0x86,
-	0x73, 0x6d, 0x9f, 0x86, 0x44, 0xfa, 0xdb, 0x5f, 0x54, 0xb0, 0x37, 0x44, 0x11, 0x66, 0x0b, 0xe4,
-	0x63, 0x58, 0x07, 0x95, 0x00, 0x13, 0x1a, 0x35, 0x94, 0x96, 0xd2, 0xd9, 0x73, 0xa5, 0x01, 0x1f,
-	0x82, 0xbd, 0x4f, 0x88, 0x45, 0xe3, 0x29, 0xa5, 0xb3, 0xc6, 0x8e, 0xf0, 0xd4, 0x38, 0xf0, 0x8a,
-	0xd2, 0x19, 0x7c, 0x04, 0xf6, 0xa3, 0x90, 0x24, 0x6c, 0xbc, 0x40, 0x29, 0xc3, 0x41, 0xa3, 0xdc,
-	0x52, 0x3a, 0x35, 0x57, 0x13, 0xd8, 0x48, 0x40, 0x9c, 0xc2, 0x30, 0x09, 0x72, 0x8a, 0x2a, 0x29,
-	0x02, 0xdb, 0x52, 0xbc, 0x34, 0x26, 0x39, 0xa5, 0x22, 0x29, 0x02, 0xcb, 0x28, 0x53, 0xa0, 0xc7,
-	0x74, 0x8e, 0xc7, 0x85, 0xda, 0x1b, 0xbb, 0xad, 0x72, 0x47, 0xeb, 0xbe, 0x30, 0xff, 0xda, 0x19,
-	0x33, 0xaf, 0xcf, 0x74, 0xe9, 0x1c, 0x8f, 0xb6, 0x0c, 0x9b, 0x24, 0xf1, 0xca, 0x3d, 0x8c, 0xef,
-	0xa2, 0x70, 0x0c, 0x0e, 0x50, 0x10, 0xc4, 0x98, 0xb1, 0x31, 0x77, 0xb1, 0x46, 0x55, 0xa4, 0xe9,
-	0xfd, 0x77, 0x9a, 0x0b, 0x19, 0xcd, 0xb3, 0x65, 0x39, 0xf6, 0x51, 0x01, 0x6a, 0xf6, 0x41, 0xfd,
-	0xbe, 0x9b, 0x40, 0x1d, 0x94, 0x67, 0x78, 0x95, 0x35, 0x9f, 0x1f, 0xf9, 0x40, 0x96, 0x68, 0x9e,
-	0x62, 0xd1, 0xf6, 0x03, 0x57, 0x1a, 0xbd, 0x9d, 0x67, 0x4a, 0x13, 0x83, 0x07, 0x7f, 0xa4, 0xb9,
-	0x47, 0xa0, 0x57, 0x14, 0xd0, 0xba, 0xa7, 0xff, 0xa8, 0x41, 0x68, 0x15, 0xd2, 0xb4, 0x9f, 0x03,
-	0x95, 0x63, 0x10, 0x02, 0x95, 0xa0, 0x08, 0x67, 0xd2, 0xe2, 0x0c, 0x5b, 0x40, 0x2b, 0x0e, 0x43,
-	0x5e, 0xb1, 0x08, 0xb5, 0x8f, 0x41, 0x45, 0x28, 0xf2, 0x3a, 0x64, 0x2b, 0x95, 0x56, 0x99, 0x2f,
-	0x96, 0x30, 0xda, 0xa7, 0xa0, 0xca, 0xdd, 0xce, 0x25, 0x83, 0x47, 0xa0, 0x26, 0xa6, 0x1b, 0x06,
-	0x92, 0x73, 0xe0, 0x56, 0xb9, 0xed, 0x04, 0xac, 0x3d, 0x07, 0xd5, 0x6b, 0x9a, 0xfa, 0x53, 0x1c,
-	0x43, 0x04, 0x2a, 0x7c, 0x77, 0x25, 0x45, 0xeb, 0x1e, 0x99, 0x72, 0xbb, 0x4d, 0xbe, 0xdd, 0x79,
-	0x0d, 0x03, 0x1a, 0x92, 0xfe, 0x93, 0x9b, 0xef, 0x27, 0xa5, 0xaf, 0x3f, 0x4e, 0x3a, 0x93, 0x30,
-	0x99, 0xa6, 0x9e, 0xe9, 0xd3, 0xc8, 0xca, 0x7e, 0x05, 0xf9, 0x39, 0x63, 0xc1, 0xcc, 0x4a, 0x56,
-	0x0b, 0xcc, 0x44, 0x00, 0x73, 0xa5, 0xf2, 0xe3, 0x1e, 0xd8, 0xbd, 0xf0, 0x93, 0x90, 0x12, 0x78,
-	0x08, 0xb4, 0xab, 0xe1, 0xbb, 0x91, 0x3d, 0x70, 0x5e, 0x3a, 0xf6, 0xa5, 0x5e, 0x82, 0x35, 0xa0,
-	0xbe, 0x71, 0x86, 0xef, 0x75, 0x05, 0x6a, 0xa0, 0xea, 0xda, 0x03, 0xdb, 0xb9, 0xb6, 0xf5, 0x1d,
-	0x0e, 0xf7, 0xaf, 0xdc, 0xa1, 0xae, 0xf6, 0x67, 0x37, 0x6b, 0x43, 0xb9, 0x5d, 0x1b, 0xca, 0xcf,
-	0xb5, 0xa1, 0x7c, 0xde, 0x18, 0xa5, 0xdb, 0x8d, 0x51, 0xfa, 0xb6, 0x31, 0x4a, 0x1f, 0xde, 0x16,
-	0xae, 0xe1, 0xfc, 0x9e, 0xc0, 0x6b, 0xe4, 0xb1, 0xed, 0x2b, 0x70, 0xe6, 0xd3, 0x18, 0x17, 0xcd,
-	0x29, 0x0a, 0x89, 0x15, 0xd1, 0x20, 0x9d, 0x63, 0x76, 0xe7, 0x89, 0x10, 0xb7, 0xf6, 0x76, 0xc5,
-	0x0f, 0xfc, 0xf4, 0x57, 0x00, 0x00, 0x00, 0xff, 0xff, 0x80, 0xa2, 0x72, 0xd0, 0x48, 0x04, 0x00,
-	0x00,
+	// 567 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x84, 0x53, 0x4d, 0x8f, 0xd2, 0x4e,
+	0x18, 0xa7, 0xbc, 0x15, 0xa6, 0xf0, 0x5f, 0x32, 0xd9, 0x43, 0x77, 0xff, 0xb1, 0x8b, 0xd5, 0x18,
+	0xa2, 0xd9, 0xd6, 0xc5, 0x9b, 0x31, 0xc6, 0x85, 0xc5, 0xd8, 0x44, 0x09, 0x56, 0x77, 0x0f, 0x5e,
+	0x48, 0x5f, 0x26, 0x30, 0x42, 0x3b, 0xa4, 0x4f, 0xc1, 0xf8, 0x2d, 0xfc, 0x1c, 0x7e, 0x92, 0xf5,
+	0xb6, 0x47, 0x4f, 0x6a, 0xe0, 0x8b, 0x98, 0x99, 0x29, 0x50, 0x0f, 0xba, 0x27, 0xfa, 0xfc, 0x5e,
+	0x9e, 0xe1, 0xf9, 0xcd, 0x33, 0xc8, 0xa6, 0xf1, 0x47, 0x12, 0xa4, 0x74, 0x45, 0xec, 0x05, 0x49,
+	0x22, 0x0a, 0x40, 0x59, 0x0c, 0xf6, 0xea, 0xcc, 0x27, 0xa9, 0x77, 0x96, 0xc7, 0xac, 0x45, 0xc2,
+	0x52, 0x86, 0xef, 0xec, 0x0c, 0x56, 0x9e, 0xcc, 0x0c, 0xc7, 0x87, 0x13, 0x36, 0x61, 0x42, 0x69,
+	0xf3, 0x2f, 0x69, 0x3a, 0x36, 0x02, 0x06, 0x11, 0x03, 0xdb, 0xf7, 0x80, 0xec, 0x7a, 0x07, 0x8c,
+	0xc6, 0x92, 0x37, 0xbf, 0x15, 0x51, 0x7d, 0xe8, 0x45, 0x04, 0x16, 0x5e, 0x40, 0xf0, 0x21, 0xaa,
+	0x84, 0x24, 0x66, 0x91, 0xae, 0xb4, 0x95, 0x4e, 0xdd, 0x95, 0x05, 0xfe, 0x1f, 0xd5, 0x3f, 0x79,
+	0x10, 0x8d, 0xa7, 0x8c, 0xcd, 0xf4, 0xa2, 0x60, 0x6a, 0x1c, 0x78, 0xc5, 0xd8, 0x0c, 0xdf, 0x45,
+	0x8d, 0x88, 0xc6, 0x29, 0x8c, 0x17, 0xde, 0x12, 0x48, 0xa8, 0x97, 0xda, 0x4a, 0xa7, 0xe6, 0x6a,
+	0x02, 0x1b, 0x09, 0x88, 0x4b, 0x80, 0xc4, 0xe1, 0x4e, 0x52, 0x96, 0x12, 0x81, 0xed, 0x25, 0xfe,
+	0x32, 0x89, 0x77, 0x92, 0x8a, 0x94, 0x08, 0x2c, 0x93, 0x0c, 0x51, 0x2b, 0x61, 0x73, 0x32, 0xce,
+	0xcd, 0xae, 0x57, 0xdb, 0xa5, 0x8e, 0xd6, 0xbd, 0x67, 0xfd, 0x33, 0x19, 0xcb, 0x65, 0x73, 0xe2,
+	0x1e, 0x70, 0xf3, 0x68, 0xcf, 0xe2, 0x11, 0x6a, 0x7a, 0x61, 0x98, 0x10, 0x80, 0x31, 0xa7, 0x40,
+	0x57, 0x45, 0xb3, 0x47, 0xb7, 0x34, 0x3b, 0x97, 0x1e, 0xde, 0x13, 0xdc, 0x86, 0x97, 0xab, 0xcc,
+	0xe7, 0xa8, 0x91, 0x67, 0xb1, 0x8e, 0xd4, 0x8c, 0xcf, 0xf2, 0xdc, 0x96, 0x3c, 0x67, 0x79, 0x66,
+	0xb1, 0x5d, 0xe2, 0x39, 0x8b, 0xc2, 0x7c, 0x86, 0xca, 0xdc, 0x88, 0x31, 0x2a, 0x73, 0x20, 0x33,
+	0x89, 0x6f, 0xdc, 0x46, 0x5a, 0x7e, 0x70, 0x7e, 0x0b, 0x4d, 0x37, 0x0f, 0x99, 0xf7, 0x91, 0xca,
+	0xdd, 0xce, 0x05, 0xe0, 0x23, 0x54, 0x13, 0x51, 0xd1, 0x90, 0x9f, 0x5c, 0xea, 0x34, 0x5d, 0x95,
+	0xd7, 0x4e, 0x08, 0xe6, 0x1c, 0xa9, 0x57, 0x6c, 0x19, 0x4c, 0x49, 0x82, 0x3d, 0x54, 0xe1, 0x8b,
+	0x20, 0x25, 0x5a, 0xf7, 0xc8, 0x92, 0xab, 0x62, 0xf1, 0x55, 0xd9, 0x8d, 0xdb, 0x67, 0x34, 0xee,
+	0x3d, 0xbe, 0xfe, 0x71, 0x52, 0xf8, 0xfa, 0xf3, 0xa4, 0x33, 0xa1, 0xe9, 0x74, 0xe9, 0x5b, 0x01,
+	0x8b, 0xec, 0x6c, 0xaf, 0xe4, 0xcf, 0x29, 0x84, 0x33, 0x3b, 0xfd, 0xbc, 0x20, 0x20, 0x0c, 0xe0,
+	0xca, 0xce, 0xe6, 0x1c, 0xfd, 0x97, 0x25, 0xb2, 0x3d, 0xf4, 0xef, 0x99, 0xbc, 0x40, 0xea, 0x4a,
+	0x8a, 0xc4, 0x74, 0x5a, 0xf7, 0xc1, 0x2d, 0x37, 0x91, 0xb5, 0x74, 0xb7, 0xb6, 0x87, 0x4f, 0x51,
+	0xf5, 0x3c, 0x48, 0x29, 0x8b, 0xf1, 0x01, 0xd2, 0x2e, 0x87, 0xef, 0x46, 0x83, 0xbe, 0xf3, 0xd2,
+	0x19, 0x5c, 0xb4, 0x0a, 0xb8, 0x86, 0xca, 0x6f, 0x9c, 0xe1, 0xfb, 0x96, 0x82, 0x35, 0xa4, 0xba,
+	0x83, 0xfe, 0xc0, 0xb9, 0x1a, 0xb4, 0x8a, 0x1c, 0xee, 0x5d, 0xba, 0xc3, 0x56, 0xb9, 0x37, 0xbb,
+	0x5e, 0x1b, 0xca, 0xcd, 0xda, 0x50, 0x7e, 0xad, 0x0d, 0xe5, 0xcb, 0xc6, 0x28, 0xdc, 0x6c, 0x8c,
+	0xc2, 0xf7, 0x8d, 0x51, 0xf8, 0xf0, 0x36, 0x37, 0xb4, 0xb3, 0xfd, 0x43, 0xaf, 0x3d, 0x1f, 0xf6,
+	0x0f, 0xf8, 0x34, 0x60, 0x09, 0xc9, 0x97, 0x53, 0x8f, 0xc6, 0x76, 0xc4, 0xc2, 0xe5, 0x9c, 0xc0,
+	0x1f, 0xaf, 0x5b, 0x64, 0xe4, 0x57, 0xc5, 0xdb, 0x7b, 0xf2, 0x3b, 0x00, 0x00, 0xff, 0xff, 0xf3,
+	0xf2, 0xce, 0xa8, 0x03, 0x04, 0x00, 0x00,
 }
 
 func (m *Namespace) Marshal() (dAtA []byte, err error) {
@@ -414,44 +471,29 @@ func (m *Namespace) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	var l int
 	_ = l
 	if len(m.AddressRoles) > 0 {
-		for k := range m.AddressRoles {
-			v := m.AddressRoles[k]
-			baseI := i
-			if v != nil {
-				{
-					size, err := v.MarshalToSizedBuffer(dAtA[:i])
-					if err != nil {
-						return 0, err
-					}
-					i -= size
-					i = encodeVarintPermissions(dAtA, i, uint64(size))
+		for iNdEx := len(m.AddressRoles) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.AddressRoles[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
 				}
-				i--
-				dAtA[i] = 0x12
+				i -= size
+				i = encodeVarintPermissions(dAtA, i, uint64(size))
 			}
-			i -= len(k)
-			copy(dAtA[i:], k)
-			i = encodeVarintPermissions(dAtA, i, uint64(len(k)))
-			i--
-			dAtA[i] = 0xa
-			i = encodeVarintPermissions(dAtA, i, uint64(baseI-i))
 			i--
 			dAtA[i] = 0x3a
 		}
 	}
 	if len(m.RolePermissions) > 0 {
-		for k := range m.RolePermissions {
-			v := m.RolePermissions[k]
-			baseI := i
-			i = encodeVarintPermissions(dAtA, i, uint64(v))
-			i--
-			dAtA[i] = 0x10
-			i -= len(k)
-			copy(dAtA[i:], k)
-			i = encodeVarintPermissions(dAtA, i, uint64(len(k)))
-			i--
-			dAtA[i] = 0xa
-			i = encodeVarintPermissions(dAtA, i, uint64(baseI-i))
+		for iNdEx := len(m.RolePermissions) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.RolePermissions[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintPermissions(dAtA, i, uint64(size))
+			}
 			i--
 			dAtA[i] = 0x32
 		}
@@ -503,6 +545,45 @@ func (m *Namespace) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
+func (m *AddressRoles) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *AddressRoles) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *AddressRoles) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if len(m.Roles) > 0 {
+		for iNdEx := len(m.Roles) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Roles[iNdEx])
+			copy(dAtA[i:], m.Roles[iNdEx])
+			i = encodeVarintPermissions(dAtA, i, uint64(len(m.Roles[iNdEx])))
+			i--
+			dAtA[i] = 0x12
+		}
+	}
+	if len(m.Address) > 0 {
+		i -= len(m.Address)
+		copy(dAtA[i:], m.Address)
+		i = encodeVarintPermissions(dAtA, i, uint64(len(m.Address)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
 func (m *Role) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -528,44 +609,12 @@ func (m *Role) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x10
 	}
-	if len(m.Name) > 0 {
-		i -= len(m.Name)
-		copy(dAtA[i:], m.Name)
-		i = encodeVarintPermissions(dAtA, i, uint64(len(m.Name)))
+	if len(m.Role) > 0 {
+		i -= len(m.Role)
+		copy(dAtA[i:], m.Role)
+		i = encodeVarintPermissions(dAtA, i, uint64(len(m.Role)))
 		i--
 		dAtA[i] = 0xa
-	}
-	return len(dAtA) - i, nil
-}
-
-func (m *Roles) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *Roles) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *Roles) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if len(m.Roles) > 0 {
-		for iNdEx := len(m.Roles) - 1; iNdEx >= 0; iNdEx-- {
-			i -= len(m.Roles[iNdEx])
-			copy(dAtA[i:], m.Roles[iNdEx])
-			i = encodeVarintPermissions(dAtA, i, uint64(len(m.Roles[iNdEx])))
-			i--
-			dAtA[i] = 0xa
-		}
 	}
 	return len(dAtA) - i, nil
 }
@@ -591,20 +640,20 @@ func (m *RoleIDs) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	var l int
 	_ = l
 	if len(m.RoleIds) > 0 {
-		dAtA3 := make([]byte, len(m.RoleIds)*10)
-		var j2 int
+		dAtA2 := make([]byte, len(m.RoleIds)*10)
+		var j1 int
 		for _, num := range m.RoleIds {
 			for num >= 1<<7 {
-				dAtA3[j2] = uint8(uint64(num)&0x7f | 0x80)
+				dAtA2[j1] = uint8(uint64(num)&0x7f | 0x80)
 				num >>= 7
-				j2++
+				j1++
 			}
-			dAtA3[j2] = uint8(num)
-			j2++
+			dAtA2[j1] = uint8(num)
+			j1++
 		}
-		i -= j2
-		copy(dAtA[i:], dAtA3[:j2])
-		i = encodeVarintPermissions(dAtA, i, uint64(j2))
+		i -= j1
+		copy(dAtA[i:], dAtA2[:j1])
+		i = encodeVarintPermissions(dAtA, i, uint64(j1))
 		i--
 		dAtA[i] = 0xa
 	}
@@ -648,6 +697,48 @@ func (m *Voucher) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
+func (m *AddressVoucher) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *AddressVoucher) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *AddressVoucher) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.Voucher != nil {
+		{
+			size, err := m.Voucher.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintPermissions(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.Address) > 0 {
+		i -= len(m.Address)
+		copy(dAtA[i:], m.Address)
+		i = encodeVarintPermissions(dAtA, i, uint64(len(m.Address)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
 func encodeVarintPermissions(dAtA []byte, offset int, v uint64) int {
 	offset -= sovPermissions(v)
 	base := offset
@@ -683,24 +774,34 @@ func (m *Namespace) Size() (n int) {
 		n += 2
 	}
 	if len(m.RolePermissions) > 0 {
-		for k, v := range m.RolePermissions {
-			_ = k
-			_ = v
-			mapEntrySize := 1 + len(k) + sovPermissions(uint64(len(k))) + 1 + sovPermissions(uint64(v))
-			n += mapEntrySize + 1 + sovPermissions(uint64(mapEntrySize))
+		for _, e := range m.RolePermissions {
+			l = e.Size()
+			n += 1 + l + sovPermissions(uint64(l))
 		}
 	}
 	if len(m.AddressRoles) > 0 {
-		for k, v := range m.AddressRoles {
-			_ = k
-			_ = v
-			l = 0
-			if v != nil {
-				l = v.Size()
-				l += 1 + sovPermissions(uint64(l))
-			}
-			mapEntrySize := 1 + len(k) + sovPermissions(uint64(len(k))) + l
-			n += mapEntrySize + 1 + sovPermissions(uint64(mapEntrySize))
+		for _, e := range m.AddressRoles {
+			l = e.Size()
+			n += 1 + l + sovPermissions(uint64(l))
+		}
+	}
+	return n
+}
+
+func (m *AddressRoles) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Address)
+	if l > 0 {
+		n += 1 + l + sovPermissions(uint64(l))
+	}
+	if len(m.Roles) > 0 {
+		for _, s := range m.Roles {
+			l = len(s)
+			n += 1 + l + sovPermissions(uint64(l))
 		}
 	}
 	return n
@@ -712,27 +813,12 @@ func (m *Role) Size() (n int) {
 	}
 	var l int
 	_ = l
-	l = len(m.Name)
+	l = len(m.Role)
 	if l > 0 {
 		n += 1 + l + sovPermissions(uint64(l))
 	}
 	if m.Permissions != 0 {
 		n += 1 + sovPermissions(uint64(m.Permissions))
-	}
-	return n
-}
-
-func (m *Roles) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if len(m.Roles) > 0 {
-		for _, s := range m.Roles {
-			l = len(s)
-			n += 1 + l + sovPermissions(uint64(l))
-		}
 	}
 	return n
 }
@@ -764,6 +850,23 @@ func (m *Voucher) Size() (n int) {
 			l = e.Size()
 			n += 1 + l + sovPermissions(uint64(l))
 		}
+	}
+	return n
+}
+
+func (m *AddressVoucher) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Address)
+	if l > 0 {
+		n += 1 + l + sovPermissions(uint64(l))
+	}
+	if m.Voucher != nil {
+		l = m.Voucher.Size()
+		n += 1 + l + sovPermissions(uint64(l))
 	}
 	return n
 }
@@ -956,89 +1059,10 @@ func (m *Namespace) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.RolePermissions == nil {
-				m.RolePermissions = make(map[string]uint32)
+			m.RolePermissions = append(m.RolePermissions, &Role{})
+			if err := m.RolePermissions[len(m.RolePermissions)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
 			}
-			var mapkey string
-			var mapvalue uint32
-			for iNdEx < postIndex {
-				entryPreIndex := iNdEx
-				var wire uint64
-				for shift := uint(0); ; shift += 7 {
-					if shift >= 64 {
-						return ErrIntOverflowPermissions
-					}
-					if iNdEx >= l {
-						return io.ErrUnexpectedEOF
-					}
-					b := dAtA[iNdEx]
-					iNdEx++
-					wire |= uint64(b&0x7F) << shift
-					if b < 0x80 {
-						break
-					}
-				}
-				fieldNum := int32(wire >> 3)
-				if fieldNum == 1 {
-					var stringLenmapkey uint64
-					for shift := uint(0); ; shift += 7 {
-						if shift >= 64 {
-							return ErrIntOverflowPermissions
-						}
-						if iNdEx >= l {
-							return io.ErrUnexpectedEOF
-						}
-						b := dAtA[iNdEx]
-						iNdEx++
-						stringLenmapkey |= uint64(b&0x7F) << shift
-						if b < 0x80 {
-							break
-						}
-					}
-					intStringLenmapkey := int(stringLenmapkey)
-					if intStringLenmapkey < 0 {
-						return ErrInvalidLengthPermissions
-					}
-					postStringIndexmapkey := iNdEx + intStringLenmapkey
-					if postStringIndexmapkey < 0 {
-						return ErrInvalidLengthPermissions
-					}
-					if postStringIndexmapkey > l {
-						return io.ErrUnexpectedEOF
-					}
-					mapkey = string(dAtA[iNdEx:postStringIndexmapkey])
-					iNdEx = postStringIndexmapkey
-				} else if fieldNum == 2 {
-					for shift := uint(0); ; shift += 7 {
-						if shift >= 64 {
-							return ErrIntOverflowPermissions
-						}
-						if iNdEx >= l {
-							return io.ErrUnexpectedEOF
-						}
-						b := dAtA[iNdEx]
-						iNdEx++
-						mapvalue |= uint32(b&0x7F) << shift
-						if b < 0x80 {
-							break
-						}
-					}
-				} else {
-					iNdEx = entryPreIndex
-					skippy, err := skipPermissions(dAtA[iNdEx:])
-					if err != nil {
-						return err
-					}
-					if (skippy < 0) || (iNdEx+skippy) < 0 {
-						return ErrInvalidLengthPermissions
-					}
-					if (iNdEx + skippy) > postIndex {
-						return io.ErrUnexpectedEOF
-					}
-					iNdEx += skippy
-				}
-			}
-			m.RolePermissions[mapkey] = mapvalue
 			iNdEx = postIndex
 		case 7:
 			if wireType != 2 {
@@ -1069,105 +1093,124 @@ func (m *Namespace) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.AddressRoles == nil {
-				m.AddressRoles = make(map[string]*Roles)
+			m.AddressRoles = append(m.AddressRoles, &AddressRoles{})
+			if err := m.AddressRoles[len(m.AddressRoles)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
 			}
-			var mapkey string
-			var mapvalue *Roles
-			for iNdEx < postIndex {
-				entryPreIndex := iNdEx
-				var wire uint64
-				for shift := uint(0); ; shift += 7 {
-					if shift >= 64 {
-						return ErrIntOverflowPermissions
-					}
-					if iNdEx >= l {
-						return io.ErrUnexpectedEOF
-					}
-					b := dAtA[iNdEx]
-					iNdEx++
-					wire |= uint64(b&0x7F) << shift
-					if b < 0x80 {
-						break
-					}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipPermissions(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthPermissions
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *AddressRoles) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowPermissions
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: AddressRoles: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: AddressRoles: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Address", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowPermissions
 				}
-				fieldNum := int32(wire >> 3)
-				if fieldNum == 1 {
-					var stringLenmapkey uint64
-					for shift := uint(0); ; shift += 7 {
-						if shift >= 64 {
-							return ErrIntOverflowPermissions
-						}
-						if iNdEx >= l {
-							return io.ErrUnexpectedEOF
-						}
-						b := dAtA[iNdEx]
-						iNdEx++
-						stringLenmapkey |= uint64(b&0x7F) << shift
-						if b < 0x80 {
-							break
-						}
-					}
-					intStringLenmapkey := int(stringLenmapkey)
-					if intStringLenmapkey < 0 {
-						return ErrInvalidLengthPermissions
-					}
-					postStringIndexmapkey := iNdEx + intStringLenmapkey
-					if postStringIndexmapkey < 0 {
-						return ErrInvalidLengthPermissions
-					}
-					if postStringIndexmapkey > l {
-						return io.ErrUnexpectedEOF
-					}
-					mapkey = string(dAtA[iNdEx:postStringIndexmapkey])
-					iNdEx = postStringIndexmapkey
-				} else if fieldNum == 2 {
-					var mapmsglen int
-					for shift := uint(0); ; shift += 7 {
-						if shift >= 64 {
-							return ErrIntOverflowPermissions
-						}
-						if iNdEx >= l {
-							return io.ErrUnexpectedEOF
-						}
-						b := dAtA[iNdEx]
-						iNdEx++
-						mapmsglen |= int(b&0x7F) << shift
-						if b < 0x80 {
-							break
-						}
-					}
-					if mapmsglen < 0 {
-						return ErrInvalidLengthPermissions
-					}
-					postmsgIndex := iNdEx + mapmsglen
-					if postmsgIndex < 0 {
-						return ErrInvalidLengthPermissions
-					}
-					if postmsgIndex > l {
-						return io.ErrUnexpectedEOF
-					}
-					mapvalue = &Roles{}
-					if err := mapvalue.Unmarshal(dAtA[iNdEx:postmsgIndex]); err != nil {
-						return err
-					}
-					iNdEx = postmsgIndex
-				} else {
-					iNdEx = entryPreIndex
-					skippy, err := skipPermissions(dAtA[iNdEx:])
-					if err != nil {
-						return err
-					}
-					if (skippy < 0) || (iNdEx+skippy) < 0 {
-						return ErrInvalidLengthPermissions
-					}
-					if (iNdEx + skippy) > postIndex {
-						return io.ErrUnexpectedEOF
-					}
-					iNdEx += skippy
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
 				}
 			}
-			m.AddressRoles[mapkey] = mapvalue
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthPermissions
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthPermissions
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Address = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Roles", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowPermissions
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthPermissions
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthPermissions
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Roles = append(m.Roles, string(dAtA[iNdEx:postIndex]))
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -1221,7 +1264,7 @@ func (m *Role) Unmarshal(dAtA []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Name", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Role", wireType)
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
@@ -1249,7 +1292,7 @@ func (m *Role) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Name = string(dAtA[iNdEx:postIndex])
+			m.Role = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		case 2:
 			if wireType != 0 {
@@ -1270,88 +1313,6 @@ func (m *Role) Unmarshal(dAtA []byte) error {
 					break
 				}
 			}
-		default:
-			iNdEx = preIndex
-			skippy, err := skipPermissions(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
-				return ErrInvalidLengthPermissions
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *Roles) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowPermissions
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: Roles: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: Roles: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Roles", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowPermissions
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthPermissions
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthPermissions
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Roles = append(m.Roles, string(dAtA[iNdEx:postIndex]))
-			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipPermissions(dAtA[iNdEx:])
@@ -1559,6 +1520,124 @@ func (m *Voucher) Unmarshal(dAtA []byte) error {
 			}
 			m.Coins = append(m.Coins, types.Coin{})
 			if err := m.Coins[len(m.Coins)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipPermissions(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthPermissions
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *AddressVoucher) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowPermissions
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: AddressVoucher: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: AddressVoucher: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Address", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowPermissions
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthPermissions
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthPermissions
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Address = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Voucher", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowPermissions
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthPermissions
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthPermissions
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Voucher == nil {
+				m.Voucher = &Voucher{}
+			}
+			if err := m.Voucher.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex

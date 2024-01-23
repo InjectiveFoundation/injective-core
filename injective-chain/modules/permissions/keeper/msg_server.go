@@ -2,6 +2,7 @@ package keeper
 
 import (
 	"context"
+	"sort"
 
 	"cosmossdk.io/errors"
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -179,22 +180,31 @@ func (k msgServer) UpdateNamespaceRoles(c context.Context, msg *types.MsgUpdateN
 	}
 
 	// role_permissions
-	for role, perm := range msg.RolePermissions {
-		if perm > types.MaxPerm {
-			return nil, errors.Wrapf(types.ErrInvalidPermission, "permissions for the role %s is bigger than maximum expected", role)
+	foundRoles := make(map[string]struct{}, len(msg.RolePermissions))
+	for _, rolePerm := range msg.RolePermissions {
+		if rolePerm.Permissions > types.MaxPerm {
+			return nil, errors.Wrapf(types.ErrInvalidPermission, "permissions %d for the role %s is bigger than maximum expected %d", rolePerm.Permissions, rolePerm.Role, types.MaxPerm)
 		}
+		if _, ok := foundRoles[rolePerm.Role]; ok {
+			return nil, errors.Wrapf(types.ErrInvalidPermission, "permissions for the role %s set multiple times?", rolePerm.Role)
+		}
+		foundRoles[rolePerm.Role] = struct{}{}
 	}
 	// address_roles
-	for addr, roles := range msg.AddressRoles {
-		if _, err := sdk.AccAddressFromBech32(addr); err != nil {
-			return nil, errors.Wrapf(err, "invalid address %s", addr)
+	foundAddresses := make(map[string]struct{}, len(msg.AddressRoles))
+	for _, addrRoles := range msg.AddressRoles {
+		if _, err := sdk.AccAddressFromBech32(addrRoles.Address); err != nil {
+			return nil, errors.Wrapf(err, "invalid address %s", addrRoles.Address)
 		}
-
-		for _, role := range roles.Roles {
+		if _, ok := foundAddresses[addrRoles.Address]; ok {
+			return nil, errors.Wrapf(types.ErrInvalidRole, "address %s is assigned new roles multiple times?", addrRoles.Address)
+		}
+		for _, role := range addrRoles.Roles {
 			if role == types.EVERYONE {
 				return nil, errors.Wrapf(types.ErrInvalidRole, "role %s should not be explicitly attached to address, you need to remove address from the list completely instead", types.EVERYONE)
 			}
 		}
+		foundAddresses[addrRoles.Address] = struct{}{}
 	}
 
 	ctx := sdk.UnwrapSDKContext(c)
@@ -213,22 +223,22 @@ func (k msgServer) UpdateNamespaceRoles(c context.Context, msg *types.MsgUpdateN
 		return nil, err
 	}
 
-	for role, permission := range msg.RolePermissions {
+	for _, rolePermission := range msg.RolePermissions {
 		// store or overwrite role permissions
-		if err := k.storeRole(ctx, msg.NamespaceDenom, role, permission); err != nil {
+		if err := k.storeRole(ctx, msg.NamespaceDenom, rolePermission.Role, rolePermission.Permissions); err != nil {
 			return nil, err
 		}
 	}
 
-	for address, roles := range msg.AddressRoles {
-		for _, role := range roles.Roles {
+	for _, addressRoles := range msg.AddressRoles {
+		for _, role := range addressRoles.Roles {
 			if _, ok := k.GetRoleId(ctx, msg.NamespaceDenom, role); !ok {
 				return nil, errors.Wrapf(types.ErrUnknownRole, "role %s has no defined permissions", role)
 			}
 		}
 
-		if err := k.storeAddressRoles(ctx, msg.NamespaceDenom, address, roles); err != nil {
-			return nil, errors.Wrapf(err, "can't store new roles for address %s", address)
+		if err := k.storeAddressRoles(ctx, msg.NamespaceDenom, addressRoles.Address, addressRoles.Roles); err != nil {
+			return nil, errors.Wrapf(err, "can't store new roles for address %s", addressRoles.Address)
 		}
 	}
 
@@ -245,16 +255,20 @@ func (k msgServer) RevokeNamespaceRoles(c context.Context, msg *types.MsgRevokeN
 	}
 
 	// address_roles
-	for addr, roles := range msg.AddressRolesToRevoke {
-		if _, err := sdk.AccAddressFromBech32(addr); err != nil {
-			return nil, errors.Wrapf(err, "invalid address %s", addr)
+	foundAddresses := make(map[string]struct{}, len(msg.AddressRolesToRevoke))
+	for _, addrRoles := range msg.AddressRolesToRevoke {
+		if _, err := sdk.AccAddressFromBech32(addrRoles.Address); err != nil {
+			return nil, errors.Wrapf(err, "invalid address %s", addrRoles.Address)
 		}
-
-		for _, role := range roles.Roles {
+		if _, ok := foundAddresses[addrRoles.Address]; ok {
+			return nil, errors.Wrapf(types.ErrInvalidRole, "address %s - revoking roles multiple times?", addrRoles.Address)
+		}
+		for _, role := range addrRoles.Roles {
 			if role == types.EVERYONE {
 				return nil, errors.Wrapf(types.ErrInvalidRole, "role %s can not be set / revoked", types.EVERYONE)
 			}
 		}
+		foundAddresses[addrRoles.Address] = struct{}{}
 	}
 
 	ctx := sdk.UnwrapSDKContext(c)
@@ -275,8 +289,8 @@ func (k msgServer) RevokeNamespaceRoles(c context.Context, msg *types.MsgRevokeN
 		return nil, err
 	}
 
-	for address, roles := range msg.AddressRolesToRevoke {
-		currentRoles, err := k.GetAddressRoleNames(ctx, msg.NamespaceDenom, address)
+	for _, addressRoles := range msg.AddressRolesToRevoke {
+		currentRoles, err := k.GetAddressRoleNames(ctx, msg.NamespaceDenom, addressRoles.Address)
 		if err != nil {
 			return nil, err
 		}
@@ -290,12 +304,12 @@ func (k msgServer) RevokeNamespaceRoles(c context.Context, msg *types.MsgRevokeN
 			currentRolesMap[cRole] = struct{}{}
 		}
 
-		for _, role := range roles.Roles {
+		for _, role := range addressRoles.Roles {
 			delete(currentRolesMap, role)
 		}
 
 		if len(currentRolesMap) == 0 { // just remove address roles completely
-			k.deleteAddressRoles(ctx, msg.NamespaceDenom, address)
+			k.deleteAddressRoles(ctx, msg.NamespaceDenom, addressRoles.Address)
 		} else { // overwrite existing roles with new ones
 			newRoles := make([]string, 0, len(currentRolesMap))
 
@@ -303,8 +317,10 @@ func (k msgServer) RevokeNamespaceRoles(c context.Context, msg *types.MsgRevokeN
 				newRoles = append(newRoles, newRole)
 			}
 
-			if err := k.storeAddressRoles(ctx, msg.NamespaceDenom, address, &types.Roles{Roles: newRoles}); err != nil {
-				return nil, errors.Wrapf(err, "can't overwrite address %s roles", address)
+			sort.Strings(newRoles) // we need to sort due to non-deterministic append during map iteration above
+
+			if err := k.storeAddressRoles(ctx, msg.NamespaceDenom, addressRoles.Address, newRoles); err != nil {
+				return nil, errors.Wrapf(err, "can't overwrite address %s roles", addressRoles.Address)
 			}
 		}
 	}

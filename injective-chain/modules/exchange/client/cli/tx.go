@@ -94,8 +94,8 @@ func NewInstantSpotMarketLaunchTxCmd() *cobra.Command {
 		"Launch spot market by paying listing fee without governance",
 		&types.MsgInstantSpotMarketLaunch{},
 		cli.FlagsMapping{
-			"MinPriceTickSize":    cli.Flag{Flag: FlagMinPriceTickSize},
-			"MinQuantityTickSize": cli.Flag{Flag: FlagMinQuantityTickSize},
+			"MinPriceTickSize":    cli.Flag{Flag: FlagMinPriceTickSize, UseDefaultIfOmitted: true},
+			"MinQuantityTickSize": cli.Flag{Flag: FlagMinQuantityTickSize, UseDefaultIfOmitted: true},
 		},
 		cli.ArgsMapping{},
 	)

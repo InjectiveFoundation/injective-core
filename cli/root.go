@@ -27,6 +27,11 @@ type Flag struct {
 	// Returned string will be parsed as it was coming from cli inputs.
 	// If Transform is omitted, we use original favue from flag.
 	Transform func(origV string, ctx grpc.ClientConn) (tranformedV any, err error)
+
+	// UseDefaultIfOmitted changes the behavior of flag if it's not specified by the user.
+	// If true, flag will return the default value.
+	// If false, the struct's corresponding field will not be initialized with any value.
+	UseDefaultIfOmitted bool
 }
 
 // special marker to skip parsing of the field from inputs and leave it zero initialized

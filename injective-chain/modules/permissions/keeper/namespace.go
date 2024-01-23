@@ -31,10 +31,7 @@ func (k Keeper) GetNamespaceForDenom(ctx sdk.Context, denom string, includeRoles
 		if err != nil {
 			return nil, err
 		}
-		ns.RolePermissions = make(map[string]uint32, len(roles))
-		for _, role := range roles {
-			ns.RolePermissions[role.Name] = role.Permissions
-		}
+		ns.RolePermissions = roles
 	}
 
 	return &ns, nil
@@ -42,8 +39,8 @@ func (k Keeper) GetNamespaceForDenom(ctx sdk.Context, denom string, includeRoles
 
 func (k Keeper) storeNamespace(ctx sdk.Context, ns types.Namespace) error {
 	// save new roles
-	for role, permissions := range ns.RolePermissions {
-		if err := k.storeRole(ctx, ns.Denom, role, permissions); err != nil {
+	for _, rolePermissions := range ns.RolePermissions {
+		if err := k.storeRole(ctx, ns.Denom, rolePermissions.Role, rolePermissions.Permissions); err != nil {
 			return err
 		}
 	}
@@ -51,8 +48,8 @@ func (k Keeper) storeNamespace(ctx sdk.Context, ns types.Namespace) error {
 	ns.RolePermissions = nil
 
 	// store new address roles
-	for addr, roles := range ns.AddressRoles {
-		if err := k.storeAddressRoles(ctx, ns.Denom, addr, roles); err != nil {
+	for _, addrRoles := range ns.AddressRoles {
+		if err := k.storeAddressRoles(ctx, ns.Denom, addrRoles.Address, addrRoles.Roles); err != nil {
 			return err
 		}
 	}

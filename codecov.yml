@@ -1,8 +1,16 @@
+coverage:
+  status:
+    project: off
+    patch:
+      default:
+        threshold: 0%
+
 ignore:
   - "**/*.pb.go"
   - "**/*.gw.go"
   - "**/*_test.go"
   - "**/testexchange/**"
+  - "**/.github/**"
 
 fixes:
   - "/injective-core::"

@@ -87,7 +87,7 @@ func fillSenderFromCtx(msg sdk.Msg, clientCtx client.Context) error {
 			case fieldName == "SubaccountId": // parsed from context "from"
 
 			// recursively look for internal structs
-			case fieldT.Kind() == reflect.Ptr && fieldT.Elem().Kind() == reflect.Struct && !isComplexValue(fieldT.Elem().String()): // pointer to struct
+			case fieldT.Kind() == reflect.Ptr && fieldT.Elem().Kind() == reflect.Struct && !isComplexValue(fieldT.Elem().String()): // pointer to struct, must be initialized
 				if err := fillSenderInStruct(field.Interface()); err != nil {
 					return fmt.Errorf("can't fill sender in struct %s: %w", fieldName, err)
 				}
@@ -128,7 +128,7 @@ func parseFieldsFromFlagsAndArgs(msg proto.Message, flagsMap FlagsMapping, argsM
 					field.Set(reflect.ValueOf(parsedAnyField))
 				}
 			// recursively look for internal structs
-			case fieldT.Kind() == reflect.Ptr && fieldT.Elem().Kind() == reflect.Struct && !isComplexValue(fieldT.Elem().String()): // pointer to struct
+			case fieldT.Kind() == reflect.Ptr && fieldT.Elem().Kind() == reflect.Struct && !isComplexValue(fieldT.Elem().String()): // pointer to struct, must be initialized
 				if err := parseStruct(field.Interface()); err != nil {
 					return fmt.Errorf("can't parse internal struct %s: %w", t.Field(i).Name, err)
 				}
@@ -147,7 +147,7 @@ func parseFieldsFromFlagsAndArgs(msg proto.Message, flagsMap FlagsMapping, argsM
 						continue
 					}
 					flag := flags.Lookup(flagTransform.Flag)
-					if flag == nil || flag.Value.String() == "" { // flag not set
+					if flag == nil || (!flag.Changed && !flagTransform.UseDefaultIfOmitted) { // flag not found, or not set and we don't want it's default value
 						continue
 					}
 					val = flag.Value.String()

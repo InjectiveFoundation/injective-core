@@ -108,4 +108,6 @@ message QueryAddressRolesResponse { repeated string roles = 1; }
 
 message QueryVouchersForAddressRequest { string address = 1; }
 
-message QueryVouchersForAddressResponse { map<string, Voucher> vouchers = 1; }
+message QueryVouchersForAddressResponse {
+  repeated AddressVoucher vouchers = 1;
+}
