@@ -14,11 +14,12 @@ type SpotMarketParamUpdateProposal struct {
 	Title                string
 	Description          string
 	MarketId             string
-	MakerFeeRate         *sdk.Dec
-	TakerFeeRate         *sdk.Dec
-	RelayerFeeShareRate  *sdk.Dec
-	MinPriceTickSize     *sdk.Dec
-	MinQuantityTickSize  *sdk.Dec
+	MakerFeeRate         *math.LegacyDec
+	TakerFeeRate         *math.LegacyDec
+	RelayerFeeShareRate  *math.LegacyDec
+	MinPriceTickSize     *math.LegacyDec
+	MinQuantityTickSize  *math.LegacyDec
+    MinNotional          *math.LegacyDec
 	Status               MarketStatus
 }
 ```
@@ -94,10 +95,11 @@ type SpotMarketLaunchProposal struct {
 	Ticker               string
 	BaseDenom            string
 	QuoteDenom           string
-	MinPriceTickSize     sdk.Dec
-	MinQuantityTickSize  sdk.Dec
-	MakerFeeRate         sdk.Dec
-	TakerFeeRate         sdk.Dec
+	MinPriceTickSize     math.LegacyDec
+	MinQuantityTickSize  math.LegacyDec
+    MinNotional          math.LegacyDec
+	MakerFeeRate         math.LegacyDec
+	TakerFeeRate         math.LegacyDec
 }
 ```
 
@@ -127,12 +129,12 @@ type PerpetualMarketLaunchProposal struct {
 	OracleQuote             string
 	OracleScaleFactor       uint32
 	OracleType              types1.OracleType
-	InitialMarginRatio      sdk.Dec
-	MaintenanceMarginRatio  sdk.Dec
-	MakerFeeRate            sdk.Dec
-	TakerFeeRate            sdk.Dec
-	MinPriceTickSize        sdk.Dec
-	MinQuantityTickSize     sdk.Dec
+	InitialMarginRatio      math.LegacyDec
+	MaintenanceMarginRatio  math.LegacyDec
+	MakerFeeRate            math.LegacyDec
+	TakerFeeRate            math.LegacyDec
+	MinPriceTickSize        math.LegacyDec
+	MinQuantityTickSize     math.LegacyDec
 }
 ```
 
@@ -175,17 +177,19 @@ type ExpiryFuturesMarketLaunchProposal struct {
 	// Expiration time of the market
 	Expiry                     int64
 	// initial_margin_ratio defines the initial margin ratio for the derivative market
-	InitialMarginRatio         sdk.Dec
+	InitialMarginRatio         math.LegacyDec
 	// maintenance_margin_ratio defines the maintenance margin ratio for the derivative market
-	MaintenanceMarginRatio     sdk.Dec
+	MaintenanceMarginRatio     math.LegacyDec
 	// maker_fee_rate defines the exchange trade fee for makers for the derivative market
-	MakerFeeRate               sdk.Dec
+	MakerFeeRate               math.LegacyDec
 	// taker_fee_rate defines the exchange trade fee for takers for the derivative market
-	TakerFeeRate               sdk.Dec
+	TakerFeeRate               math.LegacyDec
 	// min_price_tick_size defines the minimum tick size of the order's price and margin
-	MinPriceTickSize           sdk.Dec
+	MinPriceTickSize           math.LegacyDec
 	// min_quantity_tick_size defines the minimum tick size of the order's quantity
-	MinQuantityTickSize        sdk.Dec
+	MinQuantityTickSize        math.LegacyDec
+    // min_notional defines the minimum notional (in quote asset) required for orders in the market
+    MinNotional                math.LegacyDec
 }
 ```
 
@@ -232,13 +236,13 @@ type BinaryOptionsMarketLaunchProposal struct {
 	// Address of the quote currency denomination for the binary options contract
 	QuoteDenom string
 	// maker_fee_rate defines the maker fee rate of a binary options market
-	MakerFeeRate sdk.Dec
+	MakerFeeRate math.LegacyDec
 	// taker_fee_rate defines the taker fee rate of a derivative market
-	TakerFeeRate sdk.Dec
+	TakerFeeRate math.LegacyDec
 	// min_price_tick_size defines the minimum tick size that the price and margin required for orders in the market
-	MinPriceTickSize sdk.Dec
+	MinPriceTickSize math.LegacyDec
 	// min_quantity_tick_size defines the minimum tick size of the quantity required for orders in the market
-	MinQuantityTickSize sdk.Dec
+	MinQuantityTickSize math.LegacyDec
 }
 ```
 
@@ -250,21 +254,23 @@ type BinaryOptionsMarketParamUpdateProposal struct {
 	Description string
 	MarketId    string
 	// maker_fee_rate defines the exchange trade fee for makers for the derivative market
-	MakerFeeRate *sdk.Dec
+	MakerFeeRate *math.LegacyDec
 	// taker_fee_rate defines the exchange trade fee for takers for the derivative market
-	TakerFeeRate *sdk.Dec
+	TakerFeeRate *math.LegacyDec
 	// relayer_fee_share_rate defines the relayer fee share rate for the derivative market
-	RelayerFeeShareRate *sdk.Dec
+	RelayerFeeShareRate *math.LegacyDec
 	// min_price_tick_size defines the minimum tick size of the order's price and margin
-	MinPriceTickSize *sdk.Dec
+	MinPriceTickSize *math.LegacyDec
 	// min_quantity_tick_size defines the minimum tick size of the order's quantity
-	MinQuantityTickSize *sdk.Dec
+	MinQuantityTickSize *math.LegacyDec
+    // min_notional defines the minimum notional for orders
+    MinNotional *math.LegacyDec
 	// expiration timestamp
 	ExpirationTimestamp int64
 	// expiration timestamp
 	SettlementTimestamp int64
 	// new price at which market will be settled
-	SettlementPrice *sdk.Dec
+	SettlementPrice *math.LegacyDec
 	// admin of the market
 	Admin        string
 	Status       MarketStatus
@@ -290,15 +296,16 @@ type DerivativeMarketParamUpdateProposal struct {
 	Title                  string
 	Description            string
 	MarketId               string
-	InitialMarginRatio     *sdk.Dec
-	MaintenanceMarginRatio *sdk.Dec
-	MakerFeeRate           *sdk.Dec
-	TakerFeeRate           *sdk.Dec
-	RelayerFeeShareRate    *sdk.Dec
-	MinPriceTickSize       *sdk.Dec
-	MinQuantityTickSize    *sdk.Dec
-	HourlyInterestRate     *sdk.Dec
-	HourlyFundingRateCap   *sdk.Dec
+	InitialMarginRatio     *math.LegacyDec
+	MaintenanceMarginRatio *math.LegacyDec
+	MakerFeeRate           *math.LegacyDec
+	TakerFeeRate           *math.LegacyDec
+	RelayerFeeShareRate    *math.LegacyDec
+	MinPriceTickSize       *math.LegacyDec
+	MinQuantityTickSize    *math.LegacyDec
+    MinNotional            *math.LegacyDec
+	HourlyInterestRate     *math.LegacyDec
+	HourlyFundingRateCap   *math.LegacyDec
 	Status                 MarketStatus
 	OracleParams           *OracleParams
 }

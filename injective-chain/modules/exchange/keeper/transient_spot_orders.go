@@ -3,8 +3,8 @@ package keeper
 import (
 	"bytes"
 
-	"github.com/cosmos/cosmos-sdk/store/prefix"
-	storetypes "github.com/cosmos/cosmos-sdk/store/types"
+	"cosmossdk.io/store/prefix"
+	storetypes "cosmossdk.io/store/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
@@ -21,7 +21,8 @@ func (k *Keeper) SetTransientSpotLimitOrder(
 	isBuy bool,
 	orderHash common.Hash,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	// use transient store key
 	store := k.getTransientStore(ctx)
@@ -73,7 +74,8 @@ func (k *Keeper) GetAllTransientSpotLimitOrdersBySubaccountAndMarket(
 	isBuy bool,
 	subaccountID common.Hash,
 ) []*types.SpotLimitOrder {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	orders := make([]*types.SpotLimitOrder, 0)
 
@@ -102,7 +104,8 @@ func (k *Keeper) IterateTransientSpotLimitOrdersBySubaccount(
 	subaccountID common.Hash,
 	process func(orderKey []byte) (stop bool),
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getTransientStore(ctx)
 	orderIndexStore := prefix.NewStore(store, types.GetTransientLimitOrderIndexIteratorPrefix(marketID, isBuy, subaccountID))
@@ -130,7 +133,8 @@ func (k *Keeper) GetTransientSpotLimitOrderBySubaccountID(
 	subaccountID common.Hash,
 	orderHash common.Hash,
 ) *types.SpotLimitOrder {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 	// use transient store key
 	store := k.getTransientStore(ctx)
 
@@ -172,7 +176,8 @@ func (k *Keeper) CancelTransientSpotLimitOrder(
 	subaccountID common.Hash,
 	order *types.SpotLimitOrder,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 	// 1. Add back the margin hold to available balance
 	marginHold, marginDenom := order.GetUnfilledMarginHoldAndMarginDenom(market, true)
 
@@ -195,7 +200,8 @@ func (k *Keeper) DeleteTransientSpotLimitOrder(
 	marketID common.Hash,
 	order *types.SpotLimitOrder,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 	store := k.getTransientStore(ctx)
 
 	ordersStore := prefix.NewStore(store, types.SpotLimitOrdersPrefix)
@@ -218,7 +224,8 @@ func (k *Keeper) DeleteTransientSpotLimitOrder(
 func (k *Keeper) GetAllTransientMatchedSpotLimitOrderMarkets(
 	ctx sdk.Context,
 ) []*types.MatchedMarketDirection {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	// use transient store key
 	store := k.getTransientStore(ctx)
@@ -231,13 +238,13 @@ func (k *Keeper) GetAllTransientMatchedSpotLimitOrderMarkets(
 
 	matchedMarketDirections := make([]*types.MatchedMarketDirection, 0)
 
-	marketIds := make([]common.Hash, 0)
+	marketIDs := make([]common.Hash, 0)
 	marketDirectionMap := make(map[common.Hash]*types.MatchedMarketDirection)
 
 	for ; iterator.Valid(); iterator.Next() {
 		marketId, isBuy := types.GetMarketIdDirectionFromTransientKey(iterator.Key())
 		if marketDirectionMap[marketId] == nil {
-			marketIds = append(marketIds, marketId)
+			marketIDs = append(marketIDs, marketId)
 			matchedMarketDirection := types.MatchedMarketDirection{
 				MarketId: marketId,
 			}
@@ -256,7 +263,7 @@ func (k *Keeper) GetAllTransientMatchedSpotLimitOrderMarkets(
 		}
 	}
 
-	for _, marketId := range marketIds {
+	for _, marketId := range marketIDs {
 		matchedMarketDirections = append(matchedMarketDirections, marketDirectionMap[marketId])
 	}
 
@@ -270,7 +277,8 @@ func (k *Keeper) IterateSpotMarketOrders(
 	isBuy bool,
 	process func(order *types.SpotMarketOrder) (stop bool),
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	// use transient store key
 	store := k.getTransientStore(ctx)
@@ -305,7 +313,8 @@ func (k *Keeper) GetAllSubaccountSpotMarketOrdersByMarketDirection(
 	subaccountID common.Hash,
 	isBuy bool,
 ) []*types.SpotMarketOrder {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	orders := make([]*types.SpotMarketOrder, 0)
 	appendOrder := func(order *types.SpotMarketOrder) (stop bool) {
@@ -326,7 +335,8 @@ func (k *Keeper) GetAllTransientSpotLimitOrdersByMarketDirection(
 	marketID common.Hash,
 	isBuy bool,
 ) []*types.SpotLimitOrder {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	// use transient store key
 	store := k.getTransientStore(ctx)
@@ -363,7 +373,8 @@ func (k *Keeper) SetTransientSpotMarketOrder(
 	order *types.SpotOrder,
 	orderHash common.Hash,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	// use transient store key
 	store := k.getTransientStore(ctx)
@@ -388,7 +399,8 @@ func (k *Keeper) GetAllTransientSpotMarketOrders(
 	marketID common.Hash,
 	isBuy bool,
 ) []*types.SpotMarketOrder {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getTransientStore(ctx)
 
@@ -423,7 +435,8 @@ func (k *Keeper) GetTransientMarketOrderIndicator(
 	marketID common.Hash,
 	isBuy bool,
 ) *types.MarketOrderIndicator {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getTransientStore(ctx)
 	marketQuantityStore := prefix.NewStore(store, types.SpotMarketOrderIndicatorPrefix)
@@ -447,7 +460,8 @@ func (k *Keeper) SetTransientMarketOrderIndicator(
 	marketID common.Hash,
 	isBuy bool,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getTransientStore(ctx)
 	marketIndicatorStore := prefix.NewStore(store, types.SpotMarketOrderIndicatorPrefix)
@@ -464,7 +478,8 @@ func (k *Keeper) SetTransientMarketOrderIndicator(
 func (k *Keeper) GetAllTransientSpotMarketOrderIndicators(
 	ctx sdk.Context,
 ) []*types.MarketOrderIndicator {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getTransientStore(ctx)
 	marketQuantityStore := prefix.NewStore(store, types.SpotMarketOrderIndicatorPrefix)
@@ -488,7 +503,8 @@ func (k *Keeper) GetAllTransientSpotMarketOrderIndicators(
 
 // GetAllTransientSpotLimitOrderbook returns all transient orderbooks for all spot markets.
 func (k *Keeper) GetAllTransientSpotLimitOrderbook(ctx sdk.Context) []types.SpotOrderBook {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	markets := k.GetAllSpotMarkets(ctx)
 	orderbook := make([]types.SpotOrderBook, 0, len(markets)*2)

@@ -3,12 +3,15 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
+	"cosmossdk.io/math"
 	"github.com/cosmos/cosmos-sdk/x/authz"
 	"github.com/cosmos/gogoproto/grpc"
 
@@ -32,6 +35,9 @@ import (
 func NewTxCmd() *cobra.Command {
 	cmd := cli.ModuleRootCommand(types.ModuleName, false)
 	cmd.AddCommand(
+		// market admin
+		NewUpdateSpotMarketCmd(),
+		NewUpdateDerivativeMarketCmd(),
 		// spot markets
 		NewInstantSpotMarketLaunchTxCmd(),
 		NewCreateSpotLimitOrderTxCmd(),
@@ -80,10 +86,15 @@ func NewTxCmd() *cobra.Command {
 		// authz
 		NewAuthzTxCmd(),
 		NewBatchUpdateAuthzTxCmd(),
+		// stake grant
+		NewStakeGrantAuthorizationTxCmd(),
+		NewStakeGrantActivationTxCmd(),
 		// other
 		NewExchangeEnableProposalTxCmd(),
 		NewMarketForcedSettlementTxCmd(),
 		NewUpdateDenomDecimalsProposalTxCmd(),
+		NewIncreasePositionMarginTxCmd(),
+		NewDecreasePositionMarginTxCmd(),
 	)
 	return cmd
 }
@@ -96,18 +107,20 @@ func NewInstantSpotMarketLaunchTxCmd() *cobra.Command {
 		cli.FlagsMapping{
 			"MinPriceTickSize":    cli.Flag{Flag: FlagMinPriceTickSize, UseDefaultIfOmitted: true},
 			"MinQuantityTickSize": cli.Flag{Flag: FlagMinQuantityTickSize, UseDefaultIfOmitted: true},
+			"MinNotional":         cli.Flag{Flag: FlagMinNotional, UseDefaultIfOmitted: true},
 		},
 		cli.ArgsMapping{},
 	)
-	cmd.Example = `tx exchange instant-spot-market-launch INJ/ATOM uinj uatom --min-price-tick-size=1000000000 --min-quantity-tick-size=1000000000000000`
+	cmd.Example = `tx exchange instant-spot-market-launch INJ/ATOM uinj uatom --min-price-tick-size=1000000000 --min-quantity-tick-size=1000000000000000 --min-notional=1`
 	cmd.Flags().String(FlagMinPriceTickSize, "1000000000", "min price tick size")
 	cmd.Flags().String(FlagMinQuantityTickSize, "1000000000000000", "min quantity tick size")
+	cmd.Flags().String(FlagMinNotional, "0", "min notional")
 	return cmd
 }
 
 func NewCreateSpotLimitOrderTxCmd() *cobra.Command {
 	cmd := cli.TxCmd(
-		"create-spot-limit-order <order_type> <market_ticker> <quantity> <price>",
+		"create-spot-limit-order <order_type> <market_ticker> <quantity> <price> <client_order_id>",
 		"Create Spot Limit Order",
 		&types.MsgCreateSpotLimitOrder{},
 		cli.FlagsMapping{"TriggerPrice": cli.SkipField}, // disable parsing of trigger price
@@ -136,15 +149,16 @@ func NewCreateSpotLimitOrderTxCmd() *cobra.Command {
 			"MarketId": cli.Arg{Index: 1, Transform: getSpotMarketIdFromTicker},
 			"Price":    cli.Arg{Index: 3},
 			"Quantity": cli.Arg{Index: 2},
+			"Cid":      cli.Arg{Index: 4},
 		},
 	)
-	cmd.Example = "injectived tx exchange create-spot-limit-order buy ETH/USDT 2.4 2000.1 --from=genesis --keyring-backend=file --yes"
+	cmd.Example = "injectived tx exchange create-spot-limit-order buy ETH/USDT 2.4 2000.1 my_order_1 --from=genesis --keyring-backend=file --yes"
 	return cmd
 }
 
 func NewCreateSpotMarketOrderTxCmd() *cobra.Command {
 	cmd := cli.TxCmd(
-		"create-spot-market-order <order_type> <market_ticker> <quantity> <worst_price>",
+		"create-spot-market-order <order_type> <market_ticker> <quantity> <worst_price> <client_order_id>",
 		"Create Spot Market Order",
 		&types.MsgCreateSpotMarketOrder{},
 		cli.FlagsMapping{"TriggerPrice": cli.SkipField}, // disable parsing of trigger price
@@ -167,33 +181,55 @@ func NewCreateSpotMarketOrderTxCmd() *cobra.Command {
 			"MarketId": cli.Arg{Index: 1, Transform: getSpotMarketIdFromTicker},
 			"Price":    cli.Arg{Index: 3},
 			"Quantity": cli.Arg{Index: 2},
+			"Cid":      cli.Arg{Index: 4},
 		},
 	)
-	cmd.Example = "injectived tx exchange create-spot-limit-order buy ETH/USDT 2.4 2000.1 --from=genesis --keyring-backend=file --yes"
+	cmd.Example = "injectived tx exchange create-spot-limit-order buy ETH/USDT 2.4 2000.1 my_order_1 --from=genesis --keyring-backend=file --yes"
 	return cmd
 }
 
 func NewCancelSpotLimitOrderTxCmd() *cobra.Command {
 	cmd := cli.TxCmd(
-		"cancel-spot-limit-order <market_ticker> <order_hash>",
+		"cancel-spot-limit-order",
 		"Cancel Spot Limit Order",
 		&types.MsgCancelSpotOrder{},
-		cli.FlagsMapping{},
-		cli.ArgsMapping{"MarketId": cli.Arg{Index: 0, Transform: getSpotMarketIdFromTicker}},
+		cli.FlagsMapping{
+			"MarketId": cli.Flag{
+				Flag:      FlagMarketID,
+				Transform: getSpotMarketIdFromTicker,
+			},
+			"OrderHash": cli.Flag{Flag: FlagOrderHash, UseDefaultIfOmitted: true},
+			"Cid":       cli.Flag{Flag: FlagCID, UseDefaultIfOmitted: true},
+		},
+		cli.ArgsMapping{},
 	)
-	cmd.Example = "injectived tx exchange cancel-spot-limit-order ETH/USDT 0xc66d1e52aa24d16eaa8eb0db773ab019e82daf96c14af0e105a175db22cd0fc8"
+	cmd.Example = "injectived tx exchange cancel-spot-limit-order --market-id=ETH/USDT --order-hash=0xc66d1e52aa24d16eaa8eb0db773ab019e82daf96c14af0e105a175db22cd0fc8"
+	cmd.Flags().String(FlagMarketID, "", "Spot market ID")
+	cmd.Flags().String(FlagOrderHash, "", "Order hash")
+	cmd.Flags().String(FlagCID, "", "Client order ID")
 	return cmd
 }
 
 func NewCancelDerivativeLimitOrderTxCmd() *cobra.Command {
 	cmd := cli.TxCmd(
-		"cancel-derivative-limit-order <market_ticker> <order_hash>",
+		"cancel-derivative-limit-order",
 		"Cancel Derivative Limit Order",
 		&types.MsgCancelDerivativeOrder{},
-		cli.FlagsMapping{},
-		cli.ArgsMapping{"MarketId": cli.Arg{Index: 0, Transform: getDerivativeMarketIdFromTicker}},
+		cli.FlagsMapping{
+			"OrderMask": cli.SkipField,
+			"MarketId": cli.Flag{
+				Flag:      FlagMarketID,
+				Transform: getDerivativeMarketIdFromTicker,
+			},
+			"OrderHash": cli.Flag{Flag: FlagOrderHash, UseDefaultIfOmitted: true},
+			"Cid":       cli.Flag{Flag: FlagCID, UseDefaultIfOmitted: true},
+		},
+		cli.ArgsMapping{},
 	)
-	cmd.Example = "tx exchange cancel-derivative-limit-order ETH/USDT 0xc66d1e52aa24d16eaa8eb0db773ab019e82daf96c14af0e105a175db22cd0fc8"
+	cmd.Example = "tx exchange cancel-derivative-limit-order --market-id=ETH/USDT --order-hash=0xc66d1e52aa24d16eaa8eb0db773ab019e82daf96c14af0e105a175db22cd0fc8"
+	cmd.Flags().String(FlagMarketID, "", "Derivative market ID")
+	cmd.Flags().String(FlagOrderHash, "", "Order hash")
+	cmd.Flags().String(FlagCID, "", "Client order ID")
 	return cmd
 }
 
@@ -203,7 +239,7 @@ func NewCreateDerivativeLimitOrderTxCmd() *cobra.Command {
 		"Create Derivative Limit Order",
 		&types.MsgCreateDerivativeLimitOrder{},
 		cli.FlagsMapping{
-			"TriggerPrice": cli.SkipField, // disable parsing of trigger price
+			"TriggerPrice": cli.Flag{Flag: FlagTriggerPrice},
 			"OrderType": cli.Flag{
 				Flag: FlagOrderType,
 				Transform: func(orig string, ctx grpc.ClientConn) (any, error) {
@@ -217,9 +253,17 @@ func NewCreateDerivativeLimitOrderTxCmd() *cobra.Command {
 						orderType = types.OrderType_BUY_PO
 					case "sell-PO":
 						orderType = types.OrderType_SELL_PO
+					case "take-sell":
+						orderType = types.OrderType_TAKE_SELL
+					case "stop-sell":
+						orderType = types.OrderType_STOP_SELL
+					case "stop-buy":
+						orderType = types.OrderType_STOP_BUY
+					case "take-buy":
+						orderType = types.OrderType_TAKE_BUY
 					default:
 						return orderType, fmt.Errorf(
-							`order type must be "buy", "sell", "buy-PO" or "sell-PO"`,
+							`order type must be "buy", "sell", "take-sell", "stop-sell", "take-buy", "stop-buy", "buy-PO" or "sell-PO"`,
 						)
 					}
 					return int(orderType), nil
@@ -233,6 +277,7 @@ func NewCreateDerivativeLimitOrderTxCmd() *cobra.Command {
 			"Quantity":     cli.Flag{Flag: FlagQuantity},
 			"Margin":       cli.Flag{Flag: FlagMargin},
 			"SubaccountId": cli.Flag{Flag: FlagSubaccountID},
+			"Cid":          cli.Flag{Flag: FlagCID, UseDefaultIfOmitted: true},
 		},
 		cli.ArgsMapping{},
 	)
@@ -243,6 +288,7 @@ func NewCreateDerivativeLimitOrderTxCmd() *cobra.Command {
 			--price="4.1" \
 			--quantity="10.01" \
 			--margin="30.0" \
+			--cid="my_order_1" \
 			--from=genesis \
 			--keyring-backend=file \
 			--yes`
@@ -252,6 +298,8 @@ func NewCreateDerivativeLimitOrderTxCmd() *cobra.Command {
 	cmd.Flags().String(FlagPrice, "", "Price of the order")
 	cmd.Flags().String(FlagQuantity, "", "Quantity of the order")
 	cmd.Flags().String(FlagMargin, "", "Margin for the order")
+	cmd.Flags().String(FlagCID, "", "Client order ID")
+	cmd.Flags().String(FlagTriggerPrice, "0", "Trigger price")
 	return cmd
 }
 
@@ -261,7 +309,7 @@ func NewCreateDerivativeMarketOrderTxCmd() *cobra.Command {
 		"Create Derivative Market Order",
 		&types.MsgCreateDerivativeMarketOrder{},
 		cli.FlagsMapping{
-			"TriggerPrice": cli.SkipField, // disable parsing of trigger price
+			"TriggerPrice": cli.Flag{Flag: FlagTriggerPrice},
 			"OrderType": cli.Flag{
 				Flag: FlagOrderType,
 				Transform: func(orig string, ctx grpc.ClientConn) (any, error) {
@@ -271,8 +319,16 @@ func NewCreateDerivativeMarketOrderTxCmd() *cobra.Command {
 						orderType = types.OrderType_BUY
 					case "sell":
 						orderType = types.OrderType_SELL
+					case "take-sell":
+						orderType = types.OrderType_TAKE_SELL
+					case "stop-sell":
+						orderType = types.OrderType_STOP_SELL
+					case "stop-buy":
+						orderType = types.OrderType_STOP_BUY
+					case "take-buy":
+						orderType = types.OrderType_TAKE_BUY
 					default:
-						return orderType, fmt.Errorf(`order type must be "buy", "sell"`)
+						return orderType, fmt.Errorf(`order type must be "buy", "sell", "take-buy", "stop-buy", "take-sell" or "stop-sell"`)
 					}
 					return int(orderType), nil
 				},
@@ -285,6 +341,7 @@ func NewCreateDerivativeMarketOrderTxCmd() *cobra.Command {
 			"Quantity":     cli.Flag{Flag: FlagQuantity},
 			"Margin":       cli.Flag{Flag: FlagMargin},
 			"SubaccountId": cli.Flag{Flag: FlagSubaccountID},
+			"Cid":          cli.Flag{Flag: FlagCID, UseDefaultIfOmitted: true},
 		},
 		cli.ArgsMapping{},
 	)
@@ -294,19 +351,24 @@ func NewCreateDerivativeMarketOrderTxCmd() *cobra.Command {
 			--subaccount-id="0x17d9b5fb67666df72a5a858eb9b81104b99da760e3036a8243e05532d50e1c7c" \
 			--price="4.1" \
 			--quantity="10.01" \
-			--margin="30.0"`
+			--margin="30.0" \
+			--cid="my_order_1"`
 	cmd.Flags().String(FlagMarketID, "", "Derivative market ID")
 	cmd.Flags().String(FlagOrderType, "", "Order type")
 	cmd.Flags().String(FlagSubaccountID, "", "Subaccount ID")
 	cmd.Flags().String(FlagPrice, "", "Price of the order")
 	cmd.Flags().String(FlagQuantity, "", "Quantity of the order")
 	cmd.Flags().String(FlagMargin, "", "Margin for the order")
+	cmd.Flags().String(FlagCID, "", "Client order ID")
+	cmd.Flags().String(FlagTriggerPrice, "0", "Trigger price")
 	return cmd
 }
 
 func NewSpotMarketUpdateParamsProposalTxCmd() *cobra.Command {
 	proposalMsgDummy := &govtypes.MsgSubmitProposal{}
-	_ = proposalMsgDummy.SetContent(&types.SpotMarketParamUpdateProposal{})
+	_ = proposalMsgDummy.SetContent(&types.SpotMarketParamUpdateProposal{
+		AdminInfo: &types.AdminInfo{},
+	})
 	cmd := cli.TxCmd(
 		"update-spot-market-params",
 		"Submit a proposal to update spot market params",
@@ -314,11 +376,15 @@ func NewSpotMarketUpdateParamsProposalTxCmd() *cobra.Command {
 			"Title":               cli.Flag{Flag: govcli.FlagTitle},
 			"Description":         cli.Flag{Flag: govcli.FlagDescription},
 			"MarketId":            cli.Flag{Flag: FlagMarketID},
+			"Ticker":              cli.Flag{Flag: FlagTicker},
 			"MakerFeeRate":        cli.Flag{Flag: FlagMakerFeeRate},
 			"TakerFeeRate":        cli.Flag{Flag: FlagTakerFeeRate},
 			"RelayerFeeShareRate": cli.Flag{Flag: FlagRelayerFeeShareRate},
 			"MinPriceTickSize":    cli.Flag{Flag: FlagMinPriceTickSize},
 			"MinQuantityTickSize": cli.Flag{Flag: FlagMinQuantityTickSize},
+			"MinNotional":         cli.Flag{Flag: FlagMinNotional},
+			"Admin":               cli.Flag{Flag: FlagAdmin},
+			"AdminPermissions":    cli.Flag{Flag: FlagAdminPermissions},
 			"Status": cli.Flag{
 				Flag: FlagMarketStatus,
 				Transform: func(origV string, ctx grpc.ClientConn) (tranformedV any, err error) {
@@ -340,12 +406,16 @@ func NewSpotMarketUpdateParamsProposalTxCmd() *cobra.Command {
 	cmd.Example = `tx exchange update-spot-market-params --market-id="0xacdd4f9cb90ecf5c4e254acbf65a942f562ca33ba718737a93e5cb3caadec3aa" --title="Spot market params update" --description="XX" --deposit="1000000000000000000inj"`
 
 	cmd.Flags().String(FlagMarketID, "", "Spot market ID")
+	cmd.Flags().String(FlagTicker, "", "market ticker")
 	cmd.Flags().String(FlagMakerFeeRate, "", "maker fee rate")
 	cmd.Flags().String(FlagTakerFeeRate, "", "taker fee rate")
 	cmd.Flags().String(FlagRelayerFeeShareRate, "", "relayer fee share rate")
 	cmd.Flags().String(FlagMinPriceTickSize, "", "min price tick size")
 	cmd.Flags().String(FlagMinQuantityTickSize, "", "min quantity tick size")
+	cmd.Flags().String(FlagMinNotional, "0", "min notional")
 	cmd.Flags().String(FlagMarketStatus, "", "market status")
+	cmd.Flags().String(FlagAdmin, "", "market admin")
+	cmd.Flags().Uint32(FlagAdminPermissions, 0, "admin permissions level")
 	cliflags.AddGovProposalFlags(cmd)
 
 	return cmd
@@ -353,7 +423,9 @@ func NewSpotMarketUpdateParamsProposalTxCmd() *cobra.Command {
 
 func NewSpotMarketLaunchProposalTxCmd() *cobra.Command {
 	proposalMsgDummy := &govtypes.MsgSubmitProposal{}
-	_ = proposalMsgDummy.SetContent(&types.SpotMarketLaunchProposal{})
+	_ = proposalMsgDummy.SetContent(&types.SpotMarketLaunchProposal{
+		AdminInfo: &types.AdminInfo{},
+	})
 	cmd := cli.TxCmd(
 		"spot-market-launch <ticker> <base_denom> <quote_denom>",
 		"Submit a proposal to launch spot-market",
@@ -365,11 +437,15 @@ func NewSpotMarketLaunchProposalTxCmd() *cobra.Command {
 			"TakerFeeRate":        cli.Flag{Flag: FlagTakerFeeRate},
 			"MinPriceTickSize":    cli.Flag{Flag: FlagMinPriceTickSize},
 			"MinQuantityTickSize": cli.Flag{Flag: FlagMinQuantityTickSize},
+			"MinNotional":         cli.Flag{Flag: FlagMinNotional},
+			"Admin":               cli.Flag{Flag: FlagAdmin},
+			"AdminPermissions":    cli.Flag{Flag: FlagAdminPermissions},
 			"InitialDeposit":      cli.Flag{Flag: govcli.FlagDeposit},
 		}, cli.ArgsMapping{})
 	cmd.Example = `tx exchange spot-market-launch INJ/ATOM uinj uatom \
 			--min-price-tick-size=1000000000 \
 			--min-quantity-tick-size=1000000000000000 \
+			--min-notional=1000000000 \
 			--maker-fee-rate="0.001" \
 			--taker-fee-rate="0.001" \
 			--title="INJ/ATOM spot market" \
@@ -380,6 +456,9 @@ func NewSpotMarketLaunchProposalTxCmd() *cobra.Command {
 	cmd.Flags().String(FlagTakerFeeRate, "", "taker fee rate")
 	cmd.Flags().String(FlagMinPriceTickSize, "1000000000", "min price tick size")
 	cmd.Flags().String(FlagMinQuantityTickSize, "1000000000000000", "min quantity tick size")
+	cmd.Flags().String(FlagMinNotional, "0", "min notional")
+	cmd.Flags().String(FlagAdmin, "", "market admin")
+	cmd.Flags().Uint32(FlagAdminPermissions, 0, "admin permissions level")
 	cliflags.AddGovProposalFlags(cmd)
 
 	return cmd
@@ -422,7 +501,9 @@ func NewExchangeEnableProposalTxCmd() *cobra.Command {
 
 func NewPerpetualMarketLaunchProposalTxCmd() *cobra.Command {
 	proposalMsgDummy := &govtypes.MsgSubmitProposal{}
-	_ = proposalMsgDummy.SetContent(&types.PerpetualMarketLaunchProposal{})
+	_ = proposalMsgDummy.SetContent(&types.PerpetualMarketLaunchProposal{
+		AdminInfo: &types.AdminInfo{},
+	})
 	cmd := cli.TxCmd(
 		"propose-perpetual-market",
 		"Submit a proposal to launch perpetual market",
@@ -451,6 +532,9 @@ func NewPerpetualMarketLaunchProposalTxCmd() *cobra.Command {
 			"TakerFeeRate":           cli.Flag{Flag: FlagTakerFeeRate},
 			"MinPriceTickSize":       cli.Flag{Flag: FlagMinPriceTickSize},
 			"MinQuantityTickSize":    cli.Flag{Flag: FlagMinQuantityTickSize},
+			"MinNotional":            cli.Flag{Flag: FlagMinNotional},
+			"Admin":                  cli.Flag{Flag: FlagAdmin},
+			"AdminPermissions":       cli.Flag{Flag: FlagAdminPermissions},
 			"InitialDeposit":         cli.Flag{Flag: govcli.FlagDeposit},
 		}, cli.ArgsMapping{})
 	cmd.Example = `tx exchange propose-perpetual-market
@@ -466,6 +550,7 @@ func NewPerpetualMarketLaunchProposalTxCmd() *cobra.Command {
 			--maintenance-margin-ratio="0.02" \
 			--min-price-tick-size="0.0001" \
 			--min-quantity-tick-size="0.001" \
+			--min-notional="1000000000" \
 			--title="INJ perpetual market" \
 			--description="XX" \
 			--deposit="1000000000000000000inj"`
@@ -481,6 +566,10 @@ func NewPerpetualMarketLaunchProposalTxCmd() *cobra.Command {
 	cmd.Flags().String(FlagMaintenanceMarginRatio, "", "maintenance margin ratio")
 	cmd.Flags().String(FlagMinPriceTickSize, "0.01", "min price tick size")
 	cmd.Flags().String(FlagMinQuantityTickSize, "0.01", "min quantity tick size")
+	cmd.Flags().String(FlagMinNotional, "0", "min notional")
+	cmd.Flags().String(FlagAdmin, "", "market admin")
+	cmd.Flags().Uint32(FlagAdminPermissions, 0, "admin permissions level")
+
 	cliflags.AddGovProposalFlags(cmd)
 	return cmd
 }
@@ -507,6 +596,7 @@ func NewExpiryFuturesMarketLaunchProposalTxCmd() *cobra.Command {
 			--maintenance-margin-ratio="0.02" \
 			--min-price-tick-size="0.0001" \
 			--min-quantity-tick-size="0.001" \
+			--min-notional="1" \
 			--title="INJ/ATOM expiry futures market" \
 			--description="XX" \
 			--deposit="1000000000000000000inj" \
@@ -585,13 +675,20 @@ func NewExpiryFuturesMarketLaunchProposalTxCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-
-			minPriceTickSize, err := sdk.NewDecFromStr(minPriceTickSizeStr)
+			minNotionalStr, err := cmd.Flags().GetString(FlagMinNotional)
 			if err != nil {
 				return err
 			}
 
-			minQuantityTickSize, err := sdk.NewDecFromStr(minQuantityTickSizeStr)
+			minPriceTickSize, err := math.LegacyNewDecFromStr(minPriceTickSizeStr)
+			if err != nil {
+				return err
+			}
+			minQuantityTickSize, err := math.LegacyNewDecFromStr(minQuantityTickSizeStr)
+			if err != nil {
+				return err
+			}
+			minNotional, err := math.LegacyNewDecFromStr(minNotionalStr)
 			if err != nil {
 				return err
 			}
@@ -611,6 +708,7 @@ func NewExpiryFuturesMarketLaunchProposalTxCmd() *cobra.Command {
 				takerFeeRate,
 				minPriceTickSize,
 				minQuantityTickSize,
+				minNotional,
 			)
 			if err != nil {
 				return err
@@ -653,6 +751,7 @@ func NewExpiryFuturesMarketLaunchProposalTxCmd() *cobra.Command {
 	cmd.Flags().String(FlagMaintenanceMarginRatio, "", "maintenance margin ratio")
 	cmd.Flags().String(FlagMinPriceTickSize, "0.01", "min price tick size")
 	cmd.Flags().String(FlagMinQuantityTickSize, "0.01", "min quantity tick size")
+	cmd.Flags().String(FlagMinNotional, "0", "min notional")
 	cmd.Flags().String(govcli.FlagTitle, "", "title of proposal")
 	cmd.Flags().String(govcli.FlagDescription, "", "description of proposal")
 	cmd.Flags().String(govcli.FlagDeposit, "", "deposit of proposal")
@@ -681,6 +780,7 @@ func NewInstantPerpetualMarketLaunchTxCmd() *cobra.Command {
 			--maintenance-margin-ratio="0.02" \
 			--min-price-tick-size="0.0001" \
 			--min-quantity-tick-size="0.001" \
+			--min-notional="1000000" \
 			--from=genesis \
 			--keyring-backend=file \
 			--yes
@@ -751,13 +851,22 @@ func NewInstantPerpetualMarketLaunchTxCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-
-			minPriceTickSize, err := sdk.NewDecFromStr(minPriceTickSizeStr)
+			minNotionalString, err := cmd.Flags().GetString(FlagMinNotional)
 			if err != nil {
 				return err
 			}
 
-			minQuantityTickSize, err := sdk.NewDecFromStr(minQuantityTickSizeStr)
+			minPriceTickSize, err := math.LegacyNewDecFromStr(minPriceTickSizeStr)
+			if err != nil {
+				return err
+			}
+
+			minQuantityTickSize, err := math.LegacyNewDecFromStr(minQuantityTickSizeStr)
+			if err != nil {
+				return err
+			}
+
+			minNotional, err := math.LegacyNewDecFromStr(minNotionalString)
 			if err != nil {
 				return err
 			}
@@ -776,6 +885,7 @@ func NewInstantPerpetualMarketLaunchTxCmd() *cobra.Command {
 				MaintenanceMarginRatio: maintenanceMarginRatio,
 				MinPriceTickSize:       minPriceTickSize,
 				MinQuantityTickSize:    minQuantityTickSize,
+				MinNotional:            minNotional,
 			}
 
 			if err := msg.ValidateBasic(); err != nil {
@@ -798,6 +908,7 @@ func NewInstantPerpetualMarketLaunchTxCmd() *cobra.Command {
 	cmd.Flags().String(FlagMaintenanceMarginRatio, "", "maintenance margin ratio")
 	cmd.Flags().String(FlagMinPriceTickSize, "0.01", "min price tick size")
 	cmd.Flags().String(FlagMinQuantityTickSize, "0.01", "min quantity tick size")
+	cmd.Flags().String(FlagMinNotional, "0", "min notional")
 	cliflags.AddTxFlagsToCmd(cmd)
 	return cmd
 }
@@ -823,6 +934,7 @@ func NewInstantBinaryOptionsMarketLaunchTxCmd() *cobra.Command {
 			--settlement-time="1690730982" \
 			--min-price-tick-size="10000" \
 			--min-quantity-tick-size="0.001" \
+			--min-notional="1" \
 			--from=genesis \
 			--keyring-backend=file \
 			--yes
@@ -894,18 +1006,24 @@ func NewInstantBinaryOptionsMarketLaunchTxCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-
 			minQuantityTickSizeStr, err := cmd.Flags().GetString(FlagMinQuantityTickSize)
 			if err != nil {
 				return err
 			}
-
-			minPriceTickSize, err := sdk.NewDecFromStr(minPriceTickSizeStr)
+			minNotionalStr, err := cmd.Flags().GetString(FlagMinNotional)
 			if err != nil {
 				return err
 			}
 
-			minQuantityTickSize, err := sdk.NewDecFromStr(minQuantityTickSizeStr)
+			minPriceTickSize, err := math.LegacyNewDecFromStr(minPriceTickSizeStr)
+			if err != nil {
+				return err
+			}
+			minQuantityTickSize, err := math.LegacyNewDecFromStr(minQuantityTickSizeStr)
+			if err != nil {
+				return err
+			}
+			minNotional, err := math.LegacyNewDecFromStr(minNotionalStr)
 			if err != nil {
 				return err
 			}
@@ -925,6 +1043,7 @@ func NewInstantBinaryOptionsMarketLaunchTxCmd() *cobra.Command {
 				QuoteDenom:          quoteDenom,
 				MinPriceTickSize:    minPriceTickSize,
 				MinQuantityTickSize: minQuantityTickSize,
+				MinNotional:         minNotional,
 			}
 
 			if err := msg.ValidateBasic(); err != nil {
@@ -950,6 +1069,7 @@ func NewInstantBinaryOptionsMarketLaunchTxCmd() *cobra.Command {
 	cmd.Flags().String(FlagMaintenanceMarginRatio, "", "maintenance margin ratio")
 	cmd.Flags().String(FlagMinPriceTickSize, "", "min price tick size")
 	cmd.Flags().String(FlagMinQuantityTickSize, "", "min quantity tick size")
+	cmd.Flags().String(FlagMinNotional, "0", "min notional")
 	cliflags.AddTxFlagsToCmd(cmd)
 	return cmd
 }
@@ -983,7 +1103,7 @@ func NewAdminUpdateBinaryOptionsMarketTxCmd() *cobra.Command {
 				return err
 			}
 
-			var settlementPrice *sdk.Dec
+			var settlementPrice *math.LegacyDec
 			settlementPriceIn, err := decimalFromFlag(cmd, FlagSettlementPrice)
 			if err == nil {
 				settlementPrice = &settlementPriceIn
@@ -1046,6 +1166,7 @@ func NewCreateBinaryOptionsLimitOrderTxCmd() *cobra.Command {
 			--quantity="10.01" \
 			--order-type="buy" \
 			--margin="30.0" \
+			--cid="my_order_1" \
 			--from=genesis \
 			--keyring-backend=file \
 			--yes
@@ -1095,6 +1216,7 @@ func NewCreateBinaryOptionsMarketOrderTxCmd() *cobra.Command {
 			--order-type="buy" \
 			--margin="30.0" \
 			--trigger-price="10.0" \
+			--cid="my_order_1" \
 			--from=genesis \
 			--keyring-backend=file \
 			--yes
@@ -1144,32 +1266,45 @@ func NewCancelBinaryOptionsOrderTxCmd() *cobra.Command {
 			--yes
 		`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			cancelMessage := types.MsgCancelBinaryOptionsOrder{}
+
 			clientCtx, err := client.GetClientTxContext(cmd)
 			if err != nil {
 				return err
 			}
+			cancelMessage.Sender = clientCtx.GetFromAddress().String()
 
 			marketId, err := cmd.Flags().GetString(FlagMarketID)
 			if err != nil {
 				return err
 			}
+			cancelMessage.MarketId = marketId
 
 			subaccountId, err := cmd.Flags().GetString(FlagSubaccountID)
 			if err != nil {
 				return err
 			}
+			cancelMessage.SubaccountId = subaccountId
 
-			txHash, err := cmd.Flags().GetString(FlagOrderHash)
-			if err != nil {
-				return err
+			orderHashFlag := cmd.Flags().Lookup(FlagOrderHash)
+			if orderHashFlag != nil {
+				orderHash, err := cmd.Flags().GetString(FlagOrderHash)
+				if err != nil {
+					return err
+				}
+				cancelMessage.OrderHash = orderHash
 			}
 
-			msg := &types.MsgCancelBinaryOptionsOrder{
-				Sender:       clientCtx.GetFromAddress().String(),
-				MarketId:     marketId,
-				SubaccountId: subaccountId,
-				OrderHash:    txHash,
+			cidFlag := cmd.Flags().Lookup(FlagCID)
+			if cidFlag != nil {
+				cid, err := cmd.Flags().GetString(FlagCID)
+				if err != nil {
+					return err
+				}
+				cancelMessage.Cid = cid
 			}
+
+			msg := &cancelMessage
 
 			if err := msg.ValidateBasic(); err != nil {
 				return err
@@ -1182,6 +1317,7 @@ func NewCancelBinaryOptionsOrderTxCmd() *cobra.Command {
 	cmd.Flags().String(FlagMarketID, "", "market id")
 	cmd.Flags().String(FlagSubaccountID, "", "subaccount id")
 	cmd.Flags().String(FlagOrderHash, "", "order (trasnasction) hash")
+	cmd.Flags().String(FlagCID, "", "client order id")
 	cliflags.AddTxFlagsToCmd(cmd)
 	return cmd
 }
@@ -1208,6 +1344,7 @@ func NewInstantExpiryFuturesMarketLaunchTxCmd() *cobra.Command {
 			--maintenance-margin-ratio="0.02" \
 			--min-price-tick-size="0.0001" \
 			--min-quantity-tick-size="0.001" \
+			--min-notional="1" \
 			--from=genesis \
 			--keyring-backend=file \
 			--yes
@@ -1283,13 +1420,20 @@ func NewInstantExpiryFuturesMarketLaunchTxCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-
-			minPriceTickSize, err := sdk.NewDecFromStr(minPriceTickSizeStr)
+			minNotionalStr, err := cmd.Flags().GetString(FlagMinNotional)
 			if err != nil {
 				return err
 			}
 
-			minQuantityTickSize, err := sdk.NewDecFromStr(minQuantityTickSizeStr)
+			minPriceTickSize, err := math.LegacyNewDecFromStr(minPriceTickSizeStr)
+			if err != nil {
+				return err
+			}
+			minQuantityTickSize, err := math.LegacyNewDecFromStr(minQuantityTickSizeStr)
+			if err != nil {
+				return err
+			}
+			minNotional, err := math.LegacyNewDecFromStr(minNotionalStr)
 			if err != nil {
 				return err
 			}
@@ -1309,6 +1453,7 @@ func NewInstantExpiryFuturesMarketLaunchTxCmd() *cobra.Command {
 				MaintenanceMarginRatio: maintenanceMarginRatio,
 				MinPriceTickSize:       minPriceTickSize,
 				MinQuantityTickSize:    minQuantityTickSize,
+				MinNotional:            minNotional,
 			}
 
 			if err := msg.ValidateBasic(); err != nil {
@@ -1332,6 +1477,7 @@ func NewInstantExpiryFuturesMarketLaunchTxCmd() *cobra.Command {
 	cmd.Flags().String(FlagMaintenanceMarginRatio, "", "maintenance margin ratio")
 	cmd.Flags().String(FlagMinPriceTickSize, "0.01", "min price tick size")
 	cmd.Flags().String(FlagMinQuantityTickSize, "0.01", "min quantity tick size")
+	cmd.Flags().String(FlagMinNotional, "0", "min notional")
 	cliflags.AddTxFlagsToCmd(cmd)
 	return cmd
 }
@@ -1924,13 +2070,17 @@ func NewDerivativeMarketParamUpdateProposalTxCmd() *cobra.Command {
 
 		Example:
 		$ %s tx exchange update-derivative-market-params \
+			--admin="inj1k2z3chspuk9wsufle69svmtmnlc07rvw9djya7" \
+			--admin-permissions=1 \
 			--market-id="0x000001" \
+			--ticker="BTC/USDT PERP" \
 			--oracle-base="BTC" \
 			--oracle-quote="USDT" \
 			--oracle-type="BandIBC" \
 			--oracle-scale-factor="0" \
 			--min-price-tick-size=4 \
 			--min-quantity-tick-size=4 \
+			--min-notional=1000 \
 			--initial-margin-ratio="0.01" \
 			--maintenance-margin-ratio="0.01" \
 			--maker-fee-rate="0.01" \
@@ -2000,13 +2150,20 @@ func NewDerivativeMarketParamUpdateProposalTxCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-
-			minPriceTickSize, err := sdk.NewDecFromStr(minPriceTickSizeStr)
+			minNotionalStr, err := cmd.Flags().GetString(FlagMinNotional)
 			if err != nil {
 				return err
 			}
 
-			minQuantityTickSize, err := sdk.NewDecFromStr(minQuantityTickSizeStr)
+			minPriceTickSize, err := math.LegacyNewDecFromStr(minPriceTickSizeStr)
+			if err != nil {
+				return err
+			}
+			minQuantityTickSize, err := math.LegacyNewDecFromStr(minQuantityTickSizeStr)
+			if err != nil {
+				return err
+			}
+			minNotional, err := math.LegacyNewDecFromStr(minNotionalStr)
 			if err != nil {
 				return err
 			}
@@ -2056,6 +2213,20 @@ func NewDerivativeMarketParamUpdateProposalTxCmd() *cobra.Command {
 				status = *marketStatus
 			}
 
+			ticker, err := cmd.Flags().GetString(FlagTicker)
+			if err != nil {
+				return err
+			}
+
+			admin, err := cmd.Flags().GetString(FlagAdmin)
+			if err != nil {
+				return err
+			}
+			adminPermissions, err := cmd.Flags().GetUint32(FlagAdminPermissions)
+			if err != nil {
+				return err
+			}
+
 			content, err := derivativeMarketParamUpdateArgsToContent(
 				cmd,
 				marketID,
@@ -2066,10 +2237,14 @@ func NewDerivativeMarketParamUpdateProposalTxCmd() *cobra.Command {
 				&relayerFeeShareRate,
 				&minPriceTickSize,
 				&minQuantityTickSize,
+				&minNotional,
 				hourlyInterestRate,
 				hourlyFundingRateCap,
 				oracleParams,
 				status,
+				ticker,
+				admin,
+				adminPermissions,
 			)
 			if err != nil {
 				return err
@@ -2110,6 +2285,7 @@ func NewDerivativeMarketParamUpdateProposalTxCmd() *cobra.Command {
 	cmd.Flags().String(FlagRelayerFeeShareRate, "", "relayer fee share rate")
 	cmd.Flags().String(FlagMinPriceTickSize, "0.01", "min price tick size")
 	cmd.Flags().String(FlagMinQuantityTickSize, "0.01", "min quantity tick size")
+	cmd.Flags().String(FlagMinNotional, "0", "min notional")
 	cmd.Flags().String(FlagHourlyInterestRate, "", "hourly interest rate")
 	cmd.Flags().String(FlagHourlyFundingRateCap, "", "hourly funding rate cap")
 	cmd.Flags().String(FlagOracleBase, "", "oracle base")
@@ -2117,6 +2293,9 @@ func NewDerivativeMarketParamUpdateProposalTxCmd() *cobra.Command {
 	cmd.Flags().String(FlagOracleType, "", "oracle type")
 	cmd.Flags().Uint32(FlagOracleScaleFactor, 0, "oracle scale factor")
 	cmd.Flags().String(FlagMarketStatus, "", "market status")
+	cmd.Flags().String(FlagTicker, "", "market ticker")
+	cmd.Flags().String(FlagAdmin, "", "market admin")
+	cmd.Flags().Uint32(FlagAdminPermissions, 0, "admin permissions level")
 
 	cliflags.AddTxFlagsToCmd(cmd)
 	return cmd
@@ -2201,7 +2380,7 @@ func NewMarketForcedSettlementTxCmd() *cobra.Command {
 				return err
 			}
 
-			var settlementPrice *sdk.Dec
+			var settlementPrice *math.LegacyDec
 			if settlementPriceString != "" {
 				settlementPriceValue, err := decimalFromFlag(cmd, FlagSettlementPrice)
 				if err != nil {
@@ -2329,6 +2508,184 @@ func NewUpdateDenomDecimalsProposalTxCmd() *cobra.Command {
 	cmd.Flags().UintSlice(FlagDecimals, nil, "decimals")
 
 	cliflags.AddTxFlagsToCmd(cmd)
+	return cmd
+}
+
+func NewUpdateSpotMarketCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "update-spot-market [market_id] [flags]",
+		Args:  cobra.ExactArgs(1),
+		Short: "Submit admin message to update a specific spot market's fields. Must have at least one flag present!",
+		Long: `Submit admin message to update a specific spot market's fields. Must have at least one flag present!\
+Example:
+$ %s tx exchange update-spot-market 0x1e11532fc29f1bc3eb75f6fddf4997e904c780ddf155ecb58bc89bf723e1ba56 \
+	--ticker "A/B" \
+	--min-price-tick-size "0.1" \
+	--min-quantity-tick-size "-0.2" \
+		`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clientCtx, err := client.GetClientTxContext(cmd)
+			if err != nil {
+				return err
+			}
+
+			ticker, err := cmd.Flags().GetString(FlagTicker)
+			if err != nil {
+				return err
+			}
+
+			strMinPriceTickSize, err := cmd.Flags().GetString(FlagMinPriceTickSize)
+			if err != nil {
+				return err
+			}
+
+			var minPriceTickSize math.LegacyDec
+			if strMinPriceTickSize != "" {
+				minPriceTickSize, err = math.LegacyNewDecFromStr(strMinPriceTickSize)
+				if err != nil {
+					return err
+				}
+			}
+
+			strMinQuantityTickSize, err := cmd.Flags().GetString(FlagMinQuantityTickSize)
+			if err != nil {
+				return err
+			}
+
+			var minQuantityTickSize math.LegacyDec
+			if strMinQuantityTickSize != "" {
+				minQuantityTickSize, err = math.LegacyNewDecFromStr(strMinPriceTickSize)
+				if err != nil {
+					return err
+				}
+			}
+
+			msg := &types.MsgUpdateSpotMarket{
+				Admin:                  clientCtx.GetFromAddress().String(),
+				MarketId:               common.HexToHash(args[0]).String(),
+				NewTicker:              ticker,
+				NewMinPriceTickSize:    minPriceTickSize,
+				NewMinQuantityTickSize: minQuantityTickSize,
+			}
+
+			if err := msg.ValidateBasic(); err != nil {
+				return err
+			}
+
+			return tx.GenerateOrBroadcastTxCLI(clientCtx, cmd.Flags(), msg)
+		},
+	}
+
+	cmd.Flags().String(FlagTicker, "", "new market ticker")
+	cmd.Flags().String(FlagMinPriceTickSize, "", "new min price tick size")
+	cmd.Flags().String(FlagMinQuantityTickSize, "", "new min quantity tick size")
+
+	cliflags.AddTxFlagsToCmd(cmd)
+
+	return cmd
+}
+
+func NewUpdateDerivativeMarketCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "update-derivative-market [market_id] [flags]",
+		Args:  cobra.ExactArgs(1),
+		Short: "Submit admin message to update a specific spot market's fields. Must have at least one flag present!",
+		Long: `Submit admin message to update a specific spot market's fields. Must have at least one flag present!\
+Example:
+$ %s tx exchange update-derivative-market 0x1e11532fc29f1bc3eb75f6fddf4997e904c780ddf155ecb58bc89bf723e1ba56 \
+	--ticker "A/B" \
+	--min-price-tick-size "0.1" \
+	--min-quantity-tick-size "-0.2" \
+		`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clientCtx, err := client.GetClientTxContext(cmd)
+			if err != nil {
+				return err
+			}
+
+			ticker, err := cmd.Flags().GetString(FlagTicker)
+			if err != nil {
+				return err
+			}
+
+			strMinPriceTickSize, err := cmd.Flags().GetString(FlagMinPriceTickSize)
+			if err != nil {
+				return err
+			}
+
+			var minPriceTickSize math.LegacyDec
+			if strMinPriceTickSize != "" {
+				minPriceTickSize, err = math.LegacyNewDecFromStr(strMinPriceTickSize)
+				if err != nil {
+					return err
+				}
+			}
+
+			strMinQuantityTickSize, err := cmd.Flags().GetString(FlagMinQuantityTickSize)
+			if err != nil {
+				return err
+			}
+
+			var minQuantityTickSize math.LegacyDec
+			if strMinQuantityTickSize != "" {
+				minQuantityTickSize, err = math.LegacyNewDecFromStr(strMinPriceTickSize)
+				if err != nil {
+					return err
+				}
+			}
+
+			strInitialMarginRatio, err := cmd.Flags().GetString(FlagInitialMarginRatio)
+			if err != nil {
+				return err
+			}
+
+			var initialMarginRatio math.LegacyDec
+			if strInitialMarginRatio != "" {
+				initialMarginRatio, err = math.LegacyNewDecFromStr(strInitialMarginRatio)
+				if err != nil {
+					return err
+				}
+			}
+
+			strMaintenanceMarginRatio, err := cmd.Flags().GetString(FlagMaintenanceMarginRatio)
+			if err != nil {
+				return err
+			}
+
+			var maintenanceMarginRatio math.LegacyDec
+			if strMaintenanceMarginRatio != "" {
+				maintenanceMarginRatio, err = math.LegacyNewDecFromStr(strMaintenanceMarginRatio)
+				if err != nil {
+					return err
+				}
+			}
+
+			msg := &types.MsgUpdateDerivativeMarket{
+				Admin:                     clientCtx.GetFromAddress().String(),
+				MarketId:                  common.HexToHash(args[0]).String(),
+				NewTicker:                 ticker,
+				NewMinPriceTickSize:       minPriceTickSize,
+				NewMinQuantityTickSize:    minQuantityTickSize,
+				NewInitialMarginRatio:     initialMarginRatio,
+				NewMaintenanceMarginRatio: maintenanceMarginRatio,
+			}
+
+			if err := msg.ValidateBasic(); err != nil {
+				return err
+			}
+
+			return tx.GenerateOrBroadcastTxCLI(clientCtx, cmd.Flags(), msg)
+		},
+	}
+
+	cmd.Flags().String(FlagTicker, "", "new market ticker")
+	cmd.Flags().String(FlagMinPriceTickSize, "", "new min price tick size")
+	cmd.Flags().String(FlagMinQuantityTickSize, "", "new min quantity tick size")
+	cmd.Flags().String(FlagInitialMarginRatio, "", "new initial margin ratio")
+	cmd.Flags().String(FlagMaintenanceMarginRatio, "", "new maintenance margin ratio")
+
+	cliflags.AddTxFlagsToCmd(cmd)
+
 	return cmd
 }
 
@@ -2490,7 +2847,7 @@ func NewAuthzTxCmd() *cobra.Command {
 			}
 			subAccountId := args[1]
 			msgType := args[2]
-			marketIds := strings.Split(args[3], ",")
+			marketIDs := strings.Split(args[3], ",")
 
 			// parse optional expiration flag
 			expiration, err := cmd.Flags().GetString(authzcli.FlagExpiration)
@@ -2509,7 +2866,7 @@ func NewAuthzTxCmd() *cobra.Command {
 			}
 
 			// build msg
-			authorization := buildExchangeAuthz(subAccountId, marketIds, msgType)
+			authorization := buildExchangeAuthz(subAccountId, marketIDs, msgType)
 			msg, err := authz.NewMsgGrant(
 				clientCtx.GetFromAddress(),
 				grantee,
@@ -2517,10 +2874,6 @@ func NewAuthzTxCmd() *cobra.Command {
 				&expirationDate,
 			)
 			if err != nil {
-				return err
-			}
-
-			if err := msg.ValidateBasic(); err != nil {
 				return err
 			}
 
@@ -2554,8 +2907,8 @@ func NewBatchUpdateAuthzTxCmd() *cobra.Command {
 				return err
 			}
 			subAccountId := args[1]
-			spotMarketIds := strings.Split(args[2], ",")
-			derivativeMarketIds := strings.Split(args[3], ",")
+			spotMarketIDs := strings.Split(args[2], ",")
+			derivativeMarketIDs := strings.Split(args[3], ",")
 
 			// parse optional expiration flag
 			expiration, err := cmd.Flags().GetString(authzcli.FlagExpiration)
@@ -2576,8 +2929,8 @@ func NewBatchUpdateAuthzTxCmd() *cobra.Command {
 			// build msg
 			authorization := buildBatchUpdateExchangeAuthz(
 				subAccountId,
-				spotMarketIds,
-				derivativeMarketIds,
+				spotMarketIDs,
+				derivativeMarketIDs,
 			)
 			msg, err := authz.NewMsgGrant(
 				clientCtx.GetFromAddress(),
@@ -2586,10 +2939,6 @@ func NewBatchUpdateAuthzTxCmd() *cobra.Command {
 				&expirationDate,
 			)
 			if err != nil {
-				return err
-			}
-
-			if err := msg.ValidateBasic(); err != nil {
 				return err
 			}
 
@@ -2664,7 +3013,7 @@ func NewAtomicMarketOrderFeeMultiplierScheduleProposalTxCmd() *cobra.Command {
 				}
 				marketId := split[0]
 				common.HexToHash(marketId)
-				feeMultiplier, err := sdk.NewDecFromStr(split[1])
+				feeMultiplier, err := math.LegacyNewDecFromStr(split[1])
 				if err != nil {
 					return err
 				}
@@ -2723,6 +3072,131 @@ func NewAtomicMarketOrderFeeMultiplierScheduleProposalTxCmd() *cobra.Command {
 	return cmd
 }
 
+func NewStakeGrantAuthorizationTxCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "authorize-stake-grant <stake_grants.json>",
+		Args:  cobra.ExactArgs(1),
+		Short: "Authorize grantee a given amount of staked INJ tokens for fee tier discounts",
+		Long: `Authorize grantee a given amount of staked INJ tokens for fee tier discounts.
+
+		Example:
+		$ %s tx exchange authorize-stake-grant stake_grants.json \ 
+			
+			Where stake_grant_authorizations.json contains:
+			{
+				"grants":
+				[
+					{
+						"grantee": "inj1jcltmuhplrdcwp7stlr4hlhlhgd4htqhe4c0cs",
+						"amount": "1000000000"
+					},
+					{
+						"grantee": "inj17vytdwqczqz72j65saukplrktd4gyfme5agf6c",
+						"amount": "321000"
+					},
+					{   
+						"grantee": "inj1hdvy6tl89llqy3ze8lv6mz5qh66sx9enn0jxg6",
+						"amount": "20"
+					}
+				]
+			}`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clientCtx, err := client.GetClientTxContext(cmd)
+			if err != nil {
+				return err
+			}
+
+			file, err := os.ReadFile(args[0])
+			if err != nil {
+				return err
+			}
+
+			msg := &types.MsgAuthorizeStakeGrants{}
+			if err := json.Unmarshal(file, &msg); err != nil {
+				return err
+			}
+			msg.Sender = clientCtx.GetFromAddress().String()
+
+			if err := msg.ValidateBasic(); err != nil {
+				return err
+			}
+
+			return tx.GenerateOrBroadcastTxCLI(clientCtx, cmd.Flags(), msg)
+		},
+	}
+
+	cliflags.AddTxFlagsToCmd(cmd)
+	return cmd
+}
+
+func NewStakeGrantActivationTxCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "activate-stake-grant [granter]",
+		Args:  cobra.ExactArgs(1),
+		Short: "Activate a stake grant previously authorized by the granter",
+		Long: `Activate a stake grant previously authorized by the granter. \
+
+		Example:
+		$ %s tx exchange activate-stake-grant inj1jcltmuhplrdcwp7stlr4hlhlhgd4htqhe4c0cs 
+			--yes`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clientCtx, err := client.GetClientTxContext(cmd)
+			if err != nil {
+				return err
+			}
+
+			grantee := clientCtx.GetFromAddress()
+			granter := args[0]
+			msg := types.MsgActivateStakeGrant{
+				Sender:  grantee.String(),
+				Granter: granter,
+			}
+			if err := msg.ValidateBasic(); err != nil {
+				return err
+			}
+
+			return tx.GenerateOrBroadcastTxCLI(clientCtx, cmd.Flags(), &msg)
+		},
+	}
+
+	cliflags.AddTxFlagsToCmd(cmd)
+	return cmd
+}
+
+func NewIncreasePositionMarginTxCmd() *cobra.Command {
+	cmd := cli.TxCmd(
+		"increase-position-margin <source-subaccount-id> <dest-subaccount-id> <market-id> <amount>",
+		"Increase margin in an open position",
+		&types.MsgIncreasePositionMargin{},
+		nil,
+		cli.ArgsMapping{
+			"SourceSubaccountId":      cli.Arg{Index: 0},
+			"DestinationSubaccountId": cli.Arg{Index: 1},
+			"MarketId":                cli.Arg{Index: 2, Transform: getDerivativeMarketIdFromTicker},
+			"Amount":                  cli.Arg{Index: 3},
+		},
+	)
+	cmd.Example = `injectived tx exchange increase-position-margin 0xf22dccace9d0610334f32637100cad2934528f81000000000000000000000000 0xf22dccace9d0610334f32637100cad2934528f81000000000000000000000000 "ETH/USDT PERP" 10000000`
+	return cmd
+}
+
+func NewDecreasePositionMarginTxCmd() *cobra.Command {
+	cmd := cli.TxCmd(
+		"decrease-position-margin <source-subaccount-id> <dest-subaccount-id> <market-id> <amount>",
+		"Decrease margin in an open position",
+		&types.MsgDecreasePositionMargin{},
+		nil,
+		cli.ArgsMapping{
+			"SourceSubaccountId":      cli.Arg{Index: 0},
+			"DestinationSubaccountId": cli.Arg{Index: 1},
+			"MarketId":                cli.Arg{Index: 2, Transform: getDerivativeMarketIdFromTicker},
+			"Amount":                  cli.Arg{Index: 3},
+		},
+	)
+	cmd.Example = `injectived tx exchange decrease-position-margin 0xf22dccace9d0610334f32637100cad2934528f81000000000000000000000000 0xf22dccace9d0610334f32637100cad2934528f81000000000000000000000000 "ETH/USDT PERP" 10000000`
+	return cmd
+}
+
 func getSpotMarketIdFromTicker(ticker string, ctx grpc.ClientConn) (any, error) {
 	queryClient := types.NewQueryClient(ctx)
 	req := &types.QuerySpotMarketsRequest{
@@ -2769,7 +3243,7 @@ func expiryFuturesMarketLaunchArgsToContent(
 	oracleScaleFactor uint32,
 	oracleType oracletypes.OracleType,
 	expiry int64,
-	initialMarginRatio, maintenanceMarginRatio, makerFeeRate, takerFeeRate, minPriceTickSize, minQuantityTickSize sdk.Dec,
+	initialMarginRatio, maintenanceMarginRatio, makerFeeRate, takerFeeRate, minPriceTickSize, minQuantityTickSize, minNotional math.LegacyDec,
 ) (govtypes.Content, error) {
 	title, err := cmd.Flags().GetString(govcli.FlagTitle)
 	if err != nil {
@@ -2797,6 +3271,7 @@ func expiryFuturesMarketLaunchArgsToContent(
 		takerFeeRate,
 		minPriceTickSize,
 		minQuantityTickSize,
+		minNotional,
 	)
 	return content, nil
 }
@@ -2804,10 +3279,13 @@ func expiryFuturesMarketLaunchArgsToContent(
 func derivativeMarketParamUpdateArgsToContent(
 	cmd *cobra.Command,
 	marketID string,
-	initialMarginRatio, maintenanceMarginRatio, makerFeeRate, takerFeeRate, relayerFeeShareRate, minPriceTickSize, minQuantityTickSize *sdk.Dec,
-	hourlyInterestRate, hourlyFundingRateCap *sdk.Dec,
+	initialMarginRatio, maintenanceMarginRatio, makerFeeRate, takerFeeRate, relayerFeeShareRate, minPriceTickSize, minQuantityTickSize, minNotional *math.LegacyDec,
+	hourlyInterestRate, hourlyFundingRateCap *math.LegacyDec,
 	oracleParams *types.OracleParams,
 	status types.MarketStatus,
+	ticker string,
+	admin string,
+	adminPermissions uint32,
 ) (govtypes.Content, error) {
 	title, err := cmd.Flags().GetString(govcli.FlagTitle)
 	if err != nil {
@@ -2817,6 +3295,15 @@ func derivativeMarketParamUpdateArgsToContent(
 	description, err := cmd.Flags().GetString(govcli.FlagDescription)
 	if err != nil {
 		return nil, err
+	}
+
+	var adminInfo *types.AdminInfo
+
+	if admin != "" {
+		adminInfo = &types.AdminInfo{
+			Admin:            admin,
+			AdminPermissions: adminPermissions,
+		}
 	}
 
 	content := types.NewDerivativeMarketParamUpdateProposal(
@@ -2830,17 +3317,20 @@ func derivativeMarketParamUpdateArgsToContent(
 		relayerFeeShareRate,
 		minPriceTickSize,
 		minQuantityTickSize,
+		minNotional,
 		hourlyInterestRate,
 		hourlyFundingRateCap,
 		status,
 		oracleParams,
+		ticker,
+		adminInfo,
 	)
 	return content, nil
 }
 
 func forcedMarketSettlementArgsToContent(
 	cmd *cobra.Command, marketID string,
-	settlementPrice *sdk.Dec,
+	settlementPrice *math.LegacyDec,
 ) (govtypes.Content, error) {
 	title, err := cmd.Flags().GetString(govcli.FlagTitle)
 	if err != nil {
@@ -2891,16 +3381,16 @@ func updateDenomDecimalsArgsToContent(
 	return content, nil
 }
 
-func decimalFromFlag(cmd *cobra.Command, flag string) (sdk.Dec, error) {
+func decimalFromFlag(cmd *cobra.Command, flag string) (math.LegacyDec, error) {
 	decStr, err := cmd.Flags().GetString(flag)
 	if err != nil {
-		return sdk.Dec{}, err
+		return math.LegacyDec{}, err
 	}
 
-	return sdk.NewDecFromStr(decStr)
+	return math.LegacyNewDecFromStr(decStr)
 }
 
-func optionalDecimalFromFlag(cmd *cobra.Command, flag string) (*sdk.Dec, error) {
+func optionalDecimalFromFlag(cmd *cobra.Command, flag string) (*math.LegacyDec, error) {
 	decStr, err := cmd.Flags().GetString(flag)
 	if err != nil {
 		return nil, err
@@ -2910,13 +3400,13 @@ func optionalDecimalFromFlag(cmd *cobra.Command, flag string) (*sdk.Dec, error) 
 		return nil, nil
 	}
 
-	valueDec, err := sdk.NewDecFromStr(decStr)
+	valueDec, err := math.LegacyNewDecFromStr(decStr)
 	return &valueDec, err
 }
 
 func buildExchangeAuthz(
 	subaccountId string,
-	marketIds []string,
+	marketIDs []string,
 	msgType string,
 ) authz.Authorization {
 	switch msgType {
@@ -2924,54 +3414,54 @@ func buildExchangeAuthz(
 	case "MsgCreateSpotLimitOrder":
 		return &types.CreateSpotLimitOrderAuthz{
 			SubaccountId: subaccountId,
-			MarketIds:    marketIds,
+			MarketIds:    marketIDs,
 		}
 	case "MsgCreateSpotMarketOrder":
 		return &types.CreateSpotMarketOrderAuthz{
 			SubaccountId: subaccountId,
-			MarketIds:    marketIds,
+			MarketIds:    marketIDs,
 		}
 	case "MsgBatchCreateSpotLimitOrders":
 		return &types.BatchCreateSpotLimitOrdersAuthz{
 			SubaccountId: subaccountId,
-			MarketIds:    marketIds,
+			MarketIds:    marketIDs,
 		}
 	case "MsgCancelSpotOrder":
 		return &types.CancelSpotOrderAuthz{
 			SubaccountId: subaccountId,
-			MarketIds:    marketIds,
+			MarketIds:    marketIDs,
 		}
 	case "MsgBatchCancelSpotOrders":
 		return &types.BatchCancelSpotOrdersAuthz{
 			SubaccountId: subaccountId,
-			MarketIds:    marketIds,
+			MarketIds:    marketIDs,
 		}
 
 	// derivative messages
 	case "MsgCreateDerivativeLimitOrder":
 		return &types.CreateDerivativeLimitOrderAuthz{
 			SubaccountId: subaccountId,
-			MarketIds:    marketIds,
+			MarketIds:    marketIDs,
 		}
 	case "MsgCreateDerivativeMarketOrder":
 		return &types.CreateDerivativeMarketOrderAuthz{
 			SubaccountId: subaccountId,
-			MarketIds:    marketIds,
+			MarketIds:    marketIDs,
 		}
 	case "MsgBatchCreateDerivativeLimitOrders":
 		return &types.BatchCreateDerivativeLimitOrdersAuthz{
 			SubaccountId: subaccountId,
-			MarketIds:    marketIds,
+			MarketIds:    marketIDs,
 		}
 	case "MsgCancelDerivativeOrder":
 		return &types.CancelDerivativeOrderAuthz{
 			SubaccountId: subaccountId,
-			MarketIds:    marketIds,
+			MarketIds:    marketIDs,
 		}
 	case "MsgBatchCancelDerivativeOrders":
 		return &types.BatchCancelDerivativeOrdersAuthz{
 			SubaccountId: subaccountId,
-			MarketIds:    marketIds,
+			MarketIds:    marketIDs,
 		}
 	default:
 		panic("Invalid or unsupported exchange message type to authorize")
@@ -2980,12 +3470,12 @@ func buildExchangeAuthz(
 
 func buildBatchUpdateExchangeAuthz(
 	subaccountId string,
-	spotMarketIds, derivativeMarketIds []string,
+	spotMarketIDs, derivativeMarketIDs []string,
 ) authz.Authorization {
 	return &types.BatchUpdateOrdersAuthz{
 		SubaccountId:      subaccountId,
-		SpotMarkets:       spotMarketIds,
-		DerivativeMarkets: derivativeMarketIds,
+		SpotMarkets:       spotMarketIDs,
+		DerivativeMarkets: derivativeMarketIDs,
 	}
 }
 
@@ -2998,5 +3488,6 @@ func defineDerivativeOrderFlags(cmd *cobra.Command) {
 	cmd.Flags().String(FlagOrderType, "", "order type")
 	cmd.Flags().String(FlagTriggerPrice, "", "trigger price")
 	cmd.Flags().Bool(FlagReduceOnly, false, "reduce only")
+	cmd.Flags().String(FlagCID, "", "client order id")
 	cliflags.AddTxFlagsToCmd(cmd)
 }

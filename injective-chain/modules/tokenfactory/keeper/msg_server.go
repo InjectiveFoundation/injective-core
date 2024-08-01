@@ -2,6 +2,7 @@ package keeper
 
 import (
 	"context"
+	"fmt"
 
 	"cosmossdk.io/errors"
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -40,7 +41,7 @@ func (k msgServer) UpdateParams(c context.Context, msg *types.MsgUpdateParams) (
 func (k msgServer) CreateDenom(goCtx context.Context, msg *types.MsgCreateDenom) (*types.MsgCreateDenomResponse, error) {
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
-	denom, err := k.createDenom(ctx, msg.Sender, msg.Subdenom, msg.GetName(), msg.GetSymbol())
+	denom, err := k.createDenom(ctx, msg.Sender, msg.Subdenom, msg.GetName(), msg.GetSymbol(), msg.GetDecimals())
 	if err != nil {
 		return nil, err
 	}
@@ -145,8 +146,17 @@ func (k msgServer) SetDenomMetadata(goCtx context.Context, msg *types.MsgSetDeno
 		return nil, err
 	}
 
-	if msg.Sender != authorityMetadata.GetAdmin() {
+	isAdminAllowed := authorityMetadata.GetAdmin() != "" && msg.Sender == authorityMetadata.GetAdmin()
+	isGovernanceAllowed := authorityMetadata.GetAdmin() == "" && msg.Sender == k.authority
+	if !(isAdminAllowed || isGovernanceAllowed) {
 		return nil, types.ErrUnauthorized
+	}
+
+	existingMetadata, found := k.bankKeeper.GetDenomMetaData(ctx, msg.Metadata.Base)
+	if found {
+		if existingMetadata.Decimals != 0 && existingMetadata.Decimals != msg.Metadata.Decimals {
+			return nil, fmt.Errorf("cannot update denom metadata decimals")
+		}
 	}
 
 	k.bankKeeper.SetDenomMetaData(ctx, msg.Metadata)

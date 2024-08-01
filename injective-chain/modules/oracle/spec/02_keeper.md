@@ -16,8 +16,8 @@ supported oracle type and oracle pair.
 
 ```go
 type ViewKeeper interface {
-    GetPrice(ctx sdk.Context, oracletype types.OracleType, base string, quote string) *sdk.Dec // Returns the price for a given pair for a given oracle type.
-    GetCumulativePrice(ctx sdk.Context, oracleType types.OracleType, base string, quote string) *sdk.Dec // Returns the cumulative price for a given pair for a given oracle type.
+    GetPrice(ctx sdk.Context, oracletype types.OracleType, base string, quote string) *math.LegacyDec // Returns the price for a given pair for a given oracle type.
+    GetCumulativePrice(ctx sdk.Context, oracleType types.OracleType, base string, quote string) *math.LegacyDec // Returns the cumulative price for a given pair for a given oracle type.
 }
 ```
 
@@ -32,7 +32,7 @@ type BandKeeper interface {
     GetBandPriceState(ctx sdk.Context, symbol string) *types.BandPriceState
     SetBandPriceState(ctx sdk.Context, symbol string, priceState types.BandPriceState)
     GetAllBandPriceStates(ctx sdk.Context) []types.BandPriceState
-    GetBandReferencePrice(ctx sdk.Context, base string, quote string) *sdk.Dec
+    GetBandReferencePrice(ctx sdk.Context, base string, quote string) *math.LegacyDec
     IsBandRelayer(ctx sdk.Context, relayer sdk.AccAddress) bool
     GetAllBandRelayers(ctx sdk.Context) []string
     SetBandRelayer(ctx sdk.Context, relayer sdk.AccAddress)
@@ -54,7 +54,7 @@ type BandIBCKeeper interface {
 	GetBandIBCPriceState(ctx sdk.Context, symbol string) *types.BandPriceState
 	SetBandIBCPriceState(ctx sdk.Context, symbol string, priceState types.BandPriceState)
 	GetAllBandIBCPriceStates(ctx sdk.Context) []types.BandPriceState
-	GetBandIBCReferencePrice(ctx sdk.Context, base string, quote string) *sdk.Dec
+	GetBandIBCReferencePrice(ctx sdk.Context, base string, quote string) *math.LegacyDec
 
 	GetBandIBCLatestClientID(ctx sdk.Context) uint64
 	SetBandIBCLatestClientID(ctx sdk.Context, clientID uint64)
@@ -69,7 +69,7 @@ The CoinbaseKeeper provides the ability to create, modify and read CoinbasePrice
 
 ```go
 type CoinbaseKeeper interface {
-    GetCoinbasePrice(ctx sdk.Context, base string, quote string) *sdk.Dec
+    GetCoinbasePrice(ctx sdk.Context, base string, quote string) *math.LegacyDec
     HasCoinbasePriceState(ctx sdk.Context, key string) bool
     GetCoinbasePriceState(ctx sdk.Context, key string) *types.CoinbasePriceState
     SetCoinbasePriceState(ctx sdk.Context, priceData *types.CoinbasePriceState) error
@@ -96,6 +96,25 @@ type PriceFeederKeeper interface {
     SetPriceFeedInfo(ctx sdk.Context, priceFeedInfo *types.PriceFeedInfo)
     GetPriceFeedPriceState(ctx sdk.Context, base string, quote string) *types.PriceState
     SetPriceFeedPriceState(ctx sdk.Context, oracleBase, oracleQuote string, priceState *types.PriceState)
-    GetPriceFeedPrice(ctx sdk.Context, base string, quote string) *sdk.Dec
+    GetPriceFeedPrice(ctx sdk.Context, base string, quote string) *math.LegacyDec
 }
 ```
+
+## Stork
+
+The StorkKeeper provides the ability to create/modify/read StorkPricefeed and StorkPublishers data.
+
+```go
+type StorkKeeper interface {
+	GetStorkPrice(ctx sdk.Context, base string, quote string) *math.LegacyDec
+	IsStorkPublisher(ctx sdk.Context, address string) bool
+	SetStorkPublisher(ctx sdk.Context, address string)
+	DeleteStorkPublisher(ctx sdk.Context, address string)
+	GetAllStorkPublishers(ctx sdk.Context) []string
+
+	SetStorkPriceState(ctx sdk.Context, priceData *types.StorkPriceState)
+	GetStorkPriceState(ctx sdk.Context, symbol string) types.StorkPriceState
+	GetAllStorkPriceStates(ctx sdk.Context) []*types.StorkPriceState
+}
+```
+The GetStorkPrice returns the price(`value`) of the StorkPriceState.

@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"sort"
 
+	"cosmossdk.io/math"
+	"cosmossdk.io/store/prefix"
+	storetypes "cosmossdk.io/store/types"
 	"github.com/InjectiveLabs/metrics"
-	"github.com/cosmos/cosmos-sdk/store/prefix"
-	storetypes "github.com/cosmos/cosmos-sdk/store/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
@@ -19,10 +20,9 @@ func (k *Keeper) GetOrderbookPriceLevelQuantity(
 	marketID common.Hash,
 	isBuy,
 	isSpot bool,
-	price sdk.Dec,
-) sdk.Dec {
-	metrics.ReportFuncCall(k.svcTags)
-	doneFn := metrics.ReportFuncTiming(k.svcTags)
+	price math.LegacyDec,
+) math.LegacyDec {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	var key []byte
@@ -44,7 +44,7 @@ func (k *Keeper) GetOrderbookPriceLevelQuantity(
 	bz = store.Get(key)
 
 	if bz == nil {
-		return sdk.ZeroDec()
+		return math.LegacyZeroDec()
 	}
 
 	return types.DecBytesToDec(bz)
@@ -57,10 +57,9 @@ func (k *Keeper) SetOrderbookPriceLevelQuantity(
 	isBuy,
 	isSpot bool,
 	price,
-	quantity sdk.Dec,
+	quantity math.LegacyDec,
 ) {
-	metrics.ReportFuncCall(k.svcTags)
-	doneFn := metrics.ReportFuncTiming(k.svcTags)
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	var key []byte
@@ -90,10 +89,9 @@ func (k *Keeper) IncrementOrderbookPriceLevelQuantity(
 	isBuy,
 	isSpot bool,
 	price,
-	quantity sdk.Dec,
+	quantity math.LegacyDec,
 ) {
-	metrics.ReportFuncCall(k.svcTags)
-	doneFn := metrics.ReportFuncTiming(k.svcTags)
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	if quantity.IsZero() {
@@ -113,10 +111,9 @@ func (k *Keeper) DecrementOrderbookPriceLevelQuantity(
 	isBuy,
 	isSpot bool,
 	price,
-	quantity sdk.Dec,
+	quantity math.LegacyDec,
 ) {
-	metrics.ReportFuncCall(k.svcTags)
-	doneFn := metrics.ReportFuncTiming(k.svcTags)
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	if quantity.IsZero() {
@@ -134,8 +131,7 @@ func (k *Keeper) GetAllTransientOrderbookUpdates(
 	ctx sdk.Context,
 	isSpot bool,
 ) []*types.Orderbook {
-	metrics.ReportFuncCall(k.svcTags)
-	doneFn := metrics.ReportFuncTiming(k.svcTags)
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	orderbookMap := make(map[common.Hash]*types.Orderbook)
@@ -169,8 +165,7 @@ func (k *Keeper) IterateTransientOrderbookPriceLevels(
 	isSpot bool,
 	process func(marketID common.Hash, isBuy bool, priceLevel *types.Level) (stop bool),
 ) {
-	metrics.ReportFuncCall(k.svcTags)
-	doneFn := metrics.ReportFuncTiming(k.svcTags)
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	store := k.getTransientStore(ctx)
@@ -204,11 +199,10 @@ func (k *Keeper) GetOrderbookPriceLevels(
 	marketID common.Hash,
 	isBuy bool,
 	limit *uint64,
-	limitCumulativeNotional *sdk.Dec, // optionally retrieve only top positions up to this cumulative notional value (useful when calc. worst price for BUY)
-	limitCumulativeQuantity *sdk.Dec, // optionally retrieve only top positions up to this cumulative quantity value (useful when calc. worst price for SELL)
+	limitCumulativeNotional *math.LegacyDec, // optionally retrieve only top positions up to this cumulative notional value (useful when calc. worst price for BUY)
+	limitCumulativeQuantity *math.LegacyDec, // optionally retrieve only top positions up to this cumulative quantity value (useful when calc. worst price for SELL)
 ) []*types.Level {
-	metrics.ReportFuncCall(k.svcTags)
-	doneFn := metrics.ReportFuncTiming(k.svcTags)
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	var storeKey []byte
@@ -231,8 +225,8 @@ func (k *Keeper) GetOrderbookPriceLevels(
 	defer iterator.Close()
 
 	levels := make([]*types.Level, 0)
-	cumulativeNotional := sdk.ZeroDec()
-	cumulativeQuantity := sdk.ZeroDec()
+	cumulativeNotional := math.LegacyZeroDec()
+	cumulativeQuantity := math.LegacyZeroDec()
 	for ; iterator.Valid(); iterator.Next() {
 		if limit != nil && uint64(len(levels)) == *limit {
 			break
@@ -260,7 +254,8 @@ func (k *Keeper) GetOrderbookPriceLevels(
 
 // GetOrderbookSequence gets the orderbook sequence for a given marketID.
 func (k *Keeper) GetOrderbookSequence(ctx sdk.Context, marketID common.Hash) uint64 {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	sequenceStore := prefix.NewStore(store, types.OrderbookSequencePrefix)
@@ -274,7 +269,8 @@ func (k *Keeper) GetOrderbookSequence(ctx sdk.Context, marketID common.Hash) uin
 
 // GetAllOrderbookSequences gets all the orderbook sequences.
 func (k *Keeper) GetAllOrderbookSequences(ctx sdk.Context) []*types.OrderbookSequence {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	sequenceStore := prefix.NewStore(store, types.OrderbookSequencePrefix)
@@ -298,7 +294,8 @@ func (k *Keeper) GetAllOrderbookSequences(ctx sdk.Context) []*types.OrderbookSeq
 
 // SetOrderbookSequence sets the orderbook sequence for a given marketID.
 func (k *Keeper) SetOrderbookSequence(ctx sdk.Context, marketID common.Hash, sequence uint64) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	sequenceStore := prefix.NewStore(store, types.OrderbookSequencePrefix)
@@ -310,8 +307,7 @@ func (k *Keeper) IncrementOrderbookSequence(
 	ctx sdk.Context,
 	marketID common.Hash,
 ) uint64 {
-	metrics.ReportFuncCall(k.svcTags)
-	doneFn := metrics.ReportFuncTiming(k.svcTags)
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	sequence := k.GetOrderbookSequence(ctx, marketID)
@@ -325,8 +321,7 @@ func (k *Keeper) IncrementOrderbookSequence(
 func (k *Keeper) IncrementSequenceAndEmitAllTransientOrderbookUpdates(
 	ctx sdk.Context,
 ) {
-	metrics.ReportFuncCall(k.svcTags)
-	doneFn := metrics.ReportFuncTiming(k.svcTags)
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	spotOrderbooks := k.GetAllTransientOrderbookUpdates(ctx, true)

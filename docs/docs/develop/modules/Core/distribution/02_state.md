@@ -18,7 +18,7 @@ When coins are distributed from the pool they are truncated back to
 type DecCoins []DecCoin
 
 type DecCoin struct {
-    Amount sdk.Dec
+    Amount math.LegacyDec
     Denom  string
 }
 ```
@@ -39,7 +39,7 @@ Validator distribution information for the relevant validator is updated each ti
 ```go
 type ValidatorDistInfo struct {
     OperatorAddress     sdk.AccAddress
-    SelfBondRewards     sdk.DecCoins
+    SelfBondRewards     math.LegacyDecCoins
     ValidatorCommission types.ValidatorAccumulatedCommission
 }
 ```

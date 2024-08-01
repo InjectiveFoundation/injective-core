@@ -3,13 +3,15 @@ package keeper
 import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 	"github.com/InjectiveLabs/metrics"
+
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 )
 
 // GetCurrentCampaignEndTimestamp fetches the end timestamp of the current TradingRewardCampaign.
 func (k *Keeper) GetCurrentCampaignEndTimestamp(ctx sdk.Context) int64 {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	bz := store.Get(types.TradingRewardCurrentCampaignEndTimeKey)
@@ -23,7 +25,8 @@ func (k *Keeper) GetCurrentCampaignEndTimestamp(ctx sdk.Context) int64 {
 
 // DeleteCurrentCampaignEndTimestamp deletes the end timestamp of the current TradingRewardCampaign.
 func (k *Keeper) DeleteCurrentCampaignEndTimestamp(ctx sdk.Context) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	store.Delete(types.TradingRewardCurrentCampaignEndTimeKey)
@@ -31,7 +34,8 @@ func (k *Keeper) DeleteCurrentCampaignEndTimestamp(ctx sdk.Context) {
 
 // SetCurrentCampaignEndTimestamp sets the end timestamp of the current TradingRewardCampaign.
 func (k *Keeper) SetCurrentCampaignEndTimestamp(ctx sdk.Context, endTimestamp int64) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	store.Set(types.TradingRewardCurrentCampaignEndTimeKey, sdk.Uint64ToBigEndian(uint64(endTimestamp)))
@@ -39,7 +43,8 @@ func (k *Keeper) SetCurrentCampaignEndTimestamp(ctx sdk.Context, endTimestamp in
 
 // GetCampaignInfo fetches the TradingRewardCampaignInfo.
 func (k *Keeper) GetCampaignInfo(ctx sdk.Context) *types.TradingRewardCampaignInfo {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	bz := store.Get(types.TradingRewardCampaignInfoKey)
@@ -54,7 +59,8 @@ func (k *Keeper) GetCampaignInfo(ctx sdk.Context) *types.TradingRewardCampaignIn
 
 // DeleteCampaignInfo deletes the TradingRewardCampaignInfo.
 func (k *Keeper) DeleteCampaignInfo(ctx sdk.Context) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	store.Delete(types.TradingRewardCampaignInfoKey)
@@ -62,7 +68,8 @@ func (k *Keeper) DeleteCampaignInfo(ctx sdk.Context) {
 
 // SetCampaignInfo sets the TradingRewardCampaignInfo.
 func (k *Keeper) SetCampaignInfo(ctx sdk.Context, campaignInfo *types.TradingRewardCampaignInfo) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	bz := k.cdc.MustMarshal(campaignInfo)

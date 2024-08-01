@@ -6,7 +6,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	log "github.com/xlab/suplog"
 
 	"github.com/InjectiveLabs/metrics"
 
@@ -32,8 +31,7 @@ func NewBlockHandler(k keeper.Keeper) *BlockHandler {
 
 // EndBlocker is called at the end of every block
 func (h *BlockHandler) EndBlocker(ctx sdk.Context) {
-	metrics.ReportFuncCall(h.svcTags)
-	doneFn := metrics.ReportFuncTiming(h.svcTags)
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, h.svcTags)
 	defer doneFn()
 
 	params := h.k.GetParams(ctx)
@@ -47,8 +45,7 @@ func (h *BlockHandler) EndBlocker(ctx sdk.Context) {
 }
 
 func (h *BlockHandler) createValsets(ctx sdk.Context) {
-	metrics.ReportFuncCall(h.svcTags)
-	doneFn := metrics.ReportFuncTiming(h.svcTags)
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, h.svcTags)
 	defer doneFn()
 
 	// Auto ValsetRequest Creation.
@@ -76,8 +73,7 @@ func (h *BlockHandler) createValsets(ctx sdk.Context) {
 // but (A) pruning keeps the iteration small in the first place and (B) there is
 // already enough nuance in the other handler that it's best not to complicate it further
 func (h *BlockHandler) pruneAttestations(ctx sdk.Context) {
-	metrics.ReportFuncCall(h.svcTags)
-	doneFn := metrics.ReportFuncTiming(h.svcTags)
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, h.svcTags)
 	defer doneFn()
 
 	attmap := h.k.GetAttestationMapping(ctx)
@@ -108,8 +104,7 @@ func (h *BlockHandler) pruneAttestations(ctx sdk.Context) {
 }
 
 func (h *BlockHandler) slashing(ctx sdk.Context, params *types.Params) {
-	metrics.ReportFuncCall(h.svcTags)
-	doneFn := metrics.ReportFuncTiming(h.svcTags)
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, h.svcTags)
 	defer doneFn()
 
 	// Slash validator for not confirming valset requests, batch requests and not attesting claims rightfully
@@ -126,8 +121,7 @@ func (h *BlockHandler) slashing(ctx sdk.Context, params *types.Params) {
 // "Observe" those who have passed the threshold. Break the loop once we see
 // an attestation that has not passed the threshold
 func (h *BlockHandler) attestationTally(ctx sdk.Context) {
-	metrics.ReportFuncCall(h.svcTags)
-	doneFn := metrics.ReportFuncTiming(h.svcTags)
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, h.svcTags)
 	defer doneFn()
 
 	attmap := h.k.GetAttestationMapping(ctx)
@@ -183,8 +177,7 @@ func (h *BlockHandler) attestationTally(ctx sdk.Context) {
 //	project, if we do a slowdown on ethereum could cause a double spend. Instead timeouts will *only* occur after the timeout period
 //	AND any deposit or withdraw has occurred to update the Ethereum block height.
 func (h *BlockHandler) cleanupTimedOutBatches(ctx sdk.Context) {
-	metrics.ReportFuncCall(h.svcTags)
-	doneFn := metrics.ReportFuncTiming(h.svcTags)
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, h.svcTags)
 	defer doneFn()
 
 	ethereumHeight := h.k.GetLastObservedEthereumBlockHeight(ctx).EthereumBlockHeight
@@ -194,15 +187,14 @@ func (h *BlockHandler) cleanupTimedOutBatches(ctx sdk.Context) {
 		if batch.BatchTimeout < ethereumHeight {
 			err := h.k.CancelOutgoingTXBatch(ctx, common.HexToAddress(batch.TokenContract), batch.BatchNonce)
 			if err != nil {
-				log.WithError(err).Errorf("failed to cancel outgoing tx batch. Block: %d. Batch nonce: %d.", batch.Block, batch.BatchNonce)
+				ctx.Logger().Error("failed to cancel outgoing tx batch", "error", err, "block", batch.Block, "batch_nonce", batch.BatchNonce)
 			}
 		}
 	}
 }
 
 func (h *BlockHandler) valsetSlashing(ctx sdk.Context, params *types.Params) {
-	metrics.ReportFuncCall(h.svcTags)
-	doneFn := metrics.ReportFuncTiming(h.svcTags)
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, h.svcTags)
 	defer doneFn()
 
 	maxHeight := uint64(0)
@@ -222,18 +214,20 @@ func (h *BlockHandler) valsetSlashing(ctx sdk.Context, params *types.Params) {
 		confirms := h.k.GetValsetConfirms(ctx, vs.Nonce)
 
 		// SLASH BONDED VALIDATORS who didn't attest valset request
-		currentBondedSet := h.k.StakingKeeper.GetBondedValidatorsByPower(ctx)
+		currentBondedSet, _ := h.k.StakingKeeper.GetBondedValidatorsByPower(ctx)
 
 		for i := range currentBondedSet {
 			consAddr, _ := currentBondedSet[i].GetConsAddr()
-			valSigningInfo, exist := h.k.SlashingKeeper.GetValidatorSigningInfo(ctx, consAddr)
+			valSigningInfo, err := h.k.SlashingKeeper.GetValidatorSigningInfo(ctx, consAddr)
 
+			exist := err == nil
 			//  Slash validator ONLY if he joined after valset is created
 			if exist && valSigningInfo.StartHeight < int64(vs.Height) {
 				// Check if validator has confirmed valset or not
 				found := false
 				for _, conf := range confirms {
-					ethAddress, exists := h.k.GetEthAddressByValidator(ctx, currentBondedSet[i].GetOperator())
+					valAddr, _ := sdk.ValAddressFromBech32(currentBondedSet[i].GetOperator())
+					ethAddress, exists := h.k.GetEthAddressByValidator(ctx, valAddr)
 					// This may have an issue if the validator changes their eth address
 					// TODO this presents problems for delegate key rotation see issue #344
 					if exists && common.HexToAddress(conf.EthAddress) == ethAddress {
@@ -246,7 +240,7 @@ func (h *BlockHandler) valsetSlashing(ctx sdk.Context, params *types.Params) {
 					cons, _ := currentBondedSet[i].GetConsAddr()
 					consPower := currentBondedSet[i].ConsensusPower(h.k.StakingKeeper.PowerReduction(ctx))
 
-					h.k.StakingKeeper.Slash(
+					_, _ = h.k.StakingKeeper.Slash(
 						ctx,
 						cons,
 						ctx.BlockHeight(),
@@ -255,14 +249,14 @@ func (h *BlockHandler) valsetSlashing(ctx sdk.Context, params *types.Params) {
 					)
 
 					if !currentBondedSet[i].IsJailed() {
-						h.k.StakingKeeper.Jail(ctx, cons)
+						_ = h.k.StakingKeeper.Jail(ctx, cons)
 					}
 
 					// nolint:errcheck //ignored on purpose
 					ctx.EventManager().EmitTypedEvent(&types.EventValidatorSlash{
 						Power:            consPower,
 						Reason:           "missing_valset_confirm",
-						ConsensusAddress: consAddr.String(),
+						ConsensusAddress: sdk.ConsAddress(consAddr).String(),
 						OperatorAddress:  currentBondedSet[i].OperatorAddress,
 						Moniker:          currentBondedSet[i].GetMoniker(),
 					})
@@ -271,9 +265,10 @@ func (h *BlockHandler) valsetSlashing(ctx sdk.Context, params *types.Params) {
 		}
 
 		// SLASH UNBONDING VALIDATORS who didn't attest valset request
-		blockTime := ctx.BlockTime().Add(h.k.StakingKeeper.GetParams(ctx).UnbondingTime)
+		stakingParams, _ := h.k.StakingKeeper.GetParams(ctx)
+		blockTime := ctx.BlockTime().Add(stakingParams.UnbondingTime)
 		blockHeight := ctx.BlockHeight()
-		unbondingValIterator := h.k.StakingKeeper.ValidatorQueueIterator(ctx, blockTime, blockHeight)
+		unbondingValIterator, _ := h.k.StakingKeeper.ValidatorQueueIterator(ctx, blockTime, blockHeight)
 		defer unbondingValIterator.Close()
 
 		// All unbonding validators
@@ -288,14 +283,15 @@ func (h *BlockHandler) valsetSlashing(ctx sdk.Context, params *types.Params) {
 
 				validator, _ := h.k.StakingKeeper.GetValidator(ctx, addr)
 				valConsAddr, _ := validator.GetConsAddr()
-				valSigningInfo, exist := h.k.SlashingKeeper.GetValidatorSigningInfo(ctx, valConsAddr)
+				valSigningInfo, err := h.k.SlashingKeeper.GetValidatorSigningInfo(ctx, valConsAddr)
 
+				exist := err == nil
 				// Only slash validators who joined after valset is created and they are unbonding and UNBOND_SLASHING_WINDOW didn't passed
 				if exist && valSigningInfo.StartHeight < int64(vs.Height) && validator.IsUnbonding() && vs.Height < uint64(validator.UnbondingHeight)+params.UnbondSlashingValsetsWindow {
 					// Check if validator has confirmed valset or not
 					found := false
 					for _, conf := range confirms {
-						ethAddress, exists := h.k.GetEthAddressByValidator(ctx, validator.GetOperator())
+						ethAddress, exists := h.k.GetEthAddressByValidator(ctx, addr)
 						if exists && common.HexToAddress(conf.EthAddress) == ethAddress {
 							found = true
 							break
@@ -306,10 +302,10 @@ func (h *BlockHandler) valsetSlashing(ctx sdk.Context, params *types.Params) {
 					if !found {
 						consPower := validator.ConsensusPower(h.k.StakingKeeper.PowerReduction(ctx))
 
-						h.k.StakingKeeper.Slash(ctx, valConsAddr, ctx.BlockHeight(), consPower, params.SlashFractionValset)
+						_, _ = h.k.StakingKeeper.Slash(ctx, valConsAddr, ctx.BlockHeight(), consPower, params.SlashFractionValset)
 
 						if !validator.IsJailed() {
-							h.k.StakingKeeper.Jail(ctx, valConsAddr)
+							_ = h.k.StakingKeeper.Jail(ctx, valConsAddr)
 						}
 
 						// nolint:errcheck //ignored on purpose
@@ -331,8 +327,7 @@ func (h *BlockHandler) valsetSlashing(ctx sdk.Context, params *types.Params) {
 }
 
 func (h *BlockHandler) batchSlashing(ctx sdk.Context, params *types.Params) {
-	metrics.ReportFuncCall(h.svcTags)
-	doneFn := metrics.ReportFuncTiming(h.svcTags)
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, h.svcTags)
 	defer doneFn()
 
 	// #2 condition
@@ -352,14 +347,14 @@ func (h *BlockHandler) batchSlashing(ctx sdk.Context, params *types.Params) {
 
 	for _, batch := range unslashedBatches {
 		// SLASH BONDED VALIDTORS who didn't attest batch requests
-		currentBondedSet := h.k.StakingKeeper.GetBondedValidatorsByPower(ctx)
+		currentBondedSet, _ := h.k.StakingKeeper.GetBondedValidatorsByPower(ctx)
 		confirms := h.k.GetBatchConfirmByNonceAndTokenContract(ctx, batch.BatchNonce, common.HexToAddress(batch.TokenContract))
 		for i := range currentBondedSet {
 			// Don't slash validators who joined after batch is created
 			consAddr, _ := currentBondedSet[i].GetConsAddr()
 
-			valSigningInfo, exist := h.k.SlashingKeeper.GetValidatorSigningInfo(ctx, consAddr)
-			if exist && valSigningInfo.StartHeight > int64(batch.Block) {
+			valSigningInfo, err := h.k.SlashingKeeper.GetValidatorSigningInfo(ctx, consAddr)
+			if exist := err == nil; exist && valSigningInfo.StartHeight > int64(batch.Block) {
 				continue
 			}
 
@@ -368,7 +363,8 @@ func (h *BlockHandler) batchSlashing(ctx sdk.Context, params *types.Params) {
 				// TODO this presents problems for delegate key rotation see issue #344
 				orchestratorAcc, _ := sdk.AccAddressFromBech32(batchConfirmation.Orchestrator)
 				delegatedOperator, delegatedFound := h.k.GetOrchestratorValidator(ctx, orchestratorAcc)
-				if delegatedFound && delegatedOperator.Equals(currentBondedSet[i].GetOperator()) {
+				operatorAddr, _ := sdk.ValAddressFromBech32(currentBondedSet[i].GetOperator())
+				if delegatedFound && delegatedOperator.Equals(operatorAddr) {
 					found = true
 					break
 				}
@@ -378,12 +374,12 @@ func (h *BlockHandler) batchSlashing(ctx sdk.Context, params *types.Params) {
 				cons, _ := currentBondedSet[i].GetConsAddr()
 				consPower := currentBondedSet[i].ConsensusPower(h.k.StakingKeeper.PowerReduction(ctx))
 
-				h.k.StakingKeeper.Slash(ctx, cons, ctx.BlockHeight(), consPower, params.SlashFractionBatch)
+				_, _ = h.k.StakingKeeper.Slash(ctx, cons, ctx.BlockHeight(), consPower, params.SlashFractionBatch)
 
 				if !currentBondedSet[i].IsJailed() {
-					h.k.StakingKeeper.Jail(ctx, cons)
+					_ = h.k.StakingKeeper.Jail(ctx, cons)
 				}
-				
+
 				// nolint:errcheck //ignored on purpose
 				ctx.EventManager().EmitTypedEvent(&types.EventValidatorSlash{
 					Power:            consPower,
@@ -401,8 +397,7 @@ func (h *BlockHandler) batchSlashing(ctx sdk.Context, params *types.Params) {
 }
 
 func (h *BlockHandler) pruneValsets(ctx sdk.Context, params *types.Params) {
-	metrics.ReportFuncCall(h.svcTags)
-	doneFn := metrics.ReportFuncTiming(h.svcTags)
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, h.svcTags)
 	defer doneFn()
 
 	// Validator set pruning

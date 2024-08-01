@@ -25,6 +25,9 @@ func NewPythMsgServerImpl(keeper Keeper) PythMsgServer {
 }
 
 func (k Keeper) RelayPythPrices(goCtx context.Context, msg *types.MsgRelayPythPrices) (*types.MsgRelayPythPricesResponse, error) {
+	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
+	defer doneFn()
+
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
 	if len(msg.PriceAttestations) == 0 {

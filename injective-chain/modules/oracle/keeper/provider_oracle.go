@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"sort"
 
+	"cosmossdk.io/math"
+	"cosmossdk.io/store/prefix"
 	"github.com/InjectiveLabs/metrics"
-	"github.com/cosmos/cosmos-sdk/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/types"
@@ -21,14 +22,16 @@ type ProviderKeeper interface {
 	GetProviderPriceState(ctx sdk.Context, provider, symbol string) *types.ProviderPriceState
 	SetProviderPriceState(ctx sdk.Context, provider string, priceState *types.ProviderPriceState)
 	GetProviderPriceStates(ctx sdk.Context, provider string) []*types.ProviderPriceState
-	GetProviderPrice(ctx sdk.Context, provider, symbol string) *sdk.Dec
-	GetCumulativeProviderPrice(ctx sdk.Context, provider, symbol string) *sdk.Dec
+	GetProviderPrice(ctx sdk.Context, provider, symbol string) *math.LegacyDec
+	GetCumulativeProviderPrice(ctx sdk.Context, provider, symbol string) *math.LegacyDec
 	GetAllProviderStates(ctx sdk.Context) []*types.ProviderState
+	ProcessProviderPrices(ctx sdk.Context, msg *types.MsgRelayProviderPrices)
 }
 
 // IsProviderRelayer checks that the relayer has been authorized for the given provider.
 func (k *Keeper) IsProviderRelayer(ctx sdk.Context, provider string, relayer sdk.AccAddress) bool {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	existingProvider, _ := k.getRelayerProvider(ctx, relayer)
 	return existingProvider == provider
@@ -36,7 +39,8 @@ func (k *Keeper) IsProviderRelayer(ctx sdk.Context, provider string, relayer sdk
 
 // GetProviderRelayers returns all relayers for a given provider.
 func (k *Keeper) GetProviderRelayers(ctx sdk.Context, provider string) []sdk.AccAddress {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	info := k.GetProviderInfo(ctx, provider)
 	if info == nil {
@@ -52,7 +56,8 @@ func (k *Keeper) GetProviderRelayers(ctx sdk.Context, provider string) []sdk.Acc
 
 // DeleteProviderRelayers TODO: for consistency relayers should be of type []sdk.AccAddress
 func (k *Keeper) DeleteProviderRelayers(ctx sdk.Context, provider string, relayers []string) error {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	currentRelayers := k.GetProviderRelayers(ctx, provider)
 	if currentRelayers == nil {
@@ -88,7 +93,8 @@ func (k *Keeper) DeleteProviderRelayers(ctx sdk.Context, provider string, relaye
 }
 
 func (k *Keeper) GetProviderInfo(ctx sdk.Context, provider string) *types.ProviderInfo {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 
@@ -102,7 +108,8 @@ func (k *Keeper) GetProviderInfo(ctx sdk.Context, provider string) *types.Provid
 }
 
 func (k *Keeper) SetProviderInfo(ctx sdk.Context, providerInfo *types.ProviderInfo) error {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	bz := k.cdc.MustMarshal(providerInfo)
 
@@ -122,7 +129,8 @@ func (k *Keeper) SetProviderInfo(ctx sdk.Context, providerInfo *types.ProviderIn
 }
 
 func (k *Keeper) GetAllProviderInfos(ctx sdk.Context) []*types.ProviderInfo {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 
@@ -142,21 +150,24 @@ func (k *Keeper) GetAllProviderInfos(ctx sdk.Context) []*types.ProviderInfo {
 }
 
 func (k *Keeper) setProviderIndex(ctx sdk.Context, provider string, relayer sdk.AccAddress) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	relayerKey := types.GetProviderIndexKey(relayer)
 	k.getStore(ctx).Set(relayerKey, []byte(provider))
 }
 
 func (k *Keeper) deleteProviderIndex(ctx sdk.Context, relayer sdk.AccAddress) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	relayerKey := types.GetProviderIndexKey(relayer)
 	k.getStore(ctx).Delete(relayerKey)
 }
 
 func (k *Keeper) getRelayerProvider(ctx sdk.Context, relayer sdk.AccAddress) (provider string, found bool) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	relayerKey := types.GetProviderIndexKey(relayer)
 	bz := k.getStore(ctx).Get(relayerKey)
@@ -168,7 +179,8 @@ func (k *Keeper) getRelayerProvider(ctx sdk.Context, relayer sdk.AccAddress) (pr
 }
 
 func (k *Keeper) GetProviderPriceState(ctx sdk.Context, provider, symbol string) *types.ProviderPriceState {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	key := types.GetProviderPriceKey(provider, symbol)
 	bz := k.getStore(ctx).Get(key)
@@ -184,7 +196,8 @@ func (k *Keeper) GetProviderPriceState(ctx sdk.Context, provider, symbol string)
 }
 
 func (k *Keeper) SetProviderPriceState(ctx sdk.Context, provider string, providerPriceState *types.ProviderPriceState) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	symbol := providerPriceState.Symbol
 	priceKey := types.GetProviderPriceKey(provider, symbol)
@@ -200,7 +213,8 @@ func (k *Keeper) SetProviderPriceState(ctx sdk.Context, provider string, provide
 }
 
 func (k *Keeper) GetProviderPriceStates(ctx sdk.Context, provider string) []*types.ProviderPriceState {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 
@@ -220,8 +234,9 @@ func (k *Keeper) GetProviderPriceStates(ctx sdk.Context, provider string) []*typ
 }
 
 // GetProviderPrice returns the price for a given symbol for a given provider
-func (k *Keeper) GetProviderPrice(ctx sdk.Context, provider, symbol string) *sdk.Dec {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+func (k *Keeper) GetProviderPrice(ctx sdk.Context, provider, symbol string) *math.LegacyDec {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	priceState := k.GetProviderPriceState(ctx, provider, symbol)
 	if priceState == nil {
@@ -232,8 +247,9 @@ func (k *Keeper) GetProviderPrice(ctx sdk.Context, provider, symbol string) *sdk
 }
 
 // GetCumulativeProviderPrice returns the cumulative price for a given symbol for a given provider
-func (k *Keeper) GetCumulativeProviderPrice(ctx sdk.Context, provider, symbol string) *sdk.Dec {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+func (k *Keeper) GetCumulativeProviderPrice(ctx sdk.Context, provider, symbol string) *math.LegacyDec {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	providerPriceState := k.GetProviderPriceState(ctx, provider, symbol)
 	if providerPriceState == nil {
@@ -252,4 +268,36 @@ func (k *Keeper) GetAllProviderStates(ctx sdk.Context) []*types.ProviderState {
 		})
 	}
 	return providerStates
+}
+
+func (k *Keeper) ProcessProviderPrices(ctx sdk.Context, msg *types.MsgRelayProviderPrices) {
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+
+	for idx := range msg.Prices {
+		price := msg.Prices[idx]
+		symbol := msg.Symbols[idx]
+
+		providerPriceState := k.GetProviderPriceState(ctx, msg.Provider, symbol)
+
+		blockTime := ctx.BlockTime().Unix()
+		if providerPriceState == nil || providerPriceState.State == nil {
+			providerPriceState = types.NewProviderPriceState(symbol, price, blockTime)
+		} else {
+			// skip price update if the price changes beyond 100x or less than 1% of the last price
+			if types.CheckPriceFeedThreshold(providerPriceState.State.Price, price) {
+				continue
+			}
+			providerPriceState.State.UpdatePrice(price, blockTime)
+		}
+
+		k.SetProviderPriceState(ctx, msg.Provider, providerPriceState)
+
+		// nolint:errcheck //ignored on purpose
+		ctx.EventManager().EmitTypedEvent(&types.SetProviderPriceEvent{
+			Provider: msg.Provider,
+			Relayer:  msg.Sender,
+			Symbol:   symbol,
+			Price:    price,
+		})
+	}
 }

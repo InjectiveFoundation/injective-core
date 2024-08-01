@@ -29,6 +29,8 @@ func GetQueryCmd() *cobra.Command {
 		GetProvidersInfo(),
 		GetProvidersPrices(),
 		GetPythPriceFeed(),
+		GetStorkPriceStates(),
+		GetStorkPublishers(),
 	)
 	return cmd
 }
@@ -126,6 +128,62 @@ func GetPythPriceFeed() *cobra.Command {
 				req := &types.QueryPythPriceStatesRequest{}
 				res, err = queryClient.PythPriceStates(context.Background(), req)
 			}
+			if err != nil {
+				return err
+			}
+			return clientCtx.PrintProto(res)
+		},
+	}
+
+	cliflags.AddQueryFlagsToCmd(cmd)
+	return cmd
+}
+
+// GetStorkPriceStates queries the state for all stork price states
+func GetStorkPriceStates() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "stork-price-states",
+		Short: "Gets Stork price states",
+		Long:  "Gets Stork price states",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clientCtx, err := client.GetClientQueryContext(cmd)
+			if err != nil {
+				return err
+			}
+			queryClient := types.NewQueryClient(clientCtx)
+
+			var res proto.Message
+			req := &types.QueryStorkPriceStatesRequest{}
+			res, err = queryClient.StorkPriceStates(context.Background(), req)
+			if err != nil {
+				return err
+			}
+			return clientCtx.PrintProto(res)
+		},
+	}
+
+	cliflags.AddQueryFlagsToCmd(cmd)
+	return cmd
+}
+
+// GetStorkPublishers queries the state for all stork publishers
+func GetStorkPublishers() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "stork-publisher",
+		Short: "Gets Stork publisher",
+		Long:  "Gets Stork publisher",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clientCtx, err := client.GetClientQueryContext(cmd)
+			if err != nil {
+				return err
+			}
+			queryClient := types.NewQueryClient(clientCtx)
+
+			var res proto.Message
+			req := &types.QueryStorkPublishersRequest{}
+			res, err = queryClient.StorkPublishers(context.Background(), req)
 			if err != nil {
 				return err
 			}

@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"cosmossdk.io/core/appmodule"
+
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/peggy/exported"
 
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
@@ -23,15 +25,19 @@ import (
 
 	// "github.com/cosmos/cosmos-sdk/x/gov/simulation"
 
-	abci "github.com/cometbft/cometbft/abci/types"
 	"github.com/cosmos/cosmos-sdk/client"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
 // type check to ensure the interface is properly implemented
 var (
-	_ module.AppModule      = AppModule{}
-	_ module.AppModuleBasic = AppModuleBasic{}
+	_ module.AppModuleBasic      = AppModule{}
+	_ module.HasGenesis          = AppModule{}
+	_ module.HasServices         = AppModule{}
+	_ module.HasConsensusVersion = AppModule{}
+
+	_ appmodule.AppModule     = AppModule{}
+	_ appmodule.HasEndBlocker = AppModule{}
 )
 
 const ConsensusVersion = 2
@@ -97,6 +103,9 @@ type AppModule struct {
 	blockHandler   *BlockHandler
 }
 
+func (am AppModule) IsOnePerModuleType() {}
+func (am AppModule) IsAppModule()        {}
+
 func (am AppModule) ConsensusVersion() uint64 {
 	return ConsensusVersion
 }
@@ -144,12 +153,10 @@ func (am AppModule) RegisterServices(cfg module.Configurator) {
 }
 
 // InitGenesis initializes the genesis state for this module and implements app module.
-func (am AppModule) InitGenesis(ctx sdk.Context, cdc codec.JSONCodec, data json.RawMessage) []abci.ValidatorUpdate {
+func (am AppModule) InitGenesis(ctx sdk.Context, cdc codec.JSONCodec, data json.RawMessage) {
 	genesisState := new(types.GenesisState)
 	cdc.MustUnmarshalJSON(data, genesisState)
 	keeper.InitGenesis(ctx, am.keeper, genesisState)
-
-	return []abci.ValidatorUpdate{}
 }
 
 // ExportGenesis exports the current genesis state to a json.RawMessage
@@ -158,13 +165,10 @@ func (am AppModule) ExportGenesis(ctx sdk.Context, cdc codec.JSONCodec) json.Raw
 	return cdc.MustMarshalJSON(&gs)
 }
 
-// BeginBlock implements app module
-func (am AppModule) BeginBlock(ctx sdk.Context, _ abci.RequestBeginBlock) {}
-
 // EndBlock implements app module
-func (am AppModule) EndBlock(ctx sdk.Context, _ abci.RequestEndBlock) []abci.ValidatorUpdate {
-	am.blockHandler.EndBlocker(ctx)
-	return []abci.ValidatorUpdate{}
+func (am AppModule) EndBlock(ctx context.Context) error {
+	am.blockHandler.EndBlocker(sdk.UnwrapSDKContext(ctx))
+	return nil
 }
 
 // AppModuleSimulation functions
@@ -182,7 +186,7 @@ func (am AppModule) ProposalMsgs(simState module.SimulationState) []simtypes.Wei
 }
 
 // RegisterStoreDecoder registers a decoder for distribution module's types
-func (am AppModule) RegisterStoreDecoder(sdr sdk.StoreDecoderRegistry) {
+func (am AppModule) RegisterStoreDecoder(decoderRegistry simtypes.StoreDecoderRegistry) {
 	// nolint:all
 	// sdr[types.StoreKey] = simulation.NewDecodeStore(am.cdc)
 }

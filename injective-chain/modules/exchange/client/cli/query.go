@@ -33,6 +33,8 @@ func GetQueryCmd() *cobra.Command {
 		GetInjAddressFromEthAddressCmd(),
 		GetSubaccountIDFromInjAddressCmd(),
 		GetAllBinaryOptionsMarketsCmd(),
+		GetActiveStakeGrantForGranteeCmd(),
+		GetGranterAuthorizationsCmd(),
 	)
 	return cmd
 }
@@ -333,5 +335,61 @@ func GetAllBinaryOptionsMarketsCmd() *cobra.Command {
 	}
 
 	cliflags.AddQueryFlagsToCmd(cmd)
+	return cmd
+}
+
+// GetActiveStakeGrantForGranteeCmd queries a single active stake grant for a given grantee
+func GetActiveStakeGrantForGranteeCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "get-stake-grant-for-grantee [grantee]",
+		Short: "Gets stake grant for a given grantee",
+		Long:  "Gets stake grant for a given grantee",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clientCtx, err := client.GetClientQueryContext(cmd)
+			if err != nil {
+				return err
+			}
+			queryClient := types.NewQueryClient(clientCtx)
+
+			req := &types.QueryActiveStakeGrantRequest{
+				Grantee: args[0],
+			}
+			res, err := queryClient.ActiveStakeGrant(context.Background(), req)
+			if err != nil {
+				return err
+			}
+			return clientCtx.PrintProto(res)
+		},
+	}
+
+	return cmd
+}
+
+// GetGranterAuthorizationsCmd queries all active stake grants for a given granter
+func GetGranterAuthorizationsCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "get-stake-granter-authorizations [granter]",
+		Short: "Gets all active stake grants for a given granter",
+		Long:  "Gets all active stake grants for a given granter",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clientCtx, err := client.GetClientQueryContext(cmd)
+			if err != nil {
+				return err
+			}
+			queryClient := types.NewQueryClient(clientCtx)
+
+			req := &types.QueryGrantAuthorizationsRequest{
+				Granter: args[0],
+			}
+			res, err := queryClient.GrantAuthorizations(context.Background(), req)
+			if err != nil {
+				return err
+			}
+			return clientCtx.PrintProto(res)
+		},
+	}
+
 	return cmd
 }

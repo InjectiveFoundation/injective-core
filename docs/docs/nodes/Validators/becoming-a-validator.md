@@ -43,15 +43,15 @@ It is the only way to recover your account if you ever forget your password.
 **⚠️ important ⚠️  
 The output will contain a mnemonic phrase that represents your key in plain text. Make sure to save this phrase as a backup of your key, since without a key you will not be able to control your validator. The phrase is better be backed up on physical paper, storing it in cloud storage may compromise your validator later.**
 
-Remember the address starting from `inj`, this is going to be your Injective Chain Validator Account address.
+Remember the address starting from `inj`, this is going to be your Injective Validator Account address.
 
 ### Step 2: Obtain Mainnet INJ
 
 To proceed with the next step, you will need to obtain some real INJ on Mainnet Ethereum (ERC-20 token address [`0xe28b3b32b6c345a34ff64674606124dd5aceca30`](https://etherscan.io/token/0xe28b3b32b6c345a34ff64674606124dd5aceca30)).
 
-### Step 3: "Transfer" INJ to your validator account on the Injective Chain
+### Step 3: "Transfer" INJ to your validator account on Injective
 
-Deposit your Mainnet INJ tokens into your validator's account on the Injective Chain by using the staking dashboard. You will have to [connect your wallet](https://medium.com/injective-labs/injective-hub-guide-9a14f09f6a7d)on our [Hub](https://hub.injective.network/bridge) and then deposit INJ from Ethereum Mainnet network. This will trigger an automated bridge that maps tokens from Ethereum network to the Injective Chain.
+Deposit your Mainnet INJ tokens into your validator's account on Injective by using the staking dashboard. You will have to [connect your wallet](https://medium.com/injective-labs/injective-hub-guide-9a14f09f6a7d)on our [Hub](https://hub.injective.network/bridge) and then deposit INJ from Ethereum Mainnet network. This will trigger an automated bridge that maps tokens from Ethereum network to Injective.
 
 ![validator-transfer](./bridge-transfer.png)
 

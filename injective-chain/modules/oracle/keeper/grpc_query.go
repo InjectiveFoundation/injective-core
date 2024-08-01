@@ -17,7 +17,8 @@ import (
 var _ types.QueryServer = &Keeper{}
 
 func (k *Keeper) Params(c context.Context, _ *types.QueryParamsRequest) (*types.QueryParamsResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 	params := k.GetParams(ctx)
@@ -30,7 +31,8 @@ func (k *Keeper) Params(c context.Context, _ *types.QueryParamsRequest) (*types.
 }
 
 func (k *Keeper) BandRelayers(c context.Context, _ *types.QueryBandRelayersRequest) (*types.QueryBandRelayersResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 	ctx := sdk.UnwrapSDKContext(c)
 
 	res := &types.QueryBandRelayersResponse{
@@ -41,7 +43,8 @@ func (k *Keeper) BandRelayers(c context.Context, _ *types.QueryBandRelayersReque
 }
 
 func (k *Keeper) BandPriceStates(c context.Context, _ *types.QueryBandPriceStatesRequest) (*types.QueryBandPriceStatesResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 
@@ -53,7 +56,8 @@ func (k *Keeper) BandPriceStates(c context.Context, _ *types.QueryBandPriceState
 }
 
 func (k *Keeper) BandIBCPriceStates(c context.Context, _ *types.QueryBandIBCPriceStatesRequest) (*types.QueryBandIBCPriceStatesResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 
@@ -65,7 +69,8 @@ func (k *Keeper) BandIBCPriceStates(c context.Context, _ *types.QueryBandIBCPric
 }
 
 func (k *Keeper) PriceFeedPriceStates(c context.Context, _ *types.QueryPriceFeedPriceStatesRequest) (*types.QueryPriceFeedPriceStatesResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 	res := &types.QueryPriceFeedPriceStatesResponse{
@@ -76,7 +81,8 @@ func (k *Keeper) PriceFeedPriceStates(c context.Context, _ *types.QueryPriceFeed
 }
 
 func (k *Keeper) CoinbasePriceStates(c context.Context, _ *types.QueryCoinbasePriceStatesRequest) (*types.QueryCoinbasePriceStatesResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 
@@ -88,7 +94,8 @@ func (k *Keeper) CoinbasePriceStates(c context.Context, _ *types.QueryCoinbasePr
 }
 
 func (k *Keeper) PythPriceStates(c context.Context, _ *types.QueryPythPriceStatesRequest) (*types.QueryPythPriceStatesResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 	res := &types.QueryPythPriceStatesResponse{
@@ -98,8 +105,33 @@ func (k *Keeper) PythPriceStates(c context.Context, _ *types.QueryPythPriceState
 	return res, nil
 }
 
-func (k *Keeper) HistoricalPriceRecords(c context.Context, req *types.QueryHistoricalPriceRecordsRequest) (*types.QueryHistoricalPriceRecordsResponse, error) {
+func (k *Keeper) StorkPriceStates(c context.Context, _ *types.QueryStorkPriceStatesRequest) (*types.QueryStorkPriceStatesResponse, error) {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+
+	ctx := sdk.UnwrapSDKContext(c)
+
+	res := &types.QueryStorkPriceStatesResponse{
+		PriceStates: k.GetAllStorkPriceStates(ctx),
+	}
+
+	return res, nil
+}
+
+func (k *Keeper) StorkPublishers(c context.Context, _ *types.QueryStorkPublishersRequest) (*types.QueryStorkPublishersResponse, error) {
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+
+	ctx := sdk.UnwrapSDKContext(c)
+
+	res := &types.QueryStorkPublishersResponse{
+		Publishers: k.GetAllStorkPublishers(ctx),
+	}
+
+	return res, nil
+}
+
+func (k *Keeper) HistoricalPriceRecords(c context.Context, req *types.QueryHistoricalPriceRecordsRequest) (*types.QueryHistoricalPriceRecordsResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 
@@ -109,13 +141,13 @@ func (k *Keeper) HistoricalPriceRecords(c context.Context, req *types.QueryHisto
 		PriceRecords: make([]*types.PriceRecords, 0, len(priceRecords)),
 	}
 
-	if req.Oracle > 0 || len(req.SymbolId) > 0 {
+	if req.Oracle > 0 || req.SymbolId != "" {
 		for _, record := range priceRecords {
 			if req.Oracle > 0 && record.Oracle != req.Oracle {
 				continue
 			}
 
-			if len(req.SymbolId) > 0 && !strings.EqualFold(req.SymbolId, record.SymbolId) {
+			if req.SymbolId != "" && !strings.EqualFold(req.SymbolId, record.SymbolId) {
 				continue
 			}
 
@@ -129,7 +161,8 @@ func (k *Keeper) HistoricalPriceRecords(c context.Context, req *types.QueryHisto
 }
 
 func (k *Keeper) OracleModuleState(c context.Context, req *types.QueryModuleStateRequest) (*types.QueryModuleStateResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 
@@ -141,7 +174,8 @@ func (k *Keeper) OracleModuleState(c context.Context, req *types.QueryModuleStat
 }
 
 func (k *Keeper) OracleVolatility(c context.Context, req *types.QueryOracleVolatilityRequest) (*types.QueryOracleVolatilityResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	if req.BaseInfo == nil {
 		return nil, types.ErrEmptyBaseInfo
@@ -162,7 +196,8 @@ func (k *Keeper) OracleVolatility(c context.Context, req *types.QueryOracleVolat
 }
 
 func (k *Keeper) OracleProvidersInfo(c context.Context, req *types.QueryOracleProvidersInfoRequest) (*types.QueryOracleProvidersInfoResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 
@@ -175,7 +210,8 @@ func (k *Keeper) OracleProvidersInfo(c context.Context, req *types.QueryOraclePr
 }
 
 func (k *Keeper) ProviderPriceState(c context.Context, req *types.QueryProviderPriceStateRequest) (*types.QueryProviderPriceStateResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 
@@ -200,7 +236,8 @@ func (k *Keeper) ProviderPriceState(c context.Context, req *types.QueryProviderP
 }
 
 func (k *Keeper) OracleProviderPrices(c context.Context, req *types.QueryOracleProviderPricesRequest) (*types.QueryOracleProviderPricesResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	var provider string
 	if req != nil {
@@ -226,10 +263,11 @@ func (k *Keeper) OracleProviderPrices(c context.Context, req *types.QueryOracleP
 
 // OraclePrice fetches the oracle price for a given oracle type, base and quote symbol
 func (k *Keeper) OraclePrice(c context.Context, req *types.QueryOraclePriceRequest) (*types.QueryOraclePriceResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
-	pricePairState := k.GetPricePairState(ctx, req.OracleType, req.Base, req.Quote)
+	pricePairState := k.GetPricePairState(ctx, req.OracleType, req.Base, req.Quote, req.ScalingOptions)
 
 	if pricePairState == nil || pricePairState.PairPrice.IsNil() {
 		metrics.ReportFuncError(k.svcTags)
@@ -244,7 +282,8 @@ func (k *Keeper) OraclePrice(c context.Context, req *types.QueryOraclePriceReque
 }
 
 func (k *Keeper) PythPrice(c context.Context, req *types.QueryPythPriceRequest) (*types.QueryPythPriceResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 

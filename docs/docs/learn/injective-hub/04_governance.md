@@ -18,9 +18,9 @@ Within Injective Hub, new proposals are submitted through the governance portal 
 
 To submit a new request, you must create a proposal that outlines what you would like to change, what areas within Injective this change may impact, and why you are requesting this change. 
 
-Upon creating a proposal, you must deposit at least 1 INJ to submit it for governance. This is to ensure that you are an active participant of the Injective community, and thus eligible to make proposal requests. 
+Upon creating a proposal, you must deposit at least 10 INJ (10e19 inj) to submit it for governance. This is to ensure that you are an active participant of the Injective community, and thus eligible to make proposal requests. 
 
-For the proposal to pass to the voting stage, 500 INJ must also be deposited. This can be deposited directly by you or in collaboration with other community members.  
+For the proposal to pass to the voting stage, 100 INJ (10e20 inj) must also be deposited. This can be deposited directly by you or in collaboration with other community members.  
 
 ## Voting Period
 

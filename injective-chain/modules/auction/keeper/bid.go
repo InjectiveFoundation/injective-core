@@ -1,14 +1,17 @@
 package keeper
 
 import (
+	"cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/auction/types"
 	"github.com/InjectiveLabs/metrics"
+
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/auction/types"
 )
 
 func (k *Keeper) GetHighestBid(ctx sdk.Context) *types.Bid {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	bz := store.Get(types.BidsKey)
@@ -16,7 +19,7 @@ func (k *Keeper) GetHighestBid(ctx sdk.Context) *types.Bid {
 	if bz == nil {
 		return &types.Bid{
 			Bidder: "",
-			Amount: sdk.NewCoin("inj", sdk.ZeroInt()),
+			Amount: sdk.NewCoin("inj", math.ZeroInt()),
 		}
 	}
 
@@ -26,7 +29,8 @@ func (k *Keeper) GetHighestBid(ctx sdk.Context) *types.Bid {
 }
 
 func (k *Keeper) SetBid(ctx sdk.Context, sender string, amount sdk.Coin) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	bid := &types.Bid{
@@ -38,7 +42,8 @@ func (k *Keeper) SetBid(ctx sdk.Context, sender string, amount sdk.Coin) {
 }
 
 func (k *Keeper) DeleteBid(ctx sdk.Context) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	store.Delete(types.BidsKey)

@@ -2,7 +2,8 @@ package keeper
 
 import (
 	"cosmossdk.io/errors"
-	"github.com/cosmos/cosmos-sdk/store/prefix"
+	"cosmossdk.io/math"
+	"cosmossdk.io/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
@@ -15,9 +16,10 @@ import (
 
 func (k *Keeper) PerpetualMarketLaunch(
 	ctx sdk.Context, ticker, quoteDenom, oracleBase, oracleQuote string, oracleScaleFactor uint32, oracleType oracletypes.OracleType,
-	initialMarginRatio, maintenanceMarginRatio, makerFeeRate, takerFeeRate, minPriceTickSize, minQuantityTickSize sdk.Dec,
+	initialMarginRatio, maintenanceMarginRatio, makerFeeRate, takerFeeRate, minPriceTickSize, minQuantityTickSize, minNotional math.LegacyDec,
 ) (*types.DerivativeMarket, *types.PerpetualMarketInfo, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	relayerFeeShareRate := k.GetRelayerFeeShare(ctx)
 	minimalProtocolFeeRate := k.GetMinimalProtocolFeeRate(ctx)
@@ -81,6 +83,7 @@ func (k *Keeper) PerpetualMarketLaunch(
 		Status:                 types.MarketStatus_Active,
 		MinPriceTickSize:       minPriceTickSize,
 		MinQuantityTickSize:    minQuantityTickSize,
+		MinNotional:            minNotional,
 	}
 
 	marketInfo := &types.PerpetualMarketInfo{
@@ -92,8 +95,8 @@ func (k *Keeper) PerpetualMarketLaunch(
 	}
 
 	funding := &types.PerpetualMarketFunding{
-		CumulativeFunding: sdk.ZeroDec(),
-		CumulativePrice:   sdk.ZeroDec(),
+		CumulativeFunding: math.LegacyZeroDec(),
+		CumulativePrice:   math.LegacyZeroDec(),
 		LastTimestamp:     ctx.BlockTime().Unix(),
 	}
 
@@ -106,7 +109,8 @@ func (k *Keeper) PerpetualMarketLaunch(
 
 // GetPerpetualMarketFunding gets the perpetual market funding state from the keeper
 func (k *Keeper) GetPerpetualMarketFunding(ctx sdk.Context, marketID common.Hash) *types.PerpetualMarketFunding {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	fundingStore := prefix.NewStore(store, types.PerpetualMarketFundingPrefix)
@@ -123,7 +127,8 @@ func (k *Keeper) GetPerpetualMarketFunding(ctx sdk.Context, marketID common.Hash
 
 // SetPerpetualMarketFunding saves the perpetual market funding to the keeper
 func (k *Keeper) SetPerpetualMarketFunding(ctx sdk.Context, marketID common.Hash, funding *types.PerpetualMarketFunding) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	fundingStore := prefix.NewStore(store, types.PerpetualMarketFundingPrefix)
@@ -134,7 +139,8 @@ func (k *Keeper) SetPerpetualMarketFunding(ctx sdk.Context, marketID common.Hash
 
 // GetAllPerpetualMarketFundingStates returns all perpetual market funding states
 func (k *Keeper) GetAllPerpetualMarketFundingStates(ctx sdk.Context) []types.PerpetualMarketFundingState {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	fundingStates := make([]types.PerpetualMarketFundingState, 0)
 	appendFundingState := func(p *types.PerpetualMarketFunding, marketID common.Hash) (stop bool) {
@@ -152,7 +158,8 @@ func (k *Keeper) GetAllPerpetualMarketFundingStates(ctx sdk.Context) []types.Per
 
 // IteratePerpetualMarketFundings iterates over perpetual market funding state calling process on each funding state
 func (k *Keeper) IteratePerpetualMarketFundings(ctx sdk.Context, process func(*types.PerpetualMarketFunding, common.Hash) (stop bool)) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 
@@ -174,7 +181,8 @@ func (k *Keeper) IteratePerpetualMarketFundings(ctx sdk.Context, process func(*t
 
 // GetPerpetualMarketInfo sets the perpetual market's market info from the keeper
 func (k *Keeper) GetPerpetualMarketInfo(ctx sdk.Context, marketID common.Hash) *types.PerpetualMarketInfo {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	perpetualMarketInfoStore := prefix.NewStore(store, types.PerpetualMarketInfoPrefix)
@@ -191,7 +199,8 @@ func (k *Keeper) GetPerpetualMarketInfo(ctx sdk.Context, marketID common.Hash) *
 
 // SetPerpetualMarketInfo saves the perpetual market's market info to the keeper
 func (k *Keeper) SetPerpetualMarketInfo(ctx sdk.Context, marketID common.Hash, marketInfo *types.PerpetualMarketInfo) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	perpetualMarketInfoStore := prefix.NewStore(store, types.PerpetualMarketInfoPrefix)
@@ -202,7 +211,8 @@ func (k *Keeper) SetPerpetualMarketInfo(ctx sdk.Context, marketID common.Hash, m
 
 // GetAllPerpetualMarketInfoStates returns all perpetual market's market infos
 func (k *Keeper) GetAllPerpetualMarketInfoStates(ctx sdk.Context) []types.PerpetualMarketInfo {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	marketInfo := make([]types.PerpetualMarketInfo, 0)
 	appendMarketInfo := func(p *types.PerpetualMarketInfo, marketID common.Hash) (stop bool) {
@@ -216,7 +226,8 @@ func (k *Keeper) GetAllPerpetualMarketInfoStates(ctx sdk.Context) []types.Perpet
 
 // GetFirstPerpetualMarketInfoState returns the first perpetual market info state
 func (k *Keeper) GetFirstPerpetualMarketInfoState(ctx sdk.Context) *types.PerpetualMarketInfo {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	marketInfoStates := make([]types.PerpetualMarketInfo, 0)
 	appendMarketInfo := func(p *types.PerpetualMarketInfo, marketID common.Hash) (stop bool) {
@@ -234,7 +245,8 @@ func (k *Keeper) GetFirstPerpetualMarketInfoState(ctx sdk.Context) *types.Perpet
 
 // IteratePerpetualMarketInfos iterates over perpetual market's market info calling process on each market info
 func (k *Keeper) IteratePerpetualMarketInfos(ctx sdk.Context, process func(*types.PerpetualMarketInfo, common.Hash) (stop bool)) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 

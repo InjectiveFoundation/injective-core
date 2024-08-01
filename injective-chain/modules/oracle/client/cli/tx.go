@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"cosmossdk.io/math"
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/client/tx"
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -64,6 +65,8 @@ func NewTxCmd() *cobra.Command {
 		NewGrantProviderPrivilegeProposalTxCmd(),
 		NewRevokeProviderPrivilegeProposalTxCmd(),
 		NewRelayProviderPricesProposalTxCmd(),
+		NewGrantStorkPublisherPrivilegeProposalTxCmd(),
+		NewRevokeStorkPublisherPrivilegeProposalTxCmd(),
 	)
 	return txCmd
 }
@@ -356,7 +359,7 @@ func NewRelayPriceFeedPriceTxCmd() *cobra.Command {
 				return err
 			}
 
-			price, err := sdk.NewDecFromStr(args[2])
+			price, err := math.LegacyNewDecFromStr(args[2])
 			if err != nil {
 				return err
 			}
@@ -366,7 +369,7 @@ func NewRelayPriceFeedPriceTxCmd() *cobra.Command {
 				Sender: from.String(),
 				Base:   []string{args[0]}, // BTC
 				Quote:  []string{args[1]}, // USDT
-				Price:  []sdk.Dec{price},
+				Price:  []math.LegacyDec{price},
 			}
 
 			if err := msg.ValidateBasic(); err != nil {
@@ -857,11 +860,11 @@ func NewRelayProviderPricesProposalTxCmd() *cobra.Command {
 			symbolPrices := strings.Split(args[1], ",")
 
 			symbols := make([]string, len(symbolPrices))
-			prices := make([]sdk.Dec, len(symbolPrices))
+			prices := make([]math.LegacyDec, len(symbolPrices))
 			for i, symbolPriceStr := range symbolPrices {
 				symbolPrice := strings.Split(symbolPriceStr, ":")
 				symbols[i] = symbolPrice[0]
-				price, err := sdk.NewDecFromStr(symbolPrice[1])
+				price, err := math.LegacyNewDecFromStr(symbolPrice[1])
 				if err != nil {
 					return errors.New(fmt.Sprintf("Price for symbol %v incorrect (%v)", symbols[i], symbolPrice[1]))
 				}
@@ -1242,4 +1245,154 @@ func convertStringToUint64Array(arg string) ([]uint64, error) {
 		rates = append(rates, uint64(rate))
 	}
 	return rates, nil
+}
+
+func NewGrantStorkPublisherPrivilegeProposalTxCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "grant-stork-publishers-privilege-proposal [publishers] [flags]",
+		Args:  cobra.ExactArgs(1),
+		Short: "Submit a proposal to grant stork publishers privilege.",
+		Long: strings.TrimSpace(`Submit a proposal to grant stork publishers privilege.
+
+Passing in publisher separated by commas would be parsed automatically to get pairs publishers.
+Ex) Stork,0xf024a9aa110798e5cd0d698fba6523113eaa7fb2,dxFeed,0x2501f03dcf18c2c711040c2f3eff9e728463e3fa -> [(Stork, 0xf024a9aa110798e5cd0d698fba6523113eaa7fb2), (dxFeed1, 0x2501f03dcf18c2c711040c2f3eff9e728463e3fa)]
+
+		`),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clientCtx, err := client.GetClientTxContext(cmd)
+			if err != nil {
+				return err
+			}
+
+			publisherAddrs := strings.Split(args[0], " ")
+
+			content, err := grantStorkPublisherPrivilegeProposalArgsToContent(cmd, publisherAddrs)
+			if err != nil {
+				return err
+			}
+
+			from := clientCtx.GetFromAddress()
+
+			depositStr, err := cmd.Flags().GetString(govcli.FlagDeposit)
+			if err != nil {
+				return err
+			}
+			deposit, err := sdk.ParseCoinsNormalized(depositStr)
+			if err != nil {
+				return err
+			}
+
+			msg, err := govtypes.NewMsgSubmitProposal(content, deposit, from)
+			if err != nil {
+				return err
+			}
+
+			if err := msg.ValidateBasic(); err != nil {
+				return err
+			}
+
+			return tx.GenerateOrBroadcastTxCLI(clientCtx, cmd.Flags(), msg)
+		},
+	}
+
+	cmd.Flags().String(govcli.FlagTitle, "", "title of proposal")
+	cmd.Flags().String(govcli.FlagDescription, "", "description of proposal")
+	cmd.Flags().String(govcli.FlagDeposit, "", "deposit of proposal")
+
+	cliflags.AddTxFlagsToCmd(cmd)
+	return cmd
+}
+
+func grantStorkPublisherPrivilegeProposalArgsToContent(cmd *cobra.Command, publisherAddrs []string) (govtypes.Content, error) {
+	title, err := cmd.Flags().GetString(govcli.FlagTitle)
+	if err != nil {
+		return nil, err
+	}
+
+	description, err := cmd.Flags().GetString(govcli.FlagDescription)
+	if err != nil {
+		return nil, err
+	}
+
+	content := &types.GrantStorkPublisherPrivilegeProposal{
+		Title:           title,
+		Description:     description,
+		StorkPublishers: publisherAddrs,
+	}
+
+	return content, nil
+}
+
+func NewRevokeStorkPublisherPrivilegeProposalTxCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "revoke-stork-publishers-privilege-proposal [publishers] [flags]",
+		Args:  cobra.ExactArgs(1),
+		Short: "Submit a proposal to revoke stork publishers privilege.",
+		Long: strings.TrimSpace(`Submit a proposal to revoke stork publishers privilege.
+
+Passing in publisher separated by commas would be parsed automatically to get pairs publishers.
+		`),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clientCtx, err := client.GetClientTxContext(cmd)
+			if err != nil {
+				return err
+			}
+
+			publisherAddrs := strings.Split(args[0], " ")
+
+			content, err := revokeStorkPublisherPrivilegeProposalArgsToContent(cmd, publisherAddrs)
+			if err != nil {
+				return err
+			}
+
+			from := clientCtx.GetFromAddress()
+
+			depositStr, err := cmd.Flags().GetString(govcli.FlagDeposit)
+			if err != nil {
+				return err
+			}
+			deposit, err := sdk.ParseCoinsNormalized(depositStr)
+			if err != nil {
+				return err
+			}
+
+			msg, err := govtypes.NewMsgSubmitProposal(content, deposit, from)
+			if err != nil {
+				return err
+			}
+
+			if err := msg.ValidateBasic(); err != nil {
+				return err
+			}
+
+			return tx.GenerateOrBroadcastTxCLI(clientCtx, cmd.Flags(), msg)
+		},
+	}
+
+	cmd.Flags().String(govcli.FlagTitle, "", "title of proposal")
+	cmd.Flags().String(govcli.FlagDescription, "", "description of proposal")
+	cmd.Flags().String(govcli.FlagDeposit, "", "deposit of proposal")
+
+	cliflags.AddTxFlagsToCmd(cmd)
+	return cmd
+}
+
+func revokeStorkPublisherPrivilegeProposalArgsToContent(cmd *cobra.Command, publishersInfo []string) (govtypes.Content, error) {
+	title, err := cmd.Flags().GetString(govcli.FlagTitle)
+	if err != nil {
+		return nil, err
+	}
+
+	description, err := cmd.Flags().GetString(govcli.FlagDescription)
+	if err != nil {
+		return nil, err
+	}
+
+	content := &types.RevokeStorkPublisherPrivilegeProposal{
+		Title:           title,
+		Description:     description,
+		StorkPublishers: publishersInfo,
+	}
+
+	return content, nil
 }

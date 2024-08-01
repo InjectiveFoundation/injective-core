@@ -75,27 +75,27 @@ type Params struct {
 	// derivative_market_instant_listing_fee defines the expedited fee in INJ required to create a derivative market by bypassing governance
 	DerivativeMarketInstantListingFee types.Coin
 	// default_spot_maker_fee defines the default exchange trade fee for makers on a spot market
-	DefaultSpotMakerFeeRate sdk.Dec
+	DefaultSpotMakerFeeRate math.LegacyDec
 	// default_spot_taker_fee_rate defines the default exchange trade fee rate for takers on a new spot market
-	DefaultSpotTakerFeeRate sdk.Dec
+	DefaultSpotTakerFeeRate math.LegacyDec
 	// default_derivative_maker_fee defines the default exchange trade fee for makers on a new derivative market
-	DefaultDerivativeMakerFeeRate sdk.Dec
+	DefaultDerivativeMakerFeeRate math.LegacyDec
 	// default_derivative_taker_fee defines the default exchange trade fee for takers on a new derivative market
-	DefaultDerivativeTakerFeeRate sdk.Dec
+	DefaultDerivativeTakerFeeRate math.LegacyDec
 	// default_initial_margin_ratio defines the default initial margin ratio on a new derivative market
-	DefaultInitialMarginRatio sdk.Dec
+	DefaultInitialMarginRatio math.LegacyDec
 	// default_maintenance_margin_ratio defines the default maintenance margin ratio on a new derivative market
-	DefaultMaintenanceMarginRatio sdk.Dec
+	DefaultMaintenanceMarginRatio math.LegacyDec
 	// default_funding_interval defines the default funding interval on a derivative market
 	DefaultFundingInterval int64
 	// funding_multiple defines the timestamp multiple that the funding timestamp should be a multiple of
 	FundingMultiple int64
 	// relayer_fee_share_rate defines the trade fee share percentage that goes to relayers
-	RelayerFeeShareRate sdk.Dec
+	RelayerFeeShareRate math.LegacyDec
 	// default_hourly_funding_rate_cap defines the default maximum absolute value of the hourly funding rate
-	DefaultHourlyFundingRateCap sdk.Dec
+	DefaultHourlyFundingRateCap math.LegacyDec
 	// hourly_interest_rate defines the hourly interest rate
-	DefaultHourlyInterestRate sdk.Dec
+	DefaultHourlyInterestRate math.LegacyDec
 	// max_derivative_order_side_count defines the maximum number of derivative active orders a subaccount can have for a given orderbook side
 	MaxDerivativeOrderSideCount uint32
 	// inj_reward_staked_requirement_threshold defines the threshold on INJ rewards after which one also needs staked INJ to receive more
@@ -120,8 +120,8 @@ message Balance {
 
 // An subaccount's deposit for a given base currency
 type Deposit struct {
-	AvailableBalance sdk.Dec
-	TotalBalance     sdk.Dec
+	AvailableBalance math.LegacyDec
+	TotalBalance     math.LegacyDec
 }
 
 type SubaccountDeposit {
@@ -152,26 +152,27 @@ type OrderInfo struct {
 	// address fee_recipient address that will receive fees for the order
 	FeeRecipient string
 	// price of the order
-	Price sdk.Dec
+	Price math.LegacyDec
 	// quantity of the order
-	Quantity sdk.Dec
+	Quantity math.LegacyDec
 }
 
 type SubaccountOrderbookMetadata struct {
 	VanillaLimitOrderCount    uint32
 	ReduceOnlyLimitOrderCount uint32
 	// AggregateReduceOnlyQuantity is the aggregate fillable quantity of the subaccount's reduce-only limit orders in the given direction.
-	AggregateReduceOnlyQuantity sdk.Dec
+	AggregateReduceOnlyQuantity math.LegacyDec
 	// AggregateVanillaQuantity is the aggregate fillable quantity of the subaccount's vanilla limit orders in the given direction.
-	AggregateVanillaQuantity sdk.Dec
+	AggregateVanillaQuantity math.LegacyDec
 }
 
 type SubaccountOrder struct {
 	// price of the order
-	Price sdk.Dec
+	Price math.LegacyDec
 	// the amount of the quantity remaining fillable
-	Quantity     sdk.Dec
+	Quantity     math.LegacyDec
 	IsReduceOnly bool
+    Cid          string
 }
 
 type MarketOrderIndicator struct {
@@ -196,19 +197,19 @@ type SpotMarket struct {
 	// Coin used for the quote asset
 	QuoteDenom string
 	// maker_fee_rate defines the fee percentage makers pay when trading
-	MakerFeeRate sdk.Dec
+	MakerFeeRate math.LegacyDec
 	// taker_fee_rate defines the fee percentage takers pay when trading
-	TakerFeeRate sdk.Dec
+	TakerFeeRate math.LegacyDec
 	// relayer_fee_share_rate defines the percentage of the transaction fee shared with the relayer in a derivative market
-	RelayerFeeShareRate sdk.Dec
+	RelayerFeeShareRate math.LegacyDec
 	// Unique market ID.
 	MarketId string
 	// Status of the market
 	Status MarketStatus
 	// min_price_tick_size defines the minimum tick size that the price required for orders in the market
-	MinPriceTickSize sdk.Dec
+	MinPriceTickSize math.LegacyDec
 	// min_quantity_tick_size defines the minimum tick size of the quantity required for orders in the market
-	MinQuantityTickSize sdk.Dec
+	MinQuantityTickSize math.LegacyDec
 }
 ```
 
@@ -233,7 +234,7 @@ type SpotOrder struct {
 	// order types
 	OrderType OrderType
 	// trigger_price is the trigger price used by stop/take orders
-	TriggerPrice *sdk.Dec
+	TriggerPrice *math.LegacyDec
 }
 
 // A valid Spot limit order with Metadata.
@@ -243,9 +244,9 @@ type SpotLimitOrder struct {
 	// order types
 	OrderType OrderType
 	// the amount of the quantity remaining fillable
-	Fillable sdk.Dec
+	Fillable math.LegacyDec
 	// trigger_price is the trigger price used by stop/take orders
-	TriggerPrice *sdk.Dec
+	TriggerPrice *math.LegacyDec
 	OrderHash    []byte
 }
 
@@ -253,7 +254,7 @@ type SpotLimitOrder struct {
 type SpotMarketOrder struct {
 	// order_info contains the information of the order
 	OrderInfo   OrderInfo
-	BalanceHold sdk.Dec
+	BalanceHold math.LegacyDec
 	OrderHash   []byte
 }
 ```
@@ -281,23 +282,23 @@ type DerivativeMarket struct {
 	// Unique market ID.
 	MarketId string
 	// initial_margin_ratio defines the initial margin ratio of a derivative market
-	InitialMarginRatio sdk.Dec
+	InitialMarginRatio math.LegacyDec
 	// maintenance_margin_ratio defines the maintenance margin ratio of a derivative market
-	MaintenanceMarginRatio sdk.Dec
+	MaintenanceMarginRatio math.LegacyDec
 	// maker_fee_rate defines the maker fee rate of a derivative market
-	MakerFeeRate sdk.Dec
+	MakerFeeRate math.LegacyDec
 	// taker_fee_rate defines the taker fee rate of a derivative market
-	TakerFeeRate sdk.Dec
+	TakerFeeRate math.LegacyDec
 	// relayer_fee_share_rate defines the percentage of the transaction fee shared with the relayer in a derivative market
-	RelayerFeeShareRate sdk.Dec
+	RelayerFeeShareRate math.LegacyDec
 	// true if the market is a perpetual market. false if the market is an expiry futures market
 	IsPerpetual bool
 	// Status of the market
 	Status MarketStatus
 	// min_price_tick_size defines the minimum tick size that the price and margin required for orders in the market
-	MinPriceTickSize sdk.Dec
+	MinPriceTickSize math.LegacyDec
 	// min_quantity_tick_size defines the minimum tick size of the quantity required for orders in the market
-	MinQuantityTickSize sdk.Dec
+	MinQuantityTickSize math.LegacyDec
 }
 ```
 
@@ -322,9 +323,9 @@ type DerivativeOrder struct {
 	// order types
 	OrderType OrderType
 	// margin is the margin used by the limit order
-	Margin sdk.Dec
+	Margin math.LegacyDec
 	// trigger_price is the trigger price used by stop/take orders
-	TriggerPrice *sdk.Dec
+	TriggerPrice *math.LegacyDec
 }
 
 // A valid Derivative limit order with Metadata.
@@ -334,11 +335,11 @@ type DerivativeLimitOrder struct {
 	// order types
 	OrderType OrderType
 	// margin is the margin used by the limit order
-	Margin sdk.Dec
+	Margin math.LegacyDec
 	// the amount of the quantity remaining fillable
-	Fillable sdk.Dec
+	Fillable math.LegacyDec
 	// trigger_price is the trigger price used by stop/take orders
-	TriggerPrice *sdk.Dec
+	TriggerPrice *math.LegacyDec
 	OrderHash    []byte
 }
 
@@ -348,16 +349,16 @@ type DerivativeMarketOrder struct {
 	OrderInfo OrderInfo
 	// order types
 	OrderType  OrderType
-	Margin     sdk.Dec
-	MarginHold sdk.Dec
+	Margin     math.LegacyDec
+	MarginHold math.LegacyDec
 	// trigger_price is the trigger price used by stop/take orders
-	TriggerPrice *sdk.Dec
+	TriggerPrice *math.LegacyDec
 	OrderHash    []byte
 }
 
 type DerivativeMarketOrderCancel struct {
 	MarketOrder    *DerivativeMarketOrder
-	CancelQuantity sdk.Dec
+	CancelQuantity math.LegacyDec
 }
 ```
 
@@ -370,17 +371,17 @@ type DerivativeMarketOrderCancel struct {
 ```go
 type Position struct {
 	IsLong                 bool
-	Quantity               sdk.Dec
-	EntryPrice             sdk.Dec
-	Margin                 sdk.Dec
-	CumulativeFundingEntry sdk.Dec
+	Quantity               math.LegacyDec
+	EntryPrice             math.LegacyDec
+	Margin                 math.LegacyDec
+	CumulativeFundingEntry math.LegacyDec
 }
 
 type PositionDelta struct {
 	IsLong            bool
-	ExecutionQuantity sdk.Dec
-	ExecutionMargin   sdk.Dec
-	ExecutionPrice    sdk.Dec
+	ExecutionQuantity math.LegacyDec
+	ExecutionMargin   math.LegacyDec
+	ExecutionPrice    math.LegacyDec
 }
 
 type DerivativePosition struct {
@@ -409,9 +410,9 @@ type ExpiryFuturesMarketInfo struct {
 	// expiration_twap_start_timestamp defines the start time of the TWAP calculation window
 	TwapStartTimestamp int64
 	// expiration_twap_start_price_cumulative defines the cumulative price for the start of the TWAP window
-	ExpirationTwapStartPriceCumulative sdk.Dec
+	ExpirationTwapStartPriceCumulative math.LegacyDec
 	// settlement_price defines the settlement price for a time expiry futures market.
-	SettlementPrice sdk.Dec
+	SettlementPrice math.LegacyDec
 }
 ```
 
@@ -424,9 +425,9 @@ type PerpetualMarketInfo struct {
 	// market ID.
 	MarketId string
 	// hourly_funding_rate_cap defines the maximum absolute value of the hourly funding rate
-	HourlyFundingRateCap sdk.Dec
+	HourlyFundingRateCap math.LegacyDec
 	// hourly_interest_rate defines the hourly interest rate
-	HourlyInterestRate sdk.Dec
+	HourlyInterestRate math.LegacyDec
 	// next_funding_timestamp defines the next funding timestamp in seconds of a perpetual market
 	NextFundingTimestamp int64
 	// funding_interval defines the next funding interval in seconds of a perpetual market.
@@ -441,9 +442,9 @@ type PerpetualMarketInfo struct {
 ```go
 type PerpetualMarketFunding struct {
 	// cumulative_funding defines the cumulative funding of a perpetual market.
-	CumulativeFunding sdk.Dec
+	CumulativeFunding math.LegacyDec
 	// cumulative_price defines the cumulative price for the current hour up to the last timestamp
-	CumulativePrice sdk.Dec
+	CumulativePrice math.LegacyDec
 	LastTimestamp   int64
 }
 ```
@@ -486,8 +487,8 @@ type TradingRewardCampaignBoostInfo struct {
 }
 
 type PointsMultiplier struct {
-	MakerPointsMultiplier sdk.Dec
-	TakerPointsMultiplier sdk.Dec
+	MakerPointsMultiplier math.LegacyDec
+	TakerPointsMultiplier math.LegacyDec
 }
 ```
 
@@ -510,10 +511,10 @@ type FeeDiscountSchedule struct {
 }
 
 type FeeDiscountTierInfo struct {
-  MakerDiscountRate sdk.Dec
-  TakerDiscountRate sdk.Dec
-  StakedAmount      sdkmath.Int
-  FeePaidAmount     sdk.Dec
+  MakerDiscountRate math.LegacyDec
+  TakerDiscountRate math.LegacyDec
+  StakedAmount      math.Int
+  FeePaidAmount     math.LegacyDec
 }
 ```
 
@@ -526,9 +527,9 @@ type DerivativeMarketSettlementInfo struct {
 	// market ID.
 	MarketId string
 	// settlement_price defines the settlement price
-	SettlementPrice sdk.Dec
+	SettlementPrice math.LegacyDec
 	// starting_deficit defines starting deficit
-	StartingDeficit sdk.Dec
+	StartingDeficit math.LegacyDec
 }
 ```
 
@@ -538,19 +539,19 @@ Trade logs are emitted in events to track the trading history.
 
 ```go
 type TradeLog struct {
-	Quantity sdk.Dec
-	Price    sdk.Dec
+	Quantity math.LegacyDec
+	Price    math.LegacyDec
 	// bytes32 subaccount ID that executed the trade
 	SubaccountId []byte
-	Fee          sdk.Dec
+	Fee          math.LegacyDec
 	OrderHash    []byte
 }
 
 type DerivativeTradeLog struct {
 	SubaccountId  []byte
 	PositionDelta *PositionDelta
-	Payout        sdk.Dec
-	Fee           sdk.Dec
+	Payout        math.LegacyDec
+	Fee           math.LegacyDec
 	OrderHash     []byte
 }
 ```

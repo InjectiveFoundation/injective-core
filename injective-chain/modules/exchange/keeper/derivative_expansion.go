@@ -1,7 +1,7 @@
 package keeper
 
 import (
-	sdk "github.com/cosmos/cosmos-sdk/types"
+	"cosmossdk.io/math"
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
@@ -10,14 +10,15 @@ import (
 type DerivativeOrderStateExpansion struct {
 	SubaccountID  common.Hash
 	PositionDelta *types.PositionDelta
-	Payout        sdk.Dec
+	Payout        math.LegacyDec
+	Pnl           math.LegacyDec
 
-	TotalBalanceDelta     sdk.Dec
-	AvailableBalanceDelta sdk.Dec
+	TotalBalanceDelta     math.LegacyDec
+	AvailableBalanceDelta math.LegacyDec
 
-	AuctionFeeReward       sdk.Dec
-	TradingRewardPoints    sdk.Dec
-	FeeRecipientReward     sdk.Dec
+	AuctionFeeReward       math.LegacyDec
+	TradingRewardPoints    math.LegacyDec
+	FeeRecipientReward     math.LegacyDec
 	FeeRecipient           common.Address
 	LimitOrderFilledDelta  *types.DerivativeLimitOrderDelta
 	MarketOrderFilledDelta *types.DerivativeMarketOrderDelta

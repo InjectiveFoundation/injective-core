@@ -3,17 +3,33 @@ package stream
 import (
 	"context"
 	"fmt"
+	servertypes "github.com/cosmos/cosmos-sdk/server/types"
+	"net"
+	"os"
+	"time"
+
+	"cosmossdk.io/log"
 	"github.com/cometbft/cometbft/libs/pubsub"
-	"github.com/cometbft/cometbft/libs/pubsub/query"
 	"github.com/google/uuid"
-	log "github.com/xlab/suplog"
+	"github.com/spf13/cast"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
-	"net"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/stream/types"
+)
+
+const (
+	FlagStreamServer                    = "chainstream-server"
+	FlagStreamServerBufferCapacity      = "chainstream-buffer-cap"
+	FlagStreamPublisherBufferCapacity   = "chainstream-publisher-buffer-cap"
+	FlagStreamEnforceKeepalive          = "chainstream-enforce-keepalive"
+	FlagStreamMinClientPingInterval     = "chainstream-min-client-ping-interval"
+	FlagStreamMaxConnectionIdle         = "chainstream-max-connection-idle"
+	FlagStreamServerPingInterval        = "chainstream-server-ping-interval"
+	FlagStreamServerPingResponseTimeout = "chainstream-server-ping-response-timeout"
 )
 
 type StreamServer struct {
@@ -24,12 +40,28 @@ type StreamServer struct {
 	done           chan struct{}
 }
 
-func NewChainStreamServer(bus *pubsub.Server) *StreamServer {
+func NewChainStreamServer(bus *pubsub.Server, appOpts servertypes.AppOptions) *StreamServer {
+	shouldEnforceKeepalive := cast.ToBool(appOpts.Get(FlagStreamEnforceKeepalive))
+	keepaliveMinClientPingInterval := cast.ToInt64(appOpts.Get(FlagStreamMinClientPingInterval))
+	keepaliveMaxConnectionIdle := cast.ToInt64(appOpts.Get(FlagStreamMaxConnectionIdle))
+	keepaliveServerPingInterval := cast.ToInt64(appOpts.Get(FlagStreamServerPingInterval))
+	keepaliveServerPingResponseTimeout := cast.ToInt64(appOpts.Get(FlagStreamServerPingResponseTimeout))
+
+	var kaep = keepalive.EnforcementPolicy{}
+	var kasp = keepalive.ServerParameters{}
+
+	if shouldEnforceKeepalive {
+		kaep.MinTime = time.Duration(keepaliveMinClientPingInterval) * time.Second
+		kasp.MaxConnectionIdle = time.Duration(keepaliveMaxConnectionIdle) * time.Second
+		kasp.Time = time.Duration(keepaliveServerPingInterval) * time.Second
+		kasp.Timeout = time.Duration(keepaliveServerPingResponseTimeout) * time.Second
+	}
+
 	server := &StreamServer{
 		Bus:            bus,
 		bufferCapacity: 100,
 	}
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(grpc.KeepaliveEnforcementPolicy(kaep), grpc.KeepaliveParams(kasp))
 	types.RegisterStreamServer(grpcServer, server)
 	reflection.Register(grpcServer)
 	server.GrpcServer = grpcServer
@@ -45,17 +77,18 @@ func (s *StreamServer) Serve(address string) (err error) {
 	if err != nil {
 		return err
 	}
-	log.Infoln("stream server started at", address)
+	logger := log.NewLogger(os.Stderr)
+	logger.Info("stream server started", "address", address)
 	go func() {
 		if err := s.GrpcServer.Serve(s.listener); err != nil {
-			log.WithError(err).Errorf("failed to start chainstream server at %s. Error: %s", address, err.Error())
+			logger.Error("failed to start chainstream server", "address", address, "error", err)
 		}
 	}()
 	return nil
 }
 
 func (s *StreamServer) Stop() {
-	log.Infoln("stopping stream server")
+	log.NewLogger(os.Stderr).Info("stopping stream server")
 	s.GrpcServer.Stop()
 }
 
@@ -64,15 +97,15 @@ func (s *StreamServer) Stream(req *types.StreamRequest, server types.Stream_Stre
 		return status.Errorf(codes.InvalidArgument, err.Error())
 	}
 	clientId := uuid.New().String()
-	sub, err := s.Bus.Subscribe(context.Background(), clientId, query.Empty{}, int(s.bufferCapacity))
+	sub, err := s.Bus.Subscribe(context.Background(), clientId, types.Empty{}, int(s.bufferCapacity))
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to subscribe to topic: %s", err.Error())
 	}
 
 	defer func() {
-		err = s.Bus.Unsubscribe(context.Background(), clientId, query.Empty{})
+		err = s.Bus.Unsubscribe(context.Background(), clientId, types.Empty{})
 		if err != nil {
-			log.WithError(err).Errorln("failed to unsubscribe from topic", StreamEvents)
+			log.NewLogger(os.Stderr).Error("failed to unsubscribe from topic", "error", err, "clientId", clientId)
 		}
 	}()
 

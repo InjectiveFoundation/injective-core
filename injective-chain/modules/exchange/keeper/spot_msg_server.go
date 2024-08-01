@@ -29,7 +29,8 @@ func NewSpotMsgServerImpl(keeper Keeper) SpotMsgServer {
 }
 
 func (k SpotMsgServer) InstantSpotMarketLaunch(goCtx context.Context, msg *types.MsgInstantSpotMarketLaunch) (*types.MsgInstantSpotMarketLaunchResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
@@ -38,11 +39,11 @@ func (k SpotMsgServer) InstantSpotMarketLaunch(goCtx context.Context, msg *types
 	if k.checkIfMarketLaunchProposalExist(ctx, types.ProposalTypeSpotMarketLaunch, marketID) {
 		metrics.ReportFuncError(k.svcTags)
 		k.Logger(ctx).Error("the spot market launch proposal already exists: marketID=%s", marketID.Hex())
-		return nil, sdkerrors.Wrapf(types.ErrMarketLaunchProposalAlreadyExists, "the spot market launch proposal already exists: marketID=%s", marketID.Hex())
+		return nil, types.ErrMarketLaunchProposalAlreadyExists.Wrapf("the spot market launch proposal already exists: marketID=%s", marketID.Hex())
 	}
 
 	senderAddr, _ := sdk.AccAddressFromBech32(msg.Sender)
-	_, err := k.SpotMarketLaunch(ctx, msg.Ticker, msg.BaseDenom, msg.QuoteDenom, msg.MinPriceTickSize, msg.MinQuantityTickSize)
+	_, err := k.SpotMarketLaunch(ctx, msg.Ticker, msg.BaseDenom, msg.QuoteDenom, msg.MinPriceTickSize, msg.MinQuantityTickSize, msg.MinNotional)
 	if err != nil {
 		metrics.ReportFuncError(k.svcTags)
 		k.Logger(ctx).Error("failed launching spot market", err)
@@ -61,7 +62,8 @@ func (k SpotMsgServer) InstantSpotMarketLaunch(goCtx context.Context, msg *types
 }
 
 func (k SpotMsgServer) CreateSpotLimitOrder(goCtx context.Context, msg *types.MsgCreateSpotLimitOrder) (*types.MsgCreateSpotLimitOrderResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
@@ -74,6 +76,7 @@ func (k SpotMsgServer) CreateSpotLimitOrder(goCtx context.Context, msg *types.Ms
 
 	return &types.MsgCreateSpotLimitOrderResponse{
 		OrderHash: orderHash.Hex(),
+		Cid:       msg.Order.Cid(),
 	}, nil
 }
 
@@ -83,6 +86,8 @@ func (k *Keeper) createSpotLimitOrder(
 	order *types.SpotOrder,
 	market *types.SpotMarket,
 ) (hash common.Hash, err error) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	marketID := common.HexToHash(order.MarketId)
 
@@ -106,7 +111,7 @@ func (k *Keeper) createSpotLimitOrder(
 		if market == nil {
 			k.Logger(ctx).Error("active spot market doesn't exist", "marketId", order.MarketId)
 			metrics.ReportFuncError(k.svcTags)
-			return orderHash, sdkerrors.Wrapf(types.ErrSpotMarketNotFound, "active spot market doesn't exist %s", order.MarketId)
+			return orderHash, types.ErrSpotMarketNotFound.Wrapf("active spot market doesn't exist %s", order.MarketId)
 		}
 	}
 
@@ -116,31 +121,37 @@ func (k *Keeper) createSpotLimitOrder(
 		return orderHash, err
 	}
 
-	// 4. Check for post-only orders (or if in post-only mode) if order crosses tob
+	// 4. Reject if order does not comply to the market's min notional
+	if err := order.CheckNotional(market.MinNotional); err != nil {
+		metrics.ReportFuncError(k.svcTags)
+		return orderHash, err
+	}
+
+	// 5. Check for post-only orders (or if in post-only mode) if order crosses tob
 	isPostOnlyMode := k.IsPostOnlyMode(ctx)
 	if (order.OrderType.IsPostOnly() || isPostOnlyMode) && k.SpotOrderCrossesTopOfBook(ctx, order) {
 		metrics.ReportFuncError(k.svcTags)
 		return orderHash, types.ErrExceedsTopOfBookPrice
 	}
 
-	// 5. Reject if the subaccount's available deposits does not have at least the required funds for the trade
+	// 6. Reject if the subaccount's available deposits does not have at least the required funds for the trade
 	balanceHoldIncrement, marginDenom := order.GetBalanceHoldAndMarginDenom(market)
 
-	// 6. Reject order if cid is already used
+	// 7. Reject order if cid is already used
 	if k.existsCid(ctx, subaccountID, order.OrderInfo.Cid) {
 		return orderHash, types.ErrClientOrderIdAlreadyExists
 	}
 
-	// 7. Decrement the available balance or bank by the funds amount needed to fund the order
+	// 8. Decrement the available balance or bank by the funds amount needed to fund the order
 	if err := k.chargeAccount(ctx, subaccountID, marginDenom, balanceHoldIncrement); err != nil {
 		return orderHash, err
 	}
 
-	// 8. If Post Only, add the order to the resting orderbook
+	// 9. If Post Only, add the order to the resting orderbook
 	//    Otherwise store the order in the transient limit order store and transient market indicator store
 	spotLimitOrder := order.GetNewSpotLimitOrder(sender, orderHash)
 
-	// 9a. store the order in the conditional spot limit order store
+	// 10a. store the order in the conditional spot limit order store
 	if order.IsConditional() {
 		markPrice := k.GetSpotMidPriceOrBestPrice(ctx, marketID)
 		if markPrice == nil {
@@ -150,7 +161,7 @@ func (k *Keeper) createSpotLimitOrder(
 		return orderHash, nil
 	}
 
-	// 9b. store the order in the spot limit order store or transient spot limit order store
+	// 10b. store the order in the spot limit order store or transient spot limit order store
 	if order.OrderType.IsPostOnly() {
 		k.SetNewSpotLimitOrder(ctx, spotLimitOrder, marketID, spotLimitOrder.IsBuy(), spotLimitOrder.Hash())
 
@@ -179,12 +190,13 @@ func (k *Keeper) createSpotLimitOrder(
 }
 
 func (k SpotMsgServer) CreateSpotMarketOrder(goCtx context.Context, msg *types.MsgCreateSpotMarketOrder) (*types.MsgCreateSpotMarketOrderResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
 	if k.IsPostOnlyMode(ctx) {
-		return nil, sdkerrors.Wrapf(types.ErrPostOnlyMode, fmt.Sprintf("cannot create market orders in post only mode until height %d", k.GetParams(ctx).PostOnlyModeHeightThreshold))
+		return nil, types.ErrPostOnlyMode.Wrapf(fmt.Sprintf("cannot create market orders in post only mode until height %d", k.GetParams(ctx).PostOnlyModeHeightThreshold))
 	}
 
 	var (
@@ -201,7 +213,7 @@ func (k SpotMsgServer) CreateSpotMarketOrder(goCtx context.Context, msg *types.M
 	if market == nil {
 		k.Logger(ctx).Error("active spot market doesn't exist", "marketId", msg.Order.MarketId)
 		metrics.ReportFuncError(k.svcTags)
-		return nil, sdkerrors.Wrapf(types.ErrSpotMarketNotFound, "active spot market doesn't exist %s", msg.Order.MarketId)
+		return nil, types.ErrSpotMarketNotFound.Wrapf("active spot market doesn't exist %s", msg.Order.MarketId)
 	}
 
 	if err := msg.Order.CheckTickSize(market.MinPriceTickSize, market.MinQuantityTickSize); err != nil {
@@ -275,6 +287,7 @@ func (k SpotMsgServer) CreateSpotMarketOrder(goCtx context.Context, msg *types.M
 
 	response := &types.MsgCreateSpotMarketOrderResponse{
 		OrderHash: orderHash.Hex(),
+		Cid:       msg.Order.Cid(),
 	}
 
 	if marketOrderResults != nil {
@@ -284,30 +297,37 @@ func (k SpotMsgServer) CreateSpotMarketOrder(goCtx context.Context, msg *types.M
 }
 
 func (k SpotMsgServer) BatchCreateSpotLimitOrders(goCtx context.Context, msg *types.MsgBatchCreateSpotLimitOrders) (*types.MsgBatchCreateSpotLimitOrdersResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
+	defer doneFn()
 
 	// Naive, unoptimized implementation
 	orderHashes := make([]string, len(msg.Orders))
+	createdOrdersCids := make([]string, 0)
+	failedOrdersCids := make([]string, 0)
 
 	sender := sdk.MustAccAddressFromBech32(msg.Sender)
 	orderFailEvent := types.EventOrderFail{
 		Account: sender.Bytes(),
 		Hashes:  make([][]byte, 0),
 		Flags:   make([]uint32, 0),
+		Cids:    make([]string, 0),
 	}
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
 	for idx := range msg.Orders {
-		if orderHash, err := k.createSpotLimitOrder(ctx, sender, &msg.Orders[idx], nil); err != nil {
+		order := msg.Orders[idx]
+		if orderHash, err := k.createSpotLimitOrder(ctx, sender, &order, nil); err != nil {
 			metrics.ReportFuncError(k.svcTags)
 			sdkerror := &sdkerrors.Error{}
 			if errors.As(err, &sdkerror) {
 				orderHashes[idx] = fmt.Sprintf("%d", sdkerror.ABCICode())
-				orderFailEvent.AddOrderFail(orderHash, sdkerror.ABCICode())
+				orderFailEvent.AddOrderFail(orderHash, order.Cid(), sdkerror.ABCICode())
+				failedOrdersCids = append(failedOrdersCids, order.Cid())
 			}
 		} else {
 			orderHashes[idx] = orderHash.Hex()
+			createdOrdersCids = append(createdOrdersCids, order.Cid())
 		}
 	}
 	if !orderFailEvent.IsEmpty() {
@@ -316,12 +336,15 @@ func (k SpotMsgServer) BatchCreateSpotLimitOrders(goCtx context.Context, msg *ty
 	}
 
 	return &types.MsgBatchCreateSpotLimitOrdersResponse{
-		OrderHashes: orderHashes,
+		OrderHashes:       orderHashes,
+		CreatedOrdersCids: createdOrdersCids,
+		FailedOrdersCids:  failedOrdersCids,
 	}, nil
 }
 
 func (k SpotMsgServer) CancelSpotOrder(goCtx context.Context, msg *types.MsgCancelSpotOrder) (*types.MsgCancelSpotOrderResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
@@ -337,6 +360,10 @@ func (k SpotMsgServer) CancelSpotOrder(goCtx context.Context, msg *types.MsgCanc
 
 	err := k.cancelSpotLimitOrder(ctx, subaccountID, identifier, market, marketID)
 
+	if err != nil {
+		_ = ctx.EventManager().EmitTypedEvent(types.NewEventOrderCancelFail(marketID, subaccountID, msg.OrderHash, msg.Cid, err))
+	}
+
 	return &types.MsgCancelSpotOrderResponse{}, err
 }
 
@@ -347,6 +374,9 @@ func (k *Keeper) cancelSpotLimitOrder(
 	market *types.SpotMarket,
 	marketID common.Hash,
 ) error {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
 	orderHash, err := k.getOrderHashFromIdentifier(ctx, subaccountID, identifier)
 	if err != nil {
 		return err
@@ -362,11 +392,13 @@ func (k *Keeper) cancelSpotLimitOrderByOrderHash(
 	market *types.SpotMarket,
 	marketID common.Hash,
 ) (err error) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	if market == nil || !market.StatusSupportsOrderCancellations() {
 		k.Logger(ctx).Error("active spot market doesn't exist")
 		metrics.ReportFuncError(k.svcTags)
-		return sdkerrors.Wrapf(types.ErrSpotMarketNotFound, "active spot market doesn't exist %s", marketID.Hex())
+		return types.ErrSpotMarketNotFound.Wrapf("active spot market doesn't exist %s", marketID.Hex())
 	}
 
 	order := k.GetSpotLimitOrderBySubaccountID(ctx, marketID, nil, subaccountID, orderHash)
@@ -374,7 +406,7 @@ func (k *Keeper) cancelSpotLimitOrderByOrderHash(
 	if order == nil {
 		order = k.GetTransientSpotLimitOrderBySubaccountID(ctx, marketID, nil, subaccountID, orderHash)
 		if order == nil {
-			return sdkerrors.Wrap(types.ErrOrderDoesntExist, "Spot Limit Order is nil")
+			return types.ErrOrderDoesntExist.Wrap("Spot Limit Order is nil")
 		}
 		isTransient = true
 	}
@@ -388,7 +420,8 @@ func (k *Keeper) cancelSpotLimitOrderByOrderHash(
 }
 
 func (k SpotMsgServer) BatchCancelSpotOrders(goCtx context.Context, msg *types.MsgBatchCancelSpotOrders) (*types.MsgBatchCancelSpotOrdersResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
+	defer doneFn()
 
 	// Naive, unoptimized implementation
 	successes := make([]bool, len(msg.Data))

@@ -19,8 +19,8 @@ import (
 )
 
 type Slippage struct {
-	MaxPenalty   *sdk.Dec `json:"max_penalty,omitempty"`
-	MinIncentive *sdk.Dec `json:"min_incentive,omitempty"`
+	MaxPenalty   *math.LegacyDec `json:"max_penalty,omitempty"`
+	MinIncentive *math.LegacyDec `json:"min_incentive,omitempty"`
 }
 
 type VaultSubscribe struct {
@@ -778,7 +778,7 @@ func getSlippage(cmd *cobra.Command) (Slippage, error) {
 		)
 	}
 
-	penaltyDec := sdk.NewDecFromInt(math.NewInt(maxPenaltyFlag))
+	penaltyDec := math.LegacyNewDecFromInt(math.NewInt(maxPenaltyFlag))
 	slippage := Slippage{
 		MaxPenalty: &penaltyDec,
 	}

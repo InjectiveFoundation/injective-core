@@ -7,7 +7,9 @@ import (
 	"github.com/InjectiveLabs/metrics"
 )
 
-func EndBlocker(ctx sdk.Context, k keeper.Keeper) {
+func (am AppModule) EndBlocker(ctx sdk.Context, k keeper.Keeper) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, am.svcTags)
+	defer doneFn()
 	// call automatic withdraw keeper function
 	err := k.WithdrawAllMaturedRedemptions(ctx)
 	if err != nil {

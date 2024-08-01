@@ -3,6 +3,7 @@ package keeper
 import (
 	"context"
 
+	"cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/InjectiveLabs/metrics"
@@ -26,7 +27,8 @@ func NewCoinbaseMsgServerImpl(keeper Keeper) CoinbaseMsgServer {
 }
 
 func (k CoinbaseMsgServer) RelayCoinbaseMessages(c context.Context, msg *types.MsgRelayCoinbaseMessages) (*types.MsgRelayCoinbaseMessagesResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 
@@ -50,7 +52,7 @@ func (k CoinbaseMsgServer) RelayCoinbaseMessages(c context.Context, msg *types.M
 		if oldCoinbasePriceState == nil {
 			newCoinbasePriceState.PriceState = types.PriceState{
 				Price:           price,
-				CumulativePrice: sdk.ZeroDec(),
+				CumulativePrice: math.LegacyZeroDec(),
 				Timestamp:       blockTime,
 			}
 		} else {

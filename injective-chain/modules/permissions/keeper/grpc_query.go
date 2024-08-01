@@ -4,6 +4,7 @@ import (
 	"context"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/cosmos/gogoproto/proto"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/permissions/types"
 )
@@ -47,7 +48,12 @@ func (q queryServer) NamespaceByDenom(c context.Context, req *types.QueryNamespa
 func (q queryServer) AddressRoles(c context.Context, req *types.QueryAddressRolesRequest) (*types.QueryAddressRolesResponse, error) {
 	ctx := sdk.UnwrapSDKContext(c)
 
-	roles, err := q.GetAddressRoleNames(ctx, req.Denom, req.Address)
+	addr, err := sdk.AccAddressFromBech32(req.Address)
+	if err != nil {
+		return nil, err
+	}
+
+	roles, err := q.GetAddressRoleNames(ctx, req.Denom, addr)
 	if err != nil {
 		return nil, err
 	}
@@ -80,28 +86,27 @@ func (q queryServer) AddressesByRole(c context.Context, req *types.QueryAddresse
 	return &types.QueryAddressesByRoleResponse{Addresses: addressesByRole}, nil
 }
 
-func (q queryServer) VouchersForAddress(c context.Context, req *types.QueryVouchersForAddressRequest) (*types.QueryVouchersForAddressResponse, error) {
+func (q Keeper) VouchersForAddress(c context.Context, req *types.QueryVouchersForAddressRequest) (*types.QueryVouchersForAddressResponse, error) {
 	ctx := sdk.UnwrapSDKContext(c)
 
-	if _, err := sdk.AccAddressFromBech32(req.Address); err != nil {
+	addr, err := sdk.AccAddressFromBech32(req.Address)
+	if err != nil {
 		return nil, err
 	}
 
-	store := q.getVouchersStore(ctx, req.Address)
+	store := q.getVouchersStoreForAddress(ctx, addr)
 	iter := store.Iterator(nil, nil)
 
-	resp := &types.QueryVouchersForAddressResponse{Vouchers: make([]*types.AddressVoucher, 0)}
+	resp := &types.QueryVouchersForAddressResponse{Vouchers: sdk.NewCoins()}
 
 	for ; iter.Valid(); iter.Next() {
-		fromAddr := string(iter.Key())
+		var voucher sdk.Coin
 
-		voucher, err := q.getVoucherForAddress(ctx, fromAddr, req.Address)
-		if err != nil {
+		if err := proto.Unmarshal(iter.Value(), &voucher); err != nil {
 			return nil, err
 		}
 
-		resp.Vouchers = append(resp.Vouchers, &types.AddressVoucher{Address: fromAddr, Voucher: voucher})
-
+		resp.Vouchers = append(resp.Vouchers, voucher)
 	}
 
 	return resp, nil

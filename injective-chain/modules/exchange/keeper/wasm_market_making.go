@@ -3,7 +3,7 @@ package keeper
 import (
 	"encoding/json"
 
-	sdkmath "cosmossdk.io/math"
+	"cosmossdk.io/math"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -58,7 +58,7 @@ func (k *Keeper) QueryTotalSupply(
 	ctx sdk.Context,
 	contractAddress sdk.AccAddress,
 	subaccountID common.Hash,
-) (sdkmath.Int, error) {
+) (math.Int, error) {
 	type GetTotalSupplyQuery struct {
 		SubaccountID string `json:"subaccount_id"`
 	}
@@ -74,22 +74,22 @@ func (k *Keeper) QueryTotalSupply(
 	}
 	queryDataBz, err := json.Marshal(queryData)
 	if err != nil {
-		return sdk.ZeroInt(), err
+		return math.ZeroInt(), err
 	}
 
 	bz, err := k.wasmViewKeeper.QuerySmart(ctx, contractAddress, queryDataBz)
 	if err != nil {
-		return sdk.ZeroInt(), err
+		return math.ZeroInt(), err
 	}
 
 	type Data struct {
-		TotalSupply sdkmath.Int `json:"total_supply"`
+		TotalSupply math.Int `json:"total_supply"`
 	}
 
 	var result Data
 
 	if err := json.Unmarshal(bz, &result); err != nil {
-		return sdk.ZeroInt(), err
+		return math.ZeroInt(), err
 	}
 
 	return result.TotalSupply, nil
@@ -99,7 +99,7 @@ func (k *Keeper) QueryTokenBalance(
 	ctx sdk.Context,
 	cw20ContractAddress sdk.AccAddress,
 	user string,
-) (sdkmath.Int, error) {
+) (math.Int, error) {
 	type Balance struct {
 		Address string `json:"address"`
 	}
@@ -115,22 +115,22 @@ func (k *Keeper) QueryTokenBalance(
 	}
 	queryDataBz, err := json.Marshal(queryData)
 	if err != nil {
-		return sdk.ZeroInt(), err
+		return math.ZeroInt(), err
 	}
 
 	bz, err := k.wasmViewKeeper.QuerySmart(ctx, cw20ContractAddress, queryDataBz)
 	if err != nil {
-		return sdk.ZeroInt(), err
+		return math.ZeroInt(), err
 	}
 
 	type BalanceResponse struct {
-		Balance sdkmath.Int `json:"balance"`
+		Balance math.Int `json:"balance"`
 	}
 
 	var result BalanceResponse
 
 	if err := json.Unmarshal(bz, &result); err != nil {
-		return sdk.ZeroInt(), err
+		return math.ZeroInt(), err
 	}
 
 	return result.Balance, nil

@@ -1,7 +1,7 @@
 package keeper
 
 import (
-	sdkmath "cosmossdk.io/math"
+	"cosmossdk.io/math"
 	"github.com/InjectiveLabs/metrics"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
@@ -10,7 +10,8 @@ import (
 
 // ExportNextShareDenomId returns the next share denom id
 func (k *Keeper) ExportNextShareDenomId(ctx sdk.Context) uint64 {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	var shareDenomId uint64
 	store := ctx.KVStore(k.storeKey)
@@ -25,7 +26,8 @@ func (k *Keeper) ExportNextShareDenomId(ctx sdk.Context) uint64 {
 }
 
 func (k *Keeper) SetNextShareDenomId(ctx sdk.Context, shareDenomId uint64) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	store.Set(types.GlobalShareDenomIdPrefixKey, sdk.Uint64ToBigEndian(shareDenomId))
@@ -33,7 +35,8 @@ func (k *Keeper) SetNextShareDenomId(ctx sdk.Context, shareDenomId uint64) {
 
 // getNextShareDenomId returns the next share denom id and increase it
 func (k *Keeper) getNextShareDenomId(ctx sdk.Context) uint64 {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	shareDenomId := k.ExportNextShareDenomId(ctx)
 	k.SetNextShareDenomId(ctx, shareDenomId+1)
@@ -41,8 +44,9 @@ func (k *Keeper) getNextShareDenomId(ctx sdk.Context) uint64 {
 }
 
 // MintShareTokens mint share tokens to an address and increase total share variable of insurance fund
-func (k *Keeper) MintShareTokens(ctx sdk.Context, fund *types.InsuranceFund, addr sdk.AccAddress, shares sdkmath.Int) (*types.InsuranceFund, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+func (k *Keeper) MintShareTokens(ctx sdk.Context, fund *types.InsuranceFund, addr sdk.AccAddress, shares math.Int) (*types.InsuranceFund, error) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	amount := sdk.Coins{sdk.NewCoin(fund.ShareDenom(), shares)}
 	err := k.bankKeeper.MintCoins(ctx, types.ModuleName, amount)
@@ -62,8 +66,9 @@ func (k *Keeper) MintShareTokens(ctx sdk.Context, fund *types.InsuranceFund, add
 }
 
 // BurnShareTokens burn share tokens locked on insurance module
-func (k *Keeper) BurnShareTokens(ctx sdk.Context, fund *types.InsuranceFund, shares sdkmath.Int) (*types.InsuranceFund, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+func (k *Keeper) BurnShareTokens(ctx sdk.Context, fund *types.InsuranceFund, shares math.Int) (*types.InsuranceFund, error) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	shareAmount := sdk.Coins{sdk.NewCoin(fund.ShareDenom(), shares)}
 

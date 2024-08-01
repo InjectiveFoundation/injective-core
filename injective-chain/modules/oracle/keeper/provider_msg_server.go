@@ -26,8 +26,8 @@ func NewProviderMsgServerImpl(keeper Keeper) ProviderMsgServer {
 }
 
 func (k ProviderMsgServer) RelayProviderPrices(goCtx context.Context, msg *types.MsgRelayProviderPrices) (*types.MsgRelayProviderPricesResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
-
+	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
+	defer doneFn()
 	// prepare context
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
@@ -36,29 +36,6 @@ func (k ProviderMsgServer) RelayProviderPrices(goCtx context.Context, msg *types
 		return nil, errors.Wrapf(types.ErrRelayerNotAuthorized, "relayer %s not an authorized provider for %s", relayer.String(), msg.Provider)
 	}
 
-	for idx := range msg.Prices {
-		price := msg.Prices[idx]
-		symbol := msg.Symbols[idx]
-
-		providerPriceState := k.GetProviderPriceState(ctx, msg.Provider, symbol)
-
-		blockTime := ctx.BlockTime().Unix()
-		if providerPriceState == nil || providerPriceState.State == nil {
-			providerPriceState = types.NewProviderPriceState(symbol, price, blockTime)
-		} else {
-			providerPriceState.State.UpdatePrice(price, blockTime)
-		}
-
-		k.SetProviderPriceState(ctx, msg.Provider, providerPriceState)
-
-		// nolint:errcheck //ignored on purpose
-		ctx.EventManager().EmitTypedEvent(&types.SetProviderPriceEvent{
-			Provider: msg.Provider,
-			Relayer:  msg.Sender,
-			Symbol:   symbol,
-			Price:    price,
-		})
-	}
-
+	k.ProcessProviderPrices(ctx, msg)
 	return &types.MsgRelayProviderPricesResponse{}, nil
 }

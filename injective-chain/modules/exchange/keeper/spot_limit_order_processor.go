@@ -1,8 +1,9 @@
 package keeper
 
 import (
-	"github.com/cosmos/cosmos-sdk/store/prefix"
-	storetypes "github.com/cosmos/cosmos-sdk/store/types"
+	"cosmossdk.io/math"
+	"cosmossdk.io/store/prefix"
+	storetypes "cosmossdk.io/store/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
@@ -34,7 +35,8 @@ func (k *Keeper) getMatchedSpotLimitOrderClearingResults(
 	transientBuyOrders []*types.SpotLimitOrder,
 	transientSellOrders []*types.SpotLimitOrder,
 ) *ordermatching.SpotOrderbookMatchingResults {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	buyOrdersIterator := k.getSpotLimitOrderbookIterator(ctx, marketID, true)
 	sellOrdersIterator := k.getSpotLimitOrderbookIterator(ctx, marketID, false)
@@ -55,8 +57,8 @@ func (k *Keeper) getMatchedSpotLimitOrderClearingResults(
 	}
 
 	var (
-		lastBuyPrice  sdk.Dec
-		lastSellPrice sdk.Dec
+		lastBuyPrice  math.LegacyDec
+		lastSellPrice math.LegacyDec
 	)
 
 	for {
@@ -78,7 +80,7 @@ func (k *Keeper) getMatchedSpotLimitOrderClearingResults(
 		lastBuyPrice = buyOrder.Price
 		lastSellPrice = sellOrder.Price
 
-		matchQuantityIncrement := sdk.MinDec(buyOrder.Quantity, sellOrder.Quantity)
+		matchQuantityIncrement := math.LegacyMinDec(buyOrder.Quantity, sellOrder.Quantity)
 
 		if err := buyOrderbook.Fill(matchQuantityIncrement); err != nil {
 			k.Logger(ctx).Error("Fill buyOrderbook failed during getMatchedSpotLimitOrderClearingResults:", err)
@@ -88,7 +90,7 @@ func (k *Keeper) getMatchedSpotLimitOrderClearingResults(
 		}
 	}
 
-	var clearingPrice sdk.Dec
+	var clearingPrice math.LegacyDec
 	clearingQuantity := sellOrderbook.GetTotalQuantityFilled()
 
 	if clearingQuantity.IsPositive() {
@@ -104,7 +106,7 @@ func (k *Keeper) getMatchedSpotLimitOrderClearingResults(
 		default:
 			// edge case when a resting orderbook does not exist, so no other choice
 			// clearing price = (lastBuyPrice + lastSellPrice) / 2
-			validClearingPrice := lastBuyPrice.Add(lastSellPrice).Quo(sdk.NewDec(2))
+			validClearingPrice := lastBuyPrice.Add(lastSellPrice).Quo(math.LegacyNewDec(2))
 			clearingPrice = validClearingPrice
 		}
 	}
@@ -126,9 +128,10 @@ func (k *Keeper) getMarketOrderStateExpansionsAndClearingPrice(
 	marketOrders []*types.SpotMarketOrder,
 	pointsMultiplier types.PointsMultiplier,
 	feeDiscountConfig *FeeDiscountConfig,
-	takerFeeRate sdk.Dec,
-) (spotLimitOrderStateExpansions, spotMarketOrderStateExpansions []*spotOrderStateExpansion, clearingPrice, clearingQuantity sdk.Dec) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	takerFeeRate math.LegacyDec,
+) (spotLimitOrderStateExpansions, spotMarketOrderStateExpansions []*spotOrderStateExpansion, clearingPrice, clearingQuantity math.LegacyDec) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	isLimitBuy := !isMarketBuy
 	limitOrdersIterator := k.getSpotLimitOrderbookIterator(ctx, market.MarketID(), isLimitBuy)
@@ -137,7 +140,7 @@ func (k *Keeper) getMarketOrderStateExpansionsAndClearingPrice(
 	if limitOrderbook != nil {
 		defer limitOrderbook.Close()
 	} else {
-		spotMarketOrderStateExpansions = k.processSpotMarketOrderStateExpansions(ctx, market.MarketID(), isMarketBuy, marketOrders, make([]sdk.Dec, len(marketOrders)), sdk.Dec{}, takerFeeRate, market.RelayerFeeShareRate, pointsMultiplier, feeDiscountConfig)
+		spotMarketOrderStateExpansions = k.processSpotMarketOrderStateExpansions(ctx, market.MarketID(), isMarketBuy, marketOrders, make([]math.LegacyDec, len(marketOrders)), math.LegacyDec{}, takerFeeRate, market.RelayerFeeShareRate, pointsMultiplier, feeDiscountConfig)
 		return
 	}
 
@@ -161,7 +164,7 @@ func (k *Keeper) getMarketOrderStateExpansionsAndClearingPrice(
 		}
 
 		unitSpread := sellOrder.Price.Sub(buyOrder.Price)
-		matchQuantityIncrement := sdk.MinDec(buyOrder.Quantity, sellOrder.Quantity)
+		matchQuantityIncrement := math.LegacyMinDec(buyOrder.Quantity, sellOrder.Quantity)
 
 		// Exit if no more matchable orders
 		if unitSpread.IsPositive() || matchQuantityIncrement.IsZero() {
@@ -183,7 +186,7 @@ func (k *Keeper) getMarketOrderStateExpansionsAndClearingPrice(
 		clearingPrice = limitOrderbook.GetNotional().Quo(clearingQuantity)
 	}
 
-	spotLimitOrderStateExpansions = k.processRestingSpotLimitOrderExpansions(ctx, market.MarketID(), limitOrderbook.GetRestingOrderbookFills(), !isMarketBuy, sdk.Dec{}, market.MakerFeeRate, market.RelayerFeeShareRate, pointsMultiplier, feeDiscountConfig)
+	spotLimitOrderStateExpansions = k.processRestingSpotLimitOrderExpansions(ctx, market.MarketID(), limitOrderbook.GetRestingOrderbookFills(), !isMarketBuy, math.LegacyDec{}, market.MakerFeeRate, market.RelayerFeeShareRate, pointsMultiplier, feeDiscountConfig)
 	spotMarketOrderStateExpansions = k.processSpotMarketOrderStateExpansions(ctx, market.MarketID(), isMarketBuy, marketOrders, marketOrderbook.GetOrderbookFillQuantities(), clearingPrice, takerFeeRate, market.RelayerFeeShareRate, pointsMultiplier, feeDiscountConfig)
 	return
 }
@@ -193,13 +196,14 @@ func (k *Keeper) GetFillableSpotLimitOrdersByMarketDirection(
 	ctx sdk.Context,
 	marketID common.Hash,
 	isBuy bool,
-	maxQuantity sdk.Dec,
-) (limitOrders []*types.SpotLimitOrder, clearingPrice, clearingQuantity sdk.Dec) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	maxQuantity math.LegacyDec,
+) (limitOrders []*types.SpotLimitOrder, clearingPrice, clearingQuantity math.LegacyDec) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	limitOrders = make([]*types.SpotLimitOrder, 0)
-	clearingQuantity = sdk.ZeroDec()
-	notional := sdk.ZeroDec()
+	clearingQuantity = math.LegacyZeroDec()
+	notional := math.LegacyZeroDec()
 
 	appendOrder := func(order *types.SpotLimitOrder) (stop bool) {
 		// stop iterating if the quantity needed will be exhausted

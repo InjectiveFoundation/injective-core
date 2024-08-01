@@ -5,11 +5,13 @@
   "actions": [
     {
       "actionType": "createTfDenom",
-      "subdenom": "custom/base"
+      "subdenom": "custom/base",
+      "decimals": 6
     },
     {
       "actionType": "createTfDenom",
-      "subdenom": "custom/quote"
+      "subdenom": "custom/quote",
+      "decimals": 6
     },
     {
       "actionType": "mintTfDenom",

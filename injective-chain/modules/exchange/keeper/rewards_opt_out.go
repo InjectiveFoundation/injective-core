@@ -1,8 +1,8 @@
 package keeper
 
 import (
+	"cosmossdk.io/store/prefix"
 	"github.com/InjectiveLabs/metrics"
-	"github.com/cosmos/cosmos-sdk/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
@@ -10,7 +10,8 @@ import (
 
 // GetIsOptedOutOfRewards returns if the account is opted out of rewards
 func (k *Keeper) GetIsOptedOutOfRewards(ctx sdk.Context, account sdk.AccAddress) bool {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	bz := store.Get(types.GetIsOptedOutOfRewardsKey(account))
@@ -23,7 +24,8 @@ func (k *Keeper) GetIsOptedOutOfRewards(ctx sdk.Context, account sdk.AccAddress)
 
 // SetIsOptedOutOfRewards sets if the account is opted out of rewards
 func (k *Keeper) SetIsOptedOutOfRewards(ctx sdk.Context, account sdk.AccAddress, isOptedOut bool) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	key := types.GetIsOptedOutOfRewardsKey(account)
@@ -39,7 +41,8 @@ func (k *Keeper) SetIsOptedOutOfRewards(ctx sdk.Context, account sdk.AccAddress,
 
 // GetAllOptedOutRewardAccounts gets all accounts that have opted out of rewards
 func (k *Keeper) GetAllOptedOutRewardAccounts(ctx sdk.Context) []string {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	registeredDMMs := make([]string, 0)
 	appendDMMs := func(account sdk.AccAddress, isRegisteredDMM bool) (stop bool) {
@@ -59,7 +62,8 @@ func (k *Keeper) iterateOptedOutRewardAccounts(
 	ctx sdk.Context,
 	process func(account sdk.AccAddress, isOptedOut bool) (stop bool),
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 

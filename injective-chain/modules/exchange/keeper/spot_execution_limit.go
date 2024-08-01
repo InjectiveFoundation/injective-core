@@ -1,6 +1,7 @@
 package keeper
 
 import (
+	"cosmossdk.io/math"
 	"github.com/InjectiveLabs/metrics"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
@@ -13,7 +14,8 @@ func (k *Keeper) ExecuteSpotLimitOrderMatching(
 	matchedMarketDirection *types.MatchedMarketDirection,
 	stakingInfo *FeeDiscountStakingInfo,
 ) *SpotBatchExecutionData {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	marketID := matchedMarketDirection.MarketId
 	market := k.GetSpotMarket(ctx, marketID, true)
@@ -41,7 +43,7 @@ func (k *Keeper) GetSpotLimitMatchingBatchExecutionData(
 	ctx sdk.Context,
 	market *types.SpotMarket,
 	orderbookResults *ordermatching.SpotOrderbookMatchingResults,
-	clearingPrice sdk.Dec,
+	clearingPrice math.LegacyDec,
 	pointsMultiplier types.PointsMultiplier,
 	feeDiscountConfig *FeeDiscountConfig,
 ) *SpotBatchExecutionData {
@@ -124,7 +126,8 @@ func (k *Keeper) GetSpotLimitMatchingBatchExecutionData(
 }
 
 func (k *Keeper) PersistSpotMatchingExecution(ctx sdk.Context, batchSpotMatchingExecutionData []*SpotBatchExecutionData, spotVwapData SpotVwapInfo, tradingRewardPoints types.TradingRewardPoints) types.TradingRewardPoints {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	// Persist Spot Matching execution data
 	for batchIdx := range batchSpotMatchingExecutionData {

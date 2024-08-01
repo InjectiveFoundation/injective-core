@@ -1,5 +1,5 @@
 ---
-sidebar_position: 14
+sidebar_position: 16
 ---
 
 # Configure Peggo
@@ -17,18 +17,18 @@ cd ~/.peggo
 
 First, update the `PEGGO_ETH_RPC` in the `.env` file with a valid Ethereum EVM RPC Endpoint.
 
-To create your own Ethereum full node, you can follow our instructions [here](https://ethereum.org/en/developers/docs/nodes-and-clients/run-a-node/). It's possible to use an external Ethereum RPC provider such as Alchemy or Infura, but keep in mind that the Peggo bridge relayer uses heavy use of `eth_getLogs` calls which may increase your cost burden depending on your provider.
+To set up your own Ethereum full node, follow the instructions [here](https://ethereum.org/en/developers/docs/nodes-and-clients/run-a-node/). It's possible to use an external Ethereum RPC provider such as Alchemy or Infura, but keep in mind that the Peggo bridge relayer uses a heavy use of `eth_getLogs` calls which may increase your cost burden, depending on your provider.
 
-Peggo also requires access to your validator's delegated Injective Chain account and Ethereum key credentials to sign transactions for the corresponding networks.
+Peggo also requires access to your validator's delegated Injective account and Ethereum key credentials to sign transactions for the corresponding networks.
 
-#### Creating your delegated Cosmos Key for sending Injective Chain transactions
+#### Creating your delegated Cosmos Key for sending Injective transactions
 
 Your peggo relayer can either
  - Use an explicitly delegated account key specific for sending validator specific Peggy transactions (i.e. `ValsetConfirm`, `BatchConfirm`, and `SendToCosmos` transactions)
  or
   - Simply use your validator's account key.
 
-For isolation purposes, we recommend creating a delegated Cosmos key to send Injective Chain transactions instead of using your validator account key.
+For isolation purposes, we recommend creating a delegated Cosmos key to send Injective transactions instead of using your validator account key.
 
 To create a new key, run
 ```bash

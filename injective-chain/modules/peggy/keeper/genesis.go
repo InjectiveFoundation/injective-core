@@ -51,6 +51,8 @@ func NormalizeGenesis(data *types.GenesisState) {
 
 // InitGenesis starts a chain from a genesis state
 func InitGenesis(ctx sdk.Context, k Keeper, data *types.GenesisState) {
+	k.CreateModuleAccount(ctx)
+
 	NormalizeGenesis(data)
 
 	k.SetParams(ctx, data.Params)

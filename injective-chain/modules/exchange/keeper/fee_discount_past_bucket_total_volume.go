@@ -1,7 +1,8 @@
 package keeper
 
 import (
-	"github.com/cosmos/cosmos-sdk/store/prefix"
+	"cosmossdk.io/math"
+	"cosmossdk.io/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/InjectiveLabs/metrics"
@@ -13,13 +14,14 @@ import (
 func (k *Keeper) GetPastBucketTotalVolume(
 	ctx sdk.Context,
 	account sdk.AccAddress,
-) sdk.Dec {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+) math.LegacyDec {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	bz := store.Get(types.GetFeeDiscountPastBucketAccountVolumeKey(account))
 	if bz == nil {
-		return sdk.ZeroDec()
+		return math.LegacyZeroDec()
 	}
 	return types.DecBytesToDec(bz)
 }
@@ -28,9 +30,10 @@ func (k *Keeper) GetPastBucketTotalVolume(
 func (k *Keeper) IncrementPastBucketTotalVolume(
 	ctx sdk.Context,
 	account sdk.AccAddress,
-	addedBucketTotalFeesAmount sdk.Dec,
+	addedBucketTotalFeesAmount math.LegacyDec,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	currVolume := k.GetPastBucketTotalVolume(ctx, account)
 	newVolume := currVolume.Add(addedBucketTotalFeesAmount)
@@ -42,9 +45,10 @@ func (k *Keeper) IncrementPastBucketTotalVolume(
 func (k *Keeper) DecrementPastBucketTotalVolume(
 	ctx sdk.Context,
 	account sdk.AccAddress,
-	removedBucketTotalFeesAmount sdk.Dec,
+	removedBucketTotalFeesAmount math.LegacyDec,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	currVolume := k.GetPastBucketTotalVolume(ctx, account)
 	newVolume := currVolume.Sub(removedBucketTotalFeesAmount)
@@ -56,9 +60,10 @@ func (k *Keeper) DecrementPastBucketTotalVolume(
 func (k *Keeper) SetPastBucketTotalVolume(
 	ctx sdk.Context,
 	account sdk.AccAddress,
-	volume sdk.Dec,
+	volume math.LegacyDec,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	bz := types.DecToDecBytes(volume)
@@ -70,7 +75,8 @@ func (k *Keeper) DeletePastBucketTotalVolume(
 	ctx sdk.Context,
 	account sdk.AccAddress,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	store.Delete(types.GetFeeDiscountPastBucketAccountVolumeKey(account))
@@ -78,7 +84,8 @@ func (k *Keeper) DeletePastBucketTotalVolume(
 
 // DeleteAllPastBucketTotalVolume deletes the total volume in past buckets for all accounts
 func (k *Keeper) DeleteAllPastBucketTotalVolume(ctx sdk.Context) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	accountVolumes := k.GetAllPastBucketTotalVolume(ctx)
 	for _, a := range accountVolumes {
@@ -89,11 +96,12 @@ func (k *Keeper) DeleteAllPastBucketTotalVolume(ctx sdk.Context) {
 
 // GetAllPastBucketTotalVolume gets all total volume in past buckets for all accounts
 func (k *Keeper) GetAllPastBucketTotalVolume(ctx sdk.Context) []*types.AccountVolume {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	accountVolumes := make([]*types.AccountVolume, 0)
 
-	appendFees := func(account sdk.AccAddress, volume sdk.Dec) (stop bool) {
+	appendFees := func(account sdk.AccAddress, volume math.LegacyDec) (stop bool) {
 		accountVolumes = append(accountVolumes, &types.AccountVolume{
 			Account: account.String(),
 			Volume:  volume,
@@ -108,9 +116,10 @@ func (k *Keeper) GetAllPastBucketTotalVolume(ctx sdk.Context) []*types.AccountVo
 // iteratePastBucketTotalVolume iterates over total volume in past buckets for all accounts
 func (k *Keeper) iteratePastBucketTotalVolume(
 	ctx sdk.Context,
-	process func(account sdk.AccAddress, totalVolume sdk.Dec) (stop bool),
+	process func(account sdk.AccAddress, totalVolume math.LegacyDec) (stop bool),
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 

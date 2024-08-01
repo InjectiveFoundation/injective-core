@@ -1,6 +1,7 @@
 package keeper
 
 import (
+	"cosmossdk.io/math"
 	"github.com/InjectiveLabs/metrics"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
@@ -14,7 +15,8 @@ func (k *Keeper) ExecuteSpotMarketOrders(
 	marketOrderIndicator *types.MarketOrderIndicator,
 	stakingInfo *FeeDiscountStakingInfo,
 ) *SpotBatchExecutionData {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	var (
 		marketID                     = common.HexToHash(marketOrderIndicator.MarketId)
@@ -39,7 +41,7 @@ func GetSpotMarketOrderBatchExecutionData(
 	isMarketBuy bool,
 	market *types.SpotMarket,
 	spotLimitOrderStateExpansions, spotMarketOrderStateExpansions []*spotOrderStateExpansion,
-	clearingPrice, clearingQuantity sdk.Dec,
+	clearingPrice, clearingQuantity math.LegacyDec,
 ) *SpotBatchExecutionData {
 	baseDenomDepositDeltas := types.NewDepositDeltas()
 	quoteDenomDepositDeltas := types.NewDepositDeltas()
@@ -163,7 +165,8 @@ func (k *Keeper) PersistSingleSpotMarketOrderExecution(
 }
 
 func (k *Keeper) PersistSpotMarketOrderExecution(ctx sdk.Context, batchSpotExecutionData []*SpotBatchExecutionData, spotVwapData SpotVwapInfo) types.TradingRewardPoints {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	tradingRewardPoints := types.NewTradingRewardPoints()
 	for batchIdx := range batchSpotExecutionData {

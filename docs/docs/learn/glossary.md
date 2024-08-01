@@ -61,7 +61,7 @@ The open-source framework the Injective blockchain is built on. For more informa
 
 ## CosmWasm
 
-The library utilized by Injective to power on-chain smart contracts. For more information, check out the [CosmWasm Documentation](../develop/guides/cosmwasm-dapps/index.md).
+The library utilized by Injective to power on-chain smart contracts. For more information, check out the [CosmWasm Documentation](../develop/guides/injective-101/index.md).
 
 ## dApp
 

@@ -1,6 +1,7 @@
 package keeper
 
 import (
+	"cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
@@ -10,7 +11,8 @@ import (
 )
 
 func (k *Keeper) ProcessHourlyFundings(ctx sdk.Context) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	blockTime := ctx.BlockTime().Unix()
 
@@ -44,13 +46,13 @@ func (k *Keeper) ProcessHourlyFundings(ctx sdk.Context) {
 		// timeInterval = lastTimestamp - startingTimestamp
 		timeInterval := funding.LastTimestamp + marketInfo.FundingInterval - currFundingTimestamp
 
-		twap := sdk.NewDec(0)
+		twap := math.LegacyNewDec(0)
 
 		// timeInterval = 0 means that there were no trades for this market during the last funding interval.
 		if timeInterval != 0 {
 			// nolint:all
 			// twap = cumulativePrice / (timeInterval * 24)
-			twap = funding.CumulativePrice.Quo(sdk.NewDec(timeInterval).Mul(sdk.NewDec(24)))
+			twap = funding.CumulativePrice.Quo(math.LegacyNewDec(timeInterval).Mul(math.LegacyNewDec(24)))
 		}
 		// nolint:all
 		// fundingRate = cap(twap + hourlyInterestRate)
@@ -65,7 +67,7 @@ func (k *Keeper) ProcessHourlyFundings(ctx sdk.Context) {
 		// set the perpetual market funding
 		newFunding := types.PerpetualMarketFunding{
 			CumulativeFunding: cumulativeFunding,
-			CumulativePrice:   sdk.ZeroDec(),
+			CumulativePrice:   math.LegacyZeroDec(),
 			LastTimestamp:     currFundingTimestamp,
 		}
 
@@ -82,7 +84,7 @@ func (k *Keeper) ProcessHourlyFundings(ctx sdk.Context) {
 	}
 }
 
-func capFundingRate(fundingRate, fundingRateCap sdk.Dec) sdk.Dec {
+func capFundingRate(fundingRate, fundingRateCap math.LegacyDec) math.LegacyDec {
 	if fundingRate.Abs().GT(fundingRateCap) {
 		if fundingRate.IsNegative() {
 			return fundingRateCap.Neg()
@@ -100,7 +102,8 @@ func getNextIntervalTimestamp(currTime, interval int64) int64 {
 }
 
 func (k *Keeper) PersistPerpetualFundingInfo(ctx sdk.Context, perpetualVwapInfo DerivativeVwapInfo) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	marketIDs := perpetualVwapInfo.GetSortedPerpetualMarketIDs()
 	blockTime := ctx.BlockTime().Unix()
@@ -114,7 +117,7 @@ func (k *Keeper) PersistPerpetualFundingInfo(ctx sdk.Context, perpetualVwapInfo 
 		syntheticVwapUnitDelta := perpetualVwapInfo.ComputeSyntheticVwapUnitDelta(marketID)
 
 		funding := k.GetPerpetualMarketFunding(ctx, marketID)
-		timeElapsed := sdk.NewDec(blockTime - funding.LastTimestamp)
+		timeElapsed := math.LegacyNewDec(blockTime - funding.LastTimestamp)
 
 		// newCumulativePrice = oldCumulativePrice + ∆t * price
 		newCumulativePrice := funding.CumulativePrice.Add(timeElapsed.Mul(syntheticVwapUnitDelta))

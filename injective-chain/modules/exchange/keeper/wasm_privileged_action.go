@@ -4,10 +4,12 @@ import (
 	"sort"
 
 	"cosmossdk.io/errors"
+	"cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	"github.com/InjectiveLabs/metrics"
 )
 
 func (k *Keeper) handlePrivilegedAction(
@@ -16,6 +18,9 @@ func (k *Keeper) handlePrivilegedAction(
 	origin sdk.AccAddress,
 	action types.InjectiveAction,
 ) error {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
 	switch t := action.(type) {
 	case *types.SyntheticTradeAction:
 		return k.handleSyntheticTradeAction(ctx, contractAddress, origin, t)
@@ -26,7 +31,7 @@ func (k *Keeper) handlePrivilegedAction(
 	}
 }
 
-func GetSortedFeesKeys(p map[string]sdk.Dec) []string {
+func GetSortedFeesKeys(p map[string]math.LegacyDec) []string {
 	denoms := make([]string, 0)
 	for k := range p {
 		denoms = append(denoms, k)
@@ -40,14 +45,14 @@ func GetSortedFeesKeys(p map[string]sdk.Dec) []string {
 func (k *Keeper) ensurePositionAboveBankruptcyForClosing(
 	position *types.Position,
 	market *types.DerivativeMarket,
-	closingPrice, closingFee sdk.Dec,
+	closingPrice, closingFee math.LegacyDec,
 ) error {
 	if !position.Quantity.IsPositive() {
 		return nil
 	}
 
 	positionMarginRatio := position.GetEffectiveMarginRatio(closingPrice, closingFee)
-	bankruptcyMarginRatio := sdk.ZeroDec()
+	bankruptcyMarginRatio := math.LegacyZeroDec()
 
 	if positionMarginRatio.LT(bankruptcyMarginRatio) {
 		return errors.Wrapf(types.ErrLowPositionMargin, "position margin ratio %s ≥ %s must hold", positionMarginRatio.String(), market.InitialMarginRatio.String())
@@ -59,13 +64,13 @@ func (k *Keeper) ensurePositionAboveBankruptcyForClosing(
 func (k *Keeper) ensurePositionAboveInitialMarginRatio(
 	position *types.Position,
 	market *types.DerivativeMarket,
-	markPrice sdk.Dec,
+	markPrice math.LegacyDec,
 ) error {
 	if !position.Quantity.IsPositive() {
 		return nil
 	}
 
-	positionMarginRatio := position.GetEffectiveMarginRatio(markPrice, sdk.ZeroDec())
+	positionMarginRatio := position.GetEffectiveMarginRatio(markPrice, math.LegacyZeroDec())
 
 	if positionMarginRatio.LT(market.InitialMarginRatio) {
 		return errors.Wrapf(types.ErrLowPositionMargin, "position margin ratio %s ≥ %s must hold", positionMarginRatio.String(), market.InitialMarginRatio.String())
@@ -80,6 +85,9 @@ func (k *Keeper) handleSyntheticTradeAction(
 	origin sdk.AccAddress,
 	action *types.SyntheticTradeAction,
 ) error {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
 	summary, err := action.Summarize()
 	if err != nil {
 		return err
@@ -91,8 +99,8 @@ func (k *Keeper) handleSyntheticTradeAction(
 	}
 
 	marketIDs := summary.GetMarketIDs()
-	totalMarginAndFees := make(map[string]sdk.Dec)
-	totalFees := make(map[string]sdk.Dec)
+	totalMarginAndFees := make(map[string]math.LegacyDec)
+	totalFees := make(map[string]math.LegacyDec)
 	markets := make(map[common.Hash]*types.DerivativeMarketInfo)
 
 	for _, marketID := range marketIDs {
@@ -102,8 +110,8 @@ func (k *Keeper) handleSyntheticTradeAction(
 		}
 
 		markets[marketID] = m
-		totalMarginAndFees[m.Market.QuoteDenom] = sdk.ZeroDec()
-		totalFees[m.Market.QuoteDenom] = sdk.ZeroDec()
+		totalMarginAndFees[m.Market.QuoteDenom] = math.LegacyZeroDec()
+		totalFees[m.Market.QuoteDenom] = math.LegacyZeroDec()
 	}
 
 	initialPositions := NewModifiedPositionCache()
@@ -125,7 +133,7 @@ func (k *Keeper) handleSyntheticTradeAction(
 		// Initialize position and apply funding
 		position := k.GetPosition(ctx, trade.MarketID, trade.SubaccountID)
 		if position == nil {
-			var cumulativeFundingEntry sdk.Dec
+			var cumulativeFundingEntry math.LegacyDec
 			if fundingInfo != nil {
 				cumulativeFundingEntry = fundingInfo.CumulativeFunding
 			}
@@ -155,7 +163,7 @@ func (k *Keeper) handleSyntheticTradeAction(
 			}
 		}
 
-		payout, closeExecutionMargin, _ := position.ApplyPositionDelta(trade.ToPositionDelta(), sdk.ZeroDec())
+		payout, closeExecutionMargin, _, _ := position.ApplyPositionDelta(trade.ToPositionDelta(), math.LegacyZeroDec())
 
 		// Enforce that a position cannot have a negative quantity
 		if position.Quantity.IsNegative() {
@@ -209,6 +217,9 @@ func (k *Keeper) resolveSyntheticTradeROConflictsForMarket(
 	marketID common.Hash,
 	initialPositions, finalPositions ModifiedPositionCache,
 ) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
 	subaccountIDs := initialPositions.GetSortedSubaccountIDsByMarket(marketID)
 
 	for _, subaccountID := range subaccountIDs {
@@ -237,6 +248,9 @@ func (k *Keeper) handlePositionTransferAction(
 	origin sdk.AccAddress,
 	action *types.PositionTransfer,
 ) error {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
 	m := k.GetDerivativeMarketInfo(ctx, action.MarketID, true)
 
 	var (
@@ -269,7 +283,7 @@ func (k *Keeper) handlePositionTransferAction(
 	}
 
 	if destinationPosition == nil {
-		var cumulativeFundingEntry sdk.Dec
+		var cumulativeFundingEntry math.LegacyDec
 		if funding != nil {
 			cumulativeFundingEntry = funding.CumulativeFunding
 		}
@@ -283,13 +297,13 @@ func (k *Keeper) handlePositionTransferAction(
 
 	// Enforce each position's effectiveMargin / (markPrice * quantity) ≥ maintenanceMarginRatio
 	if sourcePosition.Quantity.IsPositive() {
-		positionMarginRatio := sourcePosition.GetEffectiveMarginRatio(markPrice, sdk.ZeroDec())
+		positionMarginRatio := sourcePosition.GetEffectiveMarginRatio(markPrice, math.LegacyZeroDec())
 		if positionMarginRatio.LT(market.MaintenanceMarginRatio) {
 			return errors.Wrapf(types.ErrLowPositionMargin, "position margin ratio %s ≥ %s must hold", positionMarginRatio.String(), market.MaintenanceMarginRatio.String())
 		}
 	}
 	if destinationPosition.Quantity.IsPositive() {
-		positionMarginRatio := destinationPosition.GetEffectiveMarginRatio(markPrice, sdk.ZeroDec())
+		positionMarginRatio := destinationPosition.GetEffectiveMarginRatio(markPrice, math.LegacyZeroDec())
 		if positionMarginRatio.LT(market.MaintenanceMarginRatio) {
 			return errors.Wrapf(types.ErrLowPositionMargin, "position margin ratio %s ≥ %s must hold", positionMarginRatio.String(), market.MaintenanceMarginRatio.String())
 		}
@@ -303,21 +317,21 @@ func (k *Keeper) handlePositionTransferAction(
 		&types.PositionDelta{
 			IsLong:            !sourcePosition.IsLong,
 			ExecutionQuantity: action.Quantity,
-			ExecutionMargin:   sdk.ZeroDec(),
+			ExecutionMargin:   math.LegacyZeroDec(),
 			ExecutionPrice:    executionPrice,
 		},
-		sdk.ZeroDec(),
+		math.LegacyZeroDec(),
 	)
 
 	executionMargin := sourceMarginBefore.Sub(sourcePosition.Margin)
-	payout, closeExecutionMargin, _ := destinationPosition.ApplyPositionDelta(
+	payout, closeExecutionMargin, _, _ := destinationPosition.ApplyPositionDelta(
 		&types.PositionDelta{
 			IsLong:            sourcePosition.IsLong,
 			ExecutionQuantity: action.Quantity,
 			ExecutionMargin:   executionMargin,
 			ExecutionPrice:    executionPrice,
 		},
-		sdk.ZeroDec(),
+		math.LegacyZeroDec(),
 	)
 	receiverTradingFee := markPrice.Mul(action.Quantity).Mul(market.TakerFeeRate)
 
@@ -354,6 +368,9 @@ func (k *Keeper) checkAndResolveReduceOnlyConflicts(
 	position *types.Position,
 	isReduceOnlyDirectionBuy bool,
 ) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
 	metadata := k.GetSubaccountOrderbookMetadata(ctx, marketID, subaccountID, isReduceOnlyDirectionBuy)
 
 	if metadata.ReduceOnlyLimitOrderCount == 0 {

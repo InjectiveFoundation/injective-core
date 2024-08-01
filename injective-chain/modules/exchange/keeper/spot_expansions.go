@@ -2,6 +2,8 @@ package keeper
 
 import (
 	"bytes"
+
+	"cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
@@ -24,22 +26,22 @@ type SpotBatchExecutionData struct {
 }
 
 type spotOrderStateExpansion struct {
-	BaseChangeAmount        sdk.Dec
-	BaseRefundAmount        sdk.Dec
-	QuoteChangeAmount       sdk.Dec
-	QuoteRefundAmount       sdk.Dec
-	TradePrice              sdk.Dec
+	BaseChangeAmount        math.LegacyDec
+	BaseRefundAmount        math.LegacyDec
+	QuoteChangeAmount       math.LegacyDec
+	QuoteRefundAmount       math.LegacyDec
+	TradePrice              math.LegacyDec
 	FeeRecipient            common.Address
-	FeeRecipientReward      sdk.Dec
-	AuctionFeeReward        sdk.Dec
-	TraderFeeReward         sdk.Dec
-	TradingRewardPoints     sdk.Dec
+	FeeRecipientReward      math.LegacyDec
+	AuctionFeeReward        math.LegacyDec
+	TraderFeeReward         math.LegacyDec
+	TradingRewardPoints     math.LegacyDec
 	LimitOrder              *types.SpotLimitOrder
-	LimitOrderFillQuantity  sdk.Dec
+	LimitOrderFillQuantity  math.LegacyDec
 	MarketOrder             *types.SpotMarketOrder
-	MarketOrderFillQuantity sdk.Dec
+	MarketOrderFillQuantity math.LegacyDec
 	OrderHash               common.Hash
-	OrderPrice              sdk.Dec
+	OrderPrice              math.LegacyDec
 	SubaccountID            common.Hash
 	TraderAddress           string
 	Cid                     string
@@ -90,8 +92,8 @@ func (k *Keeper) processRestingSpotLimitOrderExpansions(
 	marketID common.Hash,
 	fills *ordermatching.OrderbookFills,
 	isLimitBuy bool,
-	clearingPrice sdk.Dec,
-	makerFeeRate, relayerFeeShareRate sdk.Dec,
+	clearingPrice math.LegacyDec,
+	makerFeeRate, relayerFeeShareRate math.LegacyDec,
 	pointsMultiplier types.PointsMultiplier,
 	feeDiscountConfig *FeeDiscountConfig,
 ) []*spotOrderStateExpansion {
@@ -138,13 +140,13 @@ func (k *Keeper) getSpotLimitSellStateExpansion(
 	marketID common.Hash,
 	order *types.SpotLimitOrder,
 	isMaker bool,
-	fillQuantity, fillPrice, tradeFeeRate, relayerFeeShareRate sdk.Dec,
+	fillQuantity, fillPrice, tradeFeeRate, relayerFeeShareRate math.LegacyDec,
 	pointsMultiplier types.PointsMultiplier,
 	feeDiscountConfig *FeeDiscountConfig,
 ) *spotOrderStateExpansion {
 	orderNotional := fillQuantity.Mul(fillPrice)
 
-	var tradeRewardMultiplier sdk.Dec
+	var tradeRewardMultiplier math.LegacyDec
 	if isMaker {
 		tradeRewardMultiplier = pointsMultiplier.MakerPointsMultiplier
 	} else {
@@ -171,9 +173,9 @@ func (k *Keeper) getSpotLimitSellStateExpansion(
 	stateExpansion := spotOrderStateExpansion{
 		// limit sells are debited by fillQuantity in base denom
 		BaseChangeAmount:       fillQuantity.Neg(),
-		BaseRefundAmount:       sdk.ZeroDec(),
+		BaseRefundAmount:       math.LegacyZeroDec(),
 		QuoteChangeAmount:      quoteChangeAmount,
-		QuoteRefundAmount:      sdk.ZeroDec(),
+		QuoteRefundAmount:      math.LegacyZeroDec(),
 		TradePrice:             fillPrice,
 		FeeRecipient:           order.FeeRecipient(),
 		FeeRecipientReward:     feeData.feeRecipientReward,
@@ -196,11 +198,11 @@ func (k *Keeper) getRestingSpotLimitBuyStateExpansion(
 	marketID common.Hash,
 	order *types.SpotLimitOrder,
 	orderHash common.Hash,
-	fillQuantity, fillPrice, makerFeeRate, relayerFeeShareRate sdk.Dec,
+	fillQuantity, fillPrice, makerFeeRate, relayerFeeShareRate math.LegacyDec,
 	pointsMultiplier types.PointsMultiplier,
 	feeDiscountConfig *FeeDiscountConfig,
 ) *spotOrderStateExpansion {
-	var baseChangeAmount, quoteChangeAmount sdk.Dec
+	var baseChangeAmount, quoteChangeAmount math.LegacyDec
 
 	isMaker := true
 	feeData := k.getTradeDataAndIncrementVolumeContribution(
@@ -220,7 +222,7 @@ func (k *Keeper) getRestingSpotLimitBuyStateExpansion(
 
 	// limit buys are credited with the order fill quantity in base denom
 	baseChangeAmount = fillQuantity
-	quoteRefund := sdk.ZeroDec()
+	quoteRefund := math.LegacyZeroDec()
 
 	// limit buys are debited with (fillQuantity * Price) * (1 + makerFee) in quote denom
 	if feeData.totalTradeFee.IsNegative() {
@@ -230,7 +232,7 @@ func (k *Keeper) getRestingSpotLimitBuyStateExpansion(
 		quoteChangeAmount = orderNotional.Add(feeData.totalTradeFee).Neg()
 	}
 
-	positiveDiscountedFeeRatePart := sdk.MaxDec(sdk.ZeroDec(), feeData.discountedTradeFeeRate)
+	positiveDiscountedFeeRatePart := math.LegacyMaxDec(math.LegacyZeroDec(), feeData.discountedTradeFeeRate)
 
 	if !fillPrice.Equal(order.OrderInfo.Price) {
 		// nolint:all
@@ -250,7 +252,7 @@ func (k *Keeper) getRestingSpotLimitBuyStateExpansion(
 	}
 
 	if feeData.totalTradeFee.IsPositive() {
-		positiveMakerFeeRatePart := sdk.MaxDec(makerFeeRate, sdk.ZeroDec())
+		positiveMakerFeeRatePart := math.LegacyMaxDec(makerFeeRate, math.LegacyZeroDec())
 		makerFeeRateDelta := positiveMakerFeeRatePart.Sub(feeData.discountedTradeFeeRate)
 		matchedFeeDiscountRefund := fillQuantity.Mul(order.OrderInfo.Price).Mul(makerFeeRateDelta)
 		quoteRefund = quoteRefund.Add(matchedFeeDiscountRefund)
@@ -260,7 +262,7 @@ func (k *Keeper) getRestingSpotLimitBuyStateExpansion(
 
 	stateExpansion := spotOrderStateExpansion{
 		BaseChangeAmount:       baseChangeAmount,
-		BaseRefundAmount:       sdk.ZeroDec(),
+		BaseRefundAmount:       math.LegacyZeroDec(),
 		QuoteChangeAmount:      quoteChangeAmount,
 		QuoteRefundAmount:      quoteRefund,
 		TradePrice:             fillPrice,
@@ -286,11 +288,11 @@ func (k *Keeper) getTransientSpotLimitBuyStateExpansion(
 	order *types.SpotLimitOrder,
 	orderHash common.Hash,
 	clearingPrice, fillQuantity,
-	makerFeeRate, takerFeeRate, relayerFeeShareRate sdk.Dec,
+	makerFeeRate, takerFeeRate, relayerFeeShareRate math.LegacyDec,
 	pointsMultiplier types.PointsMultiplier,
 	feeDiscountConfig *FeeDiscountConfig,
 ) *spotOrderStateExpansion {
-	orderNotional, clearingChargeOrRefund, matchedFeeRefund := sdk.ZeroDec(), sdk.ZeroDec(), sdk.ZeroDec()
+	orderNotional, clearingChargeOrRefund, matchedFeeRefund := math.LegacyZeroDec(), math.LegacyZeroDec(), math.LegacyZeroDec()
 
 	isMaker := false
 	feeData := k.getTradeDataAndIncrementVolumeContribution(
@@ -320,7 +322,7 @@ func (k *Keeper) getTransientSpotLimitBuyStateExpansion(
 	// limit buys are debited with (fillQuantity * Price) * (1 + makerFee) in quote denom
 	quoteChangeAmount := orderNotional.Add(feeData.totalTradeFee).Neg()
 	// Unmatched Fee Refund = (Quantity - FillQuantity) * Price * (TakerFeeRate - MakerFeeRate)
-	positiveMakerFeePart := sdk.MaxDec(sdk.ZeroDec(), makerFeeRate)
+	positiveMakerFeePart := math.LegacyMaxDec(math.LegacyZeroDec(), makerFeeRate)
 
 	unfilledQuantity := order.OrderInfo.Quantity.Sub(fillQuantity)
 	unmatchedFeeRefund := unfilledQuantity.Mul(order.OrderInfo.Price).Mul(takerFeeRate.Sub(positiveMakerFeePart))
@@ -336,14 +338,14 @@ func (k *Keeper) getTransientSpotLimitBuyStateExpansion(
 
 	stateExpansion := spotOrderStateExpansion{
 		BaseChangeAmount:       baseChangeAmount,
-		BaseRefundAmount:       sdk.ZeroDec(),
+		BaseRefundAmount:       math.LegacyZeroDec(),
 		QuoteChangeAmount:      quoteChangeAmount,
 		QuoteRefundAmount:      quoteRefundAmount,
 		TradePrice:             clearingPrice,
 		FeeRecipient:           order.FeeRecipient(),
 		FeeRecipientReward:     feeData.feeRecipientReward,
 		AuctionFeeReward:       feeData.auctionFeeReward,
-		TraderFeeReward:        sdk.ZeroDec(),
+		TraderFeeReward:        math.LegacyZeroDec(),
 		TradingRewardPoints:    feeData.tradingRewardPoints,
 		LimitOrder:             order,
 		LimitOrderFillQuantity: fillQuantity,
@@ -390,7 +392,7 @@ func GetBatchExecutionEventsFromSpotLimitOrderStateExpansions(
 			FillQuantity: expansion.LimitOrderFillQuantity,
 		})
 
-		var realizedTradeFee sdk.Dec
+		var realizedTradeFee math.LegacyDec
 
 		isSelfRelayedTrade := expansion.FeeRecipient == types.SubaccountIDToEthAddress(expansion.SubaccountID)
 		if isSelfRelayedTrade {

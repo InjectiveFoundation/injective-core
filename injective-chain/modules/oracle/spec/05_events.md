@@ -10,7 +10,7 @@ The oracle module emits the following events:
 message SetBandPriceEvent {
   string relayer = 1;
   string symbol = 2;
-  string price = 3 [(gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Dec", (gogoproto.nullable) = false];
+  string price = 3 [(gogoproto.customtype) = "cosmossdk.io/math.LegacyDec", (gogoproto.nullable) = false];
   uint64 resolve_time = 4;
   uint64 request_id = 5;
 }
@@ -18,7 +18,7 @@ message SetBandPriceEvent {
 message SetBandIBCPriceEvent {
   string relayer = 1;
   repeated string symbols = 2;
-  repeated string prices = 3 [(gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Dec", (gogoproto.nullable) = false];
+  repeated string prices = 3 [(gogoproto.customtype) = "cosmossdk.io/math.LegacyDec", (gogoproto.nullable) = false];
   uint64 resolve_time = 4;
   uint64 request_id = 5;
   int64 client_id = 6;
@@ -43,7 +43,7 @@ message EventBandIBCResponseTimeout {
 ```protobuf
 message SetChainlinkPriceEvent {
   string feed_id = 1;
-  string answer = 2 [(gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Dec", (gogoproto.nullable) = false];
+  string answer = 2 [(gogoproto.customtype) = "cosmossdk.io/math.LegacyDec", (gogoproto.nullable) = false];
   uint64 timestamp = 3;
 }
 ```
@@ -53,7 +53,7 @@ message SetChainlinkPriceEvent {
 ```protobuf
 message SetCoinbasePriceEvent {
   string symbol = 1;
-  string price = 2 [(gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Dec", (gogoproto.nullable) = false];
+  string price = 2 [(gogoproto.customtype) = "cosmossdk.io/math.LegacyDec", (gogoproto.nullable) = false];
   uint64 timestamp = 3;
 }
 ```
@@ -64,7 +64,7 @@ message SetProviderPriceEvent {
   string provider = 1;
   string relayer = 2;
   string symbol = 3;
-  string price = 4 [(gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Dec", (gogoproto.nullable) = false];
+  string price = 4 [(gogoproto.customtype) = "cosmossdk.io/math.LegacyDec", (gogoproto.nullable) = false];
 }
 ```
 
@@ -77,7 +77,7 @@ message SetPriceFeedPriceEvent {
   string quote = 3;
 
   // price defines the price of the oracle base and quote
-  string price = 4 [(gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Dec", (gogoproto.nullable) = false];
+  string price = 4 [(gogoproto.customtype) = "cosmossdk.io/math.LegacyDec", (gogoproto.nullable) = false];
 }
 ```
 
@@ -85,5 +85,12 @@ message SetPriceFeedPriceEvent {
 ```protobuf
 message EventSetPythPrices {
   repeated PythPriceState prices = 1;
+}
+```
+
+## Stork
+```protobuf
+message EventSetStorkPrices {
+  repeated StorkPriceState prices = 1;
 }
 ```

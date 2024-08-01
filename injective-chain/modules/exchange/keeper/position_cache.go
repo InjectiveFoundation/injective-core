@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"sort"
 
+	"cosmossdk.io/store/prefix"
 	"github.com/InjectiveLabs/metrics"
-	"github.com/cosmos/cosmos-sdk/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
@@ -84,7 +84,8 @@ func (c ModifiedPositionCache) HasPositionBeenModified(marketID, subaccountID co
 }
 
 func (k *Keeper) AppendModifiedSubaccountsByMarket(ctx sdk.Context, marketID common.Hash, subaccountIDs []common.Hash) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	if len(subaccountIDs) == 0 {
 		return
@@ -120,7 +121,8 @@ func (k *Keeper) AppendModifiedSubaccountsByMarket(ctx sdk.Context, marketID com
 }
 
 func (k *Keeper) GetModifiedSubaccountsByMarket(ctx sdk.Context, marketID common.Hash) *types.SubaccountIDs {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getTransientStore(ctx)
 	modifiedPositionsStore := prefix.NewStore(store, types.DerivativePositionModifiedSubaccountPrefix)

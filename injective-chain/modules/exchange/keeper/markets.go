@@ -1,22 +1,25 @@
 package keeper
 
 import (
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	"cosmossdk.io/math"
+	"cosmossdk.io/store/prefix"
 	"github.com/InjectiveLabs/metrics"
-	"github.com/cosmos/cosmos-sdk/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
+
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 )
 
 type MarketI interface {
 	MarketID() common.Hash
 	GetMarketType() types.MarketType
-	GetMinPriceTickSize() sdk.Dec
-	GetMinQuantityTickSize() sdk.Dec
+	GetMinPriceTickSize() math.LegacyDec
+	GetMinQuantityTickSize() math.LegacyDec
+	GetMinNotional() math.LegacyDec
 	GetTicker() string
-	GetMakerFeeRate() sdk.Dec
-	GetTakerFeeRate() sdk.Dec
-	GetRelayerFeeShareRate() sdk.Dec
+	GetMakerFeeRate() math.LegacyDec
+	GetTakerFeeRate() math.LegacyDec
+	GetRelayerFeeShareRate() math.LegacyDec
 	GetQuoteDenom() string
 	StatusSupportsOrderCancellations() bool
 	GetMarketStatus() types.MarketStatus
@@ -25,14 +28,14 @@ type MarketI interface {
 type DerivativeMarketI interface {
 	MarketI
 	GetIsPerpetual() bool
-	GetInitialMarginRatio() sdk.Dec
+	GetInitialMarginRatio() math.LegacyDec
 	GetOracleScaleFactor() uint32
 }
 
 type MarketIDQuoteDenomMakerFee struct {
 	MarketID   common.Hash
 	QuoteDenom string
-	MakerFee   sdk.Dec
+	MakerFee   math.LegacyDec
 }
 
 // MarketFilter can be used to filter out markets from a list by returning false
@@ -80,9 +83,9 @@ func ChainMarketFilter(filters ...MarketFilter) MarketFilter {
 	}
 }
 
-func RemoveMarketsByIds(markets []MarketI, marketIdsToRemove []string) []MarketI {
+func RemoveMarketsByIDs(markets []MarketI, marketIDsToRemove []string) []MarketI {
 	marketIdMap := make(map[string]bool)
-	for _, id := range marketIdsToRemove {
+	for _, id := range marketIDsToRemove {
 		marketIdMap[id] = true
 	}
 
@@ -194,12 +197,12 @@ func (k *Keeper) GetDerivativeOrBinaryOptionsMarket(ctx sdk.Context, marketID co
 	return nil
 }
 
-func (k *Keeper) GetDerivativeOrBinaryOptionsMarketWithMarkPrice(ctx sdk.Context, marketID common.Hash, isEnabled bool) (DerivativeMarketI, sdk.Dec) {
+func (k *Keeper) GetDerivativeOrBinaryOptionsMarketWithMarkPrice(ctx sdk.Context, marketID common.Hash, isEnabled bool) (DerivativeMarketI, math.LegacyDec) {
 	derivativeMarket := k.GetDerivativeMarket(ctx, marketID, isEnabled)
 	if derivativeMarket != nil {
 		price, err := k.GetDerivativeMarketPrice(ctx, derivativeMarket.OracleBase, derivativeMarket.OracleQuote, derivativeMarket.OracleScaleFactor, derivativeMarket.OracleType)
 		if err != nil {
-			return nil, sdk.Dec{}
+			return nil, math.LegacyDec{}
 		}
 
 		return derivativeMarket, *price
@@ -213,10 +216,10 @@ func (k *Keeper) GetDerivativeOrBinaryOptionsMarketWithMarkPrice(ctx sdk.Context
 			return binaryOptionsMarket, *oraclePrice
 		}
 
-		return binaryOptionsMarket, sdk.Dec{}
+		return binaryOptionsMarket, math.LegacyDec{}
 	}
 
-	return nil, sdk.Dec{}
+	return nil, math.LegacyDec{}
 }
 
 func (k *Keeper) GetAllMarketIDsWithQuoteDenoms(ctx sdk.Context) []*MarketIDQuoteDenomMakerFee {
@@ -253,7 +256,7 @@ func (k *Keeper) GetAllMarketIDsWithQuoteDenoms(ctx sdk.Context) []*MarketIDQuot
 	return marketIDQuoteDenoms
 }
 
-func (k *Keeper) GetMarketAtomicExecutionFeeMultiplier(ctx sdk.Context, marketId common.Hash, marketType types.MarketType) sdk.Dec {
+func (k *Keeper) GetMarketAtomicExecutionFeeMultiplier(ctx sdk.Context, marketId common.Hash, marketType types.MarketType) math.LegacyDec {
 	metrics.ReportFuncCall(k.svcTags)
 	defer metrics.ReportFuncTiming(k.svcTags)()
 
@@ -271,7 +274,8 @@ func (k *Keeper) GetMarketAtomicExecutionFeeMultiplier(ctx sdk.Context, marketId
 }
 
 func (k *Keeper) GetAllMarketAtomicExecutionFeeMultipliers(ctx sdk.Context) []*types.MarketFeeMultiplier {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	takerFeeStore := prefix.NewStore(store, types.AtomicMarketOrderTakerFeeMultiplierKey)
@@ -291,7 +295,8 @@ func (k *Keeper) GetAllMarketAtomicExecutionFeeMultipliers(ctx sdk.Context) []*t
 }
 
 func (k *Keeper) SetAtomicMarketOrderFeeMultipliers(ctx sdk.Context, marketFeeMultipliers []*types.MarketFeeMultiplier) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	takerFeeStore := prefix.NewStore(store, types.AtomicMarketOrderTakerFeeMultiplierKey)

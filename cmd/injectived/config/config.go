@@ -3,19 +3,19 @@ package config
 import (
 	"fmt"
 
+	pruningtypes "cosmossdk.io/store/pruning/types"
 	sdkconfig "github.com/cosmos/cosmos-sdk/server/config"
-	pruningtypes "github.com/cosmos/cosmos-sdk/store/pruning/types"
 	"github.com/spf13/viper"
 )
 
 const (
-	defaultMinGasPrices = "500000000inj"
+	defaultMinGasPrices = "160000000inj"
+
+	// DefaultAPIAddress defines the default address to bind the API server to.
+	DefaultAPIAddress = "tcp://0.0.0.0:10337"
 
 	// DefaultGRPCAddress is the default address the gRPC server binds to.
 	DefaultGRPCAddress = "0.0.0.0:9900"
-
-	// DefaultGRPCWebAddress defines the default address to bind the gRPC-web server to.
-	DefaultGRPCWebAddress = "0.0.0.0:9091"
 )
 
 // DefaultConfig returns server's default configuration.
@@ -25,14 +25,14 @@ func DefaultConfig() *sdkconfig.Config {
 
 	defaultConfig.BaseConfig.MinGasPrices = defaultMinGasPrices
 	defaultConfig.BaseConfig.Pruning = pruningtypes.PruningOptionNothing
+	defaultConfig.IAVLDisableFastNode = true
 
 	defaultConfig.API.Enable = true
+	defaultConfig.API.EnableUnsafeCORS = true
 	defaultConfig.API.Swagger = true
-	defaultConfig.API.Address = "tcp://0.0.0.0:10337"
+	defaultConfig.API.Address = DefaultAPIAddress
 
 	defaultConfig.GRPC.Address = DefaultGRPCAddress
-
-	defaultConfig.GRPCWeb.Address = DefaultGRPCWebAddress
 
 	return defaultConfig
 }

@@ -9,7 +9,8 @@ import (
 )
 
 func (k *Keeper) HasSubaccountAlreadyPlacedMarketOrder(ctx sdk.Context, marketID, subaccountID common.Hash) bool {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	// use transient store key
 	store := k.getTransientStore(ctx)
@@ -20,7 +21,8 @@ func (k *Keeper) HasSubaccountAlreadyPlacedMarketOrder(ctx sdk.Context, marketID
 }
 
 func (k *Keeper) HasSubaccountAlreadyPlacedLimitOrder(ctx sdk.Context, marketID, subaccountID common.Hash) bool {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	// use transient store key
 	store := k.getTransientStore(ctx)
@@ -31,7 +33,8 @@ func (k *Keeper) HasSubaccountAlreadyPlacedLimitOrder(ctx sdk.Context, marketID,
 }
 
 func (k *Keeper) SetTransientSubaccountMarketOrderIndicator(ctx sdk.Context, marketID, subaccountID common.Hash) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	// use transient store key
 	store := k.getTransientStore(ctx)
@@ -41,7 +44,8 @@ func (k *Keeper) SetTransientSubaccountMarketOrderIndicator(ctx sdk.Context, mar
 }
 
 func (k *Keeper) SetTransientSubaccountLimitOrderIndicator(ctx sdk.Context, marketID, subaccountID common.Hash) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	// use transient store key
 	store := k.getTransientStore(ctx)

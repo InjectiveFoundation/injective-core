@@ -1,7 +1,7 @@
 package keeper
 
 import (
-	"github.com/cosmos/cosmos-sdk/store/prefix"
+	"cosmossdk.io/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
@@ -9,7 +9,8 @@ import (
 )
 
 func (k *Keeper) HasFeeRewardTransientActiveAccountIndicator(ctx sdk.Context, account sdk.AccAddress) bool {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	// use transient store key
 	tStore := k.getTransientStore(ctx)
@@ -19,7 +20,8 @@ func (k *Keeper) HasFeeRewardTransientActiveAccountIndicator(ctx sdk.Context, ac
 }
 
 func (k *Keeper) setFeeRewardTransientActiveAccountIndicator(ctx sdk.Context, account sdk.AccAddress) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	// use transient store key
 	tStore := k.getTransientStore(ctx)
@@ -33,7 +35,8 @@ func (k *Keeper) setFeeRewardTransientActiveAccountIndicator(ctx sdk.Context, ac
 func (k *Keeper) GetAllAccountsActivelyTradingQualifiedMarketsInBlockForFeeDiscounts(
 	ctx sdk.Context,
 ) []sdk.AccAddress {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	tStore := k.getTransientStore(ctx)
 	accountStore := prefix.NewStore(tStore, types.FeeDiscountAccountOrderIndicatorPrefix)

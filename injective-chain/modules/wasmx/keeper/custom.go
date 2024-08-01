@@ -18,6 +18,9 @@ func (k Keeper) InjectiveExec(
 	funds sdk.Coins,
 	msg *types.InjectiveExecMsg,
 ) ([]byte, error) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
 	execBz, err := json.Marshal(msg)
 	if err != nil {
 		metrics.ReportFuncError(k.svcTags)
@@ -45,6 +48,8 @@ func (k *Keeper) PinContract(
 	ctx sdk.Context,
 	contractAddress sdk.AccAddress,
 ) (err error) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	contractInfo := k.wasmViewKeeper.GetContractInfo(ctx, contractAddress)
 	err = k.wasmContractOpsKeeper.PinCode(ctx, contractInfo.CodeID)
@@ -64,6 +69,9 @@ func (k *Keeper) UnpinContract(
 	ctx sdk.Context,
 	contractAddress sdk.AccAddress,
 ) (err error) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
 	contractInfo := k.wasmViewKeeper.GetContractInfo(ctx, contractAddress)
 	if contractInfo == nil {
 		return errors.Wrapf(

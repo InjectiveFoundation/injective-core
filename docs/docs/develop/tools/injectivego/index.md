@@ -4,7 +4,7 @@ title: Injective Go Overview
 
 # Injective Go
 
-`sdk-go` is a library toolkit used for developing software that interacts with the Injective blockchain. Learn more at the GitHub Repo linked below.
+`sdk-go` is a Go Client SDK for the Injective blockchain. Learn more in the GitHub Repo linked below.
 
 ---
 

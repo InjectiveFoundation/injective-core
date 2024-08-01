@@ -15,7 +15,8 @@ var _ types.QueryServer = &Keeper{}
 
 // InsuranceParams is grpc implementation to return module params
 func (k *Keeper) InsuranceParams(c context.Context, _ *types.QueryInsuranceParamsRequest) (*types.QueryInsuranceParamsResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 
@@ -30,7 +31,8 @@ func (k *Keeper) InsuranceParams(c context.Context, _ *types.QueryInsuranceParam
 
 // InsuranceFund is grpc implementation to return the insurance fund for a given derivative market
 func (k *Keeper) InsuranceFund(c context.Context, request *types.QueryInsuranceFundRequest) (*types.QueryInsuranceFundResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 	fund := k.GetInsuranceFund(ctx, common.HexToHash(request.MarketId))
@@ -44,7 +46,8 @@ func (k *Keeper) InsuranceFund(c context.Context, request *types.QueryInsuranceF
 
 // InsuranceFunds is grpc implementation to return all the insurance funds
 func (k *Keeper) InsuranceFunds(c context.Context, request *types.QueryInsuranceFundsRequest) (*types.QueryInsuranceFundsResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 	funds := k.GetAllInsuranceFunds(ctx)
@@ -58,7 +61,8 @@ func (k *Keeper) InsuranceFunds(c context.Context, request *types.QueryInsurance
 
 // EstimatedRedemptions is grpc implementation to return estimated redemptions from user owned shared tokens
 func (k *Keeper) EstimatedRedemptions(c context.Context, request *types.QueryEstimatedRedemptionsRequest) (*types.QueryEstimatedRedemptionsResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 	address, err := sdk.AccAddressFromBech32(request.Address)
@@ -76,7 +80,8 @@ func (k *Keeper) EstimatedRedemptions(c context.Context, request *types.QueryEst
 
 // PendingRedemptions is grpc implementation to return estimated pending redemption at the time of claim
 func (k *Keeper) PendingRedemptions(c context.Context, request *types.QueryPendingRedemptionsRequest) (*types.QueryPendingRedemptionsResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 	address, err := sdk.AccAddressFromBech32(request.Address)
@@ -93,7 +98,8 @@ func (k *Keeper) PendingRedemptions(c context.Context, request *types.QueryPendi
 }
 
 func (k *Keeper) InsuranceModuleState(c context.Context, req *types.QueryModuleStateRequest) (*types.QueryModuleStateResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 

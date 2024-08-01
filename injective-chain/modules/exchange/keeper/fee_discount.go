@@ -1,7 +1,7 @@
 package keeper
 
 import (
-	sdkmath "cosmossdk.io/math"
+	"cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	stakingTypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -15,7 +15,8 @@ func (k *Keeper) PersistFeeDiscountStakingInfoUpdates(
 	ctx sdk.Context,
 	stakingInfo *FeeDiscountStakingInfo,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	if stakingInfo == nil {
 		return
@@ -43,28 +44,52 @@ func (k *Keeper) PersistFeeDiscountStakingInfoUpdates(
 		contribution := marketVolumeContributions[idx]
 		k.IncrementMarketAggregateVolume(ctx, contribution.MarketID, contribution.Volume)
 	}
+
+	granters, invalidGrants := stakingInfo.getSortedGrantCheckpointGrantersAndInvalidGrants()
+	currTime := ctx.BlockTime().Unix()
+
+	for _, granter := range granters {
+		k.setLastValidGrantDelegationCheckTime(ctx, granter, currTime)
+	}
+
+	for _, invalidGrant := range invalidGrants {
+		// nolint:errcheck //ignored on purpose
+		ctx.EventManager().EmitTypedEvent(invalidGrant)
+	}
 }
 
 func (k *Keeper) FetchAndUpdateDiscountedTradingFeeRate(
 	ctx sdk.Context,
-	tradingFeeRate sdk.Dec,
+	tradingFeeRate math.LegacyDec,
 	isMakerFee bool,
 	account sdk.AccAddress,
 	config *FeeDiscountConfig,
-) sdk.Dec {
+) math.LegacyDec {
 	// fee discounts not supported for negative fees
-	if !config.IsMarketQualified || tradingFeeRate.IsNegative() {
+	if tradingFeeRate.IsNegative() {
 		return tradingFeeRate
 	}
 
 	feeDiscountRate := config.getFeeDiscountRate(account, isMakerFee)
 
 	if feeDiscountRate == nil {
-		feeDiscountRates, tierLevel, isTTLExpired := k.GetAccountFeeDiscountRates(ctx, account, config)
+		if config.Schedule == nil {
+			return tradingFeeRate
+		}
+		feeDiscountRates, tierLevel, isTTLExpired, effectiveGrant := k.GetAccountFeeDiscountRates(ctx, account, config)
 		config.setAccountTierInfo(account, feeDiscountRates)
 
 		if isTTLExpired {
 			config.setNewAccountTierTTL(account, tierLevel)
+
+			if effectiveGrant != nil {
+				// only update the last valid grant delegation check time if the grant is valid
+				if effectiveGrant.IsValid {
+					config.addCheckpoint(effectiveGrant.Granter)
+				} else {
+					config.addInvalidGrant(account.String(), effectiveGrant.Granter)
+				}
+			}
 		}
 
 		if isMakerFee {
@@ -74,7 +99,7 @@ func (k *Keeper) FetchAndUpdateDiscountedTradingFeeRate(
 		}
 	}
 
-	return sdk.OneDec().Sub(*feeDiscountRate).Mul(tradingFeeRate)
+	return math.LegacyOneDec().Sub(*feeDiscountRate).Mul(tradingFeeRate)
 }
 
 func (k *Keeper) getFeeDiscountConfigAndStakingInfoForMarket(ctx sdk.Context, marketID common.Hash) (*FeeDiscountStakingInfo, *FeeDiscountConfig) {
@@ -105,14 +130,16 @@ func (k *Keeper) getFeeDiscountConfigForMarket(
 	marketID common.Hash,
 	stakingInfo *FeeDiscountStakingInfo,
 ) *FeeDiscountConfig {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	isQualifiedForFeeDiscounts := k.IsMarketQualifiedForFeeDiscount(ctx, marketID)
 	return NewFeeDiscountConfig(isQualifiedForFeeDiscounts, stakingInfo)
 }
 
 func (k *Keeper) InitialFetchAndUpdateActiveAccountFeeDiscountStakingInfo(ctx sdk.Context) *FeeDiscountStakingInfo {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	accounts := k.GetAllAccountsActivelyTradingQualifiedMarketsInBlockForFeeDiscounts(ctx)
 	schedule := k.GetFeeDiscountSchedule(ctx)
@@ -149,13 +176,18 @@ func (k *Keeper) GetAccountFeeDiscountRates(
 	ctx sdk.Context,
 	account sdk.AccAddress,
 	config *FeeDiscountConfig,
-) (feeDiscountRates *types.FeeDiscountRates, tierLevel uint64, isTTLExpired bool) {
+) (
+	feeDiscountRates *types.FeeDiscountRates,
+	tierLevel uint64,
+	isTTLExpired bool,
+	effectiveGrant *types.EffectiveGrant,
+) {
 	tierTTL := k.GetFeeDiscountAccountTierInfo(ctx, account)
 	isTTLExpired = tierTTL == nil || tierTTL.TtlTimestamp < config.MaxTTLTimestamp
 
 	if !isTTLExpired {
 		feeDiscountRates = config.FeeDiscountRatesCache[tierTTL.Tier]
-		return feeDiscountRates, tierTTL.Tier, isTTLExpired
+		return feeDiscountRates, tierTTL.Tier, isTTLExpired, k.getEffectiveGrant(ctx, account)
 	}
 
 	_, tierOneVolume := config.Schedule.TierOneRequirements()
@@ -170,15 +202,18 @@ func (k *Keeper) GetAccountFeeDiscountRates(
 	}
 
 	hasTierZeroTradingVolume := tradingVolume.LT(tierOneVolume)
-	stakedAmount := sdk.ZeroInt()
+	effectiveStakedAmount := math.ZeroInt()
 
+	effectiveGrant = k.GetValidatedEffectiveGrant(ctx, account)
+	
 	// no need to calculate staked amount if volume is less than tier one volume
 	if !hasTierZeroTradingVolume {
-		stakedAmount = k.CalculateStakedAmountWithCache(ctx, account, config)
+		personalStake := k.CalculateStakedAmountWithCache(ctx, account, config)
+		effectiveStakedAmount = personalStake.Add(effectiveGrant.NetGrantedStake)
 	}
 
-	feeDiscountRates, tierLevel = config.Schedule.CalculateFeeDiscountTier(stakedAmount, tradingVolume)
-	return feeDiscountRates, tierLevel, isTTLExpired
+	feeDiscountRates, tierLevel = config.Schedule.CalculateFeeDiscountTier(effectiveStakedAmount, tradingVolume)
+	return feeDiscountRates, tierLevel, isTTLExpired, effectiveGrant
 }
 
 func (k *Keeper) setAccountFeeDiscountTier(
@@ -186,29 +221,46 @@ func (k *Keeper) setAccountFeeDiscountTier(
 	account sdk.AccAddress,
 	config *FeeDiscountConfig,
 ) {
-	feeDiscountRates, tierLevel, isTTLExpired := k.GetAccountFeeDiscountRates(ctx, account, config)
+	feeDiscountRates, tierLevel, isTTLExpired, effectiveGrant := k.GetAccountFeeDiscountRates(ctx, account, config)
 	config.setAccountTierInfo(account, feeDiscountRates)
 
 	if isTTLExpired {
 		k.SetFeeDiscountAccountTierInfo(ctx, account, types.NewFeeDiscountTierTTL(tierLevel, config.NextTTLTimestamp))
+
+		if effectiveGrant != nil {
+			// only update the last valid grant delegation check time if the grant is valid
+			if effectiveGrant.IsValid {
+				k.setLastValidGrantDelegationCheckTime(ctx, effectiveGrant.Granter, ctx.BlockTime().Unix())
+			} else {
+				// nolint:errcheck //ignored on purpose
+				ctx.EventManager().EmitTypedEvent(&types.EventInvalidGrant{
+					Grantee: account.String(),
+					Granter: effectiveGrant.Granter,
+				})
+			}
+		}
 	}
 }
 
 func (k *Keeper) CalculateStakedAmountWithoutCache(
 	ctx sdk.Context,
-	trader sdk.AccAddress,
+	staker sdk.AccAddress,
 	maxDelegations uint16,
-) sdkmath.Int {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+) math.Int {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
-	delegations := k.StakingKeeper.GetDelegatorDelegations(ctx, trader, maxDelegations)
-	totalStaked := sdk.ZeroInt()
+	delegations, _ := k.StakingKeeper.GetDelegatorDelegations(ctx, staker, maxDelegations)
+	totalStaked := math.ZeroInt()
 
 	for _, delegation := range delegations {
-		validatorAddr := delegation.GetValidatorAddr()
+		validatorAddr, err := sdk.ValAddressFromBech32(delegation.GetValidatorAddr())
+		if err != nil {
+			continue
+		}
 
-		validator := k.StakingKeeper.Validator(ctx, validatorAddr)
-		if validator == nil {
+		validator, err := k.StakingKeeper.Validator(ctx, validatorAddr)
+		if validator == nil || err != nil {
 			// extra precaution, should never happen
 			continue
 		}
@@ -224,18 +276,19 @@ func (k *Keeper) CalculateStakedAmountWithCache(
 	ctx sdk.Context,
 	trader sdk.AccAddress,
 	feeDiscountConfig *FeeDiscountConfig,
-) sdkmath.Int {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+) math.Int {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	maxDelegations := uint16(10)
-	delegations := k.StakingKeeper.GetDelegatorDelegations(ctx, trader, maxDelegations)
+	delegations, _ := k.StakingKeeper.GetDelegatorDelegations(ctx, trader, maxDelegations)
 
-	totalStaked := sdk.ZeroInt()
+	totalStaked := math.ZeroInt()
 	for _, delegation := range delegations {
 		validatorAddr := delegation.GetValidatorAddr()
 
 		feeDiscountConfig.ValidatorsMux.RLock()
-		cachedValidator, ok := feeDiscountConfig.Validators[validatorAddr.String()]
+		cachedValidator, ok := feeDiscountConfig.Validators[validatorAddr]
 		feeDiscountConfig.ValidatorsMux.RUnlock()
 
 		if !ok {
@@ -256,16 +309,18 @@ func (k *Keeper) CalculateStakedAmountWithCache(
 
 func (k *Keeper) fetchValidatorAndUpdateCache(
 	ctx sdk.Context,
-	validatorAddr sdk.ValAddress,
+	validatorAddr string,
 	feeDiscountConfig *FeeDiscountConfig,
 ) stakingTypes.ValidatorI {
-	validator := k.StakingKeeper.Validator(ctx, validatorAddr)
-	if validator == nil {
+	validatorAddress, _ := sdk.ValAddressFromBech32(validatorAddr)
+
+	validator, err := k.StakingKeeper.Validator(ctx, validatorAddress)
+	if validator == nil || err != nil {
 		return nil
 	}
 
 	feeDiscountConfig.ValidatorsMux.Lock()
-	feeDiscountConfig.Validators[validatorAddr.String()] = validator
+	feeDiscountConfig.Validators[validatorAddr] = validator
 	feeDiscountConfig.ValidatorsMux.Unlock()
 
 	return validator

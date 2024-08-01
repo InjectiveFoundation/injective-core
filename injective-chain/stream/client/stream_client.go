@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"google.golang.org/grpc/keepalive"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -11,8 +13,18 @@ import (
 	"github.com/InjectiveLabs/injective-core/injective-chain/stream/types"
 )
 
+var kacp = keepalive.ClientParameters{
+	Time:                30 * time.Second, // send pings every 30 seconds if there is no activity
+	Timeout:             5 * time.Second,  // wait 5 second for ping ack before considering the connection dead
+	PermitWithoutStream: false,            // do not send pings without active streams
+}
+
 func main() {
-	cc, err := grpc.Dial("localhost:9999", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	cc, err := grpc.Dial(
+		"localhost:9999",
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithKeepaliveParams(kacp),
+	)
 	// nolint:staticcheck //ignored on purpose
 	defer cc.Close()
 	if err != nil {

@@ -7,7 +7,7 @@ title: Accounts
 
 :::note
 
-This document describes the in-built accounts system of Injective. 
+This document describes the built-in accounts system of Injective. 
 :::
 
 :::info Pre-requisite Readings
@@ -45,7 +45,7 @@ There are 3 main types of `Addresses`/`PubKeys` available by default on Injectiv
 `EthAccount`s can be represented in both [Bech32](https://en.bitcoin.it/wiki/Bech32) and hex format for Ethereum's Web3 tooling compatibility.
 
 The Bech32 format is the default format for Cosmos-SDK queries and transactions through CLI and REST
-clients. The hex format on the other hand, is the Ethereum `common.Address` representation of a
+clients. The hex format is the Ethereum `common.Address` representation of a
 Cosmos `sdk.AccAddress`.
 
 - Address (Bech32): `inj14au322k9munkmx5wrchz9q30juf5wjgz2cfqku`
@@ -80,7 +80,7 @@ The Cosmos SDK Keyring output (i.e `injectived keys`) only supports addresses in
 
 ## Deriving Injective Account from a private key/mnemonic
 
-Let's see an example code snippet on how to derive Injective Account from a private key and/or a mnemonic phase:
+Below is an example on how to derive an Injective Account from a private key and/or a mnemonic phase:
 ```js
 import { Wallet } from 'ethers'
 import { Address as EthereumUtilsAddress } from 'ethereumjs-util'
@@ -97,7 +97,7 @@ const addressBuffer = EthereumUtilsAddress.fromString(ethereumAddress.toString()
 const injectiveAddress = bech32.encode(defaultBech32Prefix, bech32.toWords(addressBuffer))
 ```
 
-Let's see an example code snipped on how to derive a public key from a private key:
+Below is an example on how to derive a public key from a private key:
 ```js
 import secp256k1 from 'secp256k1'
 

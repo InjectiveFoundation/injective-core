@@ -1,7 +1,7 @@
 package keeper
 
 import (
-	"github.com/cosmos/cosmos-sdk/store/prefix"
+	"cosmossdk.io/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/InjectiveLabs/metrics"
@@ -14,7 +14,8 @@ func (k *Keeper) GetFeeDiscountAccountTierInfo(
 	ctx sdk.Context,
 	account sdk.AccAddress,
 ) *types.FeeDiscountTierTTL {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	bz := store.Get(types.GetFeeDiscountAccountTierKey(account))
@@ -32,7 +33,8 @@ func (k *Keeper) DeleteFeeDiscountAccountTierInfo(
 	ctx sdk.Context,
 	account sdk.AccAddress,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	store.Delete(types.GetFeeDiscountAccountTierKey(account))
@@ -44,7 +46,8 @@ func (k *Keeper) SetFeeDiscountAccountTierInfo(
 	account sdk.AccAddress,
 	tierTTL *types.FeeDiscountTierTTL,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 
@@ -55,7 +58,8 @@ func (k *Keeper) SetFeeDiscountAccountTierInfo(
 
 // DeleteAllFeeDiscountAccountTierInfo deletes all accounts' fee discount Tier and TTL info.
 func (k *Keeper) DeleteAllFeeDiscountAccountTierInfo(ctx sdk.Context) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	allAccountTiers := k.GetAllFeeDiscountAccountTierInfo(ctx)
 	for _, accountTier := range allAccountTiers {
@@ -66,7 +70,8 @@ func (k *Keeper) DeleteAllFeeDiscountAccountTierInfo(ctx sdk.Context) {
 
 // GetAllFeeDiscountAccountTierInfo gets all accounts' fee discount Tier and TTL info
 func (k *Keeper) GetAllFeeDiscountAccountTierInfo(ctx sdk.Context) []*types.FeeDiscountAccountTierTTL {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	accountTierTTL := make([]*types.FeeDiscountAccountTierTTL, 0)
 
@@ -87,7 +92,8 @@ func (k *Keeper) iterateFeeDiscountAccountTierInfo(
 	ctx sdk.Context,
 	process func(account sdk.AccAddress, tierInfo *types.FeeDiscountTierTTL) (stop bool),
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 

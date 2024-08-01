@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"sort"
 
-	"github.com/cosmos/cosmos-sdk/store/prefix"
+	"cosmossdk.io/store/prefix"
+	storetypes "cosmossdk.io/store/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 	"github.com/InjectiveLabs/metrics"
+
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 )
 
 // SetTransientPosition sets a subaccount's position in the transient store for a given denom.
@@ -18,7 +20,8 @@ func (k *Keeper) SetTransientPosition(
 	marketID, subaccountID common.Hash,
 	position *types.Position,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getTransientStore(ctx)
 	positionStore := prefix.NewStore(store, types.DerivativePositionsPrefix)
@@ -32,11 +35,12 @@ func (k *Keeper) SetTransientPosition(
 func (k *Keeper) EmitAllTransientPositionUpdates(
 	ctx sdk.Context,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getTransientStore(ctx)
 
-	iterator := sdk.KVStorePrefixIterator(store, types.DerivativePositionsPrefix)
+	iterator := storetypes.KVStorePrefixIterator(store, types.DerivativePositionsPrefix)
 	defer iterator.Close()
 
 	// marketID => subaccountID => position

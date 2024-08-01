@@ -7,8 +7,9 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
 
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/types"
 	"github.com/InjectiveLabs/metrics"
+
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/types"
 )
 
 var _ types.MsgServer = MsgServer{}
@@ -20,6 +21,7 @@ type MsgServer struct {
 	CoinbaseMsgServer
 	ProviderMsgServer
 	PythMsgServer
+	StorkMsgServer
 
 	Keeper
 	svcTags metrics.Tags
@@ -35,6 +37,7 @@ func NewMsgServerImpl(keeper Keeper) types.MsgServer {
 		CoinbaseMsgServer:  NewCoinbaseMsgServerImpl(keeper),
 		ProviderMsgServer:  NewProviderMsgServerImpl(keeper),
 		PythMsgServer:      NewPythMsgServerImpl(keeper),
+		StorkMsgServer:     NewStorkMsgServerImpl(keeper),
 		Keeper:             keeper,
 		svcTags: metrics.Tags{
 			"svc": "oracle_h",
@@ -43,7 +46,8 @@ func NewMsgServerImpl(keeper Keeper) types.MsgServer {
 }
 
 func (m MsgServer) UpdateParams(c context.Context, msg *types.MsgUpdateParams) (*types.MsgUpdateParamsResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(m.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, m.svcTags)
+	defer doneFn()
 
 	if msg.Authority != m.authority {
 		return nil, errors.Wrapf(govtypes.ErrInvalidSigner, "invalid authority: expected %s, got %s", m.authority, msg.Authority)

@@ -1,15 +1,17 @@
 package v2
 
 import (
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/exported"
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	storetypes "cosmossdk.io/store/types"
 	"github.com/cosmos/cosmos-sdk/codec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/exported"
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 )
 
 func Migrate(
 	ctx sdk.Context,
-	store sdk.KVStore,
+	store storetypes.KVStore,
 	legacySubspace exported.Subspace,
 	cdc codec.BinaryCodec,
 ) error {

@@ -5,6 +5,7 @@ import (
 	"sort"
 	"sync"
 
+	"cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -29,8 +30,8 @@ type FeeDiscountConfig struct {
 	*FeeDiscountStakingInfo
 }
 
-func (c *FeeDiscountConfig) getFeeDiscountRate(account sdk.AccAddress, isMaker bool) *sdk.Dec {
-	if c == nil || !c.IsMarketQualified {
+func (c *FeeDiscountConfig) getFeeDiscountRate(account sdk.AccAddress, isMaker bool) *math.LegacyDec {
+	if c == nil {
 		return nil
 	}
 
@@ -52,7 +53,7 @@ func (c *FeeDiscountConfig) getFeeDiscountRate(account sdk.AccAddress, isMaker b
 func (c *FeeDiscountConfig) incrementAccountVolumeContribution(
 	subaccountID common.Hash,
 	marketID common.Hash,
-	amount sdk.Dec,
+	amount math.LegacyDec,
 	isMaker bool,
 ) {
 	// defensive programming: should never happen
@@ -99,14 +100,17 @@ func NewFeeDiscountStakingInfo(
 ) *FeeDiscountStakingInfo {
 	return &FeeDiscountStakingInfo{
 		SubaccountMarketVolumeContributions: make(map[common.Hash]map[common.Hash]types.VolumeRecord),
-		AccountVolumeContributions:          make(map[types.Account]sdk.Dec),
+		AccountVolumeContributions:          make(map[types.Account]math.LegacyDec),
 		AccountFeeTiers:                     make(map[types.Account]*types.FeeDiscountRates),
 		Validators:                          make(ValidatorCache),
 		NewAccounts:                         make(map[types.Account]*types.FeeDiscountTierTTL),
+		GrantCheckpoints:                    make(map[string]struct{}),
+		InvalidGrants:                       make(map[string]string),
 		AccountFeeTiersMux:                  new(sync.RWMutex),
 		AccountVolumesMux:                   new(sync.RWMutex),
 		ValidatorsMux:                       new(sync.RWMutex),
 		NewAccountsMux:                      new(sync.RWMutex),
+		GrantsMux:                           new(sync.RWMutex),
 		Schedule:                            schedule,
 		CurrBucketStartTimestamp:            currBucketStartTimestamp,
 		OldestBucketStartTimestamp:          oldestBucketStartTimestamp,
@@ -120,14 +124,18 @@ func NewFeeDiscountStakingInfo(
 type FeeDiscountStakingInfo struct {
 	// subaccountID => marketID => volume
 	SubaccountMarketVolumeContributions map[common.Hash]map[common.Hash]types.VolumeRecord
-	AccountVolumeContributions          map[types.Account]sdk.Dec
+	AccountVolumeContributions          map[types.Account]math.LegacyDec
 	AccountFeeTiers                     map[types.Account]*types.FeeDiscountRates
 	Validators                          ValidatorCache
 	NewAccounts                         map[types.Account]*types.FeeDiscountTierTTL
-	AccountFeeTiersMux                  *sync.RWMutex
-	AccountVolumesMux                   *sync.RWMutex
-	ValidatorsMux                       *sync.RWMutex
-	NewAccountsMux                      *sync.RWMutex
+	GrantCheckpoints                    map[string]struct{}
+	InvalidGrants                       map[string]string // grantee => granter
+
+	AccountFeeTiersMux *sync.RWMutex
+	AccountVolumesMux  *sync.RWMutex
+	ValidatorsMux      *sync.RWMutex
+	NewAccountsMux     *sync.RWMutex
+	GrantsMux          *sync.RWMutex
 
 	Schedule                   *types.FeeDiscountSchedule
 	CurrBucketStartTimestamp   int64
@@ -145,7 +153,7 @@ type AccountTierTTL struct {
 
 type AccountContribution struct {
 	Account sdk.AccAddress
-	Amount  sdk.Dec
+	Amount  math.LegacyDec
 }
 
 type SubaccountVolumeContribution struct {
@@ -239,6 +247,37 @@ func (info *FeeDiscountStakingInfo) getSortedSubaccountAndMarketVolumes() (
 	return subaccountVolumes, marketVolumes
 }
 
+func (info *FeeDiscountStakingInfo) getSortedGrantCheckpointGrantersAndInvalidGrants() (
+	granters []string,
+	invalidGrants []*types.EventInvalidGrant,
+) {
+	info.GrantsMux.RLock()
+	defer info.GrantsMux.RUnlock()
+
+	granters = make([]string, 0, len(info.GrantCheckpoints))
+	invalidGrants = make([]*types.EventInvalidGrant, 0, len(info.InvalidGrants))
+
+	for k := range info.GrantCheckpoints {
+		granters = append(granters, k)
+	}
+
+	sort.SliceStable(granters, func(i, j int) bool {
+		return granters[i] < granters[j]
+	})
+
+	for k, v := range info.InvalidGrants {
+		invalidGrants = append(invalidGrants, &types.EventInvalidGrant{
+			Grantee: k,
+			Granter: v,
+		})
+	}
+
+	sort.SliceStable(invalidGrants, func(i, j int) bool {
+		return invalidGrants[i].Grantee < invalidGrants[j].Grantee
+	})
+	return granters, invalidGrants
+}
+
 func (info *FeeDiscountStakingInfo) setAccountTierInfo(accAddress sdk.AccAddress, discountRates *types.FeeDiscountRates) {
 	info.AccountFeeTiersMux.Lock()
 	info.AccountFeeTiers[types.SdkAccAddressToAccount(accAddress)] = discountRates
@@ -256,4 +295,16 @@ func (info *FeeDiscountStakingInfo) setNewAccountTierTTL(accAddress sdk.AccAddre
 
 func (info *FeeDiscountStakingInfo) getIsPastTradingFeesCheckRequired() bool {
 	return info.IsFirstFeeCycleFinished
+}
+
+func (info *FeeDiscountStakingInfo) addCheckpoint(granter string) {
+	info.GrantsMux.Lock()
+	info.GrantCheckpoints[granter] = struct{}{}
+	info.GrantsMux.Unlock()
+}
+
+func (info *FeeDiscountStakingInfo) addInvalidGrant(grantee, granter string) {
+	info.GrantsMux.Lock()
+	info.InvalidGrants[grantee] = granter
+	info.GrantsMux.Unlock()
 }

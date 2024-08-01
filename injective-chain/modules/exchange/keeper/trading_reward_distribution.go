@@ -1,7 +1,7 @@
 package keeper
 
 import (
-	sdkmath "cosmossdk.io/math"
+	"cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/InjectiveLabs/metrics"
@@ -12,12 +12,15 @@ import (
 
 func (k *Keeper) distributeTradingRewardsForAccount(
 	ctx sdk.Context,
-	availableRewardsToPayout map[string]sdkmath.Int,
+	availableRewardsToPayout map[string]math.Int,
 	maxCampaignRewards sdk.Coins,
 	accountPoints *types.TradingRewardAccountPoints,
-	totalPoints sdk.Dec,
+	totalPoints math.LegacyDec,
 	pendingPoolStartTimestamp int64,
 ) sdk.Coins {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
 	accountRewards := sdk.NewCoins()
 	injRewardStakedRequirementThreshold := k.GetInjRewardStakedRequirementThreshold(ctx)
 
@@ -28,7 +31,7 @@ func (k *Keeper) distributeTradingRewardsForAccount(
 			continue
 		}
 
-		accountRewardAmount := accountPoints.Points.Mul(availableRewardForDenom.ToDec()).Quo(totalPoints).TruncateInt()
+		accountRewardAmount := accountPoints.Points.Mul(availableRewardForDenom.ToLegacyDec()).Quo(totalPoints).TruncateInt()
 
 		if coin.Denom == chaintypes.InjectiveCoin && accountRewardAmount.GT(injRewardStakedRequirementThreshold) {
 			maxDelegations := uint16(10)
@@ -36,7 +39,7 @@ func (k *Keeper) distributeTradingRewardsForAccount(
 			minRewardAboveThreshold := injRewardStakedRequirementThreshold
 
 			// at least X amount of INJ (e.g. 100 INJ), but otherwise not more than the staked amount
-			accountRewardAmount = sdk.MaxInt(minRewardAboveThreshold, sdk.MinInt(accountRewardAmount, stakedINJ))
+			accountRewardAmount = math.MaxInt(minRewardAboveThreshold, math.MinInt(accountRewardAmount, stakedINJ))
 		}
 
 		accountRewards = accountRewards.Add(sdk.NewCoin(coin.Denom, accountRewardAmount))
@@ -49,10 +52,13 @@ func (k *Keeper) distributeTradingRewardsForAccount(
 
 func (k *Keeper) distributeTradingRewardsForAllAccounts(
 	ctx sdk.Context,
-	availableRewardsToPayout map[string]sdkmath.Int,
+	availableRewardsToPayout map[string]math.Int,
 	maxCampaignRewards sdk.Coins,
 	pendingPoolStartTimestamp int64,
 ) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
 	allAccountPoints, totalPoints := k.GetAllAccountCampaignTradingRewardPendingPointsWithTotalPointsForPool(ctx, pendingPoolStartTimestamp)
 
 	if !totalPoints.IsPositive() {
@@ -80,13 +86,19 @@ func (k *Keeper) distributeTradingRewardsForAllAccounts(
 func (k *Keeper) getAvailableRewardsToPayout(
 	ctx sdk.Context,
 	maxCampaignRewards sdk.Coins,
-) map[string]sdkmath.Int {
-	availableRewardsToPayout := make(map[string]sdkmath.Int)
-	feePool := k.DistributionKeeper.GetFeePool(ctx)
+) map[string]math.Int {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
+	availableRewardsToPayout := make(map[string]math.Int)
+	feePool, err := k.DistributionKeeper.FeePool.Get(ctx)
+	if err != nil {
+		return availableRewardsToPayout
+	}
 
 	for _, rewardCoin := range maxCampaignRewards {
 		amountInPool := feePool.CommunityPool.AmountOf(rewardCoin.Denom)
-		totalReward := sdk.MinDec(rewardCoin.Amount.ToDec(), amountInPool).TruncateInt()
+		totalReward := math.LegacyMinDec(rewardCoin.Amount.ToLegacyDec(), amountInPool).TruncateInt()
 		coinsToDistributeFromPool := sdk.NewCoins(sdk.NewCoin(rewardCoin.Denom, totalReward))
 
 		if err := k.DistributionKeeper.DistributeFromFeePool(ctx, coinsToDistributeFromPool, types.TempRewardsSenderAddress); err != nil {
@@ -107,7 +119,8 @@ func (k *Keeper) getAvailableRewardsToPayout(
 func (k *Keeper) ProcessTradingRewards(
 	ctx sdk.Context,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	blockTime := ctx.BlockTime().Unix()
 
@@ -173,12 +186,14 @@ func (k *Keeper) DistributeTradingRewards(
 	rewardReceiver sdk.AccAddress,
 	rewards sdk.Coins,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	if rewards.Len() == 0 {
 		return
 	}
 
+	// No need to check if receiver is a blocked address because a trading reward receiver could never be a module account
 	err := k.bankKeeper.SendCoins(ctx, types.TempRewardsSenderAddress, rewardReceiver, rewards)
 	if err != nil {
 		metrics.ReportFuncError(k.svcTags)

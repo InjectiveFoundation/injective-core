@@ -9,8 +9,6 @@ import (
 	"github.com/cosmos/cosmos-sdk/client/keys"
 	"github.com/spf13/cobra"
 
-	"github.com/cosmos/cosmos-sdk/crypto/keyring"
-
 	clientkeys "github.com/InjectiveLabs/injective-core/injective-chain/client/keys"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/crypto/hd"
@@ -65,6 +63,7 @@ The pass backend requires GnuPG: https://gnupg.org/
 		keys.ExportKeyCommand(),
 		keys.ImportKeyCommand(),
 		keys.ListKeysCmd(),
+		keys.ListKeyTypesCmd(),
 		keys.ShowKeysCmd(),
 		keys.DeleteKeyCommand(),
 		keys.RenameKeyCommand(),
@@ -76,18 +75,20 @@ The pass backend requires GnuPG: https://gnupg.org/
 	)
 
 	cmd.PersistentFlags().String(flags.FlagHome, defaultNodeHome, "The application home directory")
-	cmd.PersistentFlags().String(flags.FlagKeyringDir, "", "The client Keyring directory; if omitted, the default 'home' directory will be used")
-	cmd.PersistentFlags().String(flags.FlagKeyringBackend, keyring.BackendFile, "Select keyring's backend (os|file|test)")
 	cmd.PersistentFlags().String(cli.OutputFlag, "text", "Output format (text|json)")
+
+	flags.AddKeyringFlags(cmd.PersistentFlags())
 	return cmd
 }
 
 func runAddCmd(cmd *cobra.Command, args []string) error {
-	clientCtx := client.GetClientContextFromCmd(cmd).WithKeyringOptions(hd.EthSecp256k1Option())
-	clientCtx, err := client.ReadPersistentCommandFlags(clientCtx, cmd.Flags())
+	clientCtx, err := client.GetClientQueryContext(cmd)
 	if err != nil {
 		return err
 	}
+
+	clientCtx = clientCtx.WithKeyringOptions(hd.EthSecp256k1Option())
+
 	buf := bufio.NewReader(clientCtx.Input)
 	return clientkeys.RunAddCmd(clientCtx, cmd, args, buf)
 }

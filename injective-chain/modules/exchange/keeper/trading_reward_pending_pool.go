@@ -1,8 +1,8 @@
 package keeper
 
 import (
-	"github.com/cosmos/cosmos-sdk/store/prefix"
-	storetypes "github.com/cosmos/cosmos-sdk/store/types"
+	"cosmossdk.io/store/prefix"
+	storetypes "cosmossdk.io/store/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
@@ -11,7 +11,8 @@ import (
 
 // GetCampaignRewardPendingPool fetches the trading reward pool corresponding to a given start timestamp.
 func (k *Keeper) GetCampaignRewardPendingPool(ctx sdk.Context, startTimestamp int64) *types.CampaignRewardPool {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	bz := store.Get(types.GetCampaignRewardPendingPoolKey(startTimestamp))
@@ -26,7 +27,8 @@ func (k *Keeper) GetCampaignRewardPendingPool(ctx sdk.Context, startTimestamp in
 
 // DeleteCampaignRewardPendingPool deletes the trading reward pool corresponding to a given start timestamp.
 func (k *Keeper) DeleteCampaignRewardPendingPool(ctx sdk.Context, startTimestamp int64) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	store.Delete(types.GetCampaignRewardPendingPoolKey(startTimestamp))
@@ -34,7 +36,8 @@ func (k *Keeper) DeleteCampaignRewardPendingPool(ctx sdk.Context, startTimestamp
 
 // SetCampaignRewardPendingPool sets the trading reward pool corresponding to a given start timestamp.
 func (k *Keeper) SetCampaignRewardPendingPool(ctx sdk.Context, rewardPool *types.CampaignRewardPool) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	bz := k.cdc.MustMarshal(rewardPool)
@@ -43,7 +46,8 @@ func (k *Keeper) SetCampaignRewardPendingPool(ctx sdk.Context, rewardPool *types
 
 // GetAllCampaignRewardPendingPools gets all campaign reward pools
 func (k *Keeper) GetAllCampaignRewardPendingPools(ctx sdk.Context) []*types.CampaignRewardPool {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	rewardPools := make([]*types.CampaignRewardPool, 0)
 
@@ -58,7 +62,8 @@ func (k *Keeper) GetAllCampaignRewardPendingPools(ctx sdk.Context) []*types.Camp
 
 // GetFirstCampaignRewardPendingPool gets the first campaign reward pool.
 func (k *Keeper) GetFirstCampaignRewardPendingPool(ctx sdk.Context) (rewardPool *types.CampaignRewardPool) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	appendPool := func(pool *types.CampaignRewardPool) (stop bool) {
 		rewardPool = pool
@@ -75,7 +80,8 @@ func (k *Keeper) IterateCampaignRewardPendingPools(
 	shouldReverseIterate bool,
 	process func(*types.CampaignRewardPool) (stop bool),
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 

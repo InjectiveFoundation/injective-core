@@ -22,9 +22,9 @@ PriceState is common type to manage cumulative price and latest price along with
 
 ```protobuf
 message PriceState {
-    string price = 1 [(gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Dec", (gogoproto.nullable) = false];
+    string price = 1 [(gogoproto.customtype) = "cosmossdk.io/math.LegacyDec", (gogoproto.nullable) = false];
     
-    string cumulative_price = 2 [(gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Dec", (gogoproto.nullable) = false];
+    string cumulative_price = 2 [(gogoproto.customtype) = "cosmossdk.io/math.LegacyDec", (gogoproto.nullable) = false];
     
     int64 timestamp = 3;
 }
@@ -49,7 +49,7 @@ Band price data for a given symbol are represented and stored as follows:
 ```protobuf
 message BandPriceState {
     string symbol = 1;
-    string rate = 2 [(gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Int", (gogoproto.nullable) = false];
+    string rate = 2 [(gogoproto.customtype) = "cosmossdk.io/math.Int", (gogoproto.nullable) = false];
     uint64 resolve_time = 3;
     uint64 request_ID = 4;
     PriceState price_state = 5 [(gogoproto.nullable) = false];
@@ -81,7 +81,7 @@ This section describes all the state management to maintain the price by connect
 ```protobuf
 message BandPriceState {
   string symbol = 1;
-  string rate = 2 [(gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Int", (gogoproto.nullable) = false];
+  string rate = 2 [(gogoproto.customtype) = "cosmossdk.io/math.Int", (gogoproto.nullable) = false];
   uint64 resolve_time = 3;
   uint64 request_ID = 4;
   PriceState price_state = 5 [(gogoproto.nullable) = false];
@@ -239,10 +239,37 @@ Pyth prices are represented and stored as follows:
 ```protobuf
 message PythPriceState {
   bytes price_id = 1;
-  string ema_price = 2 [(gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Dec", (gogoproto.nullable) = false];
-  string ema_conf = 3 [(gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Dec", (gogoproto.nullable) = false];
-  string conf = 4 [(gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Dec", (gogoproto.nullable) = false];
+  string ema_price = 2 [(gogoproto.customtype) = "cosmossdk.io/math.LegacyDec", (gogoproto.nullable) = false];
+  string ema_conf = 3 [(gogoproto.customtype) = "cosmossdk.io/math.LegacyDec", (gogoproto.nullable) = false];
+  string conf = 4 [(gogoproto.customtype) = "cosmossdk.io/math.LegacyDec", (gogoproto.nullable) = false];
   uint64 publish_time = 5;
   PriceState price_state = 6 [(gogoproto.nullable) = false];
 }
+```
+
+## Stork
+
+Stork prices are represented and stored as follows:
+- StorkPriceState: `0x81 + symbol -> PythPriceState`
+```protobuf
+message StorkPriceState {
+  // timestamp of the when the price was signed by stork
+  uint64 timestamp = 1;
+  // the symbol of the price, e.g. BTC
+  string symbol = 2;
+  // the value of the price scaled by 1e18
+  string value = 3 [
+    (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
+    (gogoproto.nullable) = false
+  ];
+  // the price state
+  PriceState price_state = 5 [ (gogoproto.nullable) = false ];
+}
+```
+
+Stork publishers are represented and stored as follows:
+- Publisher: `0x82 + stork_publisher -> publisher`
+
+```protobuf
+string stork_publisher
 ```

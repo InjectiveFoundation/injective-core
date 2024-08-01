@@ -6,7 +6,7 @@ title: Messages and Transactions
 # Messages and Transactions
 
 :::note
-In this document we are going to explain the concepts of Messages and Transactions on Injective (on a higher level) - what do they represent and how you can use them to trigger a state change on the Injective chain. 
+This document explains the concepts of Messages and Transactions on Injective (on a higher level), what they represent, and how you can use them to trigger a state change on the Injective chain. 
 :::
 
 
@@ -14,16 +14,16 @@ In this document we are going to explain the concepts of Messages and Transactio
 - [Cosmos SDK Transactions](https://docs.cosmos.network/main/core/transactions.html)
 ::: Transactions
 
-When users want to interact with Injective and make state changes they create transactions. After the transaction is created, it needs to be signed by the private key associated with the account that wants to make the particular state change. Alongside the signature the transaction is then broadcasted to Injective. 
+When users want to interact with Injective and make state changes, they create transactions. Once the transaction is created, it requires a signature from the private key linked to the account initiating the particular state change. Following the signature, the transaction is broadcasted to Injective.
 
-When broadcasted and only after every validation is successfully passed (these validations include signature validation, values validations, etc) the transaction gets included within a block which gets approved by the network through the consensus process.
+After being broadcasted and passing all validations (including signature validation, values validations, etc.), the transaction is included in a block which undergoes network approval via the consensus process.
 
 ## Messages
 
-Messages are the instructions we give to Injective about the state change we want to make. Every transaction has to have at least one message. Messages are module-specific objects that trigger state transitions within the scope of the module they belong to. 
+In simpler terms, messages are the instructions given to Injective about the desired state change. Messages are module-specific objects that trigger state transitions within the scope of the module they belong to. Every transaction must have at least one message.
 
-We can pack multiple messages within the same transaction. 
+Additionally, multiple messages can be packed within the same transaction. 
 
 ## Transaction Context
 
-Besides Message(s), every transaction has context. These details include `fees`, `accountDetails`, `memo`, `signatures`, etc. 
+Besides Messages, every transaction has a context. The context includes `fees`, `accountDetails`, `memo`, `signatures`, etc. 

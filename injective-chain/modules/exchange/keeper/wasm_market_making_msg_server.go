@@ -30,7 +30,8 @@ func (k WasmMsgServer) PrivilegedExecuteContract(
 	goCtx context.Context,
 	msg *types.MsgPrivilegedExecuteContract,
 ) (*types.MsgPrivilegedExecuteContractResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
 	k.Logger(ctx).Debug("=============== ⭐️ [Start] PrivilegedExecuteContract ⭐️ ===============")
@@ -53,6 +54,7 @@ func (k WasmMsgServer) PrivilegedExecuteContract(
 			fundsBefore = fundsBefore.Add(coinBefore)
 		}
 
+		// No need to check if receiver is a blocked address because it could never be a module account
 		if err := k.bankKeeper.SendCoins(ctx, sender, contract, coins); err != nil {
 			return nil, errors.Wrap(err, "failed to send coins")
 		}

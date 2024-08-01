@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sort"
 
+	"cosmossdk.io/math"
+
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
@@ -11,6 +13,8 @@ import (
 )
 
 func (k *Keeper) InitGenesis(ctx sdk.Context, data types.GenesisState) {
+	k.CreateModuleAccount(ctx)
+
 	k.SetParams(ctx, data.Params)
 
 	for idx := range data.SpotMarkets {
@@ -98,7 +102,7 @@ func (k *Keeper) InitGenesis(ctx sdk.Context, data types.GenesisState) {
 		k.SetCampaignRewardPool(ctx, rewardPool)
 	}
 
-	totalPoints := sdk.ZeroDec()
+	totalPoints := math.LegacyZeroDec()
 	for _, points := range data.TradingRewardCampaignAccountPoints {
 		account, err := sdk.AccAddressFromBech32(points.Account)
 		if err != nil {
@@ -115,7 +119,7 @@ func (k *Keeper) InitGenesis(ctx sdk.Context, data types.GenesisState) {
 	}
 
 	for _, pool := range data.PendingTradingRewardCampaignAccountPoints {
-		totalPendingPoints := sdk.ZeroDec()
+		totalPendingPoints := math.LegacyZeroDec()
 
 		for _, points := range pool.AccountPoints {
 			account, err := sdk.AccAddressFromBech32(points.Account)
@@ -148,7 +152,7 @@ func (k *Keeper) InitGenesis(ctx sdk.Context, data types.GenesisState) {
 			return data.FeeDiscountBucketVolumeAccounts[i].BucketStartTimestamp < data.FeeDiscountBucketVolumeAccounts[j].BucketStartTimestamp
 		})
 
-		totalPastBucketVolume := make(map[string]sdk.Dec)
+		totalPastBucketVolume := make(map[string]math.LegacyDec)
 
 		for idx, f := range data.FeeDiscountBucketVolumeAccounts {
 			bucketStartTimestamp := f.BucketStartTimestamp
@@ -248,6 +252,22 @@ func (k *Keeper) InitGenesis(ctx sdk.Context, data types.GenesisState) {
 	for _, record := range data.MarketVolumes {
 		k.SetMarketAggregateVolume(ctx, common.HexToHash(record.MarketId), record.Volume)
 	}
+
+	for _, auth := range data.GrantAuthorizations {
+		granter := sdk.MustAccAddressFromBech32(auth.Granter)
+		k.setTotalGrantAmount(ctx, granter, auth.TotalGrantAmount)
+		k.setLastValidGrantDelegationCheckTime(ctx, granter.String(), auth.LastDelegationsCheckedTime)
+
+		for _, grant := range auth.Grants {
+			grantee := sdk.MustAccAddressFromBech32(grant.Grantee)
+			k.setGrantAuthorization(ctx, granter, grantee, grant.Amount)
+		}
+	}
+
+	for _, grant := range data.ActiveGrants {
+		grantee := sdk.MustAccAddressFromBech32(grant.Grantee)
+		k.setActiveGrant(ctx, grantee, grant.ActiveGrant)
+	}
 }
 
 func (k *Keeper) ExportGenesis(ctx sdk.Context) *types.GenesisState {
@@ -286,5 +306,7 @@ func (k *Keeper) ExportGenesis(ctx sdk.Context) *types.GenesisState {
 		OrderbookSequences:                           k.GetAllOrderbookSequences(ctx),
 		SubaccountVolumes:                            k.GetAllSubaccountMarketAggregateVolumes(ctx),
 		MarketVolumes:                                k.GetAllMarketAggregateVolumes(ctx),
+		GrantAuthorizations:                          k.GetAllGrantAuthorizations(ctx),
+		ActiveGrants:                                 k.GetAllActiveGrants(ctx),
 	}
 }

@@ -1,7 +1,7 @@
 package keeper
 
 import (
-	"github.com/cosmos/cosmos-sdk/store/prefix"
+	"cosmossdk.io/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/ocr/types"
@@ -52,7 +52,8 @@ func (k *Keeper) IncrementFeedTransmissionCount(
 	feedId string,
 	addr sdk.AccAddress,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	count := k.GetFeedTransmissionsCount(ctx, feedId, addr)
 	k.SetFeedTransmissionsCount(ctx, feedId, addr, count+1)
@@ -63,7 +64,8 @@ func (k *Keeper) GetFeedTransmissionsCount(
 	feedId string,
 	addr sdk.AccAddress,
 ) uint64 {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	bz := k.getStore(ctx).Get(types.GetFeedTransmissionsKey(feedId, addr))
 	if bz == nil {
@@ -80,7 +82,8 @@ func (k *Keeper) SetFeedTransmissionsCount(
 	addr sdk.AccAddress,
 	count uint64,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	key := types.GetFeedTransmissionsKey(feedId, addr)
 	countBz := sdk.Uint64ToBigEndian(count)
@@ -90,7 +93,8 @@ func (k *Keeper) SetFeedTransmissionsCount(
 func (k *Keeper) GetAllFeedTransmissionCounts(
 	ctx sdk.Context,
 ) []*types.FeedCounts {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	feedCounts := make([]*types.FeedCounts, 0)
 	feedConfigs := k.GetAllFeedConfigs(ctx)
@@ -110,7 +114,8 @@ func (k *Keeper) GetFeedTransmissionCounts(
 	ctx sdk.Context,
 	feedId string,
 ) *types.FeedCounts {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	feedPrefix := types.GetFeedTransmissionsPrefix(feedId)
@@ -144,7 +149,8 @@ func (k *Keeper) GetFeedTransmissionCounts(
 func (k *Keeper) DeleteAllFeedTransmissionCounts(
 	ctx sdk.Context,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	feedTransmissionsStore := prefix.NewStore(store, types.TransmissionsCountPrefix)
@@ -160,7 +166,8 @@ func (k *Keeper) DeleteFeedTransmissionCounts(
 	ctx sdk.Context,
 	feedId string,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	feedPrefix := types.GetFeedTransmissionsPrefix(feedId)

@@ -47,12 +47,12 @@ message MsgUpdateFeed {
   repeated string transmitters = 4;
   // Fixed LINK reward for each observer
   string link_per_observation = 5[
-    (gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
     (gogoproto.nullable) = true
   ];
   // Fixed LINK reward for transmitter
   string link_per_transmission = 6[
-    (gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
     (gogoproto.nullable) = true
   ];
   // Native denom for LINK coin in the bank keeper

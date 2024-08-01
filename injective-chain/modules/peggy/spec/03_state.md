@@ -63,7 +63,7 @@ type Valset struct {
 	Nonce        uint64                               
 	Members      []*BridgeValidator                   
 	Height       uint64                               
-	RewardAmount sdkmath.Int 
+	RewardAmount math.Int 
 	// the reward token in it's Ethereum hex address representation
 	RewardToken string
 }

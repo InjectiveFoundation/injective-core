@@ -3,7 +3,8 @@ package keeper
 import (
 	"sort"
 
-	"github.com/cosmos/cosmos-sdk/store/prefix"
+	"cosmossdk.io/math"
+	"cosmossdk.io/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/InjectiveLabs/metrics"
@@ -12,7 +13,8 @@ import (
 )
 
 func (k *Keeper) AppendPriceRecord(ctx sdk.Context, oracleType types.OracleType, symbol string, priceRecord *types.PriceRecord) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	existingOrEmptyRecord, _ := k.GetHistoricalPriceRecords(ctx, oracleType, symbol, priceRecord.Timestamp-types.MaxHistoricalPriceRecordAge)
 
@@ -29,7 +31,8 @@ func (k *Keeper) AppendPriceRecord(ctx sdk.Context, oracleType types.OracleType,
 }
 
 func (k *Keeper) updateLastPriceTimestampMap(ctx sdk.Context, oracleType types.OracleType, symbol string, timestamp int64) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	var lastPriceTimestamps types.LastPriceTimestamps
 
@@ -55,7 +58,8 @@ type symbolRef struct {
 }
 
 func (k *Keeper) CleanupHistoricalPriceRecords(ctx sdk.Context) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	var lastPriceTimestamps types.LastPriceTimestamps
 
@@ -105,7 +109,8 @@ func (k *Keeper) setHistoricalPriceRecords(
 	symbol string,
 	entry *types.PriceRecords,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 
@@ -114,7 +119,8 @@ func (k *Keeper) setHistoricalPriceRecords(
 }
 
 func (k *Keeper) setLastPriceTimestampMap(ctx sdk.Context, entry *types.LastPriceTimestamps) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 
@@ -136,7 +142,8 @@ func (k *Keeper) GetMixedHistoricalPriceRecords(
 	baseSymbol, quoteSymbol string,
 	from int64,
 ) (mixed *types.PriceRecords, ok bool) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 
@@ -168,8 +175,8 @@ func (k *Keeper) GetMixedHistoricalPriceRecords(
 		LatestPriceRecords: make([]*types.PriceRecord, 0, len(basePriceRecords)+len(quotePriceRecords)),
 	}
 
-	basePriceTimestampMap := make(map[int64]sdk.Dec, len(basePriceRecords))
-	quotePriceTimestampMap := make(map[int64]sdk.Dec, len(quotePriceRecords))
+	basePriceTimestampMap := make(map[int64]math.LegacyDec, len(basePriceRecords))
+	quotePriceTimestampMap := make(map[int64]math.LegacyDec, len(quotePriceRecords))
 	uniqueTimestamps := make([]int64, 0, len(basePriceRecords)+len(quotePriceRecords))
 
 	// Assuming price records are sorted by timestamp, we go backwards until we meet first timestamp < from, add it and break.
@@ -205,7 +212,7 @@ func (k *Keeper) GetMixedHistoricalPriceRecords(
 		}
 	}
 
-	findPrevPrice := func(prices map[int64]sdk.Dec, idx int) (sdk.Dec, bool) {
+	findPrevPrice := func(prices map[int64]math.LegacyDec, idx int) (math.LegacyDec, bool) {
 		var offset int
 		for idx+offset > 0 {
 			offset--
@@ -217,7 +224,7 @@ func (k *Keeper) GetMixedHistoricalPriceRecords(
 			}
 		}
 
-		return sdk.ZeroDec(), false
+		return math.LegacyZeroDec(), false
 	}
 
 	// NOTE: uniqueTimestamps contains reverse sorted mixed timeline from both records
@@ -229,7 +236,7 @@ func (k *Keeper) GetMixedHistoricalPriceRecords(
 		basePrice, baseExists := basePriceTimestampMap[t0]
 		quotePrice, quoteExists := quotePriceTimestampMap[t0]
 
-		var price sdk.Dec
+		var price math.LegacyDec
 
 		switch {
 		case baseExists && quoteExists:
@@ -276,7 +283,8 @@ func (k *Keeper) GetHistoricalPriceRecords(
 	symbol string,
 	from int64,
 ) (entry *types.PriceRecords, omitted bool) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	entry = &types.PriceRecords{
 		Oracle:   oracleType,
@@ -298,7 +306,8 @@ func (k *Keeper) GetHistoricalPriceRecords(
 }
 
 func (k *Keeper) GetAllHistoricalPriceRecords(ctx sdk.Context) []*types.PriceRecords {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	allPriceRecords := make([]*types.PriceRecords, 0)
 	store := ctx.KVStore(k.storeKey)
@@ -342,13 +351,13 @@ func filterHistoricalPriceRecords(
 }
 
 // GetStandardDeviationForPriceRecords returns the arithmetic mean for the price records.
-func (k *Keeper) GetStandardDeviationForPriceRecords(priceRecords []*types.PriceRecord) *sdk.Dec {
+func (k *Keeper) GetStandardDeviationForPriceRecords(priceRecords []*types.PriceRecord) *math.LegacyDec {
 	if len(priceRecords) == 1 {
-		standardDeviationValue := sdk.ZeroDec()
+		standardDeviationValue := math.LegacyZeroDec()
 		return &standardDeviationValue
 	}
 
-	sum := sdk.ZeroDec()
+	sum := math.LegacyZeroDec()
 	for _, priceRecord := range priceRecords {
 		sum = sum.Add(priceRecord.Price)
 	}
@@ -356,14 +365,14 @@ func (k *Keeper) GetStandardDeviationForPriceRecords(priceRecords []*types.Price
 	// x̄ = ∑p / n, where n = number of priceRecords
 	mean := k.GetMeanForPriceRecords(priceRecords)
 
-	sum = sdk.ZeroDec()
+	sum = math.LegacyZeroDec()
 	for _, priceRecord := range priceRecords {
 		deviation := priceRecord.Price.Sub(mean)
 		sum = sum.Add(deviation.Mul(deviation))
 	}
 
 	// σ² = ∑((p - x̄)²) / n
-	variance := sum.Quo(sdk.NewDec(int64(len(priceRecords))))
+	variance := sum.Quo(math.LegacyNewDec(int64(len(priceRecords))))
 	// σ = √σ²
 	standardDeviationValue, err := variance.ApproxSqrt()
 	if err != nil {
@@ -375,23 +384,23 @@ func (k *Keeper) GetStandardDeviationForPriceRecords(priceRecords []*types.Price
 
 // GetMeanForPriceRecords returns the arithmetic mean for the price records.
 // x̄ = ∑p / n
-func (k *Keeper) GetMeanForPriceRecords(priceRecords []*types.PriceRecord) (mean sdk.Dec) {
+func (k *Keeper) GetMeanForPriceRecords(priceRecords []*types.PriceRecord) (mean math.LegacyDec) {
 	if len(priceRecords) == 0 {
-		return sdk.ZeroDec()
+		return math.LegacyZeroDec()
 	}
 
-	sum := sdk.ZeroDec()
+	sum := math.LegacyZeroDec()
 	for _, priceRecord := range priceRecords {
 		sum = sum.Add(priceRecord.Price)
 	}
 
-	return sum.Quo(sdk.NewDec(int64(len(priceRecords))))
+	return sum.Quo(math.LegacyNewDec(int64(len(priceRecords))))
 }
 
 // CalculateStatistics returns statistics metadata over given price records
 func CalculateStatistics(priceRecords []*types.PriceRecord) *types.MetadataStatistics {
 	var (
-		sum, twapSum = sdk.ZeroDec(), sdk.ZeroDec()
+		sum, twapSum = math.LegacyZeroDec(), math.LegacyZeroDec()
 		count        = uint32(len(priceRecords))
 	)
 	if count == 0 {
@@ -402,7 +411,7 @@ func CalculateStatistics(priceRecords []*types.PriceRecord) *types.MetadataStati
 		sum = sum.Add(r.Price)
 		if i > 0 {
 			// twapSum += p * ∆t
-			twapSum = twapSum.Add(r.Price.Mul(sdk.NewDec(r.Timestamp - priceRecords[i-1].Timestamp)))
+			twapSum = twapSum.Add(r.Price.Mul(math.LegacyNewDec(r.Timestamp - priceRecords[i-1].Timestamp)))
 		}
 	}
 
@@ -415,11 +424,11 @@ func CalculateStatistics(priceRecords []*types.PriceRecord) *types.MetadataStati
 
 	median := recordsCopy[count/2].Price
 	if count%2 == 0 {
-		median = median.Add(recordsCopy[count/2-1].Price).Quo(sdk.NewDec(2))
+		median = median.Add(recordsCopy[count/2-1].Price).Quo(math.LegacyNewDec(2))
 	}
 
 	meta := &types.MetadataStatistics{
-		Mean:              sum.Quo(sdk.NewDec(int64(count))),
+		Mean:              sum.Quo(math.LegacyNewDec(int64(count))),
 		MinPrice:          recordsCopy[0].Price,
 		MaxPrice:          recordsCopy[count-1].Price,
 		MedianPrice:       median,
@@ -427,10 +436,10 @@ func CalculateStatistics(priceRecords []*types.PriceRecord) *types.MetadataStati
 		LastTimestamp:     priceRecords[count-1].Timestamp,
 		GroupCount:        count,
 		RecordsSampleSize: count,
-		Twap:              sdk.ZeroDec(),
+		Twap:              math.LegacyZeroDec(),
 	}
 	if count > 1 {
-		meta.Twap = twapSum.Quo(sdk.NewDec(meta.LastTimestamp - meta.FirstTimestamp))
+		meta.Twap = twapSum.Quo(math.LegacyNewDec(meta.LastTimestamp - meta.FirstTimestamp))
 	}
 
 	return meta
@@ -440,8 +449,9 @@ func (k *Keeper) GetOracleVolatility(
 	ctx sdk.Context,
 	base, quote *types.OracleInfo,
 	options *types.OracleHistoryOptions,
-) (vol *sdk.Dec, points []*types.PriceRecord, meta *types.MetadataStatistics) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+) (vol *math.LegacyDec, points []*types.PriceRecord, meta *types.MetadataStatistics) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	var priceRecords *types.PriceRecords
 

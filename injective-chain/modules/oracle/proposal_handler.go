@@ -34,6 +34,10 @@ func NewOracleProposalHandler(k keeper.Keeper) govtypes.Handler {
 			return handleGrantProviderPrivilegeProposal(ctx, k, c)
 		case *types.RevokeProviderPrivilegeProposal:
 			return handleRevokeProviderPrivilegeProposal(ctx, k, c)
+		case *types.GrantStorkPublisherPrivilegeProposal:
+			return handleGrantStorkPublisherPrivilegeProposal(ctx, k, c)
+		case *types.RevokeStorkPublisherPrivilegeProposal:
+			return handleRevokeStorkPublisherPrivilegeProposal(ctx, k, c)
 		default:
 			return errors.Wrapf(errortypes.ErrUnknownRequest, "unrecognized oracle proposal content type: %T", c)
 		}
@@ -232,4 +236,28 @@ func handleRevokeProviderPrivilegeProposal(ctx sdk.Context, k keeper.Keeper, p *
 		}
 	}
 	return k.DeleteProviderRelayers(ctx, p.Provider, p.Relayers)
+}
+
+func handleGrantStorkPublisherPrivilegeProposal(ctx sdk.Context, k keeper.Keeper, p *types.GrantStorkPublisherPrivilegeProposal) error {
+	if err := p.ValidateBasic(); err != nil {
+		return err
+	}
+
+	for _, publisher := range p.StorkPublishers {
+		k.SetStorkPublisher(ctx, publisher)
+	}
+
+	return nil
+}
+
+func handleRevokeStorkPublisherPrivilegeProposal(ctx sdk.Context, k keeper.Keeper, p *types.RevokeStorkPublisherPrivilegeProposal) error {
+	if err := p.ValidateBasic(); err != nil {
+		return err
+	}
+
+	for _, publisher := range p.StorkPublishers {
+		k.DeleteStorkPublisher(ctx, publisher)
+	}
+
+	return nil
 }

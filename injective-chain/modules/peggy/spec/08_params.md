@@ -19,12 +19,12 @@ type Params struct {
 	TargetBatchTimeout            uint64                                 
 	AverageBlockTime              uint64                                 
 	AverageEthereumBlockTime      uint64                                 
-	SlashFractionValset           sdk.Dec 
-	SlashFractionBatch            sdk.Dec 
-	SlashFractionClaim            sdk.Dec 
-	SlashFractionConflictingClaim sdk.Dec 
+	SlashFractionValset           math.LegacyDec 
+	SlashFractionBatch            math.LegacyDec 
+	SlashFractionClaim            math.LegacyDec 
+	SlashFractionConflictingClaim math.LegacyDec 
 	UnbondSlashingValsetsWindow   uint64  
-	SlashFractionBadEthSignature  sdk.Dec 
+	SlashFractionBadEthSignature  math.LegacyDec 
 	CosmosCoinDenom               string  
 	CosmosCoinErc20Contract       string  
 	ClaimSlashingEnabled          bool    

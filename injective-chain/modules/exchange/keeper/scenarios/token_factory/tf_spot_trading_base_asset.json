@@ -5,7 +5,8 @@
   "actions": [
     {
       "actionType": "createTfDenom",
-      "subdenom": "custom/USDT012345678901234567890123401234567"
+      "subdenom": "custom/USDT012345678901234567890123401234567",
+      "decimals": 18
     },
     {
       "actionType": "mintTfDenom",

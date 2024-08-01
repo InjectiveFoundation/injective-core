@@ -1,23 +1,23 @@
 package keeper
 
 import (
-	sdk "github.com/cosmos/cosmos-sdk/types"
+	"cosmossdk.io/math"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 )
 
 type DerivativeOrderbookFills struct {
 	Orders         []*types.DerivativeLimitOrder
-	FillQuantities []sdk.Dec
+	FillQuantities []math.LegacyDec
 }
 
 type DerivativeOrderbookFill struct {
 	Order        *types.DerivativeLimitOrder
-	FillQuantity sdk.Dec
+	FillQuantity math.LegacyDec
 	IsTransient  bool
 }
 
-func (f *DerivativeOrderbookFill) GetPrice() sdk.Dec {
+func (f *DerivativeOrderbookFill) GetPrice() math.LegacyDec {
 	return f.Order.OrderInfo.Price
 }
 

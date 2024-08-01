@@ -17,7 +17,8 @@ type OcrParams interface {
 
 // LinkDenom returns native denom for LINK coin
 func (k *Keeper) LinkDenom(ctx sdk.Context) string {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	bz := store.Get(types.ParamsKey)
@@ -33,7 +34,8 @@ func (k *Keeper) LinkDenom(ctx sdk.Context) string {
 
 // ModuleAdmin returns the OCR module adming
 func (k *Keeper) ModuleAdmin(ctx sdk.Context) string {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	bz := store.Get(types.ParamsKey)
@@ -49,7 +51,8 @@ func (k *Keeper) ModuleAdmin(ctx sdk.Context) string {
 
 // PayoutInterval returns the payout interval
 func (k *Keeper) PayoutInterval(ctx sdk.Context) uint64 {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	bz := store.Get(types.ParamsKey)
@@ -65,7 +68,8 @@ func (k *Keeper) PayoutInterval(ctx sdk.Context) uint64 {
 
 // GetParams returns the total set of oracle parameters.
 func (k *Keeper) GetParams(ctx sdk.Context) types.Params {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	bz := store.Get(types.ParamsKey)
@@ -81,7 +85,8 @@ func (k *Keeper) GetParams(ctx sdk.Context) types.Params {
 
 // SetParams set the params
 func (k *Keeper) SetParams(ctx sdk.Context, params types.Params) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	store.Set(types.ParamsKey, k.cdc.MustMarshal(&params))

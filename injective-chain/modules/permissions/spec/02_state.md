@@ -22,6 +22,7 @@ The permissions module doesn't use any params.
 ```go
 // Params defines the parameters for the permissions module.
 type Params struct {
+	WasmHookQueryMaxGas uint64 `protobuf:"varint,1,opt,name=wasm_hook_query_max_gas,json=wasmHookQueryMaxGas,proto3" json:"wasm_hook_query_max_gas,omitempty"`
 }
 ```
 
@@ -88,10 +89,5 @@ type RoleIDs struct {
 
 ## Voucher
 
-`Voucher` will hold tokens from all failed transactions until the original reciever has `RECIEVE` permissions.
-
-```go
-type Voucher struct {
-	Coins github_com_cosmos_cosmos_sdk_types.Coins `protobuf:"bytes,1,rep,name=coins,proto3,castrepeated=github.com/cosmos/cosmos-sdk/types.Coins" json:"coins"`
-}
-```
+A `Voucher` holds tokens from all failed transactions until the original receiver has `RECEIVE` permissions.
+* Vouchers: `0x06 | Address | denom -> ProtocolBuffer(Coin)`

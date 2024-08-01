@@ -3,10 +3,12 @@ package keeper
 import (
 	"context"
 
+	"cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/types"
 	"github.com/InjectiveLabs/metrics"
+
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/types"
 )
 
 type BandMsgServer struct {
@@ -24,10 +26,11 @@ func NewBandMsgServerImpl(keeper Keeper) BandMsgServer {
 	}
 }
 
-var BandPriceScaleFactor = sdk.NewDec(int64(types.BandPriceMultiplier))
+var BandPriceScaleFactor = math.LegacyNewDec(int64(types.BandPriceMultiplier))
 
 func (k BandMsgServer) RelayBandRates(goCtx context.Context, msg *types.MsgRelayBandRates) (*types.MsgRelayBandRatesResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
+	defer doneFn()
 
 	// prepare context
 	ctx := sdk.UnwrapSDKContext(goCtx)
@@ -47,20 +50,20 @@ func (k BandMsgServer) RelayBandRates(goCtx context.Context, msg *types.MsgRelay
 		resolveTime := msg.ResolveTimes[idx]
 		requestID := msg.RequestIDs[idx]
 
-		price := sdk.NewDec(int64(rate)).Quo(BandPriceScaleFactor)
+		price := math.LegacyNewDec(int64(rate)).Quo(BandPriceScaleFactor)
 
 		bandPriceState := k.GetBandPriceState(ctx, symbol)
 		blockTime := ctx.BlockTime().Unix()
 		if bandPriceState == nil {
 			bandPriceState = &types.BandPriceState{
 				Symbol:      symbol,
-				Rate:        sdk.NewInt(int64(rate)),
+				Rate:        math.NewInt(int64(rate)),
 				ResolveTime: resolveTime,
 				Request_ID:  requestID,
 				PriceState:  *types.NewPriceState(price, blockTime),
 			}
 		} else {
-			bandPriceState.Rate = sdk.NewInt(int64(rate))
+			bandPriceState.Rate = math.NewInt(int64(rate))
 			bandPriceState.ResolveTime = resolveTime
 			bandPriceState.Request_ID = requestID
 			bandPriceState.PriceState.UpdatePrice(price, blockTime)

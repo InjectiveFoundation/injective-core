@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"cosmossdk.io/errors"
+	"cosmossdk.io/math"
 	"github.com/InjectiveLabs/metrics"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -16,11 +17,14 @@ func (k *Keeper) ensureValidDerivativeOrder(
 	derivativeOrder *types.DerivativeOrder,
 	market DerivativeMarketI,
 	metadata *types.SubaccountOrderbookMetadata,
-	markPrice sdk.Dec,
+	markPrice math.LegacyDec,
 	isMarketOrder bool,
-	orderMarginHold *sdk.Dec,
+	orderMarginHold *math.LegacyDec,
 	isMaker bool,
 ) (orderHash common.Hash, err error) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
 	var (
 		subaccountID = derivativeOrder.SubaccountID()
 		marketID     = derivativeOrder.MarketID()
@@ -80,6 +84,11 @@ func (k *Keeper) ensureValidDerivativeOrder(
 		return orderHash, err
 	}
 
+	if err := derivativeOrder.CheckNotional(market.GetMinNotional()); err != nil {
+		return orderHash, err
+
+	}
+
 	// check binary options max order prices
 	if marketType.IsBinaryOptions() {
 		if err := derivativeOrder.CheckBinaryOptionsPricesWithinBounds(market.GetOracleScaleFactor()); err != nil {
@@ -104,7 +113,7 @@ func (k *Keeper) ensureValidDerivativeOrder(
 
 	position := k.GetPosition(ctx, marketID, subaccountID)
 
-	var tradeFeeRate sdk.Dec
+	var tradeFeeRate math.LegacyDec
 	if isMaker {
 		tradeFeeRate = market.GetMakerFeeRate()
 	} else {
@@ -199,6 +208,9 @@ func (k *Keeper) resolveReduceOnlyConflicts(
 	metadata *types.SubaccountOrderbookMetadata,
 	position *types.Position,
 ) error {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
 	if position == nil || position.IsLong == order.IsBuy() {
 		return nil
 	}
@@ -215,7 +227,7 @@ func (k *Keeper) resolveReduceOnlyConflicts(
 	subaccountEOBOrderResults := k.GetEqualOrBetterPricedSubaccountOrderResults(ctx, marketID, subaccountID, order)
 
 	if order.IsReduceOnly() {
-		if err := k.resizeNewReduceOnlyIfRequired(metadata, order, position, subaccountEOBOrderResults); err != nil {
+		if err := k.resizeNewReduceOnlyIfRequired(ctx, metadata, order, position, subaccountEOBOrderResults); err != nil {
 			return err
 		}
 	}
@@ -229,15 +241,13 @@ func (k *Keeper) cancelMinimumReduceOnlyOrders(
 	marketID, subaccountID common.Hash,
 	metadata *types.SubaccountOrderbookMetadata,
 	isReduceOnlyDirectionBuy bool,
-	positionQuantity sdk.Dec,
+	positionQuantity math.LegacyDec,
 	eobResults *SubaccountOrderResults,
 	newOrder types.IDerivativeOrder,
 ) {
-	// we need to check if the worst priced RO orders aren't pushed into position where total preceding orders size would exceed position size
-	worstROandBetterOrders, totalQuantityFromWorstRO, err := k.GetWorstROAndAllBetterPricedSubaccountOrders(ctx, marketID, subaccountID, metadata.AggregateReduceOnlyQuantity, isReduceOnlyDirectionBuy, eobResults)
-	if err != nil {
-		panic(err) // this shouldn't happen ever, except for programming error
-	}
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+	worstROandBetterOrders, totalQuantityFromWorstRO := k.GetWorstROAndAllBetterPricedSubaccountOrders(ctx, marketID, subaccountID, metadata.AggregateReduceOnlyQuantity, isReduceOnlyDirectionBuy, eobResults)
 
 	// positionFlippingQuantity - quantity by which orders from worst RO order surpass position size
 	// and would cause flipping via RO orders which must be prevented
@@ -253,7 +263,7 @@ func (k *Keeper) cancelMinimumReduceOnlyOrders(
 		return
 	}
 
-	checkedFlippingQuantity, totalReduceOnlyCancelQuantity := sdk.ZeroDec(), sdk.ZeroDec()
+	checkedFlippingQuantity, totalReduceOnlyCancelQuantity := math.LegacyZeroDec(), math.LegacyZeroDec()
 	ordersToCancel := make([]*types.SubaccountOrderData, 0)
 
 	for _, order := range worstROandBetterOrders {
@@ -285,6 +295,9 @@ func (k *Keeper) cancelWorseOrdersToCancelIfRequired(
 	position *types.Position,
 	eobResults *SubaccountOrderResults,
 ) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
 	maxRoQuantityToCancel := metadata.AggregateReduceOnlyQuantity.Sub(eobResults.GetCumulativeBetterReduceOnlyQuantity())
 	if maxRoQuantityToCancel.IsNegative() || maxRoQuantityToCancel.IsZero() {
 		return
@@ -294,13 +307,12 @@ func (k *Keeper) cancelWorseOrdersToCancelIfRequired(
 }
 
 func (k *Keeper) resizeNewReduceOnlyIfRequired(
+	_ sdk.Context,
 	metadata *types.SubaccountOrderbookMetadata,
 	order types.IMutableDerivativeOrder,
 	position *types.Position,
 	betterOrEqualOrders *SubaccountOrderResults,
 ) error {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
-
 	existingClosingQuantity := betterOrEqualOrders.GetCumulativeEOBReduceOnlyQuantity().Add(betterOrEqualOrders.GetCumulativeEOBVanillaQuantity())
 	reducibleQuantity := position.Quantity.Sub(existingClosingQuantity)
 
@@ -310,7 +322,7 @@ func (k *Keeper) resizeNewReduceOnlyIfRequired(
 	}
 
 	// min() is a defensive programming check, should always be reducibleQuantity, otherwise we wouldn't reach this point
-	newResizedOrderQuantity := sdk.MinDec(order.GetQuantity(), reducibleQuantity)
+	newResizedOrderQuantity := math.LegacyMinDec(order.GetQuantity(), reducibleQuantity)
 	if newResizedOrderQuantity.GTE(order.GetQuantity()) {
 		return nil
 	}
@@ -324,6 +336,9 @@ func (k *Keeper) cancelAllReduceOnlyOrders(
 	metadata *types.SubaccountOrderbookMetadata,
 	isBuy bool,
 ) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
 	if metadata.ReduceOnlyLimitOrderCount == 0 {
 		return
 	}
@@ -337,10 +352,11 @@ func (k *Keeper) cancelReduceOnlyOrders(
 	marketID, subaccountID common.Hash,
 	metadata *types.SubaccountOrderbookMetadata,
 	isBuy bool,
-	totalReduceOnlyCancelQuantity sdk.Dec,
+	totalReduceOnlyCancelQuantity math.LegacyDec,
 	ordersToCancel []*types.SubaccountOrderData,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	if len(ordersToCancel) == 0 {
 		return
@@ -356,6 +372,9 @@ func (k *Keeper) ensureValidAccessLevelForAtomicExecution(
 	ctx sdk.Context,
 	sender sdk.AccAddress,
 ) error {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
 	switch k.GetAtomicMarketOrderAccessLevel(ctx) {
 	case types.AtomicMarketOrderAccessLevel_Nobody:
 		return types.ErrInvalidAccessLevel

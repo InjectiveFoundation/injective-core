@@ -17,12 +17,12 @@ func (k Keeper) InitGenesis(ctx sdk.Context, genState types.GenesisState) {
 	k.SetParams(ctx, genState.Params)
 
 	for _, genDenom := range genState.GetFactoryDenoms() {
-		creator, _, err := types.DeconstructDenom(genDenom.GetDenom())
+		creator, subdenom, err := types.DeconstructDenom(genDenom.GetDenom())
 		if err != nil {
 			panic(err)
 		}
 
-		err = k.createDenomAfterValidation(ctx, creator, genDenom.GetDenom(), genDenom.GetName(), genDenom.GetSymbol())
+		err = k.createDenomAfterValidation(ctx, creator, genDenom.GetDenom(), subdenom, genDenom.GetName(), genDenom.GetSymbol(), genDenom.GetDecimals())
 		if err != nil {
 			panic(err)
 		}
@@ -49,8 +49,9 @@ func (k Keeper) ExportGenesis(ctx sdk.Context) *types.GenesisState {
 		genDenoms = append(genDenoms, types.GenesisDenom{
 			Denom:             denom,
 			AuthorityMetadata: authorityMetadata,
-			Name: metadata.GetName(),
-			Symbol: metadata.GetSymbol(),
+			Name:              metadata.GetName(),
+			Symbol:            metadata.GetSymbol(),
+			Decimals:          metadata.GetDecimals(),
 		})
 	}
 

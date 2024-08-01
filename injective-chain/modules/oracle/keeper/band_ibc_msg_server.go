@@ -26,6 +26,9 @@ func NewBandIBCMsgServerImpl(keeper Keeper) BandIBCMsgServer {
 }
 
 func (k Keeper) RequestBandIBCRates(goCtx context.Context, msg *types.MsgRequestBandIBCRates) (*types.MsgRequestBandIBCRatesResponse, error) {
+	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
+	defer doneFn()
+
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
 	// cannot process ibc request if band ibc is disabled.

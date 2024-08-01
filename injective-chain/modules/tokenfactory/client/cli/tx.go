@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 
 	"github.com/spf13/cobra"
 
@@ -41,9 +42,9 @@ func GetTxCmd() *cobra.Command {
 // NewCreateDenomCmd broadcast MsgCreateDenom
 func NewCreateDenomCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "create-denom [subdenom] [name] [symbol] [flags]",
+		Use:   "create-denom [subdenom] [name] [symbol] [decimals] [flags]",
 		Short: "create a new denom from an account",
-		Args:  cobra.ExactArgs(3),
+		Args:  cobra.ExactArgs(4),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clientCtx, err := client.GetClientTxContext(cmd)
 			if err != nil {
@@ -56,11 +57,17 @@ func NewCreateDenomCmd() *cobra.Command {
 			}
 			txf.WithTxConfig(clientCtx.TxConfig).WithAccountRetriever(clientCtx.AccountRetriever)
 
+			decimals, err := strconv.ParseUint(args[3], 10, 32)
+			if err != nil {
+				return fmt.Errorf("error parsing denom decimals %v: %w", args[3], err)
+			}
+
 			msg := types.NewMsgCreateDenom(
 				clientCtx.GetFromAddress().String(),
 				args[0],
 				args[1],
 				args[2],
+				uint32(decimals),
 			)
 
 			return tx.GenerateOrBroadcastTxWithFactory(clientCtx, txf, msg)
@@ -211,7 +218,7 @@ func NewChangeAdminCmd() *cobra.Command {
 
 func NewSetDenomMetadataCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "set-denom-metadata [description] [base] [display] [name] [symbol] [uri] [uri-hash] [denom-unit (json)]",
+		Use:   "set-denom-metadata [description] [base] [display] [name] [symbol] [uri] [uri-hash] [denom-unit (json)] [decimals]",
 		Short: "Changes created denom's metadata. Must have admin authority to do so.",
 		Args:  cobra.ExactArgs(8),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -234,6 +241,10 @@ func NewSetDenomMetadataCmd() *cobra.Command {
 			uri := args[5]
 			uriHash := args[6]
 			denomUnitsJSON := args[7]
+			decimals, err := strconv.ParseUint(args[8], 10, 32)
+			if err != nil {
+				return fmt.Errorf("error parsing denom decimals %v: %w", args[8], err)
+			}
 
 			var denomUnits []*banktypes.DenomUnit
 			err = json.Unmarshal([]byte(denomUnitsJSON), &denomUnits)
@@ -250,8 +261,9 @@ func NewSetDenomMetadataCmd() *cobra.Command {
 					Display:     display,
 					Name:        name,
 					Symbol:      symbol,
-					URI:		 uri,
-					URIHash: 	 uriHash,
+					URI:         uri,
+					URIHash:     uriHash,
+					Decimals:    uint32(decimals),
 				},
 			)
 

@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/cosmos/cosmos-sdk/store/prefix"
-	storetypes "github.com/cosmos/cosmos-sdk/store/types"
+	"cosmossdk.io/math"
+	"cosmossdk.io/store/prefix"
+	storetypes "cosmossdk.io/store/types"
+	"github.com/cockroachdb/errors"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/go-test/deep"
@@ -21,7 +23,8 @@ func (k *Keeper) IncrementSubaccountTradeNonce(
 	ctx sdk.Context,
 	subaccountID common.Hash,
 ) *types.SubaccountTradeNonce {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	subaccountNonce := k.GetSubaccountTradeNonce(ctx, subaccountID)
 	subaccountNonce.Nonce++
@@ -35,7 +38,8 @@ func (k *Keeper) GetSubaccountTradeNonce(
 	ctx sdk.Context,
 	subaccountID common.Hash,
 ) *types.SubaccountTradeNonce {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	key := types.GetSubaccountTradeNonceKey(subaccountID)
@@ -55,7 +59,8 @@ func (k *Keeper) SetSubaccountTradeNonce(
 	subaccountID common.Hash,
 	subaccountTradeNonce *types.SubaccountTradeNonce,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	key := types.GetSubaccountTradeNonceKey(subaccountID)
@@ -67,7 +72,8 @@ func (k *Keeper) SetSubaccountTradeNonce(
 func (k *Keeper) GetAllSubaccountTradeNonces(
 	ctx sdk.Context,
 ) []types.SubaccountNonce {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	nonceStore := prefix.NewStore(store, types.SubaccountTradeNoncePrefix)
@@ -99,7 +105,8 @@ func (k *Keeper) GetSubaccountOrderbookMetadata(
 	subaccountID common.Hash,
 	isBuy bool,
 ) *types.SubaccountOrderbookMetadata {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 
@@ -120,7 +127,8 @@ func (k *Keeper) UpdateSubaccountOrderbookMetadataFromOrderCancel(
 	subaccountID common.Hash,
 	order *types.DerivativeLimitOrder,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	metadata := k.GetSubaccountOrderbookMetadata(ctx, marketID, subaccountID, order.IsBuy())
 	if order.IsVanilla() {
@@ -141,7 +149,8 @@ func (k *Keeper) SetSubaccountOrderbookMetadata(
 	isBuy bool,
 	metadata *types.SubaccountOrderbookMetadata,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	// no more margin locked while having placed RO conditionals => raise the flag for later invalidation of RO conditional orders
 	if (metadata.VanillaLimitOrderCount+metadata.VanillaConditionalOrderCount) == 0 && metadata.ReduceOnlyConditionalOrderCount > 0 {
@@ -162,7 +171,8 @@ func (k *Keeper) applySubaccountOrderbookMetadataDeltas(
 	isBuy bool,
 	deltas map[common.Hash]*types.SubaccountOrderbookMetadata,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	if len(deltas) == 0 {
 		return
@@ -194,7 +204,8 @@ func (k *Keeper) SetSubaccountOrder(
 	orderHash common.Hash,
 	subaccountOrder *types.SubaccountOrder,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	key := types.GetSubaccountOrderKey(marketID, subaccountID, isBuy, subaccountOrder.Price, orderHash)
@@ -214,7 +225,7 @@ type SubaccountOrderResults struct {
 	ReduceOnlyOrders    []*types.SubaccountOrderData
 	VanillaOrders       []*types.SubaccountOrderData
 	metadata            *SubaccountOrderMetadata
-	LastFoundOrderPrice *sdk.Dec
+	LastFoundOrderPrice *math.LegacyDec
 	LastFoundOrderHash  *common.Hash
 }
 
@@ -228,34 +239,34 @@ func (r *SubaccountOrderResults) AddSubaccountOrder(d *types.SubaccountOrderData
 	}
 }
 
-func (r *SubaccountOrderResults) IncrementCumulativeBetterReduceOnlyQuantity(quantity sdk.Dec) {
+func (r *SubaccountOrderResults) IncrementCumulativeBetterReduceOnlyQuantity(quantity math.LegacyDec) {
 	r.metadata.CumulativeBetterReduceOnlyQuantity = r.metadata.CumulativeBetterReduceOnlyQuantity.Add(quantity)
 }
 
-func (r *SubaccountOrderResults) GetCumulativeEOBVanillaQuantity() sdk.Dec {
+func (r *SubaccountOrderResults) GetCumulativeEOBVanillaQuantity() math.LegacyDec {
 	return r.metadata.CumulativeEOBVanillaQuantity
 }
 
-func (r *SubaccountOrderResults) GetCumulativeEOBReduceOnlyQuantity() sdk.Dec {
+func (r *SubaccountOrderResults) GetCumulativeEOBReduceOnlyQuantity() math.LegacyDec {
 	return r.metadata.CumulativeEOBReduceOnlyQuantity
 }
 
-func (r *SubaccountOrderResults) GetCumulativeBetterReduceOnlyQuantity() sdk.Dec {
+func (r *SubaccountOrderResults) GetCumulativeBetterReduceOnlyQuantity() math.LegacyDec {
 	return r.metadata.CumulativeBetterReduceOnlyQuantity
 }
 
 func NewSubaccountOrderMetadata() *SubaccountOrderMetadata {
 	return &SubaccountOrderMetadata{
-		CumulativeEOBVanillaQuantity:       sdk.ZeroDec(),
-		CumulativeEOBReduceOnlyQuantity:    sdk.ZeroDec(),
-		CumulativeBetterReduceOnlyQuantity: sdk.ZeroDec(),
+		CumulativeEOBVanillaQuantity:       math.LegacyZeroDec(),
+		CumulativeEOBReduceOnlyQuantity:    math.LegacyZeroDec(),
+		CumulativeBetterReduceOnlyQuantity: math.LegacyZeroDec(),
 	}
 }
 
 type SubaccountOrderMetadata struct {
-	CumulativeEOBVanillaQuantity       sdk.Dec
-	CumulativeEOBReduceOnlyQuantity    sdk.Dec
-	CumulativeBetterReduceOnlyQuantity sdk.Dec
+	CumulativeEOBVanillaQuantity       math.LegacyDec
+	CumulativeEOBReduceOnlyQuantity    math.LegacyDec
+	CumulativeBetterReduceOnlyQuantity math.LegacyDec
 }
 
 // GetEqualOrBetterPricedSubaccountOrderResults does.
@@ -265,7 +276,8 @@ func (k *Keeper) GetEqualOrBetterPricedSubaccountOrderResults(
 	subaccountID common.Hash,
 	order types.IDerivativeOrder,
 ) *SubaccountOrderResults {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	isBuy := order.IsBuy()
 	price := order.GetPrice()
@@ -299,15 +311,12 @@ func (k *Keeper) GetWorstROAndAllBetterPricedSubaccountOrders(
 	ctx sdk.Context,
 	marketID common.Hash,
 	subaccountID common.Hash,
-	totalROQuantity sdk.Dec,
+	totalROQuantity math.LegacyDec,
 	isBuy bool,
 	eobResults *SubaccountOrderResults,
-) (worstROandBetterOrders []*types.SubaccountOrderData, totalQuantityFromWorstRO sdk.Dec, err error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
-
-	if eobResults.GetCumulativeEOBReduceOnlyQuantity() == totalROQuantity {
-		return worstROandBetterOrders, totalQuantityFromWorstRO, types.ErrInvalidState.Wrap("Shouldn't call GetWorstROAndAllBetterPricedSubaccountOrders when all RO orders are already found")
-	}
+) (worstROandBetterOrders []*types.SubaccountOrderData, totalQuantityFromWorstRO math.LegacyDec) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	foundROQuantity := eobResults.GetCumulativeEOBReduceOnlyQuantity()
 	totalQuantityFromWorstRO = eobResults.GetCumulativeEOBReduceOnlyQuantity().Add(eobResults.GetCumulativeEOBVanillaQuantity())
@@ -316,7 +325,7 @@ func (k *Keeper) GetWorstROAndAllBetterPricedSubaccountOrders(
 	worstROandBetterOrders = append(worstROandBetterOrders, eobResults.VanillaOrders...)
 	worstROandBetterOrders = append(worstROandBetterOrders, eobResults.ReduceOnlyOrders...)
 
-	worstROPrice := sdk.ZeroDec()
+	worstROPrice := math.LegacyZeroDec()
 
 	processOrder := func(order *types.SubaccountOrder, orderHash common.Hash) (stop bool) {
 		if foundROQuantity.GTE(totalROQuantity) {
@@ -360,7 +369,7 @@ func (k *Keeper) GetWorstROAndAllBetterPricedSubaccountOrders(
 		return worstROandBetterOrders[i].Order.Price.GT(worstROandBetterOrders[j].Order.Price)
 	})
 
-	return worstROandBetterOrders, totalQuantityFromWorstRO, nil
+	return worstROandBetterOrders, totalQuantityFromWorstRO
 }
 
 // GetSubaccountOrders returns the subaccount orders for a given marketID and direction sorted by price.
@@ -371,7 +380,8 @@ func (k *Keeper) GetSubaccountOrders(
 	isBuy bool,
 	isStartingIterationFromBestPrice bool,
 ) (orders []*types.SubaccountOrderData) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	orders = make([]*types.SubaccountOrderData, 0)
 
@@ -394,11 +404,12 @@ func (k *Keeper) GetWorstReduceOnlySubaccountOrdersUpToCount(
 	subaccountID common.Hash,
 	isBuy bool,
 	totalROCount *uint32,
-) (orders []*types.SubaccountOrderData, totalQuantity sdk.Dec) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+) (orders []*types.SubaccountOrderData, totalQuantity math.LegacyDec) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	orders = make([]*types.SubaccountOrderData, 0)
-	totalQuantity = sdk.ZeroDec()
+	totalQuantity = math.LegacyZeroDec()
 
 	remainingROCount := types.MaxDerivativeOrderSideCount
 	if totalROCount != nil {
@@ -453,7 +464,8 @@ func (k *Keeper) IterateSubaccountOrdersStartingFromOrder(
 	startFromInfix []byte, // if set will start iteration from this element, else from the first
 	process func(order *types.SubaccountOrder, orderHash common.Hash) (stop bool),
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	prefixKey := types.GetSubaccountOrderPrefixByMarketSubaccountDirection(marketID, subaccountID, isBuy)
@@ -495,16 +507,18 @@ func (k *Keeper) CancelReduceOnlySubaccountOrders(
 	subaccountID common.Hash,
 	isBuy bool,
 	orderData []*types.SubaccountOrderData,
-) (orders []*types.DerivativeLimitOrder, cumulativeReduceOnlyQuantityToCancel sdk.Dec) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+) (orders []*types.DerivativeLimitOrder, cumulativeReduceOnlyQuantityToCancel math.LegacyDec) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	orders = make([]*types.DerivativeLimitOrder, 0, len(orderData))
-	cumulativeReduceOnlyQuantityToCancel = sdk.ZeroDec()
+	cumulativeReduceOnlyQuantityToCancel = math.LegacyZeroDec()
 	for _, o := range orderData {
 		// 1. Add back the margin hold to available balance
 		order := k.DeleteDerivativeLimitOrderByFields(ctx, marketID, subaccountID, o.Order.Price, isBuy, common.BytesToHash(o.OrderHash))
 		if order == nil {
-			message := fmt.Sprintf("DeleteDerivativeLimitOrderByFields returned nil order for order price: %v, hash: %v", o.Order.Price, common.BytesToHash(o.OrderHash).Hex())
+			message := errors.Newf("DeleteDerivativeLimitOrderByFields returned nil order for order price: %v, hash: %v", o.Order.Price, common.BytesToHash(o.OrderHash).Hex())
+			_ = ctx.EventManager().EmitTypedEvent(types.NewEventOrderCancelFail(marketID, subaccountID, common.Bytes2Hex(o.OrderHash), order.Cid(), message))
 			panic(message)
 		}
 
@@ -523,7 +537,8 @@ func (k *Keeper) CancelReduceOnlySubaccountOrders(
 
 // IsMetadataInvariantValid should only be used by tests to verify data integrity
 func (k *Keeper) IsMetadataInvariantValid(ctx sdk.Context) bool {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	m1 := k.getAllSubaccountOrderbookMetadata(ctx)
 	m2 := k.getAllSubaccountMetadataFromLimitOrders(ctx)
@@ -577,7 +592,8 @@ func (k *Keeper) IsMetadataInvariantValid(ctx sdk.Context) bool {
 func (k *Keeper) getAllSubaccountOrderbookMetadata(
 	ctx sdk.Context,
 ) map[common.Hash]map[bool]map[common.Hash]*types.SubaccountOrderbookMetadata {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 
@@ -624,7 +640,8 @@ func (k *Keeper) getAllSubaccountOrderbookMetadata(
 func (k *Keeper) getAllSubaccountMetadataFromLimitOrders(
 	ctx sdk.Context,
 ) map[common.Hash]map[bool]map[common.Hash]*types.SubaccountOrderbookMetadata {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	orderbooks := k.GetAllDerivativeAndBinaryOptionsLimitOrderbook(ctx)
 
@@ -670,7 +687,8 @@ func (k *Keeper) getAllSubaccountMetadataFromLimitOrders(
 func (k *Keeper) getAllSubaccountMetadataFromSubaccountOrders(
 	ctx sdk.Context,
 ) map[common.Hash]map[bool]map[common.Hash]*types.SubaccountOrderbookMetadata {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	prefixKey := types.SubaccountOrderPrefix

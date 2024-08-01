@@ -1,10 +1,9 @@
 package keeper
 
 import (
+	"cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
-
-	"github.com/InjectiveLabs/metrics"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 )
@@ -40,47 +39,46 @@ func NewDerivativeMarketExecutionOrderbooks(
 type DerivativeMarketOrderbook struct {
 	isBuy         bool
 	isLiquidation bool
-	notional      sdk.Dec
-	totalQuantity sdk.Dec
+	notional      math.LegacyDec
+	totalQuantity math.LegacyDec
 
 	orders         []*types.DerivativeMarketOrder
-	fillQuantities []sdk.Dec
+	fillQuantities []math.LegacyDec
 	orderIdx       int
 
 	k              *Keeper
 	market         DerivativeMarketI
-	markPrice      sdk.Dec
+	markPrice      math.LegacyDec
 	marketID       common.Hash
 	funding        *types.PerpetualMarketFunding
 	positionStates map[common.Hash]*PositionState
 }
 
 func (k *Keeper) NewDerivativeMarketOrderbook(
+	ctx sdk.Context,
 	isBuy bool,
 	isLiquidation bool,
 	derivativeMarketOrders []*types.DerivativeMarketOrder,
 	market DerivativeMarketI,
-	markPrice sdk.Dec,
+	markPrice math.LegacyDec,
 	funding *types.PerpetualMarketFunding,
 	positionStates map[common.Hash]*PositionState,
 ) *DerivativeMarketOrderbook {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
-
 	if len(derivativeMarketOrders) == 0 {
 		return nil
 	}
 
-	fillQuantities := make([]sdk.Dec, len(derivativeMarketOrders))
+	fillQuantities := make([]math.LegacyDec, len(derivativeMarketOrders))
 	for idx := range derivativeMarketOrders {
-		fillQuantities[idx] = sdk.ZeroDec()
+		fillQuantities[idx] = math.LegacyZeroDec()
 	}
 
 	orderGroup := DerivativeMarketOrderbook{
 		k:             k,
 		isBuy:         isBuy,
 		isLiquidation: isLiquidation,
-		notional:      sdk.ZeroDec(),
-		totalQuantity: sdk.ZeroDec(),
+		notional:      math.LegacyZeroDec(),
+		totalQuantity: math.LegacyZeroDec(),
 
 		orders:         derivativeMarketOrders,
 		fillQuantities: fillQuantities,
@@ -95,9 +93,11 @@ func (k *Keeper) NewDerivativeMarketOrderbook(
 	return &orderGroup
 }
 
-func (b *DerivativeMarketOrderbook) GetNotional() sdk.Dec                  { return b.notional }
-func (b *DerivativeMarketOrderbook) GetTotalQuantityFilled() sdk.Dec       { return b.totalQuantity }
-func (b *DerivativeMarketOrderbook) GetOrderbookFillQuantities() []sdk.Dec { return b.fillQuantities }
+func (b *DerivativeMarketOrderbook) GetNotional() math.LegacyDec            { return b.notional }
+func (b *DerivativeMarketOrderbook) GetTotalQuantityFilled() math.LegacyDec { return b.totalQuantity }
+func (b *DerivativeMarketOrderbook) GetOrderbookFillQuantities() []math.LegacyDec {
+	return b.fillQuantities
+}
 func (b *DerivativeMarketOrderbook) Peek(ctx sdk.Context) *types.PriceLevel {
 	// finished iterating
 	if b.orderIdx == len(b.orders) {
@@ -111,7 +111,7 @@ func (b *DerivativeMarketOrderbook) Peek(ctx sdk.Context) *types.PriceLevel {
 	isClosingPosition := position != nil && order.IsBuy() != position.IsLong && position.Quantity.IsPositive()
 
 	if isClosingPosition && !b.isLiquidation {
-		closingQuantity := sdk.MinDec(order.OrderInfo.Quantity, position.Quantity)
+		closingQuantity := math.LegacyMinDec(order.OrderInfo.Quantity, position.Quantity)
 		closeExecutionMargin := order.Margin.Mul(closingQuantity).Quo(order.OrderInfo.Quantity)
 
 		takerFeeRate := b.market.GetTakerFeeRate()
@@ -158,11 +158,11 @@ func (b *DerivativeMarketOrderbook) Peek(ctx sdk.Context) *types.PriceLevel {
 	}
 }
 
-func (b *DerivativeMarketOrderbook) incrementCurrFillQuantities(incrQuantity sdk.Dec) {
+func (b *DerivativeMarketOrderbook) incrementCurrFillQuantities(incrQuantity math.LegacyDec) {
 	b.fillQuantities[b.orderIdx] = b.fillQuantities[b.orderIdx].Add(incrQuantity)
 }
 
-func (b *DerivativeMarketOrderbook) getCurrOrderFillableQuantity() sdk.Dec {
+func (b *DerivativeMarketOrderbook) getCurrOrderFillableQuantity() math.LegacyDec {
 	return b.orders[b.orderIdx].OrderInfo.Quantity.Sub(b.fillQuantities[b.orderIdx])
 }
 
@@ -178,7 +178,7 @@ func (b *DerivativeMarketOrderbook) getInitializedPositionState(
 		position := b.k.GetPosition(ctx, b.marketID, subaccountID)
 
 		if position == nil {
-			var cumulativeFundingEntry sdk.Dec
+			var cumulativeFundingEntry math.LegacyDec
 
 			if b.IsPerpetual() {
 				cumulativeFundingEntry = b.funding.CumulativeFunding
@@ -196,7 +196,7 @@ func (b *DerivativeMarketOrderbook) getInitializedPositionState(
 	return b.positionStates[subaccountID]
 }
 
-func (b *DerivativeMarketOrderbook) Fill(fillQuantity sdk.Dec) {
+func (b *DerivativeMarketOrderbook) Fill(fillQuantity math.LegacyDec) {
 	b.incrementCurrFillQuantities(fillQuantity)
 	b.notional = b.notional.Add(fillQuantity.Mul(b.orders[b.orderIdx].OrderInfo.Price))
 	b.totalQuantity = b.totalQuantity.Add(fillQuantity)

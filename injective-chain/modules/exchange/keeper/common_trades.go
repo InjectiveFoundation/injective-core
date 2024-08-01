@@ -1,6 +1,8 @@
 package keeper
 
 import (
+	"cosmossdk.io/math"
+
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
@@ -8,21 +10,21 @@ import (
 )
 
 type tradeFeeData struct {
-	totalTradeFee          sdk.Dec
-	traderFee              sdk.Dec
-	tradingRewardPoints    sdk.Dec
-	feeRecipientReward     sdk.Dec
-	auctionFeeReward       sdk.Dec
-	discountedTradeFeeRate sdk.Dec
+	totalTradeFee          math.LegacyDec
+	traderFee              math.LegacyDec
+	tradingRewardPoints    math.LegacyDec
+	feeRecipientReward     math.LegacyDec
+	auctionFeeReward       math.LegacyDec
+	discountedTradeFeeRate math.LegacyDec
 }
 
-func newEmptyTradeFeeData(discountedTradeFeeRate sdk.Dec) *tradeFeeData {
+func newEmptyTradeFeeData(discountedTradeFeeRate math.LegacyDec) *tradeFeeData {
 	return &tradeFeeData{
-		totalTradeFee:          sdk.ZeroDec(),
-		traderFee:              sdk.ZeroDec(),
-		tradingRewardPoints:    sdk.ZeroDec(),
-		feeRecipientReward:     sdk.ZeroDec(),
-		auctionFeeReward:       sdk.ZeroDec(),
+		totalTradeFee:          math.LegacyZeroDec(),
+		traderFee:              math.LegacyZeroDec(),
+		tradingRewardPoints:    math.LegacyZeroDec(),
+		feeRecipientReward:     math.LegacyZeroDec(),
+		auctionFeeReward:       math.LegacyZeroDec(),
 		discountedTradeFeeRate: discountedTradeFeeRate,
 	}
 }
@@ -31,9 +33,9 @@ func (k *Keeper) getTradeDataAndIncrementVolumeContribution(
 	ctx sdk.Context,
 	subaccountID common.Hash,
 	marketID common.Hash,
-	fillQuantity, executionPrice sdk.Dec,
-	tradeFeeRate, relayerFeeShareRate sdk.Dec,
-	tradeRewardMultiplier sdk.Dec,
+	fillQuantity, executionPrice math.LegacyDec,
+	tradeFeeRate, relayerFeeShareRate math.LegacyDec,
+	tradeRewardMultiplier math.LegacyDec,
 	feeDiscountConfig *FeeDiscountConfig,
 	isMaker bool,
 ) *tradeFeeData {
@@ -61,8 +63,8 @@ func (k *Keeper) getTradeDataAndIncrementVolumeContribution(
 	}
 }
 
-func getOrderFillFeeInfo(orderFillNotional, tradeFeeRate, relayerFeeShareRate sdk.Dec) (
-	totalTradeFee, traderFee, feeRecipientReward, auctionFeeReward sdk.Dec,
+func getOrderFillFeeInfo(orderFillNotional, tradeFeeRate, relayerFeeShareRate math.LegacyDec) (
+	totalTradeFee, traderFee, feeRecipientReward, auctionFeeReward math.LegacyDec,
 ) {
 	totalTradeFee = orderFillNotional.Mul(tradeFeeRate)
 	feeRecipientReward = relayerFeeShareRate.Mul(totalTradeFee).Abs()

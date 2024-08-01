@@ -1,113 +1,126 @@
 #!/usr/bin/env bash
 set -eo pipefail
-echo "Generating TS proto code"
 
-rm -rf client/proto-ts/gen
-
+TS_PROTO_TEMPLATE=proto/buf.gen.ts.yaml
 TS_BUILD_DIR=tmp-ts-build
-rm -fr $TS_BUILD_DIR && mkdir -p $TS_BUILD_DIR && cd $TS_BUILD_DIR
-mkdir -p proto
+TS_OUTPUT_DIR=client/proto-ts/gen
 
+# if hitting the BSD rate limit
+buf registry login
+counter=0
+
+########################################
+########## CODE GENERATION #############
+########################################
+echo "Generating TS proto code..."
+
+rm -rf $TS_OUTPUT_DIR
+rm -fr $TS_BUILD_DIR && mkdir -p $TS_BUILD_DIR && cd $TS_BUILD_DIR
+
+mkdir -p proto
 printf "version: v1\ndirectories:\n  - proto\n  - third_party" > buf.work.yaml
 printf "version: v1\nname: buf.build/InjectiveLabs/injective-core\n" > proto/buf.yaml
-cp ../proto/buf.gen.ts.yaml proto/buf.gen.ts.yaml
+cp ../$TS_PROTO_TEMPLATE $TS_PROTO_TEMPLATE
 cp -r ../proto/injective proto/
 
 # download third_party API definitions
-git clone https://github.com/InjectiveLabs/cosmos-sdk.git -b v0.47.3-inj-9 --depth 1 --single-branch
-git clone https://github.com/InjectiveLabs/wasmd -b v0.45.0-inj --depth 1 --single-branch
+cosmos_sdk_branch=v0.50.x-inj
+wasmd_branch=v0.50.x-inj
+
+git clone https://github.com/InjectiveLabs/cosmos-sdk.git -b $cosmos_sdk_branch --depth 1 --single-branch > /dev/null
+git clone https://github.com/InjectiveLabs/wasmd -b $wasmd_branch --depth 1 --single-branch > /dev/null
 
 buf export ./cosmos-sdk --output=third_party
 buf export ./wasmd --exclude-imports --output=./third_party
 buf export https://github.com/cosmos/ibc-go.git --exclude-imports --output=third_party
-buf export https://github.com/tendermint/tendermint.git --exclude-imports --output=third_party
+buf export https://github.com/cometbft/cometbft.git --exclude-imports --output=third_party
 buf export https://github.com/cosmos/ics23.git --exclude-imports --output=./third_party
-buf export https://github.com/cosmos/ibc-apps.git --exclude-imports --output=./third_party --path=middleware/packet-forward-middleware/proto && mv ./third_party/middleware/packet-forward-middleware/proto/packetforward ./third_party
+buf export https://github.com/cosmos/ibc-apps.git --exclude-imports --output=./third_party --path=middleware/packet-forward-middleware/proto/packetforward/v1
 
 rm -rf ./cosmos-sdk && rm -rf ./wasmd
 
+# generate TS proto
 proto_dirs=$(find . -path -prune -o -name '*.proto' -print0 | xargs -0 -n1 dirname | sort | uniq)
 for dir in $proto_dirs; do
-  echo Generating $dir ...
+  echo Generating "$dir" ...
   for file in $(find "${dir}" -maxdepth 1 -name '*.proto'); do
-    buf generate --template proto/buf.gen.ts.yaml $file
+    buf generate --template $TS_PROTO_TEMPLATE "$file"
+
+    # if still hitting BSR rate limit, uncomment this
+    ((counter++))
+    if (( counter % 5 == 0 )); then
+      sleep 8
+    fi
   done
 done
 
 cd ..
 rm -fr $TS_BUILD_DIR
 
-# cd proto
-# # download third_party API definitions
-# buf export https://github.com/cosmos/ibc-go.git --output=./third_party
-# buf export https://github.com/cosmos/cosmos-sdk.git --exclude-imports --output=./third_party
-# buf export https://github.com/CosmWasm/wasmd.git --exclude-imports --output=./third_party
+#######################################
+###### POST GENERATION CLEANUP #######
+#######################################
 
-# # compile proto definitions
-# proto_dirs=$(find ./injective ./third_party -path -prune -o -name '*.proto' -print0 | xargs -0 -n1 dirname | sort | uniq)
-# for dir in $proto_dirs; do
-#   echo Generating $dir ...
-#   for file in $(find "${dir}" -maxdepth 1 -name '*.proto'); do
-#       buf generate --template buf.gen.ts.yaml --include-imports $file
-#   done
-# done
-
-# cd ..
-
-########################################
-####### POST GENERATION CLEANUP ####### 
-########################################
+echo "Compiling npm packages..."
 
 ## 1. Replace package with our own fork
 search1="@improbable-eng/grpc-web"
 replace1="@injectivelabs/grpc-web"
 
-FILES=$( find ./client/proto-ts/gen -type f )
+FILES=$( find ./$TS_OUTPUT_DIR -type f )
 
 for file in $FILES
-do  
-  sed -ie "s/${search1//\//\\/}/${replace1//\//\\/}/g" $file
+do
+  sed -ie "s/${search1//\//\\/}/${replace1//\//\\/}/g" "$file"
 done
 
-## 2. Replace extension type to ignore on compile time 
+## 2. Replace extension type to ignore on compile time
 search1="getExtension():"
 replace1="// @ts-ignore \n  getExtension():"
 search2="setExtension("
 replace2="// @ts-ignore \n  setExtension("
 
-FILES=$( find ./client/proto-ts/gen -type f -name '*.d.ts' )
+FILES=$( find ./$TS_OUTPUT_DIR -type f -name '*.d.ts' )
 
 for file in $FILES
-do  
-  sed -ie "s/${search1//\//\\/}/${replace1//\//\\/}/g" $file
-  sed -ie "s/${search2//\//\\/}/${replace2//\//\\/}/g" $file
+do
+  sed -ie "s/${search1//\//\\/}/${replace1//\//\\/}/g" "$file"
+  sed -ie "s/${search2//\//\\/}/${replace2//\//\\/}/g" "$file"
 done
 
+TS_STUB_DIR=client/proto-ts/stub
+ESM_PKG_TEMPLATE=$TS_STUB_DIR/package.json.esm.template
+ESM_CFG_TEMPLATE=$TS_STUB_DIR/tsconfig.json.esm.template
+CJS_PKG_TEMPLATE=$TS_STUB_DIR/package.json.cjs.template
+CJS_CFG_TEMPLATE=$TS_STUB_DIR/tsconfig.json.cjs.template
+
 ## 3. Compile TypeScript for ESM package
-cp ./client/proto-ts/stub/index.ts.template ./client/proto-ts/gen/proto/index.ts
+cp $TS_STUB_DIR/index.ts.template $TS_OUTPUT_DIR/proto/index.ts
 
-### ESM 
-cp ./client/proto-ts/stub/package.json.esm.template ./client/proto-ts/gen/proto/package.json
-cp ./client/proto-ts/stub/tsconfig.json.esm.template ./client/proto-ts/gen/proto/tsconfig.json
-npm --prefix ./client/proto-ts/gen/proto install 
-npm --prefix ./client/proto-ts/gen/proto run gen
-cp ./client/proto-ts/stub/package.json.esm.template ./client/proto-ts/gen/core-proto-ts/esm/package.json
+### ESM
+cp $ESM_PKG_TEMPLATE $TS_OUTPUT_DIR/proto/package.json
+cp $ESM_CFG_TEMPLATE $TS_OUTPUT_DIR/proto/tsconfig.json
+npm --prefix $TS_OUTPUT_DIR/proto install
+npm --prefix $TS_OUTPUT_DIR/proto run gen
+cp $ESM_PKG_TEMPLATE $TS_OUTPUT_DIR/core-proto-ts/esm/package.json
 
-### CJS 
-cp ./client/proto-ts/stub/package.json.cjs.template ./client/proto-ts/gen/proto/package.json
-cp ./client/proto-ts/stub/tsconfig.json.cjs.template ./client/proto-ts/gen/proto/tsconfig.json
-npm --prefix ./client/proto-ts/gen/proto install 
-npm --prefix ./client/proto-ts/gen/proto run gen
-cp ./client/proto-ts/stub/package.json.cjs.template ./client/proto-ts/gen/core-proto-ts/cjs/package.json
+### CJS
+cp $CJS_PKG_TEMPLATE $TS_OUTPUT_DIR/proto/package.json
+cp $CJS_CFG_TEMPLATE $TS_OUTPUT_DIR/proto/tsconfig.json
+npm --prefix $TS_OUTPUT_DIR/proto install
+npm --prefix $TS_OUTPUT_DIR/proto run gen
+cp $CJS_PKG_TEMPLATE $TS_OUTPUT_DIR/core-proto-ts/cjs/package.json
 
 ## 4. Setup proper package.json for both chain-api and core-proto-ts packages
-cp ./client/proto-ts/stub/package.json.core-proto-ts.template ./client/proto-ts/gen/core-proto-ts/package.json
-mkdir -p ./client/proto-ts/gen/chain-api
-cp ./client/proto-ts/stub/package.json.chain-api.template ./client/proto-ts/gen/chain-api/package.json
+cp $TS_STUB_DIR/package.json.core-proto-ts.template $TS_OUTPUT_DIR/core-proto-ts/package.json
+mkdir -p $TS_OUTPUT_DIR/chain-api
+cp $TS_STUB_DIR/package.json.chain-api.template $TS_OUTPUT_DIR/chain-api/package.json
 
 # 5. Clean up folders
-rm -rf ./client/proto-ts/temp
-rm -rf ./client/proto-ts/gen/proto
-find ./client/proto-ts/gen -name "*.jse" -type f -delete
-find ./client/proto-ts/gen -name "*.tse" -type f -delete
-find ./client/proto-ts/gen -name "*.jsone" -type f -delete
+rm -rf client/proto-ts/temp
+rm -rf $TS_OUTPUT_DIR/proto
+find $TS_OUTPUT_DIR -name "*.jse" -type f -delete
+find $TS_OUTPUT_DIR -name "*.tse" -type f -delete
+find $TS_OUTPUT_DIR -name "*.jsone" -type f -delete
+
+echo "Done!"

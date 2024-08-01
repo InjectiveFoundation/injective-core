@@ -4,14 +4,14 @@ title: Install Injectived
 ---
 
 
-# Install `Injectived` 
+# Install `injectived` 
 
 `injectived` is the command-line interface and daemon that connects to Injective and enables you to interact with the Injective blockchain. Injective core is the official Golang reference implementation of the Injective node software.
 
 ## Requirements
 
 - Golang v1.16.1 - go1.17.1 linux/amd64
-- Ensure your GOPATH and GOBIN environment variables are set up correctly.
+- Ensure your GOPATH and GOBIN environment variables are [set up](https://go.dev/wiki/SettingGOPATH).
 - Linux users: install build-essential.
 - 8 vCPU (4 physical core), x86_64 architecture processor
 - 64 GB RAM (or equivalent swap file set up)
@@ -19,16 +19,21 @@ title: Install Injectived
 
 ## Option 1: From binary
 
-The easiest way to install `injectived` and Injective core is by downloading a pre-built binary for your operating system. Download the most recent Injective Chain binaries from the official [injective-chain-releases repo](https://github.com/InjectiveLabs/injective-chain-releases).
+The easiest way to install `injectived` and Injective core is by downloading a pre-built binary for your operating system. Download the most recent Injective binaries from the official [injective-chain-releases repo](https://github.com/InjectiveLabs/injective-chain-releases).
+
+:::tip
+
+Make sure to check the releases repo above for the most recent version!
+
+:::
 
 ```bash
-# Make sure to check the releases repo for the most recent version!
-wget https://github.com/InjectiveLabs/injective-chain-releases/releases/download/v1.10.0-1679065799/linux-amd64.zip
+wget https://github.com/InjectiveLabs/injective-chain-releases/releases/download/v1.x.x-x/linux-amd64.zip
 ```
 
 This zip file will contain three binaries and a virtual machine:
-- **`injectived`** - the Injective Chain daemon
-- **`peggo`** - the Injective Chain ERC-20 bridge relayer daemon
+- **`injectived`** - Injective daemon
+- **`peggo`** - Injective ERC-20 bridge relayer daemon
 - **`injective-exchange`** - the Injective Exchange daemon
 - **`libwasmvm.x86_64.so`** - the wasm virtual machine which is needed to execute smart contracts.
 
@@ -63,16 +68,16 @@ Version dev (ca1da5e)
 
 ## Option 2: From source
 
-Note: you will only install `injectived` but not `injective-exchange`, `peggo` or `libwasmvm.x86_64.so` using this option.
+Note: you will only install `injectived` but not `injective-exchange`, `peggo` or `libwasmvm.x86_64.so` using this option. If you are using MacOS you can only install `injectived` from source.
 
 ### Get the Injective core source code
 
-Use git to retrieve [Injective core](https://github.com/OpenDeFiFoundation/injective-core).
+Use git to retrieve [Injective core](https://github.com/InjectiveFoundation/injective-core).
 
 Clone the injective repo:
 
 ```bash
-git clone https://github.com/OpenDeFiFoundation/injective-core
+git clone https://github.com/InjectiveFoundation/injective-core
 ```
 
 ### Build Injective core from source

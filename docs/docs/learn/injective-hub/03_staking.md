@@ -5,9 +5,9 @@ title: Staking
 
 # Staking
 
-Staking is the process of locking up your assets (in this case INJ) in order to validate transactions on the blockchain. Users who choose to stake will be able to obtain rewards as a result of that process. 
+Staking is the process of locking up your assets (in this case INJ) in order to validate transactions on the blockchain. Users who stake their assets are usually eligible for staking rewards.
 
-Injective follows a proof-of-stake mechanism, in which users can stake their tokens to certain Injective validators who will do the work of validating transactions, while the user reaps the benefit through only contributing assets.
+Injective follows a proof-of-stake mechanism, in which users can stake their INJ tokens with certain Injective nodes that validate transactions (validators). In return, the user can obtain staking rewards in INJ.
 
 ## Stake INJ
 
@@ -19,8 +19,8 @@ Rewards start accruing the moment you stake INJ. Monitor your rewards in the sta
 
 ## Redelegate
 
-Redelegating lets you transfer staked INJ from one validator to another without waiting the 21-day unstaking period. Redelegating happens instantly.
+Redelegating lets you instantly transfer staked INJ from one validator to another without undergoing the 21-day unstaking period.
 
 ## Undelegate
 
-Undelegating INJ is the process of unstaking your assets from a validator. The unstaking period takes 21 days to complete.
+Undelegating INJ is the process of unstaking your assets from a validator, which takes 21 days to complete.

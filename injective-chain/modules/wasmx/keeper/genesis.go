@@ -15,6 +15,8 @@ func (k *Keeper) InitGenesis(ctx sdk.Context, data types.GenesisState) {
 		}
 		k.SetContract(ctx, address, *contract.RegisteredContract)
 	}
+
+	k.CreateModuleAccount(ctx)
 }
 
 func (k *Keeper) ExportGenesis(ctx sdk.Context) *types.GenesisState {

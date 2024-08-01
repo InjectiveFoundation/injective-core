@@ -34,7 +34,8 @@ func NewMsgServerImpl(keeper Keeper) types.MsgServer {
 }
 
 func (m msgServer) UpdateParams(c context.Context, msg *types.MsgUpdateParams) (*types.MsgUpdateParamsResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(m.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, m.svcTags)
+	defer doneFn()
 
 	if msg.Authority != m.authority {
 		return nil, errors.Wrapf(govtypes.ErrInvalidSigner, "invalid authority: expected %s, got %s", m.authority, msg.Authority)
@@ -50,6 +51,9 @@ func (m msgServer) UpdateParams(c context.Context, msg *types.MsgUpdateParams) (
 }
 
 func (m msgServer) ExecuteContractCompat(goCtx context.Context, msg *types.MsgExecuteContractCompat) (*types.MsgExecuteContractCompatResponse, error) {
+	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, m.svcTags)
+	defer doneFn()
+
 	wasmMsgServer := wasmkeeper.NewMsgServerImpl(&m.wasmKeeper)
 
 	funds := sdk.Coins{}
@@ -75,6 +79,9 @@ func (m msgServer) ExecuteContractCompat(goCtx context.Context, msg *types.MsgEx
 }
 
 func (m msgServer) UpdateRegistryContractParams(goCtx context.Context, msg *types.MsgUpdateContract) (*types.MsgUpdateContractResponse, error) {
+	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, m.svcTags)
+	defer doneFn()
+
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
 	contractAddr := sdk.MustAccAddressFromBech32(msg.ContractAddress)
@@ -93,6 +100,9 @@ func (m msgServer) UpdateRegistryContractParams(goCtx context.Context, msg *type
 }
 
 func (m msgServer) ActivateRegistryContract(goCtx context.Context, msg *types.MsgActivateContract) (*types.MsgActivateContractResponse, error) {
+	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, m.svcTags)
+	defer doneFn()
+
 	ctx := sdk.UnwrapSDKContext(goCtx)
 	contractAddr := sdk.MustAccAddressFromBech32(msg.ContractAddress)
 
@@ -109,6 +119,9 @@ func (m msgServer) ActivateRegistryContract(goCtx context.Context, msg *types.Ms
 }
 
 func (m msgServer) DeactivateRegistryContract(goCtx context.Context, msg *types.MsgDeactivateContract) (*types.MsgDeactivateContractResponse, error) {
+	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, m.svcTags)
+	defer doneFn()
+
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
 	contractAddr := sdk.MustAccAddressFromBech32(msg.ContractAddress)
@@ -124,13 +137,16 @@ func (m msgServer) DeactivateRegistryContract(goCtx context.Context, msg *types.
 }
 
 func (m msgServer) RegisterContract(goCtx context.Context, msg *types.MsgRegisterContract) (*types.MsgRegisterContractResponse, error) {
+	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, m.svcTags)
+	defer doneFn()
+
 	ctx := sdk.UnwrapSDKContext(goCtx)
 	params := m.Keeper.GetParams(ctx)
 
 	sender := sdk.MustAccAddressFromBech32(msg.Sender)
 
-	accessConfig := m.wasmViewKeeper.GetParams(ctx).CodeUploadAccess
-	isRegistrationAllowed := types.IsAllowed(accessConfig, sender)
+	accessConfig := params.RegisterContractAccess
+	isRegistrationAllowed := msg.Sender == m.authority || types.IsAllowed(accessConfig, sender)
 
 	if !isRegistrationAllowed {
 		return nil, sdkerrors.ErrUnauthorized.Wrap("Unauthorized to register contract")
@@ -143,7 +159,10 @@ func (m msgServer) RegisterContract(goCtx context.Context, msg *types.MsgRegiste
 	return &types.MsgRegisterContractResponse{}, nil
 }
 
-func (m msgServer) fetchContractAndCheckAccessControl(ctx sdk.Context, contractAddr sdk.AccAddress, msg sdk.Msg) (*types.RegisteredContract, error) {
+func (m msgServer) fetchContractAndCheckAccessControl(ctx sdk.Context, contractAddr sdk.AccAddress, msg sdk.LegacyMsg) (*types.RegisteredContract, error) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, m.svcTags)
+	defer doneFn()
+
 	contract := m.Keeper.GetContractByAddress(ctx, contractAddr)
 	if contract == nil {
 		return nil, errors.Wrapf(sdkerrors.ErrNotFound, "Contract with address %s not found", contractAddr.String())
@@ -151,7 +170,7 @@ func (m msgServer) fetchContractAndCheckAccessControl(ctx sdk.Context, contractA
 
 	senderAddr := msg.GetSigners()[0]
 
-	if !(senderAddr.Equals(contractAddr) || (len(contract.AdminAddress) > 0 && senderAddr.String() == contract.AdminAddress)) {
+	if !(senderAddr.Equals(contractAddr) || (contract.AdminAddress != "" && senderAddr.String() == contract.AdminAddress)) {
 		return nil, sdkerrors.ErrUnauthorized.Wrapf("Unauthorized to update contract %v", contractAddr.String())
 	}
 	return contract, nil
@@ -163,6 +182,9 @@ func (m msgServer) updateRegisteredContractData(
 	registeredContract *types.RegisteredContract,
 	updateFn func(contract *types.RegisteredContract),
 ) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, m.svcTags)
+	defer doneFn()
+
 	updateFn(registeredContract)
 	m.Keeper.SetContract(ctx, contractAddr, *registeredContract)
 }

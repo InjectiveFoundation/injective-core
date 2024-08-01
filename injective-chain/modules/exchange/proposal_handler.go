@@ -2,11 +2,11 @@ package exchange
 
 import (
 	"cosmossdk.io/errors"
+	"cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types/v1beta1"
 	"github.com/ethereum/go-ethereum/common"
-	log "github.com/xlab/suplog"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/keeper"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
@@ -168,6 +168,19 @@ func handleSpotMarketParamUpdateProposal(ctx sdk.Context, k keeper.Keeper, p *ty
 	if p.MinQuantityTickSize == nil {
 		p.MinQuantityTickSize = &market.MinQuantityTickSize
 	}
+	if p.MinNotional == nil || p.MinNotional.IsNil() {
+		p.MinNotional = &market.MinNotional
+	}
+	if p.Ticker == "" {
+		p.Ticker = market.Ticker
+	}
+
+	if p.AdminInfo == nil {
+		p.AdminInfo = &types.AdminInfo{
+			Admin:            market.Admin,
+			AdminPermissions: market.AdminPermissions,
+		}
+	}
 
 	minimalProtocolFeeRate := k.GetMinimalProtocolFeeRate(ctx)
 	discountSchedule := k.GetFeeDiscountSchedule(ctx)
@@ -195,8 +208,8 @@ func handleSpotMarketLaunchProposal(ctx sdk.Context, k keeper.Keeper, p *types.S
 	exchangeParams := k.GetParams(ctx)
 	relayerFeeShareRate := exchangeParams.RelayerFeeShareRate
 
-	var makerFeeRate sdk.Dec
-	var takerFeeRate sdk.Dec
+	var makerFeeRate math.LegacyDec
+	var takerFeeRate math.LegacyDec
 
 	if p.MakerFeeRate != nil {
 		makerFeeRate = *p.MakerFeeRate
@@ -210,14 +223,12 @@ func handleSpotMarketLaunchProposal(ctx sdk.Context, k keeper.Keeper, p *types.S
 		takerFeeRate = exchangeParams.DefaultSpotTakerFeeRate
 	}
 
-	minimalProtocolFeeRate := k.GetMinimalProtocolFeeRate(ctx)
-	discountSchedule := k.GetFeeDiscountSchedule(ctx)
-
-	if err := types.ValidateMakerWithTakerFeeAndDiscounts(makerFeeRate, takerFeeRate, relayerFeeShareRate, minimalProtocolFeeRate, discountSchedule); err != nil {
-		return err
+	adminInfo := types.EmptyAdminInfo()
+	if p.AdminInfo != nil {
+		adminInfo = *p.AdminInfo
 	}
 
-	_, err := k.SpotMarketLaunchWithCustomFees(ctx, p.Ticker, p.BaseDenom, p.QuoteDenom, p.MinPriceTickSize, p.MinQuantityTickSize, makerFeeRate, takerFeeRate, relayerFeeShareRate)
+	_, err := k.SpotMarketLaunchWithCustomFees(ctx, p.Ticker, p.BaseDenom, p.QuoteDenom, p.MinPriceTickSize, p.MinQuantityTickSize, p.MinNotional, makerFeeRate, takerFeeRate, relayerFeeShareRate, adminInfo)
 	if err != nil {
 		return err
 	}
@@ -229,7 +240,7 @@ func handlePerpetualMarketLaunchProposal(ctx sdk.Context, k keeper.Keeper, p *ty
 		return err
 	}
 
-	_, _, err := k.PerpetualMarketLaunch(ctx, p.Ticker, p.QuoteDenom, p.OracleBase, p.OracleQuote, p.OracleScaleFactor, p.OracleType, p.InitialMarginRatio, p.MaintenanceMarginRatio, p.MakerFeeRate, p.TakerFeeRate, p.MinPriceTickSize, p.MinQuantityTickSize)
+	_, _, err := k.PerpetualMarketLaunch(ctx, p.Ticker, p.QuoteDenom, p.OracleBase, p.OracleQuote, p.OracleScaleFactor, p.OracleType, p.InitialMarginRatio, p.MaintenanceMarginRatio, p.MakerFeeRate, p.TakerFeeRate, p.MinPriceTickSize, p.MinQuantityTickSize, p.MinNotional)
 	return err
 }
 
@@ -238,7 +249,7 @@ func handleExpiryFuturesMarketLaunchProposal(ctx sdk.Context, k keeper.Keeper, p
 		return err
 	}
 
-	_, _, err := k.ExpiryFuturesMarketLaunch(ctx, p.Ticker, p.QuoteDenom, p.OracleBase, p.OracleQuote, p.OracleScaleFactor, p.OracleType, p.Expiry, p.InitialMarginRatio, p.MaintenanceMarginRatio, p.MakerFeeRate, p.TakerFeeRate, p.MinPriceTickSize, p.MinQuantityTickSize)
+	_, _, err := k.ExpiryFuturesMarketLaunch(ctx, p.Ticker, p.QuoteDenom, p.OracleBase, p.OracleQuote, p.OracleScaleFactor, p.OracleType, p.Expiry, p.InitialMarginRatio, p.MaintenanceMarginRatio, p.MakerFeeRate, p.TakerFeeRate, p.MinPriceTickSize, p.MinQuantityTickSize, p.MinNotional)
 	return err
 }
 
@@ -253,10 +264,10 @@ func scheduleSpotMarketForceClosure(ctx sdk.Context, k keeper.Keeper, spotMarket
 	return nil
 }
 
-func scheduleDerivativeMarketSettlement(ctx sdk.Context, k keeper.Keeper, derivativeMarket *types.DerivativeMarket, settlementPrice *sdk.Dec) error {
+func scheduleDerivativeMarketSettlement(ctx sdk.Context, k keeper.Keeper, derivativeMarket *types.DerivativeMarket, settlementPrice *math.LegacyDec) error {
 	if settlementPrice == nil {
 		// zero is a reserved value for fetching the latest price from oracle
-		zeroDec := sdk.ZeroDec()
+		zeroDec := math.LegacyZeroDec()
 		settlementPrice = &zeroDec
 	} else if !types.SafeIsPositiveDec(*settlementPrice) {
 		return errors.Wrap(types.ErrInvalidSettlement, "settlement price must be positive for derivative markets")
@@ -345,6 +356,17 @@ func handleDerivativeMarketParamUpdateProposal(ctx sdk.Context, k keeper.Keeper,
 	if p.MinQuantityTickSize == nil {
 		p.MinQuantityTickSize = &market.MinQuantityTickSize
 	}
+	if p.MinNotional == nil || p.MinNotional.IsNil() {
+		p.MinNotional = &market.MinNotional
+	}
+
+	if p.AdminInfo == nil {
+		p.AdminInfo = &types.AdminInfo{
+			Admin:            market.Admin,
+			AdminPermissions: market.AdminPermissions,
+		}
+	}
+
 	if p.InitialMarginRatio.LT(*p.MaintenanceMarginRatio) {
 		return types.ErrMarginsRelation
 	}
@@ -365,10 +387,14 @@ func handleDerivativeMarketParamUpdateProposal(ctx sdk.Context, k keeper.Keeper,
 		}
 
 		// fail if the |oldPrice - newPrice| / oldPrice is greater than 90% since that probably means something's wrong
-		priceDifferenceThreshold := sdk.MustNewDecFromStr("0.90")
+		priceDifferenceThreshold := math.LegacyMustNewDecFromStr("0.90")
 		if oldPrice.Sub(*newPrice).Abs().Quo(*oldPrice).GT(priceDifferenceThreshold) {
 			return errors.Wrapf(types.ErrOraclePriceDeltaExceedsThreshold, "Existing Price %s exceeds %s percent of new Price %s", oldPrice.String(), priceDifferenceThreshold.String(), newPrice.String())
 		}
+	}
+
+	if p.Ticker == "" {
+		p.Ticker = market.Ticker
 	}
 
 	minimalProtocolFeeRate := k.GetMinimalProtocolFeeRate(ctx)
@@ -417,6 +443,7 @@ func handleBinaryOptionsMarketLaunchProposal(ctx sdk.Context, k keeper.Keeper, p
 		p.QuoteDenom,
 		p.MinPriceTickSize,
 		p.MinQuantityTickSize,
+		p.MinNotional,
 	)
 	if err != nil {
 		return err
@@ -497,6 +524,10 @@ func handleBinaryOptionsMarketParamUpdateProposal(ctx sdk.Context, k keeper.Keep
 		if err := types.ValidateMakerWithTakerFeeAndDiscounts(*p.MakerFeeRate, *p.TakerFeeRate, *p.RelayerFeeShareRate, minimalProtocolFeeRate, discountSchedule); err != nil {
 			return err
 		}
+	}
+
+	if p.Ticker == "" {
+		p.Ticker = market.Ticker
 	}
 
 	// schedule market param change in transient store
@@ -705,13 +736,13 @@ func handleFeeDiscountProposal(ctx sdk.Context, k keeper.Keeper, p *types.FeeDis
 
 	allMarkets := append(keeper.ConvertSpotMarkets(spotMarkets), keeper.ConvertDerivativeMarkets(derivativeMarkets)...)
 	allMarkets = append(allMarkets, keeper.ConvertBinaryOptionsMarkets(binaryOptionsMarkets)...)
-	filteredMarkets := keeper.RemoveMarketsByIds(allMarkets, p.Schedule.DisqualifiedMarketIds)
+	filteredMarkets := keeper.RemoveMarketsByIDs(allMarkets, p.Schedule.DisqualifiedMarketIds)
 
 	for _, market := range filteredMarkets {
 		if !market.GetMakerFeeRate().IsNegative() {
 			continue
 		}
-		smallestTakerFeeRate := sdk.OneDec().Sub(maxTakerDiscount).Mul(market.GetTakerFeeRate())
+		smallestTakerFeeRate := math.LegacyOneDec().Sub(maxTakerDiscount).Mul(market.GetTakerFeeRate())
 		if err := types.ValidateMakerWithTakerFee(market.GetMakerFeeRate(), smallestTakerFeeRate, market.GetRelayerFeeShareRate(), minimalProtocolFeeRate); err != nil {
 			return err
 		}
@@ -758,7 +789,7 @@ func handleBatchCommunityPoolSpendProposal(ctx sdk.Context, k keeper.Keeper, p *
 			return err
 		}
 
-		log.Infoln("transferred from the community pool to recipient", "amount", proposal.Amount.String(), "recipient", proposal.Recipient)
+		ctx.Logger().Info("transferred from the community pool to recipient", "amount", proposal.Amount.String(), "recipient", proposal.Recipient)
 	}
 
 	return nil

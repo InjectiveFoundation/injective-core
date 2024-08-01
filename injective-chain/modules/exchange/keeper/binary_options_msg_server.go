@@ -4,10 +4,10 @@ import (
 	"context"
 
 	"cosmossdk.io/errors"
+	"cosmossdk.io/math"
 	"github.com/InjectiveLabs/metrics"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
-	log "github.com/xlab/suplog"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 )
@@ -28,7 +28,8 @@ func NewBinaryOptionsMsgServerImpl(keeper Keeper) BinaryOptionsMsgServer {
 }
 
 func (k BinaryOptionsMsgServer) InstantBinaryOptionsMarketLaunch(goCtx context.Context, msg *types.MsgInstantBinaryOptionsMarketLaunch) (*types.MsgInstantBinaryOptionsMarketLaunchResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
@@ -45,7 +46,7 @@ func (k BinaryOptionsMsgServer) InstantBinaryOptionsMarketLaunch(goCtx context.C
 	marketID := types.NewBinaryOptionsMarketID(msg.Ticker, msg.QuoteDenom, msg.OracleSymbol, msg.OracleProvider, msg.OracleType)
 	if k.checkIfMarketLaunchProposalExist(ctx, types.ProposalTypeBinaryOptionsMarketLaunch, marketID) {
 		metrics.ReportFuncError(k.svcTags)
-		log.Infof("the binary options market launch proposal already exists: marketID=%s", marketID.Hex())
+		ctx.Logger().Info("the binary options market launch proposal already exists", "marketID", marketID.Hex())
 		return nil, errors.Wrapf(types.ErrMarketLaunchProposalAlreadyExists, "the binary options market launch proposal already exists: marketID=%s", marketID.Hex())
 	}
 
@@ -64,6 +65,7 @@ func (k BinaryOptionsMsgServer) InstantBinaryOptionsMarketLaunch(goCtx context.C
 		msg.QuoteDenom,
 		msg.MinPriceTickSize,
 		msg.MinQuantityTickSize,
+		msg.MinNotional,
 	)
 	if err != nil {
 		metrics.ReportFuncError(k.svcTags)
@@ -75,7 +77,8 @@ func (k BinaryOptionsMsgServer) InstantBinaryOptionsMarketLaunch(goCtx context.C
 }
 
 func (k BinaryOptionsMsgServer) CreateBinaryOptionsLimitOrder(goCtx context.Context, msg *types.MsgCreateBinaryOptionsLimitOrder) (*types.MsgCreateBinaryOptionsLimitOrderResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
@@ -94,7 +97,7 @@ func (k BinaryOptionsMsgServer) CreateBinaryOptionsLimitOrder(goCtx context.Cont
 		msg.Order.Margin = requiredMargin
 	}
 
-	orderHash, err := k.createDerivativeLimitOrder(ctx, account, &msg.Order, market, sdk.Dec{})
+	orderHash, err := k.createDerivativeLimitOrder(ctx, account, &msg.Order, market, math.LegacyDec{})
 
 	if err != nil {
 		metrics.ReportFuncError(k.svcTags)
@@ -103,11 +106,13 @@ func (k BinaryOptionsMsgServer) CreateBinaryOptionsLimitOrder(goCtx context.Cont
 
 	return &types.MsgCreateBinaryOptionsLimitOrderResponse{
 		OrderHash: orderHash.Hex(),
+		Cid:       msg.Order.OrderInfo.Cid,
 	}, nil
 }
 
 func (k BinaryOptionsMsgServer) CreateBinaryOptionsMarketOrder(goCtx context.Context, msg *types.MsgCreateBinaryOptionsMarketOrder) (*types.MsgCreateBinaryOptionsMarketOrderResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
@@ -126,7 +131,7 @@ func (k BinaryOptionsMsgServer) CreateBinaryOptionsMarketOrder(goCtx context.Con
 		msg.Order.Margin = requiredMargin
 	}
 
-	orderHash, results, err := k.createDerivativeMarketOrder(ctx, account, &msg.Order, market, sdk.Dec{})
+	orderHash, results, err := k.createDerivativeMarketOrder(ctx, account, &msg.Order, market, math.LegacyDec{})
 	if err != nil {
 		metrics.ReportFuncError(k.svcTags)
 		return nil, err
@@ -134,6 +139,7 @@ func (k BinaryOptionsMsgServer) CreateBinaryOptionsMarketOrder(goCtx context.Con
 
 	resp := &types.MsgCreateBinaryOptionsMarketOrderResponse{
 		OrderHash: orderHash.Hex(),
+		Cid:       msg.Order.Cid(),
 	}
 
 	if results != nil {
@@ -143,7 +149,8 @@ func (k BinaryOptionsMsgServer) CreateBinaryOptionsMarketOrder(goCtx context.Con
 }
 
 func (k BinaryOptionsMsgServer) CancelBinaryOptionsOrder(goCtx context.Context, msg *types.MsgCancelBinaryOptionsOrder) (*types.MsgCancelBinaryOptionsOrderResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
@@ -159,6 +166,7 @@ func (k BinaryOptionsMsgServer) CancelBinaryOptionsOrder(goCtx context.Context, 
 	err := k.cancelDerivativeOrder(ctx, subaccountID, identifier, market, marketID, msg.OrderMask)
 
 	if err != nil {
+		_ = ctx.EventManager().EmitTypedEvent(types.NewEventOrderCancelFail(marketID, subaccountID, msg.OrderHash, msg.Cid, err))
 		return nil, err
 	}
 
@@ -166,7 +174,8 @@ func (k BinaryOptionsMsgServer) CancelBinaryOptionsOrder(goCtx context.Context, 
 }
 
 func (k BinaryOptionsMsgServer) AdminUpdateBinaryOptionsMarket(goCtx context.Context, msg *types.MsgAdminUpdateBinaryOptionsMarket) (*types.MsgAdminUpdateBinaryOptionsMarketResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
@@ -237,7 +246,8 @@ func (k BinaryOptionsMsgServer) AdminUpdateBinaryOptionsMarket(goCtx context.Con
 }
 
 func (k BinaryOptionsMsgServer) BatchCancelBinaryOptionsOrders(goCtx context.Context, msg *types.MsgBatchCancelBinaryOptionsOrders) (*types.MsgBatchCancelBinaryOptionsOrdersResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
+	defer doneFn()
 
 	successes := make([]bool, len(msg.Data))
 	for idx := range msg.Data {

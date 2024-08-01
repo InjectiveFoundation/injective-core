@@ -1,13 +1,13 @@
 ---
 sidebar_position: 1
-title: Interacting with Nodes
+title: Interacting with a Node
 ---
 
 # Interacting with a Node
 
 :::note
 
-There are multiple ways to interact with a node: using the CLI, using gRPC or using the REST endpoints. 
+There are multiple ways to interact with a node: the CLI, gRPC, or the REST endpoints. 
 :::
 
 ## Option 1: Using the CLI
@@ -74,7 +74,7 @@ Assuming the state at that block has not yet been pruned by the node, this query
 ### Programmatically
 
 :::tip note
-The following examples are in Go, but the [Python](../../../develop/tools/injectivepy/) and [TS](../../../develop/tools/injectivets/) SDKs can also be used to programatically interact with a node/the Injective chain.
+The following examples are in Go, but the [Python](../../../develop/tools/injectivepy/) and [TS](../../../develop/tools/injectivets/) SDKs can also be used to programatically interact with a node/Injective.
 :::
 
 The following snippet shows how to query the state using gRPC inside a Go program. The idea is to create a gRPC connection, and use the Protobuf-generated client code to query the gRPC server.

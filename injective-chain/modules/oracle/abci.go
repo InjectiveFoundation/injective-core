@@ -1,7 +1,6 @@
 package oracle
 
 import (
-	abci "github.com/cometbft/cometbft/abci/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/InjectiveLabs/metrics"
@@ -26,8 +25,7 @@ func NewBlockHandler(k keeper.Keeper) *BlockHandler {
 }
 
 func (h *BlockHandler) BeginBlocker(ctx sdk.Context) {
-	metrics.ReportFuncCall(h.svcTags)
-	doneFn := metrics.ReportFuncTiming(h.svcTags)
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, h.svcTags)
 	defer doneFn()
 
 	bandIBCParams := h.k.GetBandIBCParams(ctx)
@@ -63,6 +61,6 @@ func (h *BlockHandler) RequestAllBandIBCRates(ctx sdk.Context) {
 	}
 }
 
-func EndBlocker(ctx sdk.Context, block abci.RequestEndBlock) {
+func EndBlocker(ctx sdk.Context) {
 
 }

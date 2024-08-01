@@ -100,6 +100,14 @@ func (k *Keeper) InitGenesis(ctx sdk.Context, data types.GenesisState) {
 	for _, pythPriceState := range data.PythPriceStates {
 		k.SetPythPriceState(ctx, pythPriceState)
 	}
+
+	for _, storkPriceState := range data.StorkPriceStates {
+		k.SetStorkPriceState(ctx, storkPriceState)
+	}
+
+	for _, storkPublisher := range data.StorkPublishers {
+		k.SetStorkPublisher(ctx, storkPublisher)
+	}
 }
 
 func (k *Keeper) ExportGenesis(ctx sdk.Context) *types.GenesisState {
@@ -119,5 +127,7 @@ func (k *Keeper) ExportGenesis(ctx sdk.Context) *types.GenesisState {
 		HistoricalPriceRecords: k.GetAllHistoricalPriceRecords(ctx),
 		ProviderStates:         k.GetAllProviderStates(ctx),
 		PythPriceStates:        k.GetAllPythPriceStates(ctx),
+		StorkPriceStates:       k.GetAllStorkPriceStates(ctx),
+		StorkPublishers:        k.GetAllStorkPublishers(ctx),
 	}
 }

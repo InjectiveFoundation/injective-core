@@ -23,6 +23,7 @@ import (
 	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
+	clientkeys "github.com/InjectiveLabs/injective-core/injective-chain/client/keys"
 	cryptohd "github.com/InjectiveLabs/injective-core/injective-chain/crypto/hd"
 )
 
@@ -245,9 +246,9 @@ func RunAddCmd(ctx client.Context, cmd *cobra.Command, args []string, inBuf *buf
 
 func printCreate(cmd *cobra.Command, k *keyring.Record, showMnemonic bool, mnemonic, outputFormat string) error {
 	switch outputFormat {
-	case keys.OutputFormatText:
+	case clientkeys.OutputFormatText:
 		cmd.PrintErrln()
-		printKeyInfo(cmd.OutOrStdout(), k, keyring.MkAccKeyOutput, outputFormat)
+		printKeyInfo(cmd.OutOrStdout(), k, keys.MkAccKeyOutput, outputFormat)
 
 		// print mnemonic unless requested not to.
 		if showMnemonic {
@@ -256,8 +257,8 @@ func printCreate(cmd *cobra.Command, k *keyring.Record, showMnemonic bool, mnemo
 			fmt.Fprintln(cmd.ErrOrStderr(), "")
 			fmt.Fprintln(cmd.ErrOrStderr(), mnemonic)
 		}
-	case keys.OutputFormatJSON:
-		out, err := keyring.MkAccKeyOutput(k)
+	case clientkeys.OutputFormatJSON:
+		out, err := keys.MkAccKeyOutput(k)
 		if err != nil {
 			return err
 		}
@@ -291,9 +292,9 @@ func validateMultisigThreshold(k, nKeys int) error {
 	return nil
 }
 
-type bechKeyOutFn func(keyInfo *keyring.Record) (keyring.KeyOutput, error)
+type bechKeyOutFn func(keyInfo *keyring.Record) (keys.KeyOutput, error)
 
-func printTextInfos(w io.Writer, kos []keyring.KeyOutput) {
+func printTextInfos(w io.Writer, kos []keys.KeyOutput) {
 	out, err := yaml.Marshal(&kos)
 	if err != nil {
 		panic(err)
@@ -308,10 +309,10 @@ func printKeyInfo(w io.Writer, keyInfo *keyring.Record, bechKeyOut bechKeyOutFn,
 	}
 
 	switch output {
-	case keys.OutputFormatText:
-		printTextInfos(w, []keyring.KeyOutput{ko})
+	case clientkeys.OutputFormatText:
+		printTextInfos(w, []keys.KeyOutput{ko})
 
-	case keys.OutputFormatJSON:
+	case clientkeys.OutputFormatJSON:
 		out, err := json.Marshal(ko)
 		if err != nil {
 			panic(err)

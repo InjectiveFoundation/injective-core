@@ -4,6 +4,9 @@ set -eo pipefail
 
 SWAGGER_TMP_DIR=tmp-swagger-gen
 SWAGGER_BUILD_DIR=tmp-swagger-build
+COSMOS_SDK_VERSION_TAG=v0.50.6-inj-2
+IBC_GO_VERSION_TAG=v8.3.2-inj-0
+WASMD_VERSION_TAG=v0.51.0-inj-0
 rm -fr $SWAGGER_BUILD_DIR $SWAGGER_TMP_DIR
 mkdir -p $SWAGGER_BUILD_DIR $SWAGGER_TMP_DIR
 
@@ -15,13 +18,14 @@ cp ../proto/buf.gen.swagger.yaml proto/buf.gen.swagger.yaml
 cp -r ../proto/injective proto/
 
 # download third_party API definitions
-git clone https://github.com/InjectiveLabs/cosmos-sdk.git -b v0.47.3-inj-9 --depth 1 --single-branch
-git clone https://github.com/InjectiveLabs/wasmd -b v0.45.0-inj --depth 1 --single-branch
+git clone https://github.com/InjectiveLabs/cosmos-sdk.git -b $COSMOS_SDK_VERSION_TAG --depth 1 --single-branch
+git clone https://github.com/InjectiveLabs/ibc-go.git -b $IBC_GO_VERSION_TAG --depth 1 --single-branch
+git clone https://github.com/InjectiveLabs/wasmd.git -b $WASMD_VERSION_TAG --depth 1 --single-branch
 
 buf export ./cosmos-sdk --output=third_party
+buf export ./ibc-go --exclude-imports --output=third_party
 buf export ./wasmd --exclude-imports --output=./third_party
-buf export https://github.com/cosmos/ibc-go.git --exclude-imports --output=third_party
-buf export https://github.com/tendermint/tendermint.git --exclude-imports --output=third_party
+buf export https://github.com/cometbft/cometbft.git --exclude-imports --output=third_party
 buf export https://github.com/cosmos/ics23.git --exclude-imports --output=./third_party
 buf export https://github.com/cosmos/ibc-apps.git --exclude-imports --output=./third_party --path=middleware/packet-forward-middleware/proto && mv ./third_party/middleware/packet-forward-middleware/proto/packetforward ./third_party
 
@@ -35,11 +39,19 @@ for dir in $proto_dirs; do
   fi
 done
 
+echo "Generated swagger files"
+
+rm -rf ./cosmos-sdk && rm -rf ./ibc-go && rm -rf ./wasmd
+
 cd ..
+echo "Combining swagger files"
+
 # combine swagger files
 # uses nodejs package `swagger-combine`.
 # all the individual swagger files need to be configured in `config.json` for merging
 swagger-combine ./client/docs/config.json -o ./client/docs/swagger-ui/swagger.yaml -f yaml --continueOnConflictingPaths true --includeDefinitions true
+
+echo "Cleaning up"
 
 # clean swagger files
 rm -rf $SWAGGER_TMP_DIR $SWAGGER_BUILD_DIR

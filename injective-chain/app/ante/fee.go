@@ -19,12 +19,12 @@ import (
 // Call next AnteHandler if fees successfully deducted
 // CONTRACT: Tx must implement FeeTx interface to use DeductFeeDecorator
 type DeductFeeDecorator struct {
-	ak           AccountKeeper
+	ak           authante.AccountKeeper
 	bankKeeper   types.BankKeeper
 	txFeeChecker authante.TxFeeChecker
 }
 
-func NewDeductFeeDecorator(ak AccountKeeper, bk types.BankKeeper) DeductFeeDecorator {
+func NewDeductFeeDecorator(ak authante.AccountKeeper, bk types.BankKeeper) DeductFeeDecorator {
 
 	return DeductFeeDecorator{
 		ak:           ak,
@@ -56,7 +56,7 @@ func (dfd DeductFeeDecorator) AnteHandle(ctx sdk.Context, tx sdk.Tx, simulate bo
 			if err := chainTypesCodec.UnpackAny(opts[0], &optIface); err != nil {
 				return ctx, errors.Wrap(sdkerrors.ErrUnpackAny, "failed to proto-unpack ExtensionOptionsWeb3Tx")
 			} else if extOpt, ok := optIface.(*chaintypes.ExtensionOptionsWeb3Tx); ok {
-				if len(extOpt.FeePayer) > 0 {
+				if extOpt.FeePayer != "" {
 					feePayer, err = sdk.AccAddressFromBech32(extOpt.FeePayer)
 					if err != nil {
 						err = errors.Wrapf(sdkerrors.ErrInvalidAddress,
@@ -103,7 +103,7 @@ func (dfd DeductFeeDecorator) AnteHandle(ctx sdk.Context, tx sdk.Tx, simulate bo
 }
 
 // DeductFees deducts fees from the given account.
-func DeductFees(bankKeeper types.BankKeeper, ctx sdk.Context, acc types.AccountI, fees sdk.Coins) error {
+func DeductFees(bankKeeper types.BankKeeper, ctx sdk.Context, acc sdk.AccountI, fees sdk.Coins) error {
 	if !fees.IsValid() {
 		return errors.Wrapf(sdkerrors.ErrInsufficientFee, "invalid fee amount: %s", fees)
 	}
@@ -113,5 +113,13 @@ func DeductFees(bankKeeper types.BankKeeper, ctx sdk.Context, acc types.AccountI
 		return errors.Wrapf(sdkerrors.ErrInsufficientFunds, err.Error())
 	}
 
+	events := sdk.Events{
+		sdk.NewEvent(
+			sdk.EventTypeTx,
+			sdk.NewAttribute(sdk.AttributeKeyFee, fees.String()),
+			sdk.NewAttribute(sdk.AttributeKeyFeePayer, acc.GetAddress().String()),
+		),
+	}
+	ctx.EventManager().EmitEvents(events)
 	return nil
 }

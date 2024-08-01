@@ -49,7 +49,7 @@ func (k Keeper) storeNamespace(ctx sdk.Context, ns types.Namespace) error {
 
 	// store new address roles
 	for _, addrRoles := range ns.AddressRoles {
-		if err := k.storeAddressRoles(ctx, ns.Denom, addrRoles.Address, addrRoles.Roles); err != nil {
+		if err := k.storeAddressRoles(ctx, ns.Denom, sdk.MustAccAddressFromBech32(addrRoles.Address), addrRoles.Roles); err != nil {
 			return err
 		}
 	}
@@ -111,8 +111,8 @@ func (k Keeper) GetAllNamespaces(ctx sdk.Context) ([]*types.Namespace, error) {
 	defer iter.Close()
 
 	for ; iter.Valid(); iter.Next() {
-		denom := iter.Key()
-		ns, err := k.GetNamespaceForDenom(ctx, string(denom), true)
+		denom := string(iter.Key())
+		ns, err := k.GetNamespaceForDenom(ctx, denom, true)
 		if err != nil {
 			return nil, err
 		}

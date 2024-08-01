@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strings"
 
+	"cosmossdk.io/math"
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/client/tx"
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -319,7 +320,7 @@ func getFeedConfigFromArgs(cmd *cobra.Command) (*types.FeedConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	minAnswer, err := sdk.NewDecFromStr(minAnswerStr)
+	minAnswer, err := math.LegacyNewDecFromStr(minAnswerStr)
 	if err != nil {
 		return nil, err
 	}
@@ -328,7 +329,7 @@ func getFeedConfigFromArgs(cmd *cobra.Command) (*types.FeedConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	maxAnswer, err := sdk.NewDecFromStr(maxAnswerStr)
+	maxAnswer, err := math.LegacyNewDecFromStr(maxAnswerStr)
 	if err != nil {
 		return nil, err
 	}
@@ -337,7 +338,7 @@ func getFeedConfigFromArgs(cmd *cobra.Command) (*types.FeedConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	linkPerObservation, ok := sdk.NewIntFromString(linkPerObservationStr)
+	linkPerObservation, ok := math.NewIntFromString(linkPerObservationStr)
 	if !ok {
 		return nil, fmt.Errorf("invalid integer: %s", linkPerObservationStr)
 	}
@@ -346,7 +347,7 @@ func getFeedConfigFromArgs(cmd *cobra.Command) (*types.FeedConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	linkPerTransmission, ok := sdk.NewIntFromString(linkPerTransmissionStr)
+	linkPerTransmission, ok := math.NewIntFromString(linkPerTransmissionStr)
 	if !ok {
 		return nil, fmt.Errorf("invalid integer: %s", linkPerTransmissionStr)
 	}

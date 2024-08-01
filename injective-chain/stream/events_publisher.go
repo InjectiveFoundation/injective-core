@@ -3,11 +3,13 @@ package stream
 import (
 	"context"
 	"fmt"
+	"os"
+
+	"cosmossdk.io/log"
 	"github.com/InjectiveLabs/injective-core/injective-chain/stream/types"
 	abci "github.com/cometbft/cometbft/abci/types"
 	"github.com/cometbft/cometbft/libs/pubsub"
 	"github.com/cosmos/cosmos-sdk/baseapp"
-	log "github.com/xlab/suplog"
 )
 
 type Topic string
@@ -54,7 +56,7 @@ func NewPublisher(inABCIEvents chan baseapp.StreamEvents, bus *pubsub.Server) *P
 }
 
 func (e *Publisher) Run(ctx context.Context) error {
-
+	logger := log.NewLogger(os.Stderr)
 	err := e.bus.Start()
 	if err != nil {
 		return fmt.Errorf("failed to start pubsub server: %w", err)
@@ -69,13 +71,13 @@ func (e *Publisher) Run(ctx context.Context) error {
 			case eventsBuffer <- events:
 			default:
 				if e.bus.IsRunning() {
-					log.Errorf("eventsBuffer is full, chain streamer will be stopped")
+					logger.Error("eventsBuffer is full, chain streamer will be stopped")
 					if err = e.bus.Publish(ctx, fmt.Errorf("chain stream event buffer overflow")); err != nil {
-						log.Errorf("failed to publish error: %v", err)
+						logger.Error("failed to publish", "error", err)
 					}
 					err = e.Stop()
 					if err != nil {
-						log.Errorf("failed to stop event publisher: %v", err)
+						logger.Error("failed to stop event publisher", "error", err)
 					}
 				}
 			}
@@ -97,7 +99,7 @@ func (e *Publisher) Run(ctx context.Context) error {
 						err := handler(inBuffer, ev)
 						if err != nil {
 							if he := e.bus.Publish(ctx, err); he != nil {
-								log.Errorf("failed to publish error: %v", he)
+								logger.Error("failed to publish", "error", err)
 							}
 						}
 					}
@@ -109,7 +111,7 @@ func (e *Publisher) Run(ctx context.Context) error {
 					inBuffer.BlockTime = events.BlockTime
 					// flush buffer
 					if err := e.bus.Publish(ctx, inBuffer); err != nil {
-						log.Errorf("failed to publish stream response: %v", err)
+						logger.Error("failed to publish stream response", "error", err)
 					}
 					// clear buffer
 					inBuffer = types.NewStreamResponseMap()
@@ -125,7 +127,7 @@ func (e *Publisher) Stop() error {
 	if !e.bus.IsRunning() {
 		return nil
 	}
-	log.Infoln("stopping stream publisher")
+	log.NewLogger(os.Stderr).Info("stopping stream publisher")
 	err := e.bus.Stop()
 	if err != nil {
 		return fmt.Errorf("failed to stop pubsub server: %w", err)

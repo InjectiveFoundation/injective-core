@@ -3,7 +3,9 @@ package keeper
 import (
 	"fmt"
 
-	"github.com/cosmos/cosmos-sdk/store/prefix"
+	"cosmossdk.io/errors"
+	"cosmossdk.io/math"
+	"cosmossdk.io/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
@@ -24,40 +26,46 @@ type PriceFeederKeeper interface {
 	SetPriceFeedInfo(ctx sdk.Context, priceFeedInfo *types.PriceFeedInfo)
 	GetPriceFeedPriceState(ctx sdk.Context, base string, quote string) *types.PriceState
 	SetPriceFeedPriceState(ctx sdk.Context, oracleBase, oracleQuote string, priceState *types.PriceState)
-	GetPriceFeedPrice(ctx sdk.Context, base string, quote string) *sdk.Dec
+	GetPriceFeedPrice(ctx sdk.Context, base string, quote string) *math.LegacyDec
+	ProcessPriceFeedPrice(ctx sdk.Context, msg *types.MsgRelayPriceFeedPrice) error
 }
 
 // IsPriceFeedRelayer checks that the relayer has been authorized for the given oracle base and quote pair.
 func (k *Keeper) IsPriceFeedRelayer(ctx sdk.Context, oracleBase, oracleQuote string, relayer sdk.AccAddress) bool {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	relayerKey := types.GetPricefeedRelayerStoreKey(oracleBase, oracleQuote, relayer)
 	return k.getStore(ctx).Has(relayerKey)
 }
 
 func (k *Keeper) SetPriceFeedRelayer(ctx sdk.Context, oracleBase, oracleQuote string, relayer sdk.AccAddress) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	relayerKey := types.GetPricefeedRelayerStoreKey(oracleBase, oracleQuote, relayer)
 	k.getStore(ctx).Set(relayerKey, relayer.Bytes())
 }
 
 func (k *Keeper) SetPriceFeedRelayerFromBaseQuoteHash(ctx sdk.Context, baseQuoteHash common.Hash, relayer sdk.AccAddress) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	relayerKey := types.GetPricefeedRelayerStorePrefix(baseQuoteHash)
 	k.getStore(ctx).Set(relayerKey, relayer.Bytes())
 }
 
 func (k *Keeper) DeletePriceFeedRelayer(ctx sdk.Context, oracleBase, oracleQuote string, relayer sdk.AccAddress) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	relayerKey := types.GetPricefeedRelayerStoreKey(oracleBase, oracleQuote, relayer)
 	k.getStore(ctx).Delete(relayerKey)
 }
 
 func (k *Keeper) GetAllPriceFeedStates(ctx sdk.Context) []*types.PriceFeedState {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	priceFeedStates := make([]*types.PriceFeedState, 0)
 	store := ctx.KVStore(k.storeKey)
@@ -90,7 +98,8 @@ func (k *Keeper) GetAllPriceFeedStates(ctx sdk.Context) []*types.PriceFeedState 
 
 // GetAllPriceFeedRelayers returns all PriceFeedRelayers for a given oracle base and oracle quote.
 func (k *Keeper) GetAllPriceFeedRelayers(ctx sdk.Context, baseQuoteHash common.Hash) []string {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	relayers := make([]string, 0)
 	appendRelayer := func(p *sdk.AccAddress) (stop bool) {
@@ -104,7 +113,8 @@ func (k *Keeper) GetAllPriceFeedRelayers(ctx sdk.Context, baseQuoteHash common.H
 
 // IteratePriceFeedRelayers iterates over PriceFeedRelayers calling process on each pair.
 func (k *Keeper) IteratePriceFeedRelayers(ctx sdk.Context, baseQuoteHash common.Hash, process func(*sdk.AccAddress) (stop bool)) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 
@@ -123,14 +133,16 @@ func (k *Keeper) IteratePriceFeedRelayers(ctx sdk.Context, baseQuoteHash common.
 }
 
 func (k *Keeper) HasPriceFeedInfo(ctx sdk.Context, priceFeedInfo *types.PriceFeedInfo) bool {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	priceFeedInfoKey := types.GetPriceFeedInfoKey(priceFeedInfo)
 	return k.getStore(ctx).Has(priceFeedInfoKey)
 }
 
 func (k *Keeper) GetPriceFeedInfo(ctx sdk.Context, baseQuoteHash common.Hash) *types.PriceFeedInfo {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	var priceFeedInfo types.PriceFeedInfo
 	prefixStore := prefix.NewStore(k.getStore(ctx), types.PricefeedInfoKey)
@@ -144,7 +156,8 @@ func (k *Keeper) GetPriceFeedInfo(ctx sdk.Context, baseQuoteHash common.Hash) *t
 }
 
 func (k *Keeper) SetPriceFeedInfo(ctx sdk.Context, priceFeedInfo *types.PriceFeedInfo) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	priceFeedInfoKey := types.GetPriceFeedInfoKey(priceFeedInfo)
 	bz := k.cdc.MustMarshal(priceFeedInfo)
@@ -152,7 +165,8 @@ func (k *Keeper) SetPriceFeedInfo(ctx sdk.Context, priceFeedInfo *types.PriceFee
 }
 
 func (k *Keeper) GetPriceFeedPriceState(ctx sdk.Context, base, quote string) *types.PriceState {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	baseQuoteHash := types.GetBaseQuoteHash(base, quote)
 	key := types.GetPriceFeedPriceStoreKey(baseQuoteHash)
@@ -169,7 +183,8 @@ func (k *Keeper) GetPriceFeedPriceState(ctx sdk.Context, base, quote string) *ty
 }
 
 func (k *Keeper) SetPriceFeedPriceState(ctx sdk.Context, oracleBase, oracleQuote string, priceState *types.PriceState) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	baseQuoteHash := types.GetBaseQuoteHash(oracleBase, oracleQuote)
 	priceKey := types.GetPriceFeedPriceStoreKey(baseQuoteHash)
@@ -183,9 +198,10 @@ func (k *Keeper) SetPriceFeedPriceState(ctx sdk.Context, oracleBase, oracleQuote
 	})
 }
 
-// GetPriceFeedPrice fetches the price for a given pair in sdk.Dec
-func (k *Keeper) GetPriceFeedPrice(ctx sdk.Context, base, quote string) *sdk.Dec {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+// GetPriceFeedPrice fetches the price for a given pair in math.LegacyDec
+func (k *Keeper) GetPriceFeedPrice(ctx sdk.Context, base, quote string) *math.LegacyDec {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	priceState := k.GetPriceFeedPriceState(ctx, base, quote)
 	if priceState == nil {
@@ -195,12 +211,51 @@ func (k *Keeper) GetPriceFeedPrice(ctx sdk.Context, base, quote string) *sdk.Dec
 	return &priceState.Price
 }
 
-func (k *Keeper) GetPriceFeedPriceFromBaseQuoteHash(ctx sdk.Context, baseQuoteHash common.Hash) sdk.Dec {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+func (k *Keeper) GetPriceFeedPriceFromBaseQuoteHash(ctx sdk.Context, baseQuoteHash common.Hash) math.LegacyDec {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	var priceFeedPrice types.PriceFeedPrice
 	bz := k.getStore(ctx).Get(types.GetPriceFeedPriceStoreKey(baseQuoteHash))
 	k.cdc.MustUnmarshal(bz, &priceFeedPrice)
 
 	return priceFeedPrice.Price
+}
+
+func (k *Keeper) ProcessPriceFeedPrice(ctx sdk.Context, msg *types.MsgRelayPriceFeedPrice) error {
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+
+	relayer, _ := sdk.AccAddressFromBech32(msg.Sender)
+
+	for idx := range msg.Price {
+		base, quote, price := msg.Base[idx], msg.Quote[idx], msg.Price[idx]
+		if !k.IsPriceFeedRelayer(ctx, base, quote, relayer) {
+			metrics.ReportFuncError(k.svcTags)
+			return errors.Wrapf(types.ErrRelayerNotAuthorized, "base %s quote %s relayer %s", base, quote, relayer.String())
+		}
+
+		k.SetPriceFeedInfo(ctx, &types.PriceFeedInfo{Base: base, Quote: quote})
+		priceState := k.GetPriceFeedPriceState(ctx, base, quote)
+		blockTime := ctx.BlockTime().Unix()
+		if priceState == nil {
+			priceState = types.NewPriceState(price, blockTime)
+		} else {
+			// skip price update if the price changes beyond 100x or less than 1% of the last price
+			if types.CheckPriceFeedThreshold(priceState.Price, price) {
+				continue
+			}
+			priceState.UpdatePrice(price, blockTime)
+		}
+
+		k.SetPriceFeedPriceState(ctx, base, quote, priceState)
+
+		// nolint:errcheck //ignored on purpose
+		ctx.EventManager().EmitTypedEvent(&types.SetPriceFeedPriceEvent{
+			Relayer: msg.Sender,
+			Base:    base,
+			Quote:   quote,
+			Price:   price,
+		})
+	}
+	return nil
 }

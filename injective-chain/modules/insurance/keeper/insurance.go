@@ -5,9 +5,10 @@ import (
 	"time"
 
 	"cosmossdk.io/errors"
-	sdkmath "cosmossdk.io/math"
-	db "github.com/cometbft/cometbft-db"
-	"github.com/cosmos/cosmos-sdk/store/prefix"
+	"cosmossdk.io/math"
+	"cosmossdk.io/store/prefix"
+	storetypes "cosmossdk.io/store/types"
+	db "github.com/cosmos/cosmos-db"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -35,7 +36,8 @@ func (k *Keeper) unmarshalRedemptionSchedule(bz []byte) *types.RedemptionSchedul
 
 // ExportNextRedemptionScheduleId returns next redemption schedule Id
 func (k *Keeper) ExportNextRedemptionScheduleId(ctx sdk.Context) uint64 {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	var scheduleId uint64
 	store := ctx.KVStore(k.storeKey)
@@ -51,7 +53,8 @@ func (k *Keeper) ExportNextRedemptionScheduleId(ctx sdk.Context) uint64 {
 }
 
 func (k *Keeper) SetNextRedemptionScheduleId(ctx sdk.Context, scheduleId uint64) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	store.Set(types.GlobalRedemptionScheduleIdPrefixKey, sdk.Uint64ToBigEndian(scheduleId))
@@ -59,7 +62,8 @@ func (k *Keeper) SetNextRedemptionScheduleId(ctx sdk.Context, scheduleId uint64)
 
 // getNextRedemptionScheduleId returns the next redemption schedule id and increase it
 func (k *Keeper) getNextRedemptionScheduleId(ctx sdk.Context) uint64 {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	scheduleId := k.ExportNextRedemptionScheduleId(ctx)
 	k.SetNextRedemptionScheduleId(ctx, scheduleId+1)
@@ -69,7 +73,8 @@ func (k *Keeper) getNextRedemptionScheduleId(ctx sdk.Context) uint64 {
 
 // nolint:all
 func (k *Keeper) getRedemptionSchedule(ctx sdk.Context, redemptionID uint64, claimTime time.Time) *types.RedemptionSchedule {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	key := types.GetRedemptionScheduleKey(redemptionID, claimTime)
 	store := ctx.KVStore(k.storeKey)
@@ -79,7 +84,8 @@ func (k *Keeper) getRedemptionSchedule(ctx sdk.Context, redemptionID uint64, cla
 }
 
 func (k *Keeper) SetRedemptionSchedule(ctx sdk.Context, schedule types.RedemptionSchedule) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	bz, err := schedule.Marshal()
@@ -93,7 +99,8 @@ func (k *Keeper) SetRedemptionSchedule(ctx sdk.Context, schedule types.Redemptio
 }
 
 func (k *Keeper) deleteRedemptionSchedule(ctx sdk.Context, schedule types.RedemptionSchedule) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	key := schedule.GetRedemptionScheduleKey()
@@ -102,17 +109,18 @@ func (k *Keeper) deleteRedemptionSchedule(ctx sdk.Context, schedule types.Redemp
 
 func (k *Keeper) globalRedemptionIterator(ctx sdk.Context) db.Iterator {
 	store := ctx.KVStore(k.storeKey)
-	return sdk.KVStorePrefixIterator(store, types.RedemptionSchedulePrefixKey)
+	return storetypes.KVStorePrefixIterator(store, types.RedemptionSchedulePrefixKey)
 }
 
-func (k *Keeper) getRedemptionAmountFromShare(fund types.InsuranceFund, shareAmount sdkmath.Int) sdk.Coin {
+func (k *Keeper) getRedemptionAmountFromShare(fund types.InsuranceFund, shareAmount math.Int) sdk.Coin {
 	redemptionAmount := shareAmount.Mul(fund.Balance).Quo(fund.TotalShare)
 	return sdk.NewCoin(fund.DepositDenom, redemptionAmount)
 }
 
 // GetAllInsuranceFundRedemptions is used to export all insurance fund redemption requests
 func (k *Keeper) GetAllInsuranceFundRedemptions(ctx sdk.Context) []types.RedemptionSchedule {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	schedules := []types.RedemptionSchedule{}
 	iterator := k.globalRedemptionIterator(ctx)
@@ -132,7 +140,8 @@ func (k *Keeper) GetAllInsuranceFundRedemptions(ctx sdk.Context) []types.Redempt
 
 // IterateInsuranceFunds iterates over InsuranceFunds calling process on each insurance fund.
 func (k *Keeper) IterateInsuranceFunds(ctx sdk.Context, process func(*types.InsuranceFund) (stop bool)) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	fundStore := prefix.NewStore(store, types.InsuranceFundPrefixKey)
@@ -152,7 +161,8 @@ func (k *Keeper) IterateInsuranceFunds(ctx sdk.Context, process func(*types.Insu
 
 // HasInsuranceFund returns true if InsuranceFund for the given marketID exists.
 func (k *Keeper) HasInsuranceFund(ctx sdk.Context, marketID common.Hash) bool {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	fundStore := prefix.NewStore(store, types.InsuranceFundPrefixKey)
@@ -161,7 +171,8 @@ func (k *Keeper) HasInsuranceFund(ctx sdk.Context, marketID common.Hash) bool {
 
 // GetAllInsuranceFunds returns all of the Insurance Funds.
 func (k *Keeper) GetAllInsuranceFunds(ctx sdk.Context) []types.InsuranceFund {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	insuranceFunds := make([]types.InsuranceFund, 0)
 	appendPair := func(p *types.InsuranceFund) (stop bool) {
@@ -180,7 +191,8 @@ func (k *Keeper) GetAllInsuranceFunds(ctx sdk.Context) []types.InsuranceFund {
 
 // GetInsuranceFund returns the insurance fund corresponding to the given marketID.
 func (k *Keeper) GetInsuranceFund(ctx sdk.Context, marketID common.Hash) *types.InsuranceFund {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 
@@ -197,8 +209,9 @@ func (k *Keeper) GetInsuranceFund(ctx sdk.Context, marketID common.Hash) *types.
 }
 
 // DepositIntoInsuranceFund increments the insurance fund balance by amount.
-func (k *Keeper) DepositIntoInsuranceFund(ctx sdk.Context, marketID common.Hash, amount sdkmath.Int) error {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+func (k *Keeper) DepositIntoInsuranceFund(ctx sdk.Context, marketID common.Hash, amount math.Int) error {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	fund := k.GetInsuranceFund(ctx, marketID)
 
@@ -213,8 +226,9 @@ func (k *Keeper) DepositIntoInsuranceFund(ctx sdk.Context, marketID common.Hash,
 }
 
 // WithdrawFromInsuranceFund decrements the insurance fund balance by amount and sends tokens from the insurance module to the exchange module.
-func (k *Keeper) WithdrawFromInsuranceFund(ctx sdk.Context, marketID common.Hash, amount sdkmath.Int) error {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+func (k *Keeper) WithdrawFromInsuranceFund(ctx sdk.Context, marketID common.Hash, amount math.Int) error {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	fund := k.GetInsuranceFund(ctx, marketID)
 
@@ -241,7 +255,8 @@ func (k *Keeper) WithdrawFromInsuranceFund(ctx sdk.Context, marketID common.Hash
 
 // SetInsuranceFund set insurance into keeper
 func (k *Keeper) SetInsuranceFund(ctx sdk.Context, fund *types.InsuranceFund) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	marketID := common.HexToHash(fund.MarketId)
@@ -264,7 +279,8 @@ func (k *Keeper) CreateInsuranceFund(
 	oracleType oracletypes.OracleType,
 	expiry int64,
 ) error {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	var marketID common.Hash
 	isBinaryOptions := expiry == types.BinaryOptionsExpiryFlag
@@ -292,7 +308,7 @@ func (k *Keeper) CreateInsuranceFund(
 	fund = types.NewInsuranceFund(marketID, deposit.Denom, shareBaseDenom, redemptionNoticePeriodDuration, ticker, oracleBase, oracleQuote, oracleType, expiry)
 
 	// initial deposit shouldn't be zero always as we mint tokens for the first user that deposits
-	if deposit.Amount.Equal(sdk.ZeroInt()) {
+	if deposit.Amount.Equal(math.ZeroInt()) {
 		metrics.ReportFuncError(k.svcTags)
 		return errors.Wrapf(types.ErrInvalidDepositAmount, "insurance fund initial deposit should not be zero")
 	}
@@ -354,7 +370,8 @@ func (k *Keeper) CreateInsuranceFund(
 
 // UnderwriteInsuranceFund deposit into insurance fund and mint share tokens
 func (k *Keeper) UnderwriteInsuranceFund(ctx sdk.Context, underwriter sdk.AccAddress, marketID common.Hash, deposit sdk.Coin) error {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	// check if insurance already exist and return error if does not exist
 	fund := k.GetInsuranceFund(ctx, marketID)
@@ -374,8 +391,8 @@ func (k *Keeper) UnderwriteInsuranceFund(ctx sdk.Context, underwriter sdk.AccAdd
 		return err
 	}
 
-	var shareTokenAmount sdkmath.Int
-	if fund.TotalShare.Equal(types.InsuranceFundProtocolOwnedLiquiditySupply) || fund.Balance.LTE(sdk.ZeroInt()) {
+	var shareTokenAmount math.Int
+	if fund.TotalShare.Equal(types.InsuranceFundProtocolOwnedLiquiditySupply) || fund.Balance.LTE(math.ZeroInt()) {
 		// when there is only protocol liquidity share left in the fund,
 		// we refresh the fund with a new supply of minted share tokens
 		if err := k.refreshInsuranceFund(ctx, marketID, fund); err != nil {
@@ -451,7 +468,8 @@ func (k *Keeper) refreshInsuranceFund(
 }
 
 func (k *Keeper) GetEstimatedRedemptions(ctx sdk.Context, sender sdk.AccAddress, marketID common.Hash) sdk.Coins {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	// check if insurance already exist
 	fund := k.GetInsuranceFund(ctx, marketID)
@@ -467,7 +485,8 @@ func (k *Keeper) GetEstimatedRedemptions(ctx sdk.Context, sender sdk.AccAddress,
 }
 
 func (k *Keeper) GetPendingRedemptions(ctx sdk.Context, sender sdk.AccAddress, marketID common.Hash) sdk.Coins {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	// check if insurance already exist
 	fund := k.GetInsuranceFund(ctx, marketID)
@@ -492,7 +511,8 @@ func (k *Keeper) GetPendingRedemptions(ctx sdk.Context, sender sdk.AccAddress, m
 
 // RequestInsuranceFundRedemption withdraw deposit token from insurance fund and burn share tokens
 func (k *Keeper) RequestInsuranceFundRedemption(ctx sdk.Context, sender sdk.AccAddress, marketID common.Hash, shares sdk.Coin) error {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	// check if insurance already exist
 	fund := k.GetInsuranceFund(ctx, marketID)
@@ -539,7 +559,8 @@ func (k *Keeper) RequestInsuranceFundRedemption(ctx sdk.Context, sender sdk.AccA
 
 // WithdrawAllMaturedRedemptions it will be used for automatic withdraw on abci
 func (k *Keeper) WithdrawAllMaturedRedemptions(ctx sdk.Context) error {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	// iterate all redemptions and do withdraw
 	iterator := k.globalRedemptionIterator(ctx)
@@ -575,7 +596,8 @@ func (k *Keeper) WithdrawAllMaturedRedemptions(ctx sdk.Context) error {
 
 // withdrawRedemption executes withdrawal of the specified redemption schedule
 func (k *Keeper) withdrawRedemption(ctx sdk.Context, schedule *types.RedemptionSchedule) error {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	// check if insurance exists
 	marketID := common.HexToHash(schedule.MarketId)

@@ -58,7 +58,7 @@ message MsgRelayPriceFeedPrice {
 
   // price defines the price of the oracle base and quote
   repeated string price = 4 [
-    (gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Dec",
+    (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
     (gogoproto.nullable) = false
   ];
 }
@@ -128,3 +128,39 @@ enum PythStatus {
 
 This message is expected to fail if the Relayer (`sender`) does not equal the Pyth contract address as defined in the 
 oracle module Params. 
+
+## MsgRelayStorkPrices
+
+`MsgRelayStorkPrices` is a message for the Stork contract relay prices to the oracle module.  
+
+```protobuf
+// MsgRelayStorkPrices defines a SDK message for relaying price message from Stork API.
+message MsgRelayStorkPrices {
+  option (gogoproto.equal) = false;
+  option (gogoproto.goproto_getters) = false;
+  option (cosmos.msg.v1.signer) = "sender";
+
+  string sender = 1;
+  repeated AssetPair asset_pairs = 2;
+}
+
+message AssetPair {
+  string asset_id = 1;
+  repeated SignedPriceOfAssetPair signed_prices = 2;
+}
+
+message SignedPriceOfAssetPair {
+  string publisher_key = 1;
+  uint64 timestamp = 2;
+  string price = 3 [
+    (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
+    (gogoproto.nullable) = false
+  ];
+  bytes signature = 4;
+}
+```
+
+This message is expected to fail if: 
+- the Relayer (`sender`) is not an authorized oracle publisher or if `assetId` is not unique amongst the provided asset pairs 
+- ECDSA signature verification fails for the `SignedPriceOfAssetPair`  
+- the difference between timestamps exceeds the `MaxStorkTimestampIntervalNano` (500 milliseconds).

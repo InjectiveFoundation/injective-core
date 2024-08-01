@@ -3,9 +3,10 @@
 ## Parameters and base types
 
 `Parameters` define the rules according to which votes are run. There can only
-be one active parameter set at any given time. If governance wants to change a
-parameter set, either to modify a value or add/remove a parameter field, a new
-parameter set has to be created and the previous one rendered inactive.
+be one active parameter set at any given time. If the community wants to change 
+a parameter set through governance, either by modifying a value or adding/removing 
+a parameter field, a new parameter set has to be created, and the previous one has 
+to be rendered inactive.
 
 ### DepositParams
 
@@ -21,7 +22,7 @@ parameter set has to be created and the previous one rendered inactive.
 
 Parameters are stored in a global `GlobalParams` KVStore.
 
-Additionally, we introduce some basic types:
+Additionally, we introduced some basic types:
 
 ```go
 type Vote byte
@@ -59,11 +60,11 @@ const (
 
 ## ValidatorGovInfo
 
-This type is used in a temp map when tallying
+This type is used in a temp map when tallying:
 
 ```go
   type ValidatorGovInfo struct {
-    Minus     sdk.Dec
+    Minus     math.LegacyDec
     Vote      Vote
   }
 ```
@@ -71,7 +72,7 @@ This type is used in a temp map when tallying
 ## Proposals
 
 `Proposal` objects are used to account votes and generally track the proposal's state. They contain `Content` which denotes
-what this proposal is about, and other fields, which are the mutable state of
+what the proposal is about, and other fields that compose the mutable state of
 the governance process.
 
 +++ https://github.com/cosmos/cosmos-sdk/blob/v0.40.0/proto/cosmos/gov/v1beta1/gov.proto#L55-L77
@@ -87,42 +88,42 @@ type Content interface {
 }
 ```
 
-The `Content` on a proposal is an interface which contains the information about
-the `Proposal` such as the tile, description, and any notable changes. Also, this
-`Content` type can by implemented by any module. The `Content`'s `ProposalRoute`
-returns a string which must be used to route the `Content`'s `Handler` in the
+The `Content` on a proposal is an interface containing information about
+the `Proposal` such as the title, description, and any notable changes. Also, this
+`Content` type can be implemented by any module. The `Content`'s `ProposalRoute`
+returns a string which must be used in order to route the `Content`'s `Handler` in the
 governance keeper. This allows the governance keeper to execute proposal logic
-implemented by any module. If a proposal passes, the handler is executed. Only
-if the handler is successful does the state get persisted and the proposal finally
-passes. Otherwise, the proposal is rejected.
+implemented by any module. If a proposal passes the voting stage, the handler is executed. Only
+if the handler is successful does the state get persisted, and the proposal finally marked as passed.
+Otherwise, the proposal is rejected.
 
 ```go
 type Handler func(ctx sdk.Context, content Content) sdk.Error
 ```
 
-The `Handler` is responsible for actually executing the proposal and processing
-any state changes specified by the proposal. It is executed only if a proposal
-passes during `EndBlock`.
+The `Handler` is responsible for the execution of the proposal, and the processing
+of any state changes specified by the proposal. It is only executed if a proposal
+successfully passes during `EndBlock`.
 
-We also mention a method to update the tally for a given proposal:
+A method can be called to update the tally for a given proposal:
 
 ```go
-  func (proposal Proposal) updateTally(vote byte, amount sdk.Dec)
+  func (proposal Proposal) updateTally(vote byte, amount math.LegacyDec)
 ```
 
 ## Stores
 
 _Stores are KVStores in the multi-store. The key to find the store is the first
-parameter in the list_`
+parameter in the list._
 
-We will use one KVStore `Governance` to store two mappings:
+One KVStore `Governance` is used to store two mappings:
 
 - A mapping from `proposalID|'proposal'` to `Proposal`.
 - A mapping from `proposalID|'addresses'|address` to `Vote`. This mapping allows
-  us to query all addresses that voted on the proposal along with their vote by
+  us to query all addresses that voted on the proposal along with their votes, by
   doing a range query on `proposalID:addresses`.
 
-For pseudocode purposes, here are the two function we will use to read or write in stores:
+For pseudocode purposes, two functions used to read and write in stores are:
 
 - `load(StoreKey, Key)`: Retrieve item stored at key `Key` in store found at key `StoreKey` in the multistore
 - `store(StoreKey, Key, value)`: Write value `Value` at key `Key` in store found at key `StoreKey` in the multistore
@@ -135,11 +136,11 @@ For pseudocode purposes, here are the two function we will use to read or write 
   `ProposalIDs` of proposals that reached `MinDeposit`. During each `EndBlock`,
   all the proposals that have reached the end of their voting period are processed.
   To process a finished proposal, the application tallies the votes, computes the
-  votes of each validator and checks if every validator in the validator set has
-  voted. If the proposal is accepted, deposits are refunded. Finally, the proposal
-  content `Handler` is executed.
+  votes of each validator, and checks if every validator in the validator set has
+  voted. If the proposal is accepted, the deposits are refunded. Finally, the proposal
+  content `Handler` is executed.   
 
-And the pseudocode for the `ProposalProcessingQueue`:
+Below is the pseudocode for the `ProposalProcessingQueue`:
 
 ```go
   in EndBlock do

@@ -10,7 +10,7 @@ import (
 )
 
 // createDenom creates a new denom in bank module after validating and charging creation fee
-func (k Keeper) createDenom(ctx sdk.Context, creatorAddr, subdenom, name, symbol string) (newTokenDenom string, err error) {
+func (k Keeper) createDenom(ctx sdk.Context, creatorAddr, subdenom, name, symbol string, decimals uint32) (newTokenDenom string, err error) {
 	denom, err := k.validateCreateDenom(ctx, creatorAddr, subdenom)
 	if err != nil {
 		return "", err
@@ -21,21 +21,31 @@ func (k Keeper) createDenom(ctx sdk.Context, creatorAddr, subdenom, name, symbol
 		return "", err
 	}
 
-	err = k.createDenomAfterValidation(ctx, creatorAddr, denom, name, symbol)
+	err = k.createDenomAfterValidation(ctx, creatorAddr, denom, subdenom, name, symbol, decimals)
 	return denom, err
 }
 
 // Runs createDenom logic after the charge and all denom validation has been handled.
 // Made into a second function for genesis initialization.
-func (k Keeper) createDenomAfterValidation(ctx sdk.Context, creatorAddr, denom, name, symbol string) (err error) {
+func (k Keeper) createDenomAfterValidation(ctx sdk.Context, creatorAddr, denom, subdenom, name, symbol string, decimals uint32) (err error) {
 	denomMetaData := banktypes.Metadata{
-		DenomUnits: []*banktypes.DenomUnit{{
-			Denom:    denom,
-			Exponent: 0,
-		}},
-		Base:   denom,
-		Name:   name,
-		Symbol: symbol,
+		DenomUnits: []*banktypes.DenomUnit{
+			{
+				Denom:    denom,
+				Exponent: 0,
+			},
+		},
+		Base:     denom,
+		Name:     name,
+		Symbol:   symbol,
+		Decimals: decimals,
+	}
+
+	if decimals != 0 {
+		denomMetaData.DenomUnits = append(denomMetaData.DenomUnits, &banktypes.DenomUnit{
+			Denom:    subdenom,
+			Exponent: decimals,
+		})
 	}
 	k.bankKeeper.SetDenomMetaData(ctx, denomMetaData)
 

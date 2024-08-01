@@ -1,7 +1,6 @@
 package auction
 
 import (
-	abci "github.com/cometbft/cometbft/abci/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/InjectiveLabs/metrics"
@@ -10,9 +9,8 @@ import (
 	chaintypes "github.com/InjectiveLabs/injective-core/injective-chain/types"
 )
 
-func (am AppModule) EndBlocker(ctx sdk.Context, block abci.RequestEndBlock) {
-	metrics.ReportFuncCall(am.svcTags)
-	doneFn := metrics.ReportFuncTiming(am.svcTags)
+func (am AppModule) EndBlocker(ctx sdk.Context) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, am.svcTags)
 	defer doneFn()
 
 	// trigger auction settlement
@@ -22,7 +20,7 @@ func (am AppModule) EndBlocker(ctx sdk.Context, block abci.RequestEndBlock) {
 		return
 	}
 
-	logger := ctx.Logger().With("module", "auction", "EndBlocker", block.Height)
+	logger := ctx.Logger().With("module", "auction", "EndBlocker", ctx.BlockHeight())
 	logger.Info("Settling auction round...", "blockTimestamp", ctx.BlockTime().Unix(), "endingTimeStamp", endingTimeStamp)
 	auctionModuleAddress := am.accountKeeper.GetModuleAddress(auctiontypes.ModuleName)
 
@@ -62,6 +60,13 @@ func (am AppModule) EndBlocker(ctx sdk.Context, block abci.RequestEndBlock) {
 
 		// emit typed event for auction result
 		auctionRound := am.keeper.GetAuctionRound(ctx)
+		// Store the auction result, so that it can be queried later
+		am.keeper.SetLastAuctionResult(ctx, auctiontypes.LastAuctionResult{
+			Winner: lastBid.Bidder,
+			Amount: lastBid.Amount,
+			Round:  auctionRound,
+		})
+
 		// nolint:errcheck //ignored on purpose
 		ctx.EventManager().EmitTypedEvent(&auctiontypes.EventAuctionResult{
 			Winner: lastBid.Bidder,
@@ -91,6 +96,6 @@ func (am AppModule) EndBlocker(ctx sdk.Context, block abci.RequestEndBlock) {
 	if len(balances) == 0 {
 		logger.Info("😢 Received empty coin basket from exchange")
 	} else {
-		logger.Info("💰 Auction module received", balances, "new auction basket is now", newBasket.String())
+		logger.Info("💰 Auction module received", balances.String(), "new auction basket is now", newBasket.String())
 	}
 }

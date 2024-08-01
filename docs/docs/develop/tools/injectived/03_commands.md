@@ -10,13 +10,13 @@ This section describes the commands available from `injectived`, the command lin
 :::tip
 Several `injectived` commands require subcommands, arguments, or flags to operate. To view this information, run the `injectived` command with the `--help` or `-h` flag. See [`query`](#query) or [`tx`](#tx) for usage examples of the help flag.
 
-For the `chain-id` argument, `injective-1` should be used for Mainnet, and `injective-888` should be used for Testnet.
+For the `chain-id` argument, `injective-1` should be used for mainnet, and `injective-888` should be used for testnet.
 :::
 
 
 ### `add-genesis-account`
 
-Adds a genesis account to `genesis.json`. For more information on `genesis.json`, see the [Join Testnet](../../../nodes/RunNode/testnet) or [Join Mainnet](../../../nodes/RunNode/mainnet) guide.
+Adds a genesis account to `genesis.json`. For more information on `genesis.json`, see the [Join Testnet](../../../nodes/running-a-node/testnet) or [Join Mainnet](../../../nodes/running-a-node/mainnet) guide.
 
 **Syntax**
 
@@ -34,7 +34,7 @@ injectived add-genesis-account acc1 100000000000inj
 
 ### `collect-gentxs`
 
-Collects genesis transactions and outputs them to `genesis.json`. For more information on `genesis.json`, see the [Join Testnet](../../../nodes/RunNode/testnet) or [Join Mainnet](../../../nodes/RunNode/mainnet) guide.
+Collects genesis transactions and outputs them to `genesis.json`. For more information on `genesis.json`, see the [Join Testnet](../../../nodes/running-a-node/testnet) or [Join Mainnet](../../../nodes/running-a-node/mainnet) guide.
 
 **Syntax**
 
@@ -76,7 +76,7 @@ injectived export
 
 ### `gentx`
 
-Adds a genesis transaction to `genesis.json`. For more information on `genesis.json`, see the [Join Testnet](../../../nodes/RunNode/testnet) or [Join Mainnet](../../../nodes/RunNode/mainnet) guide.
+Adds a genesis transaction to `genesis.json`. For more information on `genesis.json`, see the [Join Testnet](../../../nodes/running-a-node/testnet) or [Join Mainnet](../../../nodes/running-a-node/mainnet) guide.
 
 :::note
 The `gentx` command has many flags available. Run the `gentx` command with `--help` or `-h` to view all flags.  
@@ -163,7 +163,7 @@ injectived keys [subcommand]
 
 ### `migrate`
 
-Migrates the source genesis into the target version and prints to STDOUT. For more information on `genesis.json`, see the [Join Testnet](../../../nodes/RunNode/testnet) or [Join Mainnet](../../../nodes/RunNode/mainnet) guide.
+Migrates the source genesis into the target version and prints to STDOUT. For more information on `genesis.json`, see the [Join Testnet](../../../nodes/running-a-node/testnet) or [Join Mainnet](../../../nodes/running-a-node/mainnet) guide.
 
 **Syntax**
 
@@ -398,7 +398,7 @@ injectived unsafe-reset-all
 
 ### `validate-genesis`
 
-Validates the genesis file at the default location or at the location specified. For more information on the genesis file, see the [Join Testnet](../../../nodes/RunNode/testnet) or [Join Mainnet](../../../nodes/RunNode/mainnet) guide.
+Validates the genesis file at the default location or at the location specified. For more information on the genesis file, see the [Join Testnet](../../../nodes/running-a-node/testnet) or [Join Mainnet](../../../nodes/running-a-node/mainnet) guide.
 
 **Syntax**
 

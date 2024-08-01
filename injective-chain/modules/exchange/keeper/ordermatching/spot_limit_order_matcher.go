@@ -1,9 +1,9 @@
 package ordermatching
 
 import (
+	"cosmossdk.io/math"
+	storetypes "cosmossdk.io/store/types"
 	"github.com/cosmos/cosmos-sdk/codec"
-	storetypes "github.com/cosmos/cosmos-sdk/store/types"
-	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 )
@@ -20,14 +20,14 @@ func NewSpotOrderbookMatchingResults(transientBuyOrders, transientSellOrders []*
 		},
 	}
 
-	buyFillQuantities := make([]sdk.Dec, len(transientBuyOrders))
+	buyFillQuantities := make([]math.LegacyDec, len(transientBuyOrders))
 	for idx := range transientBuyOrders {
-		buyFillQuantities[idx] = sdk.ZeroDec()
+		buyFillQuantities[idx] = math.LegacyZeroDec()
 	}
 
-	sellFillQuantities := make([]sdk.Dec, len(transientSellOrders))
+	sellFillQuantities := make([]math.LegacyDec, len(transientSellOrders))
 	for idx := range transientSellOrders {
-		sellFillQuantities[idx] = sdk.ZeroDec()
+		sellFillQuantities[idx] = math.LegacyZeroDec()
 	}
 
 	orderbookResults.TransientBuyOrderbookFills.FillQuantities = buyFillQuantities
@@ -40,8 +40,8 @@ type SpotOrderbookMatchingResults struct {
 	RestingBuyOrderbookFills    *OrderbookFills
 	TransientSellOrderbookFills *OrderbookFills
 	RestingSellOrderbookFills   *OrderbookFills
-	ClearingPrice               sdk.Dec
-	ClearingQuantity            sdk.Dec
+	ClearingPrice               math.LegacyDec
+	ClearingQuantity            math.LegacyDec
 }
 
 type OrderFillType int
@@ -70,24 +70,24 @@ func (r *SpotOrderbookMatchingResults) GetOrderbookFills(fillType OrderFillType)
 }
 
 type SpotOrderbook interface {
-	GetNotional() sdk.Dec
-	GetTotalQuantityFilled() sdk.Dec
+	GetNotional() math.LegacyDec
+	GetTotalQuantityFilled() math.LegacyDec
 	GetTransientOrderbookFills() *OrderbookFills
 	GetRestingOrderbookFills() *OrderbookFills
 	Peek() *types.PriceLevel
-	Fill(sdk.Dec) error
+	Fill(math.LegacyDec) error
 	Close() error
 }
 
 type OrderbookFills struct {
 	Orders         []*types.SpotLimitOrder
-	FillQuantities []sdk.Dec
+	FillQuantities []math.LegacyDec
 }
 
 type SpotLimitOrderbook struct {
 	isBuy         bool
-	notional      sdk.Dec
-	totalQuantity sdk.Dec
+	notional      math.LegacyDec
+	totalQuantity math.LegacyDec
 
 	transientOrderbookFills *OrderbookFills
 	transientOrderIdx       int
@@ -117,10 +117,10 @@ func NewSpotLimitOrderbook(
 	if len(transientOrders) == 0 {
 		transientOrderbookState = nil
 	} else {
-		newOrderFillQuantities := make([]sdk.Dec, len(transientOrders))
+		newOrderFillQuantities := make([]math.LegacyDec, len(transientOrders))
 		// pre-initialize to zero dec for convenience
 		for idx := range newOrderFillQuantities {
-			newOrderFillQuantities[idx] = sdk.ZeroDec()
+			newOrderFillQuantities[idx] = math.LegacyZeroDec()
 		}
 		transientOrderbookState = &OrderbookFills{
 			Orders:         transientOrders,
@@ -133,14 +133,14 @@ func NewSpotLimitOrderbook(
 	if iterator.Valid() {
 		restingOrderbookState = &OrderbookFills{
 			Orders:         make([]*types.SpotLimitOrder, 0),
-			FillQuantities: make([]sdk.Dec, 0),
+			FillQuantities: make([]math.LegacyDec, 0),
 		}
 	}
 
 	orderbook := SpotLimitOrderbook{
 		isBuy:         isBuy,
-		notional:      sdk.ZeroDec(),
-		totalQuantity: sdk.ZeroDec(),
+		notional:      math.LegacyZeroDec(),
+		totalQuantity: math.LegacyZeroDec(),
 
 		transientOrderbookFills: transientOrderbookState,
 		transientOrderIdx:       0,
@@ -154,8 +154,8 @@ func NewSpotLimitOrderbook(
 	return &orderbook
 }
 
-func (b *SpotLimitOrderbook) GetNotional() sdk.Dec            { return b.notional }
-func (b *SpotLimitOrderbook) GetTotalQuantityFilled() sdk.Dec { return b.totalQuantity }
+func (b *SpotLimitOrderbook) GetNotional() math.LegacyDec            { return b.notional }
+func (b *SpotLimitOrderbook) GetTotalQuantityFilled() math.LegacyDec { return b.totalQuantity }
 func (b *SpotLimitOrderbook) GetTransientOrderbookFills() *OrderbookFills {
 	return b.transientOrderbookFills
 }
@@ -218,7 +218,7 @@ func (b *SpotLimitOrderbook) getCurrIndex() int {
 	return idx
 }
 
-func (b *SpotLimitOrderbook) Fill(fillQuantity sdk.Dec) error {
+func (b *SpotLimitOrderbook) Fill(fillQuantity math.LegacyDec) error {
 	idx := b.getCurrIndex()
 
 	orderCumulativeFillQuantity := b.currState.FillQuantities[idx].Add(fillQuantity)
@@ -248,15 +248,15 @@ func (b *SpotLimitOrderbook) Close() error {
 	return b.restingOrderIterator.Close()
 }
 
-func (b *SpotLimitOrderbook) getRestingFillableQuantity() sdk.Dec {
+func (b *SpotLimitOrderbook) getRestingFillableQuantity() math.LegacyDec {
 	idx := len(b.restingOrderbookFills.Orders) - 1
 	if idx == -1 {
-		return sdk.ZeroDec()
+		return math.LegacyZeroDec()
 	}
 	return b.restingOrderbookFills.Orders[idx].Fillable.Sub(b.restingOrderbookFills.FillQuantities[idx])
 }
 
-func (b *SpotLimitOrderbook) getTransientFillableQuantity() sdk.Dec {
+func (b *SpotLimitOrderbook) getTransientFillableQuantity() math.LegacyDec {
 	idx := b.transientOrderIdx
 	return b.transientOrderbookFills.Orders[idx].Fillable.Sub(b.transientOrderbookFills.FillQuantities[idx])
 }
@@ -276,7 +276,7 @@ func (b *SpotLimitOrderbook) getRestingOrder() *types.SpotLimitOrder {
 		b.cdc.MustUnmarshal(bz, &order)
 
 		b.restingOrderbookFills.Orders = append(b.restingOrderbookFills.Orders, &order)
-		b.restingOrderbookFills.FillQuantities = append(b.restingOrderbookFills.FillQuantities, sdk.ZeroDec())
+		b.restingOrderbookFills.FillQuantities = append(b.restingOrderbookFills.FillQuantities, math.LegacyZeroDec())
 
 		b.restingOrderIterator.Next()
 

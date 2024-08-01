@@ -17,7 +17,8 @@ func (k *Keeper) CheckBadSignatureEvidence(
 	ctx sdk.Context,
 	msg *types.MsgSubmitBadSignatureEvidence,
 ) error {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	var subject types.EthereumSigned
 
@@ -39,7 +40,8 @@ func (k *Keeper) CheckBadSignatureEvidence(
 }
 
 func (k *Keeper) checkBadSignatureEvidenceInternal(ctx sdk.Context, subject types.EthereumSigned, signature string) error {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	// Get checkpoint of the supposed bad signature (fake valset, batch, or logic call submitted to eth)
 	peggyID := k.GetPeggyID(ctx)
@@ -81,9 +83,18 @@ func (k *Keeper) checkBadSignatureEvidenceInternal(ctx sdk.Context, subject type
 	}
 
 	params := k.GetParams(ctx)
-	k.StakingKeeper.Slash(ctx, cons, ctx.BlockHeight(), val.ConsensusPower(k.StakingKeeper.PowerReduction(ctx)), params.SlashFractionBadEthSignature)
+	_, err = k.StakingKeeper.Slash(ctx, cons, ctx.BlockHeight(), val.ConsensusPower(k.StakingKeeper.PowerReduction(ctx)), params.SlashFractionBadEthSignature)
+	if err != nil {
+		metrics.ReportFuncError(k.svcTags)
+		return errors.Wrap(err, "Could not slash validator")
+	}
+
 	if !val.IsJailed() {
-		k.StakingKeeper.Jail(ctx, cons)
+		err = k.StakingKeeper.Jail(ctx, cons)
+		if err != nil {
+			metrics.ReportFuncError(k.svcTags)
+			return errors.Wrap(err, "Could not jail validator")
+		}
 	}
 
 	return nil
@@ -92,7 +103,8 @@ func (k *Keeper) checkBadSignatureEvidenceInternal(ctx sdk.Context, subject type
 // SetPastEthSignatureCheckpoint puts the checkpoint of a valset, batch, or logic call into a set
 // in order to prove later that it existed at one point.
 func (k *Keeper) SetPastEthSignatureCheckpoint(ctx sdk.Context, checkpoint common.Hash) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	store.Set(types.GetPastEthSignatureCheckpointKey(checkpoint), []byte{0x1})
@@ -100,7 +112,8 @@ func (k *Keeper) SetPastEthSignatureCheckpoint(ctx sdk.Context, checkpoint commo
 
 // GetPastEthSignatureCheckpoint tells you whether a given checkpoint has ever existed
 func (k *Keeper) GetPastEthSignatureCheckpoint(ctx sdk.Context, checkpoint common.Hash) (found bool) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	if bytes.Equal(store.Get(types.GetPastEthSignatureCheckpointKey(checkpoint)), []byte{0x1}) {

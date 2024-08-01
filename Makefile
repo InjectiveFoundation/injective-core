@@ -6,6 +6,7 @@ COSMOS_VERSION_NAME = injective
 VERSION_PKG = github.com/InjectiveLabs/injective-core/version
 PACKAGES=$(shell go list ./... | grep -Ev 'vendor|importer|gen|api/design|rpc/tester')
 IMAGE_NAME := gcr.io/injective-core/core
+LEDGER_ENABLED ?= true
 
 # process build tags
 build_tags = netgo
@@ -75,8 +76,8 @@ PKGS_TO_COVER := $(shell go list ./injective-chain/modules/exchange | paste -sd 
 deploy:
 	./deploy_contracts.sh
 
-fuzz:
-	go test -fuzz FuzzTest ./injective-chain/modules/exchange/testexchange/fuzztesting
+fuzz: # use old clang linker on macOS https://github.com/golang/go/issues/65169
+	go test -fuzz FuzzTest ./injective-chain/modules/exchange/testexchange/fuzztesting -ldflags=-extldflags=-Wl,-ld_classic
 
 test: export GOPROXY=direct
 test:
@@ -132,7 +133,7 @@ mongo:
 ###############################################################################
 
 DOCKER=docker
-protoVer=0.12.1
+protoVer=0.14.0
 protoImageName=ghcr.io/cosmos/proto-builder:$(protoVer)
 protoImage=$(DOCKER) run --rm -v $(CURDIR):/workspace --workdir /workspace $(protoImageName)
 
@@ -140,6 +141,9 @@ proto: proto-format proto-gen proto-swagger-gen
 
 proto-gen:
 	@$(protoImage) sh ./scripts/protocgen.sh
+
+proto-gen-pulsar:
+	@$(protoImage) sh ./scripts/protocgen-pulsar.sh
 
 proto-swagger-gen:
 	@$(protoImage) sh ./scripts/protoc-swagger-gen.sh

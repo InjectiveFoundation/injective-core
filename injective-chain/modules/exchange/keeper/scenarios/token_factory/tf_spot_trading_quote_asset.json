@@ -5,7 +5,8 @@
   "actions": [
     {
       "actionType": "createTfDenom",
-      "subdenom": "custom"
+      "subdenom": "custom",
+      "decimals": 6
     },
     {
       "actionType": "mintTfDenom",

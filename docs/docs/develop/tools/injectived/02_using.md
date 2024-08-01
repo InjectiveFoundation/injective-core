@@ -5,7 +5,7 @@ title: Using Injectived
 
 # Using `injectived` 
 
-The following information explains the functions you can use from `injectived` , the command-line interface that connects to Injective and enables you to interact with the Injective blockchain. Every active validator and full node runs `injectived`  and communicates with their node via `injectived` . In this relationship, `injectived`  operates as both the client and the server. You can use `injectived`  to interact with the Injective blockchain by uploading contracts, querying data, managing staking activities, working with governance proposals, and more.
+The following explains what one can do via `injectived`, the command-line interface that connects to Injective, as well as interact with the Injective blockchain. Every active validator and full node runs `injectived` and communicates with their node via `injectived`. In this relationship, `injectived` operates as both the client and the server. You can use `injectived` to interact with the Injective blockchain by uploading smart contracts, querying data, managing staking activities, working with governance proposals, and more.
 
 For more general information about `injectived`, run: 
 
@@ -13,7 +13,7 @@ For more general information about `injectived`, run:
 injectived --help
 ```
 
-For more information about a specific `injectived`  command, append the -h or --help flag after the command. For example:
+For more information about a specific `injectived`  command, append the `-h` or `--help` flag after the command. For example:
 
 ```bash
 injectived query --help.
@@ -90,21 +90,19 @@ You should see two delegations, the first one made from the `gentx`, and the sec
 
 ## Example 2: Generate, Sign and Broadcast a Transaction
 
-Running the following command
+Running the following command will execute the following steps:
 
 ```bash
 injectived tx bank send $MY_VALIDATOR_ADDRESS $RECIPIENT 1000inj --chain-id=injective-1 --keyring-backend=file
 ```
 
-will run the following steps:
+- Generate a transaction with one `Msg` (`x/bank`'s `MsgSend`), and print the generated transaction to the console.
+- Ask the user for confirmation to send the transaction from the `$MY_VALIDATOR_ADDRESS` account.
+- Fetch `$MY_VALIDATOR_ADDRESS` from the keyring. This is possible because we have [set up the CLI's keyring](../../../nodes/running-a-node/keyring.md) in a previous step.
+- Sign the generated transaction with the keyring's account.
+- Broadcast the signed transaction to the network. This is possible because the CLI connects to the node's Tendermint RPC endpoint.
 
-- generate a transaction with one `Msg` (`x/bank`'s `MsgSend`), and print the generated transaction to the console.
-- ask the user for confirmation to send the transaction from the `$MY_VALIDATOR_ADDRESS` account.
-- fetch `$MY_VALIDATOR_ADDRESS` from the keyring. This is possible because we have [set up the CLI's keyring](../../../nodes/RunNode/keyring.md) in a previous step.
-- sign the generated transaction with the keyring's account.
-- broadcast the signed transaction to the network. This is possible because the CLI connects to the node's Tendermint RPC endpoint.
-
-The CLI bundles all the necessary steps into a simple-to-use user experience. However, it's possible to run all the steps individually too.
+The CLI bundles all the necessary steps into a simple-to-use user experience. However, it is possible to run all the steps individually as well.
 
 ### Generating a Transaction
 

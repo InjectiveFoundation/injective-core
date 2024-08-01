@@ -1,7 +1,7 @@
 
 # Hub Overview
 
-[Injective Hub](https://hub.injective.network/) is the platform and gateway that allows you to interact directly with Injective.  Below are some core functionalities within Injective Hub.
+The [Injective Hub](https://hub.injective.network/) serves as both the platform and gateway for direct interactions with Injective. Below are some core functionalities within the Injective Hub.
 
 1. [Wallet](./01_wallet.md)
 2. [Bridge](./bridge/index.md)

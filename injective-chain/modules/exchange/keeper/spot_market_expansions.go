@@ -1,6 +1,7 @@
 package keeper
 
 import (
+	"cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
@@ -14,9 +15,9 @@ func (k *Keeper) processSpotMarketOrderStateExpansions(
 	marketID common.Hash,
 	isMarketBuy bool,
 	marketOrders []*types.SpotMarketOrder,
-	marketFillQuantities []sdk.Dec,
-	clearingPrice sdk.Dec,
-	tradeFeeRate, relayerFeeShareRate sdk.Dec,
+	marketFillQuantities []math.LegacyDec,
+	clearingPrice math.LegacyDec,
+	tradeFeeRate, relayerFeeShareRate math.LegacyDec,
 	pointsMultiplier types.PointsMultiplier,
 	feeDiscountConfig *FeeDiscountConfig,
 ) []*spotOrderStateExpansion {
@@ -44,17 +45,17 @@ func (k *Keeper) getSpotMarketOrderStateExpansion(
 	marketID common.Hash,
 	order *types.SpotMarketOrder,
 	isMarketBuy bool,
-	fillQuantity, clearingPrice sdk.Dec,
-	takerFeeRate, relayerFeeShareRate sdk.Dec,
+	fillQuantity, clearingPrice math.LegacyDec,
+	takerFeeRate, relayerFeeShareRate math.LegacyDec,
 	pointsMultiplier types.PointsMultiplier,
 	feeDiscountConfig *FeeDiscountConfig,
 ) *spotOrderStateExpansion {
-	var baseChangeAmount, quoteChangeAmount sdk.Dec
+	var baseChangeAmount, quoteChangeAmount math.LegacyDec
 
 	if fillQuantity.IsNil() {
-		fillQuantity = sdk.ZeroDec()
+		fillQuantity = math.LegacyZeroDec()
 	}
-	orderNotional := sdk.ZeroDec()
+	orderNotional := math.LegacyZeroDec()
 	if !clearingPrice.IsNil() {
 		orderNotional = fillQuantity.Mul(clearingPrice)
 	}
@@ -74,7 +75,7 @@ func (k *Keeper) getSpotMarketOrderStateExpansion(
 		isMaker,
 	)
 
-	baseRefundAmount, quoteRefundAmount, quoteChangeAmount := sdk.ZeroDec(), sdk.ZeroDec(), sdk.ZeroDec()
+	baseRefundAmount, quoteRefundAmount, quoteChangeAmount := math.LegacyZeroDec(), math.LegacyZeroDec(), math.LegacyZeroDec()
 
 	if isMarketBuy {
 		// market buys are credited with the order fill quantity in base denom
@@ -99,7 +100,7 @@ func (k *Keeper) getSpotMarketOrderStateExpansion(
 
 	tradePrice := clearingPrice
 	if tradePrice.IsNil() {
-		tradePrice = sdk.ZeroDec()
+		tradePrice = math.LegacyZeroDec()
 	}
 
 	stateExpansion := spotOrderStateExpansion{
@@ -111,7 +112,7 @@ func (k *Keeper) getSpotMarketOrderStateExpansion(
 		FeeRecipient:            order.FeeRecipient(),
 		FeeRecipientReward:      feeData.feeRecipientReward,
 		AuctionFeeReward:        feeData.auctionFeeReward,
-		TraderFeeReward:         sdk.ZeroDec(),
+		TraderFeeReward:         math.LegacyZeroDec(),
 		TradingRewardPoints:     feeData.tradingRewardPoints,
 		MarketOrder:             order,
 		MarketOrderFillQuantity: fillQuantity,

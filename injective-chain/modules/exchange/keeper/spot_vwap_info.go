@@ -4,23 +4,23 @@ import (
 	"bytes"
 	"sort"
 
-	"github.com/cosmos/cosmos-sdk/types"
+	"cosmossdk.io/math"
 	"github.com/ethereum/go-ethereum/common"
 )
 
 type SpotVwapData struct {
-	Price    types.Dec
-	Quantity types.Dec
+	Price    math.LegacyDec
+	Quantity math.LegacyDec
 }
 
 func NewSpotVwapData() *SpotVwapData {
 	return &SpotVwapData{
-		Price:    types.ZeroDec(),
-		Quantity: types.ZeroDec(),
+		Price:    math.LegacyZeroDec(),
+		Quantity: math.LegacyZeroDec(),
 	}
 }
 
-func (p *SpotVwapData) ApplyExecution(price, quantity types.Dec) *SpotVwapData {
+func (p *SpotVwapData) ApplyExecution(price, quantity math.LegacyDec) *SpotVwapData {
 	if p == nil {
 		p = NewSpotVwapData()
 	}
@@ -59,13 +59,13 @@ func (p *SpotVwapInfo) ApplyVwap(marketID common.Hash, newVwapData *SpotVwapData
 }
 
 func (p *SpotVwapInfo) GetSortedSpotMarketIDs() []common.Hash {
-	spotMarketIds := make([]common.Hash, 0)
+	spotMarketIDs := make([]common.Hash, 0)
 	for k := range *p {
-		spotMarketIds = append(spotMarketIds, k)
+		spotMarketIDs = append(spotMarketIDs, k)
 	}
 
-	sort.SliceStable(spotMarketIds, func(i, j int) bool {
-		return bytes.Compare(spotMarketIds[i].Bytes(), spotMarketIds[j].Bytes()) < 0
+	sort.SliceStable(spotMarketIDs, func(i, j int) bool {
+		return bytes.Compare(spotMarketIDs[i].Bytes(), spotMarketIDs[j].Bytes()) < 0
 	})
-	return spotMarketIds
+	return spotMarketIDs
 }

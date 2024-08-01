@@ -1,16 +1,20 @@
 package keeper
 
 import (
-	"math"
+	gomath "math"
 	"sort"
 
+	"github.com/cosmos/cosmos-sdk/x/auth/keeper"
+	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
+	distrkeeper "github.com/cosmos/cosmos-sdk/x/distribution/keeper"
+
 	"cosmossdk.io/errors"
-	sdkmath "cosmossdk.io/math"
+	"cosmossdk.io/log"
+	"cosmossdk.io/math"
+	"cosmossdk.io/store/prefix"
+	storetypes "cosmossdk.io/store/types"
 	"github.com/InjectiveLabs/metrics"
-	"github.com/cometbft/cometbft/libs/log"
 	"github.com/cosmos/cosmos-sdk/codec"
-	"github.com/cosmos/cosmos-sdk/store/prefix"
-	storetypes "github.com/cosmos/cosmos-sdk/store/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	distrtypes "github.com/cosmos/cosmos-sdk/x/distribution/types"
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
@@ -29,7 +33,7 @@ type Keeper struct {
 
 	StakingKeeper     types.StakingKeeper
 	bankKeeper        types.BankKeeper
-	DistKeeper        types.DistributionKeeper
+	DistKeeper        distrkeeper.Keeper
 	SlashingKeeper    types.SlashingKeeper
 	exchangeMsgServer exchangetypes.MsgServer
 
@@ -41,7 +45,8 @@ type Keeper struct {
 	grpcTags metrics.Tags
 
 	// address authorized to execute MsgUpdateParams. Default: gov module
-	authority string
+	authority     string
+	accountKeeper keeper.AccountKeeper
 }
 
 func (k *Keeper) Logger(ctx sdk.Context) log.Logger {
@@ -55,9 +60,10 @@ func NewKeeper(
 	stakingKeeper types.StakingKeeper,
 	bankKeeper types.BankKeeper,
 	slashingKeeper types.SlashingKeeper,
-	distKeeper types.DistributionKeeper,
+	distKeeper distrkeeper.Keeper,
 	exchangeKeeper exchangekeeper.Keeper,
 	authority string,
+	accountKeeper keeper.AccountKeeper,
 ) Keeper {
 	exchangeMsgServer := exchangekeeper.NewMsgServerImpl(exchangeKeeper)
 
@@ -76,6 +82,7 @@ func NewKeeper(
 		grpcTags: metrics.Tags{
 			"svc": "peggy_grpc",
 		},
+		accountKeeper: accountKeeper,
 	}
 
 	k.AttestationHandler = NewAttestationHandler(bankKeeper, k)
@@ -90,7 +97,8 @@ func NewKeeper(
 // SetValsetRequest returns a new instance of the Peggy BridgeValidatorSet
 // i.e. {"nonce": 1, "memebers": [{"eth_addr": "foo", "power": 11223}]}
 func (k *Keeper) SetValsetRequest(ctx sdk.Context) *types.Valset {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	valset := k.GetCurrentValset(ctx)
 
@@ -118,7 +126,8 @@ func (k *Keeper) SetValsetRequest(ctx sdk.Context) *types.Valset {
 
 // StoreValset is for storing a valiator set at a given height
 func (k *Keeper) StoreValset(ctx sdk.Context, valset *types.Valset) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	valset.Height = uint64(ctx.BlockHeight())
@@ -128,7 +137,8 @@ func (k *Keeper) StoreValset(ctx sdk.Context, valset *types.Valset) {
 
 // SetLatestValsetNonce sets the latest valset nonce
 func (k *Keeper) SetLatestValsetNonce(ctx sdk.Context, nonce uint64) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	store.Set(types.LatestValsetNonce, types.UInt64Bytes(nonce))
@@ -136,7 +146,8 @@ func (k *Keeper) SetLatestValsetNonce(ctx sdk.Context, nonce uint64) {
 
 // StoreValsetUnsafe is for storing a valiator set at a given height
 func (k *Keeper) StoreValsetUnsafe(ctx sdk.Context, valset *types.Valset) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	store.Set(types.GetValsetKey(valset.Nonce), k.cdc.MustMarshal(valset))
@@ -145,7 +156,8 @@ func (k *Keeper) StoreValsetUnsafe(ctx sdk.Context, valset *types.Valset) {
 
 // HasValsetRequest returns true if a valset defined by a nonce exists
 func (k *Keeper) HasValsetRequest(ctx sdk.Context, nonce uint64) bool {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	return store.Has(types.GetValsetKey(nonce))
@@ -153,14 +165,16 @@ func (k *Keeper) HasValsetRequest(ctx sdk.Context, nonce uint64) bool {
 
 // DeleteValset deletes the valset at a given nonce from state
 func (k *Keeper) DeleteValset(ctx sdk.Context, nonce uint64) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	ctx.KVStore(k.storeKey).Delete(types.GetValsetKey(nonce))
 }
 
 // GetLatestValsetNonce returns the latest valset nonce
 func (k *Keeper) GetLatestValsetNonce(ctx sdk.Context) uint64 {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	bytes := store.Get(types.LatestValsetNonce)
@@ -174,7 +188,8 @@ func (k *Keeper) GetLatestValsetNonce(ctx sdk.Context) uint64 {
 
 // GetValset returns a valset by nonce
 func (k *Keeper) GetValset(ctx sdk.Context, nonce uint64) *types.Valset {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	bz := store.Get(types.GetValsetKey(nonce))
@@ -190,7 +205,8 @@ func (k *Keeper) GetValset(ctx sdk.Context, nonce uint64) *types.Valset {
 
 // IterateValsets retruns all valsetRequests
 func (k *Keeper) IterateValsets(ctx sdk.Context, cb func(key []byte, val *types.Valset) bool) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	prefixStore := prefix.NewStore(ctx.KVStore(k.storeKey), types.ValsetRequestKey)
 	iter := prefixStore.ReverseIterator(nil, nil)
@@ -208,7 +224,8 @@ func (k *Keeper) IterateValsets(ctx sdk.Context, cb func(key []byte, val *types.
 
 // GetValsets returns all the validator sets in state
 func (k *Keeper) GetValsets(ctx sdk.Context) (out []*types.Valset) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	k.IterateValsets(ctx, func(_ []byte, val *types.Valset) bool {
 		out = append(out, val)
@@ -222,7 +239,8 @@ func (k *Keeper) GetValsets(ctx sdk.Context) (out []*types.Valset) {
 
 // GetLatestValset returns the latest validator set in state
 func (k *Keeper) GetLatestValset(ctx sdk.Context) (out *types.Valset) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	latestValsetNonce := k.GetLatestValsetNonce(ctx)
 	out = k.GetValset(ctx, latestValsetNonce)
@@ -232,7 +250,8 @@ func (k *Keeper) GetLatestValset(ctx sdk.Context) (out *types.Valset) {
 
 // setLastSlashedValsetNonce sets the latest slashed valset nonce
 func (k *Keeper) SetLastSlashedValsetNonce(ctx sdk.Context, nonce uint64) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	store.Set(types.LastSlashedValsetNonce, types.UInt64Bytes(nonce))
@@ -240,7 +259,8 @@ func (k *Keeper) SetLastSlashedValsetNonce(ctx sdk.Context, nonce uint64) {
 
 // GetLastSlashedValsetNonce returns the latest slashed valset nonce
 func (k *Keeper) GetLastSlashedValsetNonce(ctx sdk.Context) uint64 {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	bytes := store.Get(types.LastSlashedValsetNonce)
@@ -254,7 +274,8 @@ func (k *Keeper) GetLastSlashedValsetNonce(ctx sdk.Context) uint64 {
 
 // SetLastUnbondingBlockHeight sets the last unbonding block height
 func (k *Keeper) SetLastUnbondingBlockHeight(ctx sdk.Context, unbondingBlockHeight uint64) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	store.Set(types.LastUnbondingBlockHeight, types.UInt64Bytes(unbondingBlockHeight))
@@ -262,7 +283,8 @@ func (k *Keeper) SetLastUnbondingBlockHeight(ctx sdk.Context, unbondingBlockHeig
 
 // GetLastUnbondingBlockHeight returns the last unbonding block height
 func (k *Keeper) GetLastUnbondingBlockHeight(ctx sdk.Context) uint64 {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	bytes := store.Get(types.LastUnbondingBlockHeight)
@@ -276,7 +298,8 @@ func (k *Keeper) GetLastUnbondingBlockHeight(ctx sdk.Context) uint64 {
 
 // GetUnslashedValsets returns all the unslashed validator sets in state
 func (k *Keeper) GetUnslashedValsets(ctx sdk.Context, maxHeight uint64) (out []*types.Valset) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	lastSlashedValsetNonce := k.GetLastSlashedValsetNonce(ctx)
 
@@ -297,7 +320,8 @@ func (k *Keeper) IterateValsetBySlashedValsetNonce(
 	maxHeight uint64,
 	cb func(k []byte, v *types.Valset) (stop bool),
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	prefixStore := prefix.NewStore(ctx.KVStore(k.storeKey), types.ValsetRequestKey)
 	iter := prefixStore.Iterator(types.UInt64Bytes(lastSlashedValsetNonce), types.UInt64Bytes(maxHeight))
@@ -319,7 +343,8 @@ func (k *Keeper) IterateValsetBySlashedValsetNonce(
 
 // GetValsetConfirm returns a valset confirmation by a nonce and validator address
 func (k *Keeper) GetValsetConfirm(ctx sdk.Context, nonce uint64, validator sdk.AccAddress) *types.MsgValsetConfirm {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	entity := store.Get(types.GetValsetConfirmKey(nonce, validator))
@@ -335,7 +360,8 @@ func (k *Keeper) GetValsetConfirm(ctx sdk.Context, nonce uint64, validator sdk.A
 
 // SetValsetConfirm sets a valset confirmation
 func (k *Keeper) SetValsetConfirm(ctx sdk.Context, valset *types.MsgValsetConfirm) []byte {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	addr, err := sdk.AccAddressFromBech32(valset.Orchestrator)
@@ -352,7 +378,8 @@ func (k *Keeper) SetValsetConfirm(ctx sdk.Context, valset *types.MsgValsetConfir
 
 // GetValsetConfirms returns all validator set confirmations by nonce
 func (k *Keeper) GetValsetConfirms(ctx sdk.Context, nonce uint64) (valsetConfirms []*types.MsgValsetConfirm) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	prefixStore := prefix.NewStore(ctx.KVStore(k.storeKey), types.ValsetConfirmKey)
 	start, end := PrefixRange(types.UInt64Bytes(nonce))
@@ -372,7 +399,8 @@ func (k *Keeper) GetValsetConfirms(ctx sdk.Context, nonce uint64) (valsetConfirm
 
 // IterateValsetConfirmByNonce iterates through all valset confirms by validator set nonce in ASC order
 func (k *Keeper) IterateValsetConfirmByNonce(ctx sdk.Context, nonce uint64, cb func(k []byte, v *types.MsgValsetConfirm) (stop bool)) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	prefixStore := prefix.NewStore(ctx.KVStore(k.storeKey), types.ValsetConfirmKey)
 	iter := prefixStore.Iterator(PrefixRange(types.UInt64Bytes(nonce)))
@@ -394,7 +422,8 @@ func (k *Keeper) IterateValsetConfirmByNonce(ctx sdk.Context, nonce uint64, cb f
 
 // GetBatchConfirm returns a batch confirmation given its nonce, the token contract, and a validator address
 func (k *Keeper) GetBatchConfirm(ctx sdk.Context, nonce uint64, tokenContract common.Address, validator sdk.AccAddress) *types.MsgConfirmBatch {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	entity := store.Get(types.GetBatchConfirmKey(tokenContract, nonce, validator))
@@ -410,7 +439,8 @@ func (k *Keeper) GetBatchConfirm(ctx sdk.Context, nonce uint64, tokenContract co
 
 // SetBatchConfirm sets a batch confirmation by a validator
 func (k *Keeper) SetBatchConfirm(ctx sdk.Context, batch *types.MsgConfirmBatch) []byte {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	// convert eth signer to hex string lol
 	batch.EthSigner = common.HexToAddress(batch.EthSigner).Hex()
@@ -436,7 +466,8 @@ func (k *Keeper) IterateBatchConfirmByNonceAndTokenContract(
 	tokenContract common.Address,
 	cb func(k []byte, v *types.MsgConfirmBatch) (stop bool),
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	prefixStore := prefix.NewStore(ctx.KVStore(k.storeKey), types.BatchConfirmKey)
 	batchPrefix := append(tokenContract.Bytes(), types.UInt64Bytes(nonce)...)
@@ -455,7 +486,8 @@ func (k *Keeper) IterateBatchConfirmByNonceAndTokenContract(
 
 // GetBatchConfirmByNonceAndTokenContract returns the batch confirms
 func (k *Keeper) GetBatchConfirmByNonceAndTokenContract(ctx sdk.Context, nonce uint64, tokenContract common.Address) (out []*types.MsgConfirmBatch) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	k.IterateBatchConfirmByNonceAndTokenContract(ctx, nonce, tokenContract, func(_ []byte, msg *types.MsgConfirmBatch) (stop bool) {
 		out = append(out, msg)
@@ -471,7 +503,8 @@ func (k *Keeper) GetBatchConfirmByNonceAndTokenContract(ctx sdk.Context, nonce u
 
 // SetOrchestratorValidator sets the Orchestrator key for a given validator
 func (k *Keeper) SetOrchestratorValidator(ctx sdk.Context, val sdk.ValAddress, orch sdk.AccAddress) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	store.Set(types.GetOrchestratorAddressKey(orch), val.Bytes())
@@ -479,7 +512,8 @@ func (k *Keeper) SetOrchestratorValidator(ctx sdk.Context, val sdk.ValAddress, o
 
 // GetOrchestratorValidator returns the validator key associated with an orchestrator key
 func (k *Keeper) GetOrchestratorValidator(ctx sdk.Context, orch sdk.AccAddress) (sdk.ValAddress, bool) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 
@@ -497,7 +531,8 @@ func (k *Keeper) GetOrchestratorValidator(ctx sdk.Context, orch sdk.AccAddress) 
 
 // SetEthAddressForValidator sets the ethereum address for a given validator
 func (k *Keeper) SetEthAddressForValidator(ctx sdk.Context, validator sdk.ValAddress, ethAddr common.Address) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	store.Set(types.GetEthAddressByValidatorKey(validator), ethAddr.Bytes())
@@ -506,7 +541,8 @@ func (k *Keeper) SetEthAddressForValidator(ctx sdk.Context, validator sdk.ValAdd
 
 // GetEthAddressByValidator returns the eth address for a given peggy validator
 func (k *Keeper) GetEthAddressByValidator(ctx sdk.Context, validator sdk.ValAddress) (common.Address, bool) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 
@@ -520,15 +556,16 @@ func (k *Keeper) GetEthAddressByValidator(ctx sdk.Context, validator sdk.ValAddr
 
 // GetValidatorByEthAddress returns the validator for a given eth address
 func (k *Keeper) GetValidatorByEthAddress(ctx sdk.Context, ethAddr common.Address) (validator stakingtypes.Validator, found bool) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	valAddr := store.Get(types.GetValidatorByEthAddressKey(ethAddr))
 	if valAddr == nil {
 		return stakingtypes.Validator{}, false
 	}
-	validator, found = k.StakingKeeper.GetValidator(ctx, valAddr)
-	if !found {
+	validator, err := k.StakingKeeper.GetValidator(ctx, valAddr)
+	if err != nil {
 		return stakingtypes.Validator{}, false
 	}
 
@@ -557,17 +594,19 @@ func (k *Keeper) GetValidatorByEthAddress(ctx sdk.Context, ethAddr common.Addres
 // update the validator set again and the bridge and all its' funds are lost.
 // For this reason we exclude validators with unset eth keys from validator sets
 func (k *Keeper) GetCurrentValset(ctx sdk.Context) *types.Valset {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
-	validators := k.StakingKeeper.GetBondedValidatorsByPower(ctx)
+	validators, _ := k.StakingKeeper.GetBondedValidatorsByPower(ctx)
 	// allocate enough space for all validators, but len zero, we then append
 	// so that we have an array with extra capacity but the correct length depending
 	// on how many validators have keys set.
 	bridgeValidators := make([]*types.BridgeValidator, 0, len(validators))
 	var totalPower uint64
 	for i := range validators {
-		val := validators[i].GetOperator()
-		p := uint64(k.StakingKeeper.GetLastValidatorPower(ctx, val))
+		val, _ := sdk.ValAddressFromBech32(validators[i].GetOperator())
+		vp, _ := k.StakingKeeper.GetLastValidatorPower(ctx, val)
+		p := uint64(vp)
 
 		if ethAddress, found := k.GetEthAddressByValidator(ctx, val); found {
 			bv := &types.BridgeValidator{Power: p, EthereumAddress: ethAddress.Hex()}
@@ -578,19 +617,20 @@ func (k *Keeper) GetCurrentValset(ctx sdk.Context) *types.Valset {
 
 	// normalize power values
 	for i := range bridgeValidators {
-		bridgeValidators[i].Power = sdk.NewUint(bridgeValidators[i].Power).MulUint64(math.MaxUint32).QuoUint64(totalPower).Uint64()
+
+		bridgeValidators[i].Power = math.NewUint(bridgeValidators[i].Power).MulUint64(gomath.MaxUint32).QuoUint64(totalPower).Uint64()
 	}
 
 	// get the reward from the params store
 	reward := k.GetParams(ctx).ValsetReward
 	var rewardToken common.Address
-	var rewardAmount sdkmath.Int
+	var rewardAmount math.Int
 	if reward.Denom == "" {
 		// the case where a validator has 'no reward'. The 'no reward' value is interpreted as having a zero
 		// address for the ERC20 token and a zero value for the reward amount. Since we store a coin with the
 		// params, a coin with a blank denom and/or zero amount is interpreted in this way.
 		rewardToken = common.Address{0x0000000000000000000000000000000000000000}
-		rewardAmount = sdk.NewIntFromUint64(0)
+		rewardAmount = math.NewIntFromUint64(0)
 
 	} else {
 		rewardToken, rewardAmount = k.RewardToERC20Lookup(ctx, reward)
@@ -603,21 +643,27 @@ func (k *Keeper) GetCurrentValset(ctx sdk.Context) *types.Valset {
 //       HELPERS           //
 /////////////////////////////
 
-func (k *Keeper) getStore(ctx sdk.Context) sdk.KVStore {
+func (k *Keeper) getStore(ctx sdk.Context) storetypes.KVStore {
 	return ctx.KVStore(k.storeKey)
 }
 
 // SendToCommunityPool handles incorrect SendToCosmos calls to the community pool, since the calls
 // have already been made on Ethereum there's nothing we can do to reverse them, and we should at least
 // make use of the tokens which would otherwise be lost
-func (k Keeper) SendToCommunityPool(ctx sdk.Context, coins sdk.Coins) error {
+func (k *Keeper) SendToCommunityPool(ctx sdk.Context, coins sdk.Coins) error {
 	if err := k.bankKeeper.SendCoinsFromModuleToModule(ctx, types.ModuleName, distrtypes.ModuleName, coins); err != nil {
 		return errors.Wrap(err, "transfer to community pool failed")
 	}
-	feePool := k.DistKeeper.GetFeePool(ctx)
+	feePool, err := k.DistKeeper.FeePool.Get(ctx)
+
+	if err != nil {
+		return err
+	}
+
 	feePool.CommunityPool = feePool.CommunityPool.Add(sdk.NewDecCoinsFromCoins(coins...)...)
-	k.DistKeeper.SetFeePool(ctx, feePool)
-	return nil
+	err = k.DistKeeper.FeePool.Set(ctx, feePool)
+
+	return err
 }
 
 /////////////////////////////
@@ -626,7 +672,8 @@ func (k Keeper) SendToCommunityPool(ctx sdk.Context, coins sdk.Coins) error {
 
 // GetParams returns the parameters from the store
 func (k *Keeper) GetParams(ctx sdk.Context) *types.Params {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	bz := store.Get(types.ParamKey)
@@ -642,7 +689,8 @@ func (k *Keeper) GetParams(ctx sdk.Context) *types.Params {
 
 // SetParams sets the parameters in the store
 func (k *Keeper) SetParams(ctx sdk.Context, params *types.Params) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	bz := k.cdc.MustMarshal(params)
@@ -651,7 +699,8 @@ func (k *Keeper) SetParams(ctx sdk.Context, params *types.Params) {
 
 // GetBridgeContractAddress returns the bridge contract address on ETH
 func (k *Keeper) GetBridgeContractAddress(ctx sdk.Context) common.Address {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	params := k.GetParams(ctx)
 	if params == nil {
@@ -663,7 +712,8 @@ func (k *Keeper) GetBridgeContractAddress(ctx sdk.Context) common.Address {
 
 // GetBridgeChainID returns the chain id of the ETH chain we are running against
 func (k *Keeper) GetBridgeChainID(ctx sdk.Context) uint64 {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	params := k.GetParams(ctx)
 	if params == nil {
@@ -674,7 +724,8 @@ func (k *Keeper) GetBridgeChainID(ctx sdk.Context) uint64 {
 }
 
 func (k *Keeper) GetPeggyID(ctx sdk.Context) string {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	params := k.GetParams(ctx)
 	if params == nil {
@@ -686,7 +737,8 @@ func (k *Keeper) GetPeggyID(ctx sdk.Context) string {
 
 // GetCosmosCoinDenom returns native cosmos coin denom
 func (k *Keeper) GetCosmosCoinDenom(ctx sdk.Context) string {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	params := k.GetParams(ctx)
 	if params == nil {
@@ -698,7 +750,8 @@ func (k *Keeper) GetCosmosCoinDenom(ctx sdk.Context) string {
 
 // GetCosmosCoinERC20Contract returns the Cosmos coin ERC20 contract address
 func (k *Keeper) GetCosmosCoinERC20Contract(ctx sdk.Context) common.Address {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	params := k.GetParams(ctx)
 	if params == nil {
@@ -709,8 +762,6 @@ func (k *Keeper) GetCosmosCoinERC20Contract(ctx sdk.Context) common.Address {
 }
 
 func (k *Keeper) UnpackAttestationClaim(attestation *types.Attestation) (types.EthereumClaim, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
-
 	var msg types.EthereumClaim
 
 	err := k.cdc.UnpackAny(attestation.Claim, &msg)
@@ -734,7 +785,8 @@ func (k *Keeper) UnpackAttestationClaim(attestation *types.Attestation) (types.E
 //
 // For the time being this will serve
 func (k *Keeper) GetOrchestratorAddresses(ctx sdk.Context) []*types.MsgSetOrchestratorAddresses {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	storePrefix := types.EthAddressByValidatorKey
@@ -850,14 +902,16 @@ func PrefixRange(proposedPrefix []byte) (PrefixStart, PrefixEnd) {
 
 // IsOnBlacklist checks that the Ethereum Address is black listed.
 func (k *Keeper) IsOnBlacklist(ctx sdk.Context, addr common.Address) bool {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	return k.getStore(ctx).Has(types.GetEthereumBlacklistStoreKey(addr))
 }
 
 // SetEthereumBlacklistAddress sets the ethereum blacklist address.
 func (k *Keeper) SetEthereumBlacklistAddress(ctx sdk.Context, addr common.Address) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	// set boolean indicator
 	k.getStore(ctx).Set(types.GetEthereumBlacklistStoreKey(addr), []byte{})
@@ -865,7 +919,8 @@ func (k *Keeper) SetEthereumBlacklistAddress(ctx sdk.Context, addr common.Addres
 
 // GetAllEthereumBlacklistAddresses fetches all etheruem blacklisted addresses.
 func (k *Keeper) GetAllEthereumBlacklistAddresses(ctx sdk.Context) []string {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	blacklistedAddresses := make([]string, 0)
 	store := ctx.KVStore(k.storeKey)
@@ -884,17 +939,34 @@ func (k *Keeper) GetAllEthereumBlacklistAddresses(ctx sdk.Context) []string {
 
 // DeleteEthereumBlacklistAddress deletes the address from blacklist.
 func (k *Keeper) DeleteEthereumBlacklistAddress(ctx sdk.Context, addr common.Address) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	k.getStore(ctx).Delete(types.GetEthereumBlacklistStoreKey(addr))
 }
 
-// Returns true if the provided address is invalid to send to Ethereum this could be
+// InvalidSendToEthAddress Returns true if the provided address is invalid to send to Ethereum this could be
 // for one of several reasons. (1) it is invalid in general like the Zero address, (2)
 // it is invalid for a subset of ERC20 addresses or (3) it is on the governance deposit/withdraw
 // blacklist. (2) is not yet implemented
 // Blocking some addresses is technically motivated, if any ERC20 transfers in a batch fail the entire batch
 // becomes impossible to execute.
-func (k Keeper) InvalidSendToEthAddress(ctx sdk.Context, addr common.Address) bool {
+func (k *Keeper) InvalidSendToEthAddress(ctx sdk.Context, addr common.Address) bool {
 	return k.IsOnBlacklist(ctx, addr) || addr == types.ZeroAddress()
+}
+
+func (k *Keeper) isAdmin(ctx sdk.Context, addr string) bool {
+	for _, adminAddress := range k.GetParams(ctx).Admins {
+		if adminAddress == addr {
+			return true
+		}
+	}
+	return false
+}
+
+// CreateModuleAccount creates a module account with minting and burning capabilities
+func (k *Keeper) CreateModuleAccount(ctx sdk.Context) {
+	baseAcc := authtypes.NewEmptyModuleAccount(types.ModuleName, authtypes.Minter, authtypes.Burner)
+	moduleAcc := (k.accountKeeper.NewAccount(ctx, baseAcc)).(sdk.ModuleAccountI) // set the account number
+	k.accountKeeper.SetModuleAccount(ctx, moduleAcc)
 }

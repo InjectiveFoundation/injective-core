@@ -3,13 +3,13 @@ package keeper
 import (
 	"context"
 
+	"cosmossdk.io/errors"
+	"cosmossdk.io/math"
 	"github.com/InjectiveLabs/metrics"
-	sdksecp256k1 "github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	"github.com/cosmos/cosmos-sdk/telemetry"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/InjectiveLabs/injective-core/injective-chain/crypto/ethsecp256k1"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 )
 
@@ -32,7 +32,8 @@ func (k AccountsMsgServer) BatchUpdateOrders(
 	goCtx context.Context,
 	msg *types.MsgBatchUpdateOrders,
 ) (*types.MsgBatchUpdateOrdersResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
 	sender, _ := sdk.AccAddressFromBech32(msg.Sender)
@@ -57,7 +58,8 @@ func (k AccountsMsgServer) Deposit(
 	goCtx context.Context,
 	msg *types.MsgDeposit,
 ) (*types.MsgDepositResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
@@ -72,7 +74,8 @@ func (k AccountsMsgServer) Withdraw(
 	goCtx context.Context,
 	msg *types.MsgWithdraw,
 ) (*types.MsgWithdrawResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
@@ -86,7 +89,8 @@ func (k AccountsMsgServer) SubaccountTransfer(
 	goCtx context.Context,
 	msg *types.MsgSubaccountTransfer,
 ) (*types.MsgSubaccountTransferResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
@@ -95,7 +99,7 @@ func (k AccountsMsgServer) SubaccountTransfer(
 	dstSubaccountID := types.MustGetSubaccountIDOrDeriveFromNonce(sender, msg.DestinationSubaccountId)
 
 	denom := msg.Amount.Denom
-	amount := msg.Amount.Amount.ToDec()
+	amount := msg.Amount.Amount.ToLegacyDec()
 
 	if err := k.Keeper.DecrementDeposit(ctx, srcSubaccountID, denom, amount); err != nil {
 		metrics.ReportFuncError(k.svcTags)
@@ -120,7 +124,8 @@ func (k AccountsMsgServer) ExternalTransfer(
 	goCtx context.Context,
 	msg *types.MsgExternalTransfer,
 ) (*types.MsgExternalTransferResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
@@ -129,7 +134,7 @@ func (k AccountsMsgServer) ExternalTransfer(
 	dstSubaccountID := common.HexToHash(msg.DestinationSubaccountId)
 
 	denom := msg.Amount.Denom
-	amount := msg.Amount.Amount.ToDec()
+	amount := msg.Amount.Amount.ToLegacyDec()
 
 	if err := k.Keeper.DecrementDeposit(ctx, srcSubaccountID, denom, amount); err != nil {
 		metrics.ReportFuncError(k.svcTags)
@@ -144,8 +149,13 @@ func (k AccountsMsgServer) ExternalTransfer(
 		k.AccountKeeper.SetAccount(ctx, k.AccountKeeper.NewAccountWithAddress(ctx, recipientAddr))
 	}
 
-	if err := k.Keeper.IncrementDepositForNonDefaultSubaccount(ctx, dstSubaccountID, denom, amount); err != nil {
-		return nil, err
+	if types.IsDefaultSubaccountID(dstSubaccountID) {
+		k.IncrementDepositOrSendToBank(ctx, dstSubaccountID, denom, amount)
+	} else {
+		err := k.IncrementDepositForNonDefaultSubaccount(ctx, dstSubaccountID, denom, amount)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// nolint:errcheck //ignored on purpose
@@ -162,7 +172,8 @@ func (k AccountsMsgServer) RewardsOptOut(
 	goCtx context.Context,
 	msg *types.MsgRewardsOptOut,
 ) (*types.MsgRewardsOptOutResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
@@ -178,56 +189,101 @@ func (k AccountsMsgServer) RewardsOptOut(
 	return &types.MsgRewardsOptOutResponse{}, nil
 }
 
-func (k AccountsMsgServer) ReclaimLockedFunds(
+func (k AccountsMsgServer) AuthorizeStakeGrants(
 	goCtx context.Context,
-	msg *types.MsgReclaimLockedFunds,
-) (*types.MsgReclaimLockedFundsResponse, error) {
+	msg *types.MsgAuthorizeStakeGrants,
+) (*types.MsgAuthorizeStakeGrantsResponse, error) {
+	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
+	defer doneFn()
+	ctx := sdk.UnwrapSDKContext(goCtx)
+
+	if err := msg.ValidateBasic(); err != nil {
+		return nil, err
+	}
+	granter := sdk.MustAccAddressFromBech32(msg.Sender)
+
+	granterStake := k.CalculateStakedAmountWithoutCache(ctx, granter, types.MaxGranterDelegations)
+
+	// ensure that the granter has enough stake to cover the grants
+	if err := k.ensureValidGrantAuthorization(ctx, granter, msg.Grants, granterStake); err != nil {
+		return nil, err
+	}
+
+	// update the last delegation check time
+	k.setLastValidGrantDelegationCheckTime(ctx, msg.Sender, ctx.BlockTime().Unix())
+
+	// process the grants
+	for idx := range msg.Grants {
+		grant := msg.Grants[idx]
+		grantee := sdk.MustAccAddressFromBech32(grant.Grantee)
+		k.authorizeStakeGrant(ctx, granter, grantee, grant.Amount)
+	}
+
+	// nolint:errcheck //ignored on purpose
+	ctx.EventManager().EmitTypedEvent(&types.EventGrantAuthorizations{
+		Granter: granter.String(),
+		Grants:  msg.Grants,
+	})
+	return &types.MsgAuthorizeStakeGrantsResponse{}, nil
+}
+
+func (k AccountsMsgServer) authorizeStakeGrant(
+	ctx sdk.Context,
+	granter sdk.AccAddress,
+	grantee sdk.AccAddress,
+	amount math.Int,
+) {
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+
+	existingGrantAmount := k.GetGrantAuthorization(ctx, granter, grantee)
+	existingTotalGrantAmount := k.GetTotalGrantAmount(ctx, granter)
+
+	// update total grant amount accordingly
+	totalGrantAmount := existingTotalGrantAmount.Sub(existingGrantAmount).Add(amount)
+
+	k.setTotalGrantAmount(ctx, granter, totalGrantAmount)
+	k.setGrantAuthorization(ctx, granter, grantee, amount)
+
+	activeGrant := k.GetActiveGrant(ctx, grantee)
+
+	// TODO: consider not activating the grant authorization if no active grant for the grantee exists, as the grantee
+	// may not necessarily desire a grant
+	hasActiveGrant := activeGrant != nil
+
+	// update the grantee's active stake grant if the granter matches
+	hasActiveGrantFromGranter := hasActiveGrant && activeGrant.Granter == granter.String()
+
+	if hasActiveGrantFromGranter || !hasActiveGrant {
+		k.setActiveGrant(ctx, grantee, types.NewActiveGrant(granter, amount))
+	}
+}
+
+func (k AccountsMsgServer) ActivateStakeGrant(
+	goCtx context.Context,
+	msg *types.MsgActivateStakeGrant,
+) (*types.MsgActivateStakeGrantResponse, error) {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
 	if err := msg.ValidateBasic(); err != nil {
 		return nil, err
 	}
+	grantee := sdk.MustAccAddressFromBech32(msg.Sender)
+	granter := sdk.MustAccAddressFromBech32(msg.Granter)
 
-	lockedPubKey := sdksecp256k1.PubKey{
-		Key: msg.LockedAccountPubKey,
-	}
-	lockedAddress := sdk.AccAddress(lockedPubKey.Address())
-	lockedAccount := k.AccountKeeper.GetAccount(ctx, lockedAddress)
-
-	// only allow unlocking the funds if the locked account has never been used, since otherwise, this indicates
-	// the funds aren't actually locked
-	if lockedAccount == nil || lockedAccount.GetSequence() > 0 {
-		return nil, types.ErrInvalidAddress
+	if !k.ExistsGrantAuthorization(ctx, granter, grantee) {
+		return nil, errors.Wrapf(types.ErrInvalidStakeGrant, "grant from %s for %s does not exist", granter.String(), grantee.String())
 	}
 
-	balances := k.bankKeeper.GetAllBalances(ctx, lockedAddress)
-	balancesToUnlock := sdk.NewCoins()
+	granterStake := k.CalculateStakedAmountWithoutCache(ctx, granter, types.MaxGranterDelegations)
+	totalGrantAmount := k.GetTotalGrantAmount(ctx, granter)
 
-	for _, coin := range balances {
-		// for security, don't transfer peggy denoms since these were likely transferred from Ethereum
-		if types.IsPeggyToken(coin.Denom) || coin.IsZero() {
-			continue
-		}
-		balancesToUnlock = balancesToUnlock.Add(coin)
+	if totalGrantAmount.GT(granterStake) {
+		return nil, errors.Wrapf(types.ErrInvalidStakeGrant, "grant from %s to %s is invalid since granter staked amount %v is smaller than granter total stake delegated amount %v", granter.String(), grantee.String(), granterStake, totalGrantAmount)
 	}
 
-	if balancesToUnlock.IsZero() {
-		return nil, types.ErrNoFundsToUnlock
-	}
+	grantAuthorizationAmount := k.GetGrantAuthorization(ctx, granter, grantee)
+	k.setActiveGrant(ctx, grantee, types.NewActiveGrant(granter, grantAuthorizationAmount))
 
-	if err := k.bankKeeper.SendCoinsFromAccountToModule(ctx, lockedAddress, types.ModuleName, balancesToUnlock); err != nil {
-		return nil, err
-	}
-
-	correctPubKey := ethsecp256k1.PubKey{
-		Key: lockedPubKey.Bytes(),
-	}
-	recipient := sdk.AccAddress(correctPubKey.Address())
-
-	if err := k.bankKeeper.SendCoinsFromModuleToAccount(ctx, types.ModuleName, recipient, balancesToUnlock); err != nil {
-		return nil, err
-	}
-
-	return &types.MsgReclaimLockedFundsResponse{}, nil
+	return &types.MsgActivateStakeGrantResponse{}, nil
 }

@@ -2,9 +2,9 @@
 title: InjectiveTS Overview
 ---
 
-# Injective TS
+# Injective TypeScript
 
-`injective-ts` is a TypeScript monorepo that contains packages which can be used to interact with Injective from a Node.js or browser environments and which provide simple abstractions over core data structures, serialization, key management, and API request generation, etc. The packages can be found in the `packages` folder and each package is a `npm` module that is published on the `npm` registry.
+`injective-ts` is a TypeScript monorepo that contains packages which can be used to interact with Injective from a Node.js or browser environments, as well as providing simple abstractions over core data structures, serialization, key management, API request generation, and more. The packages can be found in the `packages` folder and each package is a `npm` module that is published on the `npm` registry.
  
 ---
 
@@ -16,12 +16,12 @@ title: InjectiveTS Overview
 
 | Topic      | Description | 
 | :---        |    :----   |          
-| [Getting Started](https://github.com/InjectiveLabs/injective-ts/wiki/00GettingStarted)     | Getting started in developing dApps on Injective  | 
-| [Wallets](https://github.com/InjectiveLabs/injective-ts/wiki/01Wallet)   | Wallet integrations and usage       | 
-| [Querying](https://github.com/InjectiveLabs/injective-ts/wiki/02Querying)   | Querying data from the chain/api    | 
-| [Transactions](https://github.com/InjectiveLabs/injective-ts/wiki/03Transactions)   | Preparing/Signing/Broadcasting transactions       | 
-| [Core Modules](https://github.com/InjectiveLabs/injective-ts/wiki/07CoreModules)   | Injective Chain Modules and transaction examples   | 
-| [Contracts](https://github.com/InjectiveLabs/injective-ts/wiki/04Contracts)   | Contracts execution/querying      | 
-| [Bridge](https://github.com/InjectiveLabs/injective-ts/wiki/05Bridge)   | Bridges to/from Injective       | 
-| [Networks](https://github.com/InjectiveLabs/injective-ts/wiki/06Networks)   | Different Networks/environments on Injective       | 
-| [Building a DEX](https://github.com/InjectiveLabs/injective-ts/wiki/08BuildingADex)   | Example series in building a dex on Injective     | 
+| [Getting Started](https://docs.ts.injective.network/)     | Getting started developing dApps on Injective  | 
+| [Wallets](https://docs.ts.injective.network/wallet)   | Wallet integrations and usage       | 
+| [Querying](https://docs.ts.injective.network/querying)   | Querying data from the chain or API    | 
+| [Transactions](https://docs.ts.injective.network/transactions)   | Preparing, signing, and broadcasting transactions       | 
+| [Core Modules](https://docs.ts.injective.network/core-modules)   | Injective Modules and transaction examples   | 
+| [Contracts](https://docs.ts.injective.network/contracts)   | Contract execution and querying      | 
+| [Bridge](https://docs.ts.injective.network/bridge)   | Bridges to and from Injective       | 
+| [Networks](https://docs.ts.injective.network/readme/networks)   | Different networks / environments on Injective       | 
+| [Building a DEX](https://docs.ts.injective.network/building-dapps/dapps-examples/dex)   | Example building a DEX on Injective     | 

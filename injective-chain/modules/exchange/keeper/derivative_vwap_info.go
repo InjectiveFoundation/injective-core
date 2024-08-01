@@ -4,25 +4,25 @@ import (
 	"bytes"
 	"sort"
 
-	sdk "github.com/cosmos/cosmos-sdk/types"
+	"cosmossdk.io/math"
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 )
 
 type VwapData struct {
-	Price    sdk.Dec
-	Quantity sdk.Dec
+	Price    math.LegacyDec
+	Quantity math.LegacyDec
 }
 
 func NewVwapData() *VwapData {
 	return &VwapData{
-		Price:    sdk.ZeroDec(),
-		Quantity: sdk.ZeroDec(),
+		Price:    math.LegacyZeroDec(),
+		Quantity: math.LegacyZeroDec(),
 	}
 }
 
-func (p *VwapData) ApplyExecution(price, quantity sdk.Dec) *VwapData {
+func (p *VwapData) ApplyExecution(price, quantity math.LegacyDec) *VwapData {
 	if p == nil {
 		p = NewVwapData()
 	}
@@ -41,11 +41,11 @@ func (p *VwapData) ApplyExecution(price, quantity sdk.Dec) *VwapData {
 }
 
 type VwapInfo struct {
-	MarkPrice *sdk.Dec
+	MarkPrice *math.LegacyDec
 	VwapData  *VwapData
 }
 
-func NewVwapInfo(markPrice *sdk.Dec) *VwapInfo {
+func NewVwapInfo(markPrice *math.LegacyDec) *VwapInfo {
 	return &VwapInfo{
 		MarkPrice: markPrice,
 		VwapData:  NewVwapData(),
@@ -66,7 +66,7 @@ func NewDerivativeVwapInfo() DerivativeVwapInfo {
 	}
 }
 
-func (p *DerivativeVwapInfo) ApplyVwap(marketID common.Hash, markPrice *sdk.Dec, vwapData *VwapData, marketType types.MarketType) {
+func (p *DerivativeVwapInfo) ApplyVwap(marketID common.Hash, markPrice *math.LegacyDec, vwapData *VwapData, marketType types.MarketType) {
 	var vwapInfo *VwapInfo
 
 	switch marketType {
@@ -132,7 +132,7 @@ func (p *DerivativeVwapInfo) GetSortedBinaryOptionsMarketIDs() []common.Hash {
 }
 
 // ComputeSyntheticVwapUnitDelta returns (price - markPrice) / markPrice
-func (p *DerivativeVwapInfo) ComputeSyntheticVwapUnitDelta(marketID common.Hash) sdk.Dec {
+func (p *DerivativeVwapInfo) ComputeSyntheticVwapUnitDelta(marketID common.Hash) math.LegacyDec {
 	vwapInfo := p.perpetualVwapInfo[marketID]
 	return vwapInfo.VwapData.Price.Sub(*vwapInfo.MarkPrice).Quo(*vwapInfo.MarkPrice)
 }

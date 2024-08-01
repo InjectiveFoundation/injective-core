@@ -7,38 +7,29 @@ import { InjectiveIcon, CoreModulesIcon, NetworkIcon, CurrencyIcon, GrowIcon, Di
 
 # Build on Injective
 
-<Section title="Welcome to the Injective developer documentation." id="web-sdks" hasSubSections >
-  <Section title= "Read all about Injective Chain or dive straight into the code with guides.">
-   <Card
-      title="Tech Concepts"
-      description="Injective tech fundamentals to start building on Injective."
-      to="./tech-concepts/"
-      icon={<ConcentricIcon />}
-   /> 
-    <Card
-      title="Dev Tools"
-      description="Set up your tools and build on Injective"
-      to="./tools/"
-      icon={<CurrencyIcon />}
-    />
-    <Card
-      title="Dev Guides"
-      description="Learn by doing, CosmWasm and Exchange guides"
-      to="./guides/"
-      icon={<GrowIcon />}
-    />              
-  
+<Section title= "Read all about Injective or dive straight into the code with guides.">
   <Card
-      title="Injective Modules"
-      description="The native building blocks of Injective"
-      to="./modules/Injective/auction/"
-      icon={<DistributedIcon />}
-    />  
-    <Card
-      title="Core SDK Modules"
-      description="A reference to Cosmos SDK modules available on Injective"
-      to="./modules/Core/auth/"
-      icon={<CoreModulesIcon />}
-    />  
-    </Section>
-</Section>
+    title="Getting Started"
+    description="Dive right into Injective with developer guides and tutorials."
+    to="/develop/guides/"
+    icon={<GrowIcon />}
+  />          
+  <Card
+    title="Developer Tools"
+    description="Set up your tooling to start building on Injective."
+    to="/develop/tools/"
+    icon={<CurrencyIcon />}
+  />
+<Card
+    title="Injective Modules"
+    description="The native building blocks of Injective."
+    to="/develop/modules/Injective/auction"
+    icon={<DistributedIcon />}
+  />  
+  <Card
+    title="Core SDK Modules"
+    description="A reference to Cosmos SDK modules available on Injective."
+    to="/develop/modules/Core/auth/"
+    icon={<CoreModulesIcon />}
+  />  
+  </Section>

@@ -124,3 +124,43 @@ message EnableBandIBCProposal {
 ```
 
 The details of `BandIBCParams`, can be checked at **[State](./01_state.md)**
+
+## GrantStorkPublisherPrivilegeProposal
+
+Stork Publisher privileges can be granted from Publishers through a `GrantStorkPublisherPrivilegeProposal`.
+
+```protobuf
+// Grant Privileges
+message GrantStorkPublisherPrivilegeProposal {
+  option (amino.name) = "oracle/GrantStorkPublisherPrivilegeProposal";
+  option (gogoproto.equal) = false;
+  option (gogoproto.goproto_getters) = false;
+
+  option (cosmos_proto.implements_interface) = "cosmos.gov.v1beta1.Content";
+
+  string title = 1;
+  string description = 2;
+
+  repeated string stork_publishers = 3;
+}
+```
+
+## RevokeStorkPublisherPrivilegeProposal
+
+Stork Publisher privileges can be revoked from Publishers through a `RevokeStorkPublisherPrivilegeProposal`.
+
+```protobuf
+// Revoke Privileges
+message RevokeStorkPublisherPrivilegeProposal {
+  option (amino.name) = "oracle/RevokeStorkPublisherPrivilegeProposal";
+  option (gogoproto.equal) = false;
+  option (gogoproto.goproto_getters) = false;
+
+  option (cosmos_proto.implements_interface) = "cosmos.gov.v1beta1.Content";
+
+  string title = 1;
+  string description = 2;
+
+  repeated string stork_publishers = 3;
+}
+```

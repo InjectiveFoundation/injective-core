@@ -66,7 +66,7 @@ func NewContractRegistrationRequestProposalTxCmd() *cobra.Command {
 		Short: "Submit a proposal to register contract",
 		Long: `Submit a proposal to register contract.
 			Example:
-			$ %s tx xwasm propose-contract-registration-request --contract-gas-limit 20000 --contract-gas-price "1000000000" --contract-address "inj14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9swvf72y" (--contract-funding-mode=dual) (--granter-address=inj1dzqd00lfd4y4qy2pxa0dsdwzfnmsu27hgttswz) --pin-contract=true --from mykey
+			$ %s tx xwasm propose-contract-registration-request --migration-allowed true --contract-gas-limit 20000 --contract-gas-price "1000000000" --contract-address "inj14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9swvf72y" (--contract-funding-mode=dual) (--granter-address=inj1dzqd00lfd4y4qy2pxa0dsdwzfnmsu27hgttswz) --pin-contract=true --from mykey
 		`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clientCtx, err := client.GetClientTxContext(cmd)
@@ -128,7 +128,7 @@ func NewContractDeregistrationRequestProposalTxCmd() *cobra.Command {
 		Short: "Submit a proposal to deregister contract",
 		Long: `Submit a proposal to deregister contract.
 			Example:
-			$ %s tx xwasm propose-contract-registration-request --contract-gas-limit 20000 --contract-gas-price "1000000000" --code-id 1 --contract-address "inj14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9swvf72y"  --granter-address=inj1dzqd00lfd4y4qy2pxa0dsdwzfnmsu27hgttswz --contract-funding-mode self-funded --pin-contract=true --from wasm --chain-id injective-1 
+			$ %s tx xwasm propose-contract-registration-request --migration-allowed true --contract-gas-limit 20000 --contract-gas-price "1000000000" --code-id 1 --contract-address "inj14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9swvf72y"  --granter-address=inj1dzqd00lfd4y4qy2pxa0dsdwzfnmsu27hgttswz --contract-funding-mode self-funded --pin-contract=true --from wasm --chain-id injective-1 
 		`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clientCtx, err := client.GetClientTxContext(cmd)
@@ -425,6 +425,11 @@ func ContractParamsUpdateTxCmd() *cobra.Command {
 
 			req := &types.QueryContractRegistrationInfoRequest{
 				ContractAddress: contractAddrStr,
+			}
+
+			flagChanged := cmd.Flags().Changed(FlagContractAdmin)
+			if !flagChanged {
+				return fmt.Errorf("Error: the --contract-admin flag must be explicitly provided")
 			}
 
 			res, err := queryClient.ContractRegistrationInfo(context.Background(), req)

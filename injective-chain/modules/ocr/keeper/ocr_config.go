@@ -3,7 +3,7 @@ package keeper
 import (
 	"bytes"
 
-	"github.com/cosmos/cosmos-sdk/store/prefix"
+	"cosmossdk.io/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/ocr/types"
@@ -70,7 +70,8 @@ func (k *Keeper) SetFeedConfig(
 	feedId string,
 	feedConfig *types.FeedConfig,
 ) (prevInfo *types.FeedConfigInfo) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	prevInfo = k.GetFeedConfigInfo(ctx, feedId)
 	if prevInfo == nil {
@@ -121,7 +122,8 @@ func (k *Keeper) GetFeedConfig(
 	ctx sdk.Context,
 	feedId string,
 ) *types.FeedConfig {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	bz := k.getStore(ctx).Get(types.GetFeedConfigKey(feedId))
 	if bz == nil {
@@ -137,7 +139,8 @@ func (k *Keeper) GetFeedConfigByDigest(
 	ctx sdk.Context,
 	configDigest []byte,
 ) *types.FeedConfig {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	feedConfigStore := prefix.NewStore(k.getStore(ctx), types.FeedConfigInfoPrefix)
 	iterator := feedConfigStore.Iterator(nil, nil)
@@ -167,7 +170,8 @@ func (k *Keeper) SetFeedConfigInfo(
 	feedId string,
 	configInfo *types.FeedConfigInfo,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	key := types.GetFeedConfigInfoKey(feedId)
 	bz := k.cdc.MustMarshal(configInfo)
@@ -178,7 +182,8 @@ func (k *Keeper) GetFeedConfigInfo(
 	ctx sdk.Context,
 	feedId string,
 ) *types.FeedConfigInfo {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	bz := k.getStore(ctx).Get(types.GetFeedConfigInfoKey(feedId))
 	if bz == nil {
@@ -195,7 +200,8 @@ func (k *Keeper) IsTransmitter(
 	feedId string,
 	transmitter sdk.AccAddress,
 ) bool {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	transmitterStr := transmitter.String()
 
@@ -215,7 +221,8 @@ func (k *Keeper) GetAllTransmitters(
 	ctx sdk.Context,
 	feedId string,
 ) []string {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	cfg := k.GetFeedConfig(ctx, feedId)
 	if cfg != nil {
@@ -230,7 +237,8 @@ func (k *Keeper) IsSigner(
 	feedId string,
 	signer sdk.AccAddress,
 ) bool {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	signerStr := signer.String()
 
@@ -250,7 +258,8 @@ func (k *Keeper) GetAllSigners(
 	ctx sdk.Context,
 	feedId string,
 ) []string {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	cfg := k.GetFeedConfig(ctx, feedId)
 	if cfg != nil {
@@ -263,7 +272,8 @@ func (k *Keeper) GetAllSigners(
 func (k *Keeper) GetAllFeedConfigs(
 	ctx sdk.Context,
 ) []*types.FeedConfig {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	feedConfigs := make([]*types.FeedConfig, 0, 32)
 	store := ctx.KVStore(k.storeKey)

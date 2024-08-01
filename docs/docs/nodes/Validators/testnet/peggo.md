@@ -13,9 +13,9 @@ cp testnet-config/staking/40014/peggo-config.env ~/.peggo/.env
 cd ~/.peggo
 ```
 
-First, update the `PEGGO_ETH_RPC` in the `.env` file with a valid Kovan EVM RPC Endpoint.
+First, update the `PEGGO_ETH_RPC` in the `.env` file with a valid Sepolia EVM RPC Endpoint.
 
-To create your own Kovan full node, you can follow our instructions [here](https://ethereum.org/en/developers/docs/nodes-and-clients/run-a-node/). It's possible to use Alchemy or Infura RPC, but keep in mind that Peggo bridge is still under development and request amount it makes to RPC is not optimized. Make sure it wouldn't incur high costs on your account.
+To set up your own Sepolia full node, follow the instructions [here](https://ethereum.org/en/developers/docs/nodes-and-clients/run-a-node/). It's possible to use an Alchemy or Infura RPC, but keep in mind that the Peggo bridge is still under development, and the request amount it makes to the RPC is not optimized. Ensure it does not incur high costs on your account.
 
 Peggo also requires access to your validator's Cosmos and Ethereum credentials to sign transactions for the corresponding networks.
 
@@ -81,13 +81,13 @@ PEGGO_ETH_FROM=0x9782dc957DaE6aDc394294954B27e2118D05176C
 PEGGO_ETH_PASSPHRASE=12345678
 ```
 
-Then ensure that your Ethereum addresss has Kovan ETH. You can easily request Kovan ETH from the public faucet [here](https://gitter.im/kovan-testnet/faucet).  
+Next, ensure that your Ethereum addresss has Sepolia ETH. You can request Sepolia ETH from the public faucet [here](https://www.alchemy.com/faucets/ethereum-sepolia).  
 
 **2. Ethereum Private Key (Unsafe)**
 
 Simply update the `PEGGO_ETH_PK` with a new Ethereum Private Key from a new account.
 
-Then ensure that your Ethereum addresss has Kovan ETH. You can easily request Kovan ETH from the public faucet [here](https://gitter.im/kovan-testnet/faucet).  
+Next, ensure that your Ethereum addresss has Sepolia ETH. You can request Sepolia ETH from the public faucet [here](https://www.alchemy.com/faucets/ethereum-sepolia).  
 
 ### Step 2: Register Your Ethereum Address
 
@@ -174,14 +174,14 @@ To create your own Ethereum full node, you can follow our instructions [here](ht
 
 Peggo also requires access to your validator's delegated Injective Chain account and Ethereum key credentials to sign transactions for the corresponding networks.
 
-#### Creating your delegated Cosmos Key for sending Injective Chain transactions
+#### Creating your delegated Cosmos Key for sending Injective transactions
 
 Your peggo relayer can either
  - Use an explicitly delegated account key specific for sending validator specific Peggy transactions (i.e. `ValsetConfirm`, `BatchConfirm`, and `SendToCosmos` transactions)
  or
   - Simply use your validator's account key.
 
-For isolation purposes, we recommend creating a delegated Cosmos key to send Injective Chain transactions instead of using your validator account key.
+For isolation purposes, we recommend creating a delegated Cosmos key to send Injective transactions instead of using your validator account key.
 
 To create a new key, run
 ```bash

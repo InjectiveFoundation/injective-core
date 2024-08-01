@@ -13,7 +13,6 @@ import (
 	"github.com/cosmos/gogoproto/proto"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	ethsecp256k1 "github.com/ethereum/go-ethereum/crypto/secp256k1"
-	log "github.com/xlab/suplog"
 
 	secp256k1 "github.com/InjectiveLabs/injective-core/injective-chain/crypto/ethsecp256k1"
 
@@ -43,7 +42,8 @@ func NewMsgServerImpl(keeper Keeper) types.MsgServer {
 }
 
 func (k msgServer) UpdateParams(c context.Context, msg *types.MsgUpdateParams) (*types.MsgUpdateParamsResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	if msg.Authority != k.authority {
 		return nil, errors.Wrapf(govtypes.ErrInvalidSigner, "invalid authority: expected %s, got %s", k.authority, msg.Authority)
@@ -59,7 +59,8 @@ func (k msgServer) UpdateParams(c context.Context, msg *types.MsgUpdateParams) (
 }
 
 func (k msgServer) CreateFeed(goCtx context.Context, msg *types.MsgCreateFeed) (*types.MsgCreateFeedResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
@@ -98,7 +99,8 @@ func (k msgServer) CreateFeed(goCtx context.Context, msg *types.MsgCreateFeed) (
 }
 
 func (k msgServer) UpdateFeed(goCtx context.Context, msg *types.MsgUpdateFeed) (*types.MsgUpdateFeedResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
@@ -145,13 +147,13 @@ func (k msgServer) UpdateFeed(goCtx context.Context, msg *types.MsgUpdateFeed) (
 	if msg.LinkPerTransmission != nil {
 		feedConfig.ModuleParams.LinkPerTransmission = *msg.LinkPerTransmission
 	}
-	if len(msg.LinkDenom) > 0 {
+	if msg.LinkDenom != "" {
 		feedConfig.ModuleParams.LinkDenom = msg.LinkDenom
 	}
-	if len(msg.FeedAdmin) > 0 {
+	if msg.FeedAdmin != "" {
 		feedConfig.ModuleParams.FeedAdmin = msg.FeedAdmin
 	}
-	if len(msg.BillingAdmin) > 0 {
+	if msg.BillingAdmin != "" {
 		feedConfig.ModuleParams.BillingAdmin = msg.BillingAdmin
 	}
 
@@ -165,7 +167,8 @@ func (k msgServer) UpdateFeed(goCtx context.Context, msg *types.MsgUpdateFeed) (
 }
 
 func (k msgServer) Transmit(goCtx context.Context, msg *types.MsgTransmit) (*types.MsgTransmitResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
@@ -249,9 +252,7 @@ func (k msgServer) Transmit(goCtx context.Context, msg *types.MsgTransmit) (*typ
 		pubKey, err := ethsecp256k1.RecoverPubkey(sigData, sig)
 		if err != nil {
 			metrics.ReportFuncError(k.svcTags)
-			log.WithError(err).WithField(
-				"sig", hex.EncodeToString(sig),
-			).Error("ethsecp256k1.RecoverPubkey failed")
+			ctx.Logger().Error("ethsecp256k1.RecoverPubkey failed", "error", err, "sig", hex.EncodeToString(sig))
 
 			return nil, errors.Wrapf(types.ErrIncorrectSignature, "ethsecp256k1.RecoverPubkey failed on signature %d", idx)
 		}
@@ -278,7 +279,7 @@ func (k msgServer) Transmit(goCtx context.Context, msg *types.MsgTransmit) (*typ
 
 	k.IncrementFeedTransmissionCount(ctx, msg.FeedId, transmitter)
 
-	k.Logger(ctx).Debugf("transmit accepted from %s", msg.Transmitter)
+	k.Logger(ctx).Debug("transmit accepted", "from", msg.Transmitter)
 
 	refundAmount := ctx.GasMeter().GasConsumed() - startGas
 	// nolint:all
@@ -288,7 +289,8 @@ func (k msgServer) Transmit(goCtx context.Context, msg *types.MsgTransmit) (*typ
 }
 
 func (k msgServer) FundFeedRewardPool(goCtx context.Context, msg *types.MsgFundFeedRewardPool) (*types.MsgFundFeedRewardPoolResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
@@ -298,12 +300,13 @@ func (k msgServer) FundFeedRewardPool(goCtx context.Context, msg *types.MsgFundF
 		return nil, err
 	}
 
-	k.Logger(ctx).Debugf("successfully funded LINK pool for %s feed", msg.FeedId)
+	k.Logger(ctx).Debug("successfully funded LINK pool", "feed", msg.FeedId)
 	return &types.MsgFundFeedRewardPoolResponse{}, nil
 }
 
 func (k msgServer) WithdrawFeedRewardPool(goCtx context.Context, msg *types.MsgWithdrawFeedRewardPool) (*types.MsgWithdrawFeedRewardPoolResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
@@ -333,7 +336,8 @@ func (k msgServer) WithdrawFeedRewardPool(goCtx context.Context, msg *types.MsgW
 }
 
 func (k msgServer) SetPayees(goCtx context.Context, msg *types.MsgSetPayees) (*types.MsgSetPayeesResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
@@ -364,7 +368,8 @@ func (k msgServer) SetPayees(goCtx context.Context, msg *types.MsgSetPayees) (*t
 }
 
 func (k msgServer) TransferPayeeship(goCtx context.Context, msg *types.MsgTransferPayeeship) (*types.MsgTransferPayeeshipResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
@@ -381,7 +386,7 @@ func (k msgServer) TransferPayeeship(goCtx context.Context, msg *types.MsgTransf
 
 	sender, _ := sdk.AccAddressFromBech32(msg.Sender)
 	if !sender.Equals(currPayee) {
-		k.Logger(ctx).Errorf("current payee %s does not match sender %s", currPayee.String(), sender.String())
+		k.Logger(ctx).Error("current payee does not match sender", "payee", currPayee.String(), "sender", sender.String())
 		return nil, types.ErrPayeeRestricted
 	}
 
@@ -398,7 +403,8 @@ func (k msgServer) TransferPayeeship(goCtx context.Context, msg *types.MsgTransf
 }
 
 func (k msgServer) AcceptPayeeship(goCtx context.Context, msg *types.MsgAcceptPayeeship) (*types.MsgAcceptPayeeshipResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
@@ -415,7 +421,7 @@ func (k msgServer) AcceptPayeeship(goCtx context.Context, msg *types.MsgAcceptPa
 	sender, _ := sdk.AccAddressFromBech32(msg.Payee)
 	pendingPayee := k.GetPendingPayeeshipTransfer(ctx, feedId, transmitter)
 	if !sender.Equals(pendingPayee) {
-		k.Logger(ctx).Errorf("current payee %s does not match sender %s", currPayee.String(), sender.String())
+		k.Logger(ctx).Error("current payee does not match sender", "payee", currPayee.String(), "sender", sender.String())
 		return nil, types.ErrPayeeRestricted
 	}
 

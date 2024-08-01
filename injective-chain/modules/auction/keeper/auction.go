@@ -1,14 +1,19 @@
 package keeper
 
 import (
+	"cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/auction/types"
+	chaintypes "github.com/InjectiveLabs/injective-core/injective-chain/types"
+
 	"github.com/InjectiveLabs/metrics"
+
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/auction/types"
 )
 
 func (k *Keeper) GetAuctionRound(ctx sdk.Context) uint64 {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	bz := store.Get(types.AuctionRoundKey)
@@ -20,14 +25,16 @@ func (k *Keeper) GetAuctionRound(ctx sdk.Context) uint64 {
 }
 
 func (k *Keeper) SetAuctionRound(ctx sdk.Context, round uint64) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	store.Set(types.AuctionRoundKey, sdk.Uint64ToBigEndian(round))
 }
 
 func (k *Keeper) AdvanceNextAuctionRound(ctx sdk.Context) (nextRound uint64) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	currentRound := k.GetAuctionRound(ctx)
 	nextRound = currentRound + 1
@@ -36,7 +43,8 @@ func (k *Keeper) AdvanceNextAuctionRound(ctx sdk.Context) (nextRound uint64) {
 }
 
 func (k *Keeper) InitEndingTimeStamp(ctx sdk.Context) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	auctionPeriod := k.GetParams(ctx).AuctionPeriod
@@ -45,7 +53,8 @@ func (k *Keeper) InitEndingTimeStamp(ctx sdk.Context) {
 }
 
 func (k *Keeper) SetEndingTimeStamp(ctx sdk.Context, timestamp int64) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	store.Set(types.KeyEndingTimeStamp, sdk.Uint64ToBigEndian(uint64(timestamp)))
@@ -53,7 +62,8 @@ func (k *Keeper) SetEndingTimeStamp(ctx sdk.Context, timestamp int64) {
 
 // GetEndingTimeStamp gets the ending timestamp of the current auction epoch.
 func (k *Keeper) GetEndingTimeStamp(ctx sdk.Context) int64 {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	bz := store.Get(types.KeyEndingTimeStamp)
@@ -63,7 +73,8 @@ func (k *Keeper) GetEndingTimeStamp(ctx sdk.Context) int64 {
 
 // GetNextEndingTimeStamp gets the ending timestamp of the next auction epoch.
 func (k *Keeper) GetNextEndingTimeStamp(ctx sdk.Context) int64 {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	auctionPeriod := k.GetParams(ctx).AuctionPeriod
 	currentTimeStamp := k.GetEndingTimeStamp(ctx)
@@ -72,11 +83,37 @@ func (k *Keeper) GetNextEndingTimeStamp(ctx sdk.Context) int64 {
 }
 
 func (k *Keeper) AdvanceNextEndingTimeStamp(ctx sdk.Context) (nextTimestamp int64) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	nextTimestamp = k.GetNextEndingTimeStamp(ctx)
 
 	store := ctx.KVStore(k.storeKey)
 	store.Set(types.KeyEndingTimeStamp, sdk.Uint64ToBigEndian(uint64(nextTimestamp)))
 	return nextTimestamp
+}
+
+func (k *Keeper) SetLastAuctionResult(ctx sdk.Context, result types.LastAuctionResult) {
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+
+	store := ctx.KVStore(k.storeKey)
+	bz := k.cdc.MustMarshal(&result)
+	store.Set(types.KeyLastAuctionResult, bz)
+}
+
+func (k *Keeper) GetLastAuctionResult(ctx sdk.Context) *types.LastAuctionResult {
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+
+	store := ctx.KVStore(k.storeKey)
+	bz := store.Get(types.KeyLastAuctionResult)
+	if bz == nil {
+		return &types.LastAuctionResult{
+			Winner: "",
+			Amount: chaintypes.NewInjectiveCoin(math.ZeroInt()),
+			Round:  0,
+		}
+	}
+	var lastAuctionResult types.LastAuctionResult
+	k.cdc.MustUnmarshal(bz, &lastAuctionResult)
+	return &lastAuctionResult
 }

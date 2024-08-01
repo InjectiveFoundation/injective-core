@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	sdkmath "cosmossdk.io/math"
+	"cosmossdk.io/math"
 
 	"github.com/cosmos/cosmos-sdk/client"
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
@@ -320,18 +320,18 @@ func parseStrings(arg string) []string {
 	return strings.Split(arg, ",")
 }
 
-func parseSdkInt(arg, fieldName string) (sdkmath.Int, error) {
-	i, ok := sdk.NewIntFromString(arg)
+func parseSdkInt(arg, fieldName string) (math.Int, error) {
+	i, ok := math.NewIntFromString(arg)
 	if !ok {
-		return sdkmath.Int{}, fmt.Errorf("could not parse %s as math.Int for field %s", arg, fieldName)
+		return math.Int{}, fmt.Errorf("could not parse %s as math.Int for field %s", arg, fieldName)
 	}
 	return i, nil
 }
 
-func parseLegacyDec(arg, fieldName string) (sdk.Dec, error) {
-	i, err := sdk.NewDecFromStr(arg)
+func parseLegacyDec(arg, fieldName string) (math.LegacyDec, error) {
+	i, err := math.LegacyNewDecFromStr(arg)
 	if err != nil {
-		return sdk.Dec{}, fmt.Errorf("could not parse %s as math.LegacyDec for field %s: %w", arg, fieldName, err)
+		return math.LegacyDec{}, fmt.Errorf("could not parse %s as math.LegacyDec for field %s: %w", arg, fieldName, err)
 	}
 	return i, nil
 }
@@ -356,7 +356,7 @@ func isComplexValue(typeName string) bool {
 	return false
 }
 
-// isZeroNumber determines if sdk.Dec or sdkmath.Int has zero value
+// isZeroNumber determines if math.LegacyDec or math.Int has zero value
 func isZeroNumber(field reflect.Value) bool {
 	if field.Type().String() == "math.Dec" ||
 		field.Type().String() == "math.Int" ||

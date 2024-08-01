@@ -3,16 +3,19 @@ package stream
 import (
 	"encoding/base64"
 	"fmt"
-	exchangetypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
-	oracletypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/types"
-	"github.com/InjectiveLabs/injective-core/injective-chain/stream/types"
+	"strconv"
+	"strings"
+
+	"cosmossdk.io/math"
 	abci "github.com/cometbft/cometbft/abci/types"
 	"github.com/cometbft/cometbft/libs/json"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 	"github.com/ethereum/go-ethereum/common"
-	"strconv"
-	"strings"
+
+	exchangetypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	oracletypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/types"
+	"github.com/InjectiveLabs/injective-core/injective-chain/stream/types"
 )
 
 func ABCIToBankBalances(ev abci.Event) (messages []*types.BankBalance, err error) {
@@ -525,7 +528,7 @@ func ABCITOEventSetCoinbasePrice(ev abci.Event) (message *types.OraclePrice, err
 				unquoted = strings.TrimRight(unquoted, "0")
 				unquoted = strings.TrimSuffix(unquoted, ".")
 			}
-			message.Price, err = sdk.NewDecFromStr(unquoted)
+			message.Price, err = math.LegacyNewDecFromStr(unquoted)
 			if err != nil {
 				return nil, fmt.Errorf("failed to unmarshal ABCI event to SetCoinbasePriceEvent: %w", err)
 			}
@@ -705,7 +708,7 @@ func ABCITOEventSetProviderPrice(ev abci.Event) (message *types.OraclePrice, err
 		}
 		switch attr.Key {
 		case "price":
-			message.Price, err = sdk.NewDecFromStr(value)
+			message.Price, err = math.LegacyNewDecFromStr(value)
 			if err != nil {
 				return nil, fmt.Errorf("failed to unmarshal ABCI event to SetProviderPriceEvent: %w", err)
 			}
@@ -736,7 +739,7 @@ func ABCITOEventSetPricefeedPrice(ev abci.Event) (message *types.OraclePrice, er
 		}
 		switch attr.Key {
 		case "price":
-			message.Price, err = sdk.NewDecFromStr(value)
+			message.Price, err = math.LegacyNewDecFromStr(value)
 			if err != nil {
 				return nil, fmt.Errorf("failed to unmarshal ABCI event to SetPricefeedPriceEvent: %w", err)
 			}

@@ -2,7 +2,8 @@ package keeper
 
 import (
 	"cosmossdk.io/errors"
-	"github.com/cosmos/cosmos-sdk/store/prefix"
+	"cosmossdk.io/math"
+	"cosmossdk.io/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/InjectiveLabs/metrics"
@@ -11,7 +12,7 @@ import (
 )
 
 type CoinbaseKeeper interface {
-	GetCoinbasePrice(ctx sdk.Context, base string, quote string) *sdk.Dec
+	GetCoinbasePrice(ctx sdk.Context, base string, quote string) *math.LegacyDec
 	HasCoinbasePriceState(ctx sdk.Context, key string) bool
 	GetCoinbasePriceState(ctx sdk.Context, key string) *types.CoinbasePriceState
 	SetCoinbasePriceState(ctx sdk.Context, priceData *types.CoinbasePriceState) error
@@ -19,8 +20,9 @@ type CoinbaseKeeper interface {
 }
 
 // GetCoinbasePrice gets the 5 minute TWAP price for a given base quote pair.
-func (k *Keeper) GetCoinbasePrice(ctx sdk.Context, base, quote string) *sdk.Dec {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+func (k *Keeper) GetCoinbasePrice(ctx sdk.Context, base, quote string) *math.LegacyDec {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	basePrice := k.getCoinbasePriceTWAP(ctx, base)
 	if quote == types.QuoteUSD {
@@ -42,7 +44,8 @@ func (k *Keeper) GetCoinbasePriceState(ctx sdk.Context, key string) *types.Coinb
 
 // HasCoinbasePriceState checks whether a price state exists for a given coinbase price key.
 func (k *Keeper) HasCoinbasePriceState(ctx sdk.Context, key string) bool {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	iterationKey := types.GetCoinbasePriceStoreIterationKey(key)
@@ -53,7 +56,8 @@ func (k *Keeper) HasCoinbasePriceState(ctx sdk.Context, key string) bool {
 
 // GetCoinbasePriceStates fetches the coinbase price states for a given coinbase price key.
 func (k *Keeper) GetCoinbasePriceStates(ctx sdk.Context, key string) []*types.CoinbasePriceState {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	priceDatas := make([]*types.CoinbasePriceState, 0)
 	store := ctx.KVStore(k.storeKey)
@@ -76,7 +80,8 @@ func (k *Keeper) GetCoinbasePriceStates(ctx sdk.Context, key string) []*types.Co
 
 // SetCoinbasePriceState stores a given coinbase price state.
 func (k *Keeper) SetCoinbasePriceState(ctx sdk.Context, priceData *types.CoinbasePriceState) error {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	priceFeedInfoKey := types.GetCoinbasePriceStoreKey(priceData.Key, priceData.Timestamp)
 
@@ -114,7 +119,8 @@ func (k *Keeper) SetCoinbasePriceState(ctx sdk.Context, priceData *types.Coinbas
 
 // GetAllCoinbasePriceStates fetches all coinbase price states.
 func (k *Keeper) GetAllCoinbasePriceStates(ctx sdk.Context) []*types.CoinbasePriceState {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	priceDatas := make([]*types.CoinbasePriceState, 0)
 	store := ctx.KVStore(k.storeKey)
@@ -135,7 +141,8 @@ func (k *Keeper) GetAllCoinbasePriceStates(ctx sdk.Context) []*types.CoinbasePri
 }
 
 func (k *Keeper) pruneOldCoinbasePriceStates(ctx sdk.Context, key string) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	now := ctx.BlockTime().Unix()
 	twapWindowEnd := now - types.TwapWindow
@@ -163,7 +170,8 @@ func (k *Keeper) pruneOldCoinbasePriceStates(ctx sdk.Context, key string) {
 
 // getLastCoinbasePriceState fetches the last coinbase price state for a given coinbase price key.
 func (k *Keeper) getLastCoinbasePriceState(ctx sdk.Context, key string) *types.CoinbasePriceState {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	var priceFeedInfo types.CoinbasePriceState
 	iterationKey := types.GetCoinbasePriceStoreIterationKey(key)
@@ -192,8 +200,9 @@ func (k *Keeper) getLastCoinbasePriceState(ctx sdk.Context, key string) *types.C
 // priceCumulative_5min = (now - t0)*p0 + (t0 - t2)*p2 + (t2 - t3)*p3 + (t3 - t4)*p4 + (300 - (now - t4)) * p8
 // priceCumulative_5min = (1345-1320)*18 + (1320-1200)*19 + (1200-1140)*19.5 + (1140-1080)*20 + (300-(1345-1080))*17 = 5695
 // TWAP = priceCumulative_5min / 300 = 5695/300 = 18.98
-func (k *Keeper) getCoinbasePriceTWAP(ctx sdk.Context, asset string) *sdk.Dec {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+func (k *Keeper) getCoinbasePriceTWAP(ctx sdk.Context, asset string) *math.LegacyDec {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	assetPriceStates := k.GetCoinbasePriceStates(ctx, asset)
 	if len(assetPriceStates) == 0 {
@@ -204,7 +213,7 @@ func (k *Keeper) getCoinbasePriceTWAP(ctx sdk.Context, asset string) *sdk.Dec {
 	twapWindowEnd := now - types.TwapWindow
 	lastSeenTimestamp := now
 
-	priceCumulative := sdk.ZeroDec()
+	priceCumulative := math.LegacyZeroDec()
 
 	for _, priceState := range assetPriceStates {
 		priceStateTimestamp := int64(priceState.Timestamp)
@@ -217,11 +226,11 @@ func (k *Keeper) getCoinbasePriceTWAP(ctx sdk.Context, asset string) *sdk.Dec {
 		} else {
 			timeDelta = lastSeenTimestamp - priceStateTimestamp
 		}
-		priceCumulativeIncrement := sdk.NewDec(timeDelta).Mul(priceState.PriceState.Price)
+		priceCumulativeIncrement := math.LegacyNewDec(timeDelta).Mul(priceState.PriceState.Price)
 		priceCumulative = priceCumulative.Add(priceCumulativeIncrement)
 		lastSeenTimestamp = priceStateTimestamp
 	}
 
-	twapPrice := priceCumulative.QuoTruncate(sdk.NewDec(types.TwapWindow))
+	twapPrice := priceCumulative.QuoTruncate(math.LegacyNewDec(types.TwapWindow))
 	return &twapPrice
 }

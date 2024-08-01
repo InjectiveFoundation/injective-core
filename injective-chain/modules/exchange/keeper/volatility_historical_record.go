@@ -3,7 +3,8 @@ package keeper
 import (
 	"sort"
 
-	"github.com/cosmos/cosmos-sdk/store/prefix"
+	"cosmossdk.io/math"
+	"cosmossdk.io/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
@@ -18,7 +19,8 @@ const (
 )
 
 func (k *Keeper) PersistVwapInfo(ctx sdk.Context, spotVwapInfo *SpotVwapInfo, derivativeVwapInfo *DerivativeVwapInfo) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	blockTime := ctx.BlockTime()
 
@@ -64,7 +66,8 @@ func (k *Keeper) PersistVwapInfo(ctx sdk.Context, spotVwapInfo *SpotVwapInfo, de
 }
 
 func (k *Keeper) AppendTradeRecord(ctx sdk.Context, marketID common.Hash, tradeRecord *types.TradeRecord) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	existingOrEmptyRecord, _ := k.GetHistoricalTradeRecords(ctx, marketID, tradeRecord.Timestamp-types.MaxHistoricalTradeRecordAge)
 	existingOrEmptyRecord.LatestTradeRecords = append(existingOrEmptyRecord.LatestTradeRecords, tradeRecord)
@@ -73,7 +76,8 @@ func (k *Keeper) AppendTradeRecord(ctx sdk.Context, marketID common.Hash, tradeR
 }
 
 func (k *Keeper) GetAllHistoricalTradeRecords(ctx sdk.Context) []*types.TradeRecords {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	allTradeRecords := make([]*types.TradeRecords, 0)
 	store := ctx.KVStore(k.storeKey)
@@ -94,7 +98,8 @@ func (k *Keeper) GetAllHistoricalTradeRecords(ctx sdk.Context) []*types.TradeRec
 }
 
 func (k *Keeper) CleanupHistoricalTradeRecords(ctx sdk.Context) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	before := ctx.BlockTime().Unix() - types.MaxHistoricalTradeRecordAge
 	onlyEnabled := true
@@ -133,7 +138,8 @@ func (k *Keeper) cleanupMarketHistoricalTradeRecords(ctx sdk.Context, marketID c
 }
 
 func (k *Keeper) setHistoricalTradeRecords(ctx sdk.Context, marketID common.Hash, entry *types.TradeRecords) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 
@@ -143,7 +149,8 @@ func (k *Keeper) setHistoricalTradeRecords(ctx sdk.Context, marketID common.Hash
 
 // GetHistoricalTradeRecords returns the historical trade records for a market starting from the `from` time.
 func (k *Keeper) GetHistoricalTradeRecords(ctx sdk.Context, marketID common.Hash, from int64) (entry *types.TradeRecords, omitted bool) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	entry = &types.TradeRecords{
 		MarketId: marketID.Hex(),
@@ -194,7 +201,7 @@ func GetRecordsGroupedBy(tradeRecords []*types.TradeRecord, seconds int64) (grou
 		// 	groupedTradeRecords = append(groupedTradeRecords, &types.TradeRecord{
 		// 		Timestamp: latestGroupTimestamp,
 		// 		Price:     midPrice,
-		// 		Quantity:  sdk.ZeroDec(),
+		// 		Quantity:  math.LegacyZeroDec(),
 		// 	})
 		// 	latestGroupTimestamp = latestGroupTimestamp.Add(seconds)
 		// }
@@ -224,12 +231,12 @@ func GetRecordsGroupedBy(tradeRecords []*types.TradeRecord, seconds int64) (grou
 
 // GetMeanForTradeRecords returns the volume-weighted arithmetic mean for the trade records.
 // x̄ = ∑(p * q) / ∑q
-func GetMeanForTradeRecords(tradeRecords []*types.TradeRecord) (mean sdk.Dec) {
+func GetMeanForTradeRecords(tradeRecords []*types.TradeRecord) (mean math.LegacyDec) {
 	if len(tradeRecords) == 0 {
-		return sdk.ZeroDec()
+		return math.LegacyZeroDec()
 	}
 
-	sum, aggregateQuantity := sdk.ZeroDec(), sdk.ZeroDec()
+	sum, aggregateQuantity := math.LegacyZeroDec(), math.LegacyZeroDec()
 	for _, tradeRecord := range tradeRecords {
 		sum = sum.Add(tradeRecord.Price.Mul(tradeRecord.Quantity))
 		aggregateQuantity = aggregateQuantity.Add(tradeRecord.Quantity)
@@ -239,19 +246,19 @@ func GetMeanForTradeRecords(tradeRecords []*types.TradeRecord) (mean sdk.Dec) {
 }
 
 // GetStandardDeviationForTradeRecords returns the volume-weighted arithmetic mean for the trade records.
-func GetStandardDeviationForTradeRecords(tradeRecords []*types.TradeRecord, temporaryPriceScalingFactor uint64) *sdk.Dec {
+func GetStandardDeviationForTradeRecords(tradeRecords []*types.TradeRecord, temporaryPriceScalingFactor uint64) *math.LegacyDec {
 	if len(tradeRecords) == 1 {
-		standardDeviationValue := sdk.ZeroDec()
+		standardDeviationValue := math.LegacyZeroDec()
 		return &standardDeviationValue
 	}
 
 	// x̄ = ∑(p * q) / ∑q
 	mean := GetMeanForTradeRecords(tradeRecords)
 
-	scaledSum, aggregateQuantity := sdk.ZeroDec(), sdk.ZeroDec()
+	scaledSum, aggregateQuantity := math.LegacyZeroDec(), math.LegacyZeroDec()
 
 	for _, tradeRecord := range tradeRecords {
-		scaledDeviation := tradeRecord.Price.Sub(mean).Mul(sdk.NewDec(10).Power(temporaryPriceScalingFactor))
+		scaledDeviation := tradeRecord.Price.Sub(mean).Mul(math.LegacyNewDec(10).Power(temporaryPriceScalingFactor))
 		scaledSum = scaledSum.Add(tradeRecord.Quantity.Mul(scaledDeviation.Mul(scaledDeviation)))
 		aggregateQuantity = aggregateQuantity.Add(tradeRecord.Quantity)
 	}
@@ -265,7 +272,7 @@ func GetStandardDeviationForTradeRecords(tradeRecords []*types.TradeRecord, temp
 		return nil
 	}
 
-	scaledBackStandardDeviation := scaledStandardDeviationValue.Quo((sdk.NewDec(10).Power(temporaryPriceScalingFactor)))
+	scaledBackStandardDeviation := scaledStandardDeviationValue.Quo((math.LegacyNewDec(10).Power(temporaryPriceScalingFactor)))
 
 	return &scaledBackStandardDeviation
 }
@@ -274,7 +281,7 @@ func GetStandardDeviationForTradeRecords(tradeRecords []*types.TradeRecord, temp
 // Mean is VWAP over grouped trade records, Twap is calculated over the grouped prices.
 func CalculateStatistics(tradeRecords, groupedTradeRecords []*types.TradeRecord) *oracletypes.MetadataStatistics {
 	var (
-		sum, qSum, twapSum = sdk.ZeroDec(), sdk.ZeroDec(), sdk.ZeroDec()
+		sum, qSum, twapSum = math.LegacyZeroDec(), math.LegacyZeroDec(), math.LegacyZeroDec()
 		count              = uint32(len(tradeRecords))
 	)
 	if count == 0 {
@@ -286,7 +293,7 @@ func CalculateStatistics(tradeRecords, groupedTradeRecords []*types.TradeRecord)
 		qSum = qSum.Add(r.Quantity)
 		if i > 0 {
 			// twapSum += p * ∆t
-			twapSum = twapSum.Add(r.Price.Mul(sdk.NewDec(r.Timestamp - groupedTradeRecords[i-1].Timestamp)))
+			twapSum = twapSum.Add(r.Price.Mul(math.LegacyNewDec(r.Timestamp - groupedTradeRecords[i-1].Timestamp)))
 		}
 	}
 
@@ -299,7 +306,7 @@ func CalculateStatistics(tradeRecords, groupedTradeRecords []*types.TradeRecord)
 
 	median := recordsCopy[count/2].Price
 	if count%2 == 0 {
-		median = median.Add(recordsCopy[count/2-1].Price).Quo(sdk.NewDec(2))
+		median = median.Add(recordsCopy[count/2-1].Price).Quo(math.LegacyNewDec(2))
 	}
 
 	meta := &oracletypes.MetadataStatistics{
@@ -311,10 +318,10 @@ func CalculateStatistics(tradeRecords, groupedTradeRecords []*types.TradeRecord)
 		LastTimestamp:     tradeRecords[count-1].Timestamp,
 		GroupCount:        uint32(len(groupedTradeRecords)),
 		RecordsSampleSize: count,
-		Twap:              sdk.ZeroDec(),
+		Twap:              math.LegacyZeroDec(),
 	}
 	if count > 1 {
-		meta.Twap = twapSum.Quo(sdk.NewDec(meta.LastTimestamp - meta.FirstTimestamp))
+		meta.Twap = twapSum.Quo(math.LegacyNewDec(meta.LastTimestamp - meta.FirstTimestamp))
 	}
 
 	return meta
@@ -322,10 +329,11 @@ func CalculateStatistics(tradeRecords, groupedTradeRecords []*types.TradeRecord)
 
 // GetMarketVolatility returns the volatility based on trades in specific market. Returns nil for invalid volatility.
 func (k *Keeper) GetMarketVolatility(ctx sdk.Context, marketID common.Hash, options *types.TradeHistoryOptions) (
-	vol *sdk.Dec,
+	vol *math.LegacyDec,
 	rawTrades []*types.TradeRecord,
 	meta *oracletypes.MetadataStatistics) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	maxAge := int64(0)
 	groupingSec := int64(GROUPING_SECONDS_DEFAULT)

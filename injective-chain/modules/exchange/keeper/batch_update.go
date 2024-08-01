@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 
+	"cosmossdk.io/math"
+
 	sdkerrors "cosmossdk.io/errors"
 	"github.com/InjectiveLabs/metrics"
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -16,9 +18,9 @@ func (k *Keeper) ExecuteBatchUpdateOrders(
 	ctx sdk.Context,
 	sender sdk.AccAddress,
 	subaccountId string,
-	spotMarketIdsToCancelAll []string,
-	derivativeMarketIdsToCancelAll []string,
-	binaryOptionsMarketIdsToCancelAll []string,
+	spotMarketIDsToCancelAll []string,
+	derivativeMarketIDsToCancelAll []string,
+	binaryOptionsMarketIDsToCancelAll []string,
 	spotOrdersToCancel []*types.OrderData,
 	derivativeOrdersToCancel []*types.OrderData,
 	binaryOptionsOrdersToCancel []*types.OrderData,
@@ -26,19 +28,26 @@ func (k *Keeper) ExecuteBatchUpdateOrders(
 	derivativeOrdersToCreate []*types.DerivativeOrder,
 	binaryOptionsOrdersToCreate []*types.DerivativeOrder,
 ) (*types.MsgBatchUpdateOrdersResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	var (
 		spotMarkets          = make(map[common.Hash]*types.SpotMarket)
 		derivativeMarkets    = make(map[common.Hash]*types.DerivativeMarket)
 		binaryOptionsMarkets = make(map[common.Hash]*types.BinaryOptionsMarket)
 
-		spotCancelSuccesses          = make([]bool, len(spotOrdersToCancel))
-		derivativeCancelSuccesses    = make([]bool, len(derivativeOrdersToCancel))
-		binaryOptionsCancelSuccesses = make([]bool, len(binaryOptionsOrdersToCancel))
-		spotOrderHashes              = make([]string, len(spotOrdersToCreate))
-		derivativeOrderHashes        = make([]string, len(derivativeOrdersToCreate))
-		binaryOptionsOrderHashes     = make([]string, len(binaryOptionsOrdersToCreate))
+		spotCancelSuccesses            = make([]bool, len(spotOrdersToCancel))
+		derivativeCancelSuccesses      = make([]bool, len(derivativeOrdersToCancel))
+		binaryOptionsCancelSuccesses   = make([]bool, len(binaryOptionsOrdersToCancel))
+		spotOrderHashes                = make([]string, len(spotOrdersToCreate))
+		createdSpotOrdersCids          = make([]string, 0)
+		failedSpotOrdersCids           = make([]string, 0)
+		derivativeOrderHashes          = make([]string, len(derivativeOrdersToCreate))
+		createdDerivativeOrdersCids    = make([]string, 0)
+		failedDerivativeOrdersCids     = make([]string, 0)
+		binaryOptionsOrderHashes       = make([]string, len(binaryOptionsOrdersToCreate))
+		createdBinaryOptionsOrdersCids = make([]string, 0)
+		failedBinaryOptionsOrdersCids  = make([]string, 0)
 	)
 
 	//  Derive the subaccountID.
@@ -49,7 +58,7 @@ func (k *Keeper) ExecuteBatchUpdateOrders(
 	shouldExecuteCancelAlls := subaccountId != ""
 
 	if shouldExecuteCancelAlls {
-		for _, spotMarketIdToCancelAll := range spotMarketIdsToCancelAll {
+		for _, spotMarketIdToCancelAll := range spotMarketIDsToCancelAll {
 			marketID := common.HexToHash(spotMarketIdToCancelAll)
 			market := k.GetSpotMarketByID(ctx, marketID)
 			if market == nil {
@@ -65,7 +74,7 @@ func (k *Keeper) ExecuteBatchUpdateOrders(
 			k.CancelAllSpotLimitOrders(ctx, market, subaccountIDForCancelAll, marketID)
 		}
 
-		for _, derivativeMarketIdToCancelAll := range derivativeMarketIdsToCancelAll {
+		for _, derivativeMarketIdToCancelAll := range derivativeMarketIDsToCancelAll {
 			marketID := common.HexToHash(derivativeMarketIdToCancelAll)
 			market := k.GetDerivativeMarketByID(ctx, marketID)
 			if market == nil {
@@ -79,15 +88,12 @@ func (k *Keeper) ExecuteBatchUpdateOrders(
 				continue
 			}
 
-			if err := k.CancelAllRestingDerivativeLimitOrdersForSubaccount(ctx, market, subaccountIDForCancelAll, true, true); err != nil {
-				k.Logger(ctx).Debug("failed to cancel all derivative limit orders", "marketID", marketID.Hex())
-			}
-
+			k.CancelAllRestingDerivativeLimitOrdersForSubaccount(ctx, market, subaccountIDForCancelAll, true, true)
 			k.CancelAllTransientDerivativeLimitOrdersBySubaccountID(ctx, market, subaccountIDForCancelAll)
 			k.CancelAllConditionalDerivativeOrdersBySubaccountIDAndMarket(ctx, market, subaccountIDForCancelAll, true, true)
 		}
 
-		for _, binaryOptionsMarketIdToCancelAll := range binaryOptionsMarketIdsToCancelAll {
+		for _, binaryOptionsMarketIdToCancelAll := range binaryOptionsMarketIDsToCancelAll {
 			marketID := common.HexToHash(binaryOptionsMarketIdToCancelAll)
 			market := k.GetBinaryOptionsMarketByID(ctx, marketID)
 			if market == nil {
@@ -101,10 +107,7 @@ func (k *Keeper) ExecuteBatchUpdateOrders(
 				continue
 			}
 
-			if err := k.CancelAllRestingDerivativeLimitOrdersForSubaccount(ctx, market, subaccountIDForCancelAll, true, true); err != nil {
-				k.Logger(ctx).Debug("failed to cancel all derivative limit orders", "marketID", marketID.Hex())
-			}
-
+			k.CancelAllRestingDerivativeLimitOrdersForSubaccount(ctx, market, subaccountIDForCancelAll, true, true)
 			k.CancelAllTransientDerivativeLimitOrdersBySubaccountID(ctx, market, subaccountIDForCancelAll)
 			k.CancelAllConditionalDerivativeOrdersBySubaccountIDAndMarket(ctx, market, subaccountIDForCancelAll, true, true)
 		}
@@ -131,6 +134,9 @@ func (k *Keeper) ExecuteBatchUpdateOrders(
 
 		if err == nil {
 			spotCancelSuccesses[idx] = true
+		} else {
+			ev := types.NewEventOrderCancelFail(marketID, subaccountID, spotOrderToCancel.GetOrderHash(), spotOrderToCancel.GetCid(), err)
+			_ = ctx.EventManager().EmitTypedEvent(ev)
 		}
 	}
 
@@ -154,6 +160,9 @@ func (k *Keeper) ExecuteBatchUpdateOrders(
 
 		if err == nil {
 			derivativeCancelSuccesses[idx] = true
+		} else {
+			ev := types.NewEventOrderCancelFail(marketID, subaccountID, derivativeOrderToCancel.GetOrderHash(), derivativeOrderToCancel.GetCid(), err)
+			_ = ctx.EventManager().EmitTypedEvent(ev)
 		}
 	}
 
@@ -177,6 +186,9 @@ func (k *Keeper) ExecuteBatchUpdateOrders(
 
 		if err == nil {
 			binaryOptionsCancelSuccesses[idx] = true
+		} else {
+			ev := types.NewEventOrderCancelFail(marketID, subaccountID, binaryOptionsOrderToCancel.GetOrderHash(), binaryOptionsOrderToCancel.GetCid(), err)
+			_ = ctx.EventManager().EmitTypedEvent(ev)
 		}
 	}
 
@@ -184,6 +196,7 @@ func (k *Keeper) ExecuteBatchUpdateOrders(
 		Account: sender.Bytes(),
 		Hashes:  make([][]byte, 0),
 		Flags:   make([]uint32, 0),
+		Cids:    make([]string, 0),
 	}
 
 	for idx, spotOrder := range spotOrdersToCreate {
@@ -209,20 +222,22 @@ func (k *Keeper) ExecuteBatchUpdateOrders(
 			sdkerror := &sdkerrors.Error{}
 			if errors.As(err, &sdkerror) {
 				spotOrderHashes[idx] = fmt.Sprintf("%d", sdkerror.ABCICode())
-				orderFailEvent.AddOrderFail(orderHash, sdkerror.ABCICode())
+				orderFailEvent.AddOrderFail(orderHash, spotOrder.Cid(), sdkerror.ABCICode())
+				failedSpotOrdersCids = append(failedSpotOrdersCids, spotOrder.Cid())
 			}
 		} else {
 			spotOrderHashes[idx] = orderHash.Hex()
+			createdSpotOrdersCids = append(createdSpotOrdersCids, spotOrder.Cid())
 		}
 	}
 
-	markPrices := make(map[common.Hash]sdk.Dec)
+	markPrices := make(map[common.Hash]math.LegacyDec)
 
 	for idx, derivativeOrder := range derivativeOrdersToCreate {
 		marketID := derivativeOrder.MarketID()
 
 		var market *types.DerivativeMarket
-		var markPrice sdk.Dec
+		var markPrice math.LegacyDec
 		if m, ok := derivativeMarkets[marketID]; ok {
 			market = m
 		} else {
@@ -255,10 +270,12 @@ func (k *Keeper) ExecuteBatchUpdateOrders(
 			sdkerror := &sdkerrors.Error{}
 			if errors.As(err, &sdkerror) {
 				derivativeOrderHashes[idx] = fmt.Sprintf("%d", sdkerror.ABCICode())
-				orderFailEvent.AddOrderFail(orderHash, sdkerror.ABCICode())
+				orderFailEvent.AddOrderFail(orderHash, derivativeOrder.Cid(), sdkerror.ABCICode())
+				failedDerivativeOrdersCids = append(failedDerivativeOrdersCids, derivativeOrder.Cid())
 			}
 		} else {
 			derivativeOrderHashes[idx] = orderHash.Hex()
+			createdDerivativeOrdersCids = append(createdDerivativeOrdersCids, derivativeOrder.Cid())
 		}
 	}
 
@@ -282,14 +299,16 @@ func (k *Keeper) ExecuteBatchUpdateOrders(
 			continue
 		}
 
-		if orderHash, err := k.createDerivativeLimitOrder(ctx, sender, order, market, sdk.Dec{}); err != nil {
+		if orderHash, err := k.createDerivativeLimitOrder(ctx, sender, order, market, math.LegacyDec{}); err != nil {
 			sdkerror := &sdkerrors.Error{}
 			if errors.As(err, &sdkerror) {
 				binaryOptionsOrderHashes[idx] = fmt.Sprintf("%d", sdkerror.ABCICode())
-				orderFailEvent.AddOrderFail(orderHash, sdkerror.ABCICode())
+				orderFailEvent.AddOrderFail(orderHash, order.Cid(), sdkerror.ABCICode())
+				failedBinaryOptionsOrdersCids = append(failedBinaryOptionsOrdersCids, order.Cid())
 			}
 		} else {
 			binaryOptionsOrderHashes[idx] = orderHash.Hex()
+			createdBinaryOptionsOrdersCids = append(createdBinaryOptionsOrdersCids, order.Cid())
 		}
 	}
 
@@ -299,11 +318,17 @@ func (k *Keeper) ExecuteBatchUpdateOrders(
 	}
 
 	return &types.MsgBatchUpdateOrdersResponse{
-		SpotCancelSuccess:          spotCancelSuccesses,
-		DerivativeCancelSuccess:    derivativeCancelSuccesses,
-		SpotOrderHashes:            spotOrderHashes,
-		DerivativeOrderHashes:      derivativeOrderHashes,
-		BinaryOptionsCancelSuccess: binaryOptionsCancelSuccesses,
-		BinaryOptionsOrderHashes:   binaryOptionsOrderHashes,
+		SpotCancelSuccess:              spotCancelSuccesses,
+		DerivativeCancelSuccess:        derivativeCancelSuccesses,
+		SpotOrderHashes:                spotOrderHashes,
+		DerivativeOrderHashes:          derivativeOrderHashes,
+		BinaryOptionsCancelSuccess:     binaryOptionsCancelSuccesses,
+		BinaryOptionsOrderHashes:       binaryOptionsOrderHashes,
+		CreatedSpotOrdersCids:          createdSpotOrdersCids,
+		FailedSpotOrdersCids:           failedSpotOrdersCids,
+		CreatedDerivativeOrdersCids:    createdDerivativeOrdersCids,
+		FailedDerivativeOrdersCids:     failedDerivativeOrdersCids,
+		CreatedBinaryOptionsOrdersCids: createdBinaryOptionsOrdersCids,
+		FailedBinaryOptionsOrdersCids:  failedBinaryOptionsOrdersCids,
 	}, nil
 }

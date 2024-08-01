@@ -40,7 +40,8 @@ func NewMsgServerImpl(keeper Keeper) types.MsgServer {
 }
 
 func (m MsgServer) UpdateParams(c context.Context, msg *types.MsgUpdateParams) (*types.MsgUpdateParamsResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(m.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, m.svcTags)
+	defer doneFn()
 
 	if msg.Authority != m.authority {
 		return nil, errors.Wrapf(govtypes.ErrInvalidSigner, "invalid authority: expected %s, got %s", m.authority, msg.Authority)

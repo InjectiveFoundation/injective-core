@@ -93,20 +93,22 @@ response = response.set_data(to_binary(&privileged_action)?);
 
 **PositionTransfer**
 
-The position transfer allows a contract to transfer a position from its own subaccount to a user's subaccount.
+The position transfer allows a contract to transfer a derivative position from its own subaccount to a user's subaccount. The position may not be liquidable. Solely the receiver pays a taker trading fee deducted from his balances.
+
+Currently only transfers from the contract's subaccount to a user's subaccount are supported.
 
 ```go
 type PositionTransfer struct {
     MarketID                common.Hash `json:"market_id"`
     SourceSubaccountID      common.Hash `json:"source_subaccount_id"`
     DestinationSubaccountID common.Hash `json:"destination_subaccount_id"`
-    Quantity                sdk.Dec     `json:"quantity"`
+    Quantity                math.LegacyDec     `json:"quantity"`
 }
 ```
 
 **SyntheticTrade**
 
-The synthetic trade allows a contract to execute a synthetic trade on behalf of a user.
+The synthetic trade allows a contract to execute a synthetic trade on behalf of a user for derivative markets. This is not touching the orderbook and is purely a synthetic trade. Taker trading fees still apply. The subaccount ids must be set to the contract's subaccount id and the user's subaccount id.
 
 ```go
 type SyntheticTradeAction struct {
@@ -118,8 +120,8 @@ type SyntheticTrade struct {
 	MarketID     common.Hash `json:"market_id"`
 	SubaccountID common.Hash `json:"subaccount_id"`
 	IsBuy        bool        `json:"is_buy"`
-	Quantity     sdk.Dec     `json:"quantity"`
-	Price        sdk.Dec     `json:"price"`
-	Margin       sdk.Dec     `json:"margin"`
+	Quantity     math.LegacyDec     `json:"quantity"`
+	Price        math.LegacyDec     `json:"price"`
+	Margin       math.LegacyDec     `json:"margin"`
 }
 ```

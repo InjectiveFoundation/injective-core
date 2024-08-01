@@ -3,33 +3,34 @@ package keeper
 import (
 	"encoding/binary"
 
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/permissions/types"
-
+	storetypes "cosmossdk.io/store/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/gogoproto/proto"
+
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/permissions/types"
 )
 
 // GetAddressRoleNames returns all the assigned roles for this address. Returns EVERYONE role if no roles found for this address.
-func (k Keeper) GetAddressRoleNames(ctx sdk.Context, denom, addr string) ([]string, error) {
+func (k Keeper) GetAddressRoleNames(ctx sdk.Context, denom string, addr sdk.AccAddress) ([]string, error) {
 	store := k.getAddressRolesStore(ctx, denom)
-	bz := store.Get([]byte(addr))
+	bz := store.Get(addr.Bytes())
 	if len(bz) == 0 {
 		return []string{types.EVERYONE}, nil
 	}
-	roleIds := &types.RoleIDs{}
+	roleIDs := &types.RoleIDs{}
 
-	if err := proto.Unmarshal(bz, roleIds); err != nil {
+	if err := proto.Unmarshal(bz, roleIDs); err != nil {
 		return nil, err
 	}
 
-	if len(roleIds.RoleIds) == 0 {
+	if len(roleIDs.RoleIds) == 0 {
 		return []string{types.EVERYONE}, nil
 	}
 
-	roleNames := make([]string, 0, len(roleIds.RoleIds))
+	roleNames := make([]string, 0, len(roleIDs.RoleIds))
 
-	for _, roleId := range roleIds.RoleIds {
-		role, _ := k.GetRoleById(ctx, denom, roleId)
+	for _, roleID := range roleIDs.RoleIds {
+		role, _ := k.GetRoleById(ctx, denom, roleID)
 		roleNames = append(roleNames, role.Role)
 	}
 
@@ -37,20 +38,20 @@ func (k Keeper) GetAddressRoleNames(ctx sdk.Context, denom, addr string) ([]stri
 }
 
 // GetAddressRoles returns all the assigned role ids for this address. Returns EVERYONE role id if no roles found for this address.
-func (k Keeper) GetAddressRoles(ctx sdk.Context, denom, addr string) ([]uint32, error) {
+func (k Keeper) GetAddressRoles(ctx sdk.Context, denom string, addr sdk.AccAddress) ([]uint32, error) {
 	store := k.getAddressRolesStore(ctx, denom)
-	bz := store.Get([]byte(addr))
+	bz := store.Get(addr.Bytes())
 	if len(bz) == 0 {
 		everyoneRoleId, _ := k.GetRoleId(ctx, denom, types.EVERYONE)
 		return []uint32{everyoneRoleId}, nil
 	}
-	roleIds := &types.RoleIDs{}
+	roleIDs := &types.RoleIDs{}
 
-	if err := proto.Unmarshal(bz, roleIds); err != nil {
+	if err := proto.Unmarshal(bz, roleIDs); err != nil {
 		return nil, err
 	}
 
-	return roleIds.RoleIds, nil
+	return roleIDs.RoleIds, nil
 }
 
 // GetAllAddressRoles gathers all address roles inside namespace for this denom
@@ -65,19 +66,19 @@ func (k Keeper) GetAllAddressRoles(ctx sdk.Context, denom string) ([]*types.Addr
 		if bz == nil {
 			continue
 		}
-		roleIds := types.RoleIDs{}
-		if err := proto.Unmarshal(bz, &roleIds); err != nil {
+		roleIDs := types.RoleIDs{}
+		if err := proto.Unmarshal(bz, &roleIDs); err != nil {
 			return nil, err
 		}
 
-		roleNames := make([]string, 0, len(roleIds.RoleIds))
+		roleNames := make([]string, 0, len(roleIDs.RoleIds))
 
-		for _, roleId := range roleIds.RoleIds {
+		for _, roleId := range roleIDs.RoleIds {
 			role, _ := k.GetRoleById(ctx, denom, roleId)
 			roleNames = append(roleNames, role.Role)
 		}
 		addressRoles = append(addressRoles, &types.AddressRoles{
-			Address: string(iter.Key()),
+			Address: sdk.AccAddress(iter.Key()).String(),
 			Roles:   roleNames,
 		})
 	}
@@ -151,10 +152,10 @@ func (k Keeper) GetAllRoles(ctx sdk.Context, denom string) ([]*types.Role, error
 	return roles, nil
 }
 
-// storeAddressRoles converts all role names into it's respective ids and stores them for address
-func (k Keeper) storeAddressRoles(ctx sdk.Context, denom, addr string, roles []string) error {
+// storeAddressRoles converts all role names into its respective ids and stores them for address
+func (k Keeper) storeAddressRoles(ctx sdk.Context, denom string, addr sdk.AccAddress, roles []string) error {
 	store := k.getAddressRolesStore(ctx, denom)
-	roleIds := &types.RoleIDs{
+	roleIDs := &types.RoleIDs{
 		RoleIds: make([]uint32, 0, len(roles)),
 	}
 
@@ -163,14 +164,14 @@ func (k Keeper) storeAddressRoles(ctx sdk.Context, denom, addr string, roles []s
 		if !ok {
 			return types.ErrUnknownRole
 		}
-		roleIds.RoleIds = append(roleIds.RoleIds, roleId)
+		roleIDs.RoleIds = append(roleIDs.RoleIds, roleId)
 	}
-	bz, err := proto.Marshal(roleIds)
+	bz, err := proto.Marshal(roleIDs)
 	if err != nil {
 		return err
 	}
 
-	store.Set([]byte(addr), bz)
+	store.Set(addr.Bytes(), bz)
 	return nil
 }
 
@@ -203,9 +204,9 @@ func (k Keeper) storeRole(ctx sdk.Context, denom, roleName string, permission ui
 	return nil
 }
 
-func (k Keeper) deleteAddressRoles(ctx sdk.Context, denom, addr string) {
+func (k Keeper) deleteAddressRoles(ctx sdk.Context, denom string, addr sdk.AccAddress) {
 	store := k.getAddressRolesStore(ctx, denom)
-	store.Delete([]byte(addr))
+	store.Delete(addr.Bytes())
 }
 
 func (k Keeper) deleteAllAddressRoles(ctx sdk.Context, denom string) {
@@ -222,7 +223,7 @@ func (k Keeper) deleteAllAddressRoles(ctx sdk.Context, denom string) {
 }
 
 func (k Keeper) deleteRoles(ctx sdk.Context, denom string) {
-	deleteAllKeysInStore := func(store sdk.KVStore) {
+	deleteAllKeysInStore := func(store storetypes.KVStore) {
 		iter := store.Iterator(nil, nil)
 		keysToRemove := [][]byte{}
 		for ; iter.Valid(); iter.Next() {

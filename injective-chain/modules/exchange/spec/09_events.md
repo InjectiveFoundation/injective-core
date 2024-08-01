@@ -21,7 +21,7 @@ message EventBatchDerivativeExecution {
   bool is_liquidation = 3;
   // nil for time expiry futures
   string cumulative_funding = 4 [
-    (gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Dec",
+    (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
     (gogoproto.nullable) = true
   ];
   ExecutionType executionType = 5;
@@ -32,11 +32,11 @@ message EventLostFundsFromLiquidation {
   string market_id = 1;
   bytes subaccount_id = 2;
   string lost_funds_from_available_during_payout = 3 [
-    (gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Dec",
+    (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
     (gogoproto.nullable) = false
   ];
   string lost_funds_from_order_cancels = 4 [
-    (gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Dec",
+    (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
     (gogoproto.nullable) = false
   ];
 }
@@ -112,11 +112,11 @@ message EventPerpetualMarketFundingUpdate {
   ];
   bool is_hourly_funding = 3;
   string funding_rate = 4 [
-    (gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Dec",
+    (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
     (gogoproto.nullable) = true
   ];
   string mark_price = 5 [
-    (gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Dec",
+    (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
     (gogoproto.nullable) = true
   ];
 }

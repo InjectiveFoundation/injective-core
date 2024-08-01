@@ -37,7 +37,7 @@ const config = {
       /** @type {import('@docusaurus/preset-classic').Options} */
       ({
         docs: {
-          // sidebarPath: require.resolve("./sidebars.js"),
+          sidebarPath: require.resolve("./sidebars.js"),
           routeBasePath: "/", // Serve the docs at the site's root
           // Please change this to your repo.
           // Remove this to remove the "edit this page" links.
@@ -70,16 +70,48 @@ const config = {
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
       prism: {
-        additionalLanguages: ['Rust'],
+        additionalLanguages: ["rust"],
+        theme: lightCodeTheme,
+        darkTheme: darkCodeTheme,
       },
       image: "/img/inj_meta.png",
+      docs: {
+        sidebar: {
+          autoCollapseCategories: true,
+        },
+      },
       navbar: {
-        title: "DOCS",
+        title: "Injective",
         logo: {
           alt: "Injective Docs",
           src: "img/injective.svg",
         },
         items: [
+          {
+            to: '/learn',
+            label: 'Learn',
+            position: 'left',
+          },
+          {
+            to: '/develop',
+            label: 'Develop',
+            position: 'left',
+          },
+          {
+            to: '/trade',
+            label: 'Trade',
+            position: 'left',
+          },
+          {
+            to: '/nodes',
+            label: 'Nodes & Validators',
+            position: 'left',
+          },
+          {
+            to: '/resources',
+            label: 'Resources',
+            position: 'left',
+          },
           {
             href: "https://injective.com/",
             label: "Injective",
@@ -168,13 +200,8 @@ const config = {
             ],
           },
         ],
-        copyright: `Copyright © Injective Labs Inc. since 2021. All rights reserved <a href="https://injectivelabs.org/">Injective</a>`,
+        copyright: `Copyright © Injective since 2021. All rights reserved <a href="https://injective.com/">Injective</a>`,
       },
-      prism: {
-        theme: lightCodeTheme,
-        darkTheme: darkCodeTheme,
-      },
-      
       algolia: {
         appId: "OSH0IFX0OC",
         apiKey: "b8c3930ea2d1ed063992787837d3567f",

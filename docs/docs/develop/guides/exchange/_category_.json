@@ -1,6 +1,6 @@
 {
-  "label": "Building Orderbook Exchanges",
-  "position": 1,
+  "label": "dApp Example: Building a DEX",
+  "position": 2,
   "link": {
     "type": "doc",
     "id":"index"

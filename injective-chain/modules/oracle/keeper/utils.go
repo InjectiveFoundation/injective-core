@@ -1,6 +1,7 @@
 package keeper
 
 import (
+	"cosmossdk.io/math"
 	"github.com/InjectiveLabs/metrics"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -8,13 +9,13 @@ import (
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/types"
 )
 
-func (k *Keeper) GetPricePairStateForUSD(ctx sdk.Context, basePriceState types.PriceState, baseRate sdk.Dec) *types.PricePairState {
+func (k *Keeper) GetPricePairStateForUSD(ctx sdk.Context, basePriceState types.PriceState, baseRate math.LegacyDec) *types.PricePairState {
 	pricePairState := types.PricePairState{
 		PairPrice:            baseRate,
 		BasePrice:            baseRate,
-		QuotePrice:           sdk.Dec{},
+		QuotePrice:           math.LegacyDec{},
 		BaseCumulativePrice:  basePriceState.CumulativePrice,
-		QuoteCumulativePrice: sdk.Dec{},
+		QuoteCumulativePrice: math.LegacyDec{},
 		BaseTimestamp:        basePriceState.Timestamp,
 		QuoteTimestamp:       0,
 	}
@@ -22,7 +23,8 @@ func (k *Keeper) GetPricePairStateForUSD(ctx sdk.Context, basePriceState types.P
 }
 
 func (k *Keeper) GetPriceState(ctx sdk.Context, key string, oracletype types.OracleType) *types.PriceState {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	// price feed has no single denom price points
 	if oracletype == types.OracleType_PriceFeed {
@@ -71,6 +73,12 @@ func (k *Keeper) GetPriceState(ctx sdk.Context, key string, oracletype types.Ora
 	case types.OracleType_Provider:
 		// GetProviderPrice should be called instead
 		return nil
+	case types.OracleType_Stork:
+		priceState := k.GetStorkPriceState(ctx, key)
+		if priceState == nil {
+			return nil
+		}
+		return &priceState.PriceState
 	}
 
 	return nil

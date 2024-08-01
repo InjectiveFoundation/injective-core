@@ -8,6 +8,7 @@ import (
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/types"
 	chaintypes "github.com/InjectiveLabs/injective-core/injective-chain/types"
+	"github.com/InjectiveLabs/metrics"
 )
 
 func (k *Keeper) HandleContractRegistration(
@@ -15,6 +16,9 @@ func (k *Keeper) HandleContractRegistration(
 	params types.Params,
 	req types.ContractRegistrationRequest,
 ) error {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
 	contractAddress, _ := sdk.AccAddressFromBech32(req.ContractAddress)
 
 	// Enforce MinGasContractExecution ≤ GasLimit ≤ MaxContractGasLimit
@@ -103,6 +107,9 @@ func (k *Keeper) RegisterContract(
 	ctx sdk.Context,
 	req types.ContractRegistrationRequest,
 ) (err error) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
 	contract := types.RegisteredContract{
 		GasLimit:       req.GasLimit,
 		GasPrice:       req.GasPrice,
@@ -145,6 +152,9 @@ func (k *Keeper) DeregisterContract(
 	ctx sdk.Context,
 	contractAddress sdk.AccAddress,
 ) (err error) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
 	k.Logger(ctx).Debug("Deregistering contract", "contractAddress", contractAddress.String())
 	registeredContract := k.GetContractByAddress(ctx, contractAddress)
 	if registeredContract == nil {
@@ -208,6 +218,9 @@ func (k *Keeper) DeactivateContract(
 	contractAddress sdk.AccAddress,
 	registeredContract *types.RegisteredContract,
 ) (err error) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
 	k.Logger(ctx).Debug("Deactivating contract", "contractAddress", contractAddress.String())
 
 	registeredContract.IsExecutable = false

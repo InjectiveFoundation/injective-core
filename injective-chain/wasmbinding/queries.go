@@ -5,20 +5,23 @@ import (
 	"fmt"
 
 	"cosmossdk.io/errors"
-	wasmvmtypes "github.com/CosmWasm/wasmvm/types"
+	"cosmossdk.io/x/feegrant"
+	wasmvmtypes "github.com/CosmWasm/wasmvm/v2/types"
 	cdctypes "github.com/cosmos/cosmos-sdk/codec/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/cosmos/cosmos-sdk/x/authz"
 	authzkeeper "github.com/cosmos/cosmos-sdk/x/authz/keeper"
 	bankkeeper "github.com/cosmos/cosmos-sdk/x/bank/keeper"
-	"github.com/cosmos/cosmos-sdk/x/feegrant"
 	"github.com/ethereum/go-ethereum/common"
+
+	auctionkeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/auction/keeper"
+	auctiontypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/auction/types"
 
 	wasmxkeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/keeper"
 	wasmxtypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/types"
 
-	feegrantkeeper "github.com/cosmos/cosmos-sdk/x/feegrant/keeper"
+	feegrantkeeper "cosmossdk.io/x/feegrant/keeper"
 
 	exchangekeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/keeper"
 	exchangetypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
@@ -32,6 +35,7 @@ import (
 type QueryPlugin struct {
 	authzKeeper        *authzkeeper.Keeper
 	bankKeeper         *bankkeeper.BaseKeeper
+	auctionKeeper      *auctionkeeper.Keeper
 	exchangeKeeper     *exchangekeeper.Keeper
 	feegrantKeeper     *feegrantkeeper.Keeper
 	oracleKeeper       *oraclekeeper.Keeper
@@ -42,6 +46,7 @@ type QueryPlugin struct {
 // NewQueryPlugin returns a reference to a new QueryPlugin.
 func NewQueryPlugin(
 	ak *authzkeeper.Keeper,
+	auck *auctionkeeper.Keeper,
 	ek *exchangekeeper.Keeper,
 	ok *oraclekeeper.Keeper,
 	bk *bankkeeper.BaseKeeper,
@@ -52,6 +57,7 @@ func NewQueryPlugin(
 	return &QueryPlugin{
 		authzKeeper:        ak,
 		bankKeeper:         bk,
+		auctionKeeper:      auck,
 		exchangeKeeper:     ek,
 		feegrantKeeper:     fgk,
 		oracleKeeper:       ok,
@@ -216,7 +222,7 @@ func (qp QueryPlugin) HandleOracleQuery(ctx sdk.Context, queryData json.RawMessa
 			return nil, wasmvmtypes.UnsupportedRequest{Kind: "provider oracle is not supported"}
 		}
 
-		pricePairState := qp.oracleKeeper.GetPricePairState(ctx, req.GetOracleType(), req.GetBase(), req.GetQuote())
+		pricePairState := qp.oracleKeeper.GetPricePairState(ctx, req.GetOracleType(), req.GetBase(), req.GetQuote(), req.ScalingOptions)
 
 		if pricePairState == nil {
 			return nil, oracletypes.ErrOraclePriceNotFound
@@ -243,6 +249,33 @@ func (qp QueryPlugin) HandleOracleQuery(ctx sdk.Context, queryData json.RawMessa
 		})
 	default:
 		return nil, wasmvmtypes.UnsupportedRequest{Kind: fmt.Sprintf("unknown oracle query variant: %+v", string(queryData))}
+	}
+
+	if err != nil {
+		return nil, errors.Wrap(sdkerrors.ErrJSONMarshal, err.Error())
+	}
+
+	return bz, nil
+}
+
+func (qp QueryPlugin) HandleAuctionQuery(ctx sdk.Context, queryData json.RawMessage) ([]byte, error) {
+	var query bindings.AuctionQuery
+	if err := json.Unmarshal(queryData, &query); err != nil {
+		return nil, errors.Wrap(err, "Error parsing Injective AuctionQuery")
+	}
+
+	var bz []byte
+	var err error
+
+	switch {
+	case query.LastAuctionResult != nil:
+		result := qp.auctionKeeper.GetLastAuctionResult(ctx)
+
+		bz, err = json.Marshal(auctiontypes.QueryLastAuctionResultResponse{
+			LastAuctionResult: result,
+		})
+	default:
+		return nil, wasmvmtypes.UnsupportedRequest{Kind: fmt.Sprintf("unknown auction query variant: %+v", string(queryData))}
 	}
 
 	if err != nil {
@@ -331,7 +364,8 @@ func (qp QueryPlugin) HandleExchangeQuery(ctx sdk.Context, queryData json.RawMes
 		market := qp.exchangeKeeper.GetSpotMarket(ctx, marketID, true)
 
 		traderOrders := qp.exchangeKeeper.GetAllTraderSpotLimitOrders(ctx, marketID, subaccountID)
-		ordersToCancel, hasProcessedFullAmount := exchangekeeper.GetSpotOrdersToCancelUpToAmount(
+		ordersToCancel, hasProcessedFullAmount := qp.exchangeKeeper.GetSpotOrdersToCancelUpToAmount(
+			ctx,
 			market,
 			traderOrders,
 			query.TraderSpotOrdersToCancelUpToAmountRequest.Strategy,
@@ -530,14 +564,14 @@ func (qp QueryPlugin) HandleExchangeQuery(ctx sdk.Context, queryData json.RawMes
 		}
 	case query.DenomDecimal != nil:
 		var res *exchangetypes.QueryDenomDecimalResponse
-		res, err = qp.exchangeKeeper.DenomDecimal(sdk.WrapSDKContext(ctx), query.DenomDecimal)
+		res, err = qp.exchangeKeeper.DenomDecimal(ctx, query.DenomDecimal)
 		if err != nil {
 			return nil, err
 		}
 		bz, err = json.Marshal(res)
 	case query.DenomDecimals != nil:
 		var res *exchangetypes.QueryDenomDecimalsResponse
-		res, err = qp.exchangeKeeper.DenomDecimals(sdk.WrapSDKContext(ctx), query.DenomDecimals)
+		res, err = qp.exchangeKeeper.DenomDecimals(ctx, query.DenomDecimals)
 		if err != nil {
 			return nil, err
 		}

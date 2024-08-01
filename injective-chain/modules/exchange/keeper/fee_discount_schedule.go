@@ -9,7 +9,8 @@ import (
 
 // GetFeeDiscountSchedule fetches the FeeDiscountSchedule.
 func (k *Keeper) GetFeeDiscountSchedule(ctx sdk.Context) *types.FeeDiscountSchedule {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	bz := store.Get(types.FeeDiscountScheduleKey)
@@ -24,7 +25,8 @@ func (k *Keeper) GetFeeDiscountSchedule(ctx sdk.Context) *types.FeeDiscountSched
 
 // DeleteFeeDiscountSchedule deletes the FeeDiscountSchedule.
 func (k *Keeper) DeleteFeeDiscountSchedule(ctx sdk.Context) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	store.Delete(types.FeeDiscountScheduleKey)
@@ -32,7 +34,8 @@ func (k *Keeper) DeleteFeeDiscountSchedule(ctx sdk.Context) {
 
 // SetFeeDiscountSchedule sets the FeeDiscountSchedule.
 func (k *Keeper) SetFeeDiscountSchedule(ctx sdk.Context, schedule *types.FeeDiscountSchedule) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	bz := k.cdc.MustMarshal(schedule)

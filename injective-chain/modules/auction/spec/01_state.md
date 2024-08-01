@@ -16,7 +16,7 @@ type Params struct {
 	// auction_period_duration defines the auction period duration
 	AuctionPeriod int64 
 	// min_next_bid_increment_rate defines the minimum increment rate for new bids
-	MinNextBidIncrementRate sdk.Dec
+	MinNextBidIncrementRate math.LegacyDec
 }
 ```
 
@@ -45,3 +45,16 @@ This value is compared against current block time to decide an auction round set
 
 * `EndingTimeStamp`: `0x04 -> BigEndian(EndingTimestamp)`
 
+### **LastAuctionResult**
+
+Keeps track of the last auction result.
+
+* LastAuctionResult: `0x05 -> ProtocolBuffer(LastAuctionResult)`
+
+```go
+type LastAuctionResult struct {
+    Winner string 
+    Amount sdk.Coin 
+    Round uint64 
+}
+```

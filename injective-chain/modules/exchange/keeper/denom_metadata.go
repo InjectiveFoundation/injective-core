@@ -1,7 +1,7 @@
 package keeper
 
 import (
-	"github.com/cosmos/cosmos-sdk/store/prefix"
+	"cosmossdk.io/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/InjectiveLabs/metrics"
@@ -11,7 +11,8 @@ import (
 
 // GetDenomDecimals returns the decimals of the given denom.
 func (k *Keeper) GetDenomDecimals(ctx sdk.Context, denom string) uint64 {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	bz := store.Get(types.GetDenomDecimalsKey(denom))
@@ -34,7 +35,8 @@ func (k *Keeper) GetDenomDecimals(ctx sdk.Context, denom string) uint64 {
 
 // SetDenomDecimals saves the decimals of the given denom.
 func (k *Keeper) SetDenomDecimals(ctx sdk.Context, denom string, decimals uint64) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	store.Set(types.GetDenomDecimalsKey(denom), sdk.Uint64ToBigEndian(decimals))
@@ -42,7 +44,8 @@ func (k *Keeper) SetDenomDecimals(ctx sdk.Context, denom string, decimals uint64
 
 // DeleteDenomDecimals delete the decimals of the given denom.
 func (k *Keeper) DeleteDenomDecimals(ctx sdk.Context, denom string) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	store.Delete(types.GetDenomDecimalsKey(denom))
@@ -50,7 +53,8 @@ func (k *Keeper) DeleteDenomDecimals(ctx sdk.Context, denom string) {
 
 // GetAllDenomDecimals returns all denom decimals
 func (k *Keeper) GetAllDenomDecimals(ctx sdk.Context) []types.DenomDecimals {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	denomDecimals := make([]types.DenomDecimals, 0)
 	appendDenomDecimal := func(p types.DenomDecimals) (stop bool) {
@@ -64,7 +68,8 @@ func (k *Keeper) GetAllDenomDecimals(ctx sdk.Context) []types.DenomDecimals {
 
 // IterateDenomDecimals iterates over denom decimals calling process on each denom decimal.
 func (k *Keeper) IterateDenomDecimals(ctx sdk.Context, isEnabled *bool, process func(denomDecimal types.DenomDecimals) (stop bool)) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	denomDecimalStore := prefix.NewStore(store, types.DenomDecimalsPrefix)

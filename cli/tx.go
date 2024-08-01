@@ -42,8 +42,12 @@ func txRunE(msg sdk.Msg, flagsMap FlagsMapping, argsMap ArgsMapping) func(*cobra
 			return err
 		}
 
-		if err := msg.ValidateBasic(); err != nil {
-			return fmt.Errorf("message validation fail: %w", err)
+		if validateMsg, ok := msg.(interface {
+			ValidateBasic() error
+		}); ok {
+			if err := validateMsg.ValidateBasic(); err != nil {
+				return fmt.Errorf("message ValidateBasic fail: %w", err)
+			}
 		}
 
 		return tx.GenerateOrBroadcastTxCLI(clientCtx, cmd.Flags(), msg)

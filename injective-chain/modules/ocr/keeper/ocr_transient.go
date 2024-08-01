@@ -12,7 +12,8 @@ func (k *Keeper) SetTransientLatestEpochAndRound(
 	feedId string,
 	epochAndRound *types.EpochAndRound,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	key := types.GetLatestEpochAndRoundKey(feedId)
 	bz := k.cdc.MustMarshal(epochAndRound)
@@ -23,7 +24,8 @@ func (k *Keeper) GetTransientLatestEpochAndRound(
 	ctx sdk.Context,
 	feedId string,
 ) *types.EpochAndRound {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	bz := k.getTransientStore(ctx).Get(types.GetLatestEpochAndRoundKey(feedId))
 	if bz == nil {

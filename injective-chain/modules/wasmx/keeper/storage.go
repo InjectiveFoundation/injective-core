@@ -2,8 +2,9 @@ package keeper
 
 import (
 	"bytes"
+
+	"cosmossdk.io/store/prefix"
 	"github.com/InjectiveLabs/metrics"
-	"github.com/cosmos/cosmos-sdk/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/types"
@@ -14,7 +15,9 @@ func (k *Keeper) SetContract(
 	contractAddress sdk.AccAddress,
 	contract types.RegisteredContract,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
 	store := k.getStore(ctx)
 
 	indexKey := types.GetContractsIndexKey(contractAddress)
@@ -46,7 +49,9 @@ func (k *Keeper) DeleteContract(
 	ctx sdk.Context,
 	contractAddress sdk.AccAddress,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
 	store := k.getStore(ctx)
 
 	indexKey := types.GetContractsIndexKey(contractAddress)
@@ -66,7 +71,8 @@ func (k *Keeper) GetContractByAddress(
 	ctx sdk.Context,
 	contractAddress sdk.AccAddress,
 ) *types.RegisteredContract {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 
@@ -94,7 +100,9 @@ func (k *Keeper) IterateContractsByGasPrice(
 	minGasPrice uint64,
 	callback func(contractAddress sdk.AccAddress, contractInfo types.RegisteredContract) (stop bool),
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
 	store := k.getStore(ctx)
 	contractsStore := prefix.NewStore(store, types.ContractsByGasPricePrefix)
 	startKey := sdk.Uint64ToBigEndian(minGasPrice)
@@ -118,7 +126,8 @@ func (k *Keeper) IterateContractsByGasPrice(
 func (k *Keeper) GetAllRegisteredContracts(
 	ctx sdk.Context,
 ) []types.RegisteredContractWithAddress {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	allContracts := make([]types.RegisteredContractWithAddress, 0)
 

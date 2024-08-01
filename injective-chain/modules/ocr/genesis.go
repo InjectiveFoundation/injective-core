@@ -58,6 +58,8 @@ func InitGenesis(ctx sdk.Context, k keeper.Keeper, data types.GenesisState) {
 			k.SetFeedTransmissionsCount(ctx, v.FeedId, addr, c.Count)
 		}
 	}
+
+	k.CreateModuleAccount(ctx)
 }
 
 func ExportGenesis(ctx sdk.Context, k keeper.Keeper) *types.GenesisState {

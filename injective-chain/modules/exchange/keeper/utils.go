@@ -1,10 +1,13 @@
 package keeper
 
 import (
+	"cosmossdk.io/collections"
 	"io"
 	"os"
 	"strings"
+	"time"
 
+	"cosmossdk.io/math"
 	"github.com/cosmos/cosmos-sdk/types/tx"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
@@ -15,14 +18,14 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-func CheckIfExceedDecimals(dec sdk.Dec, maxDecimals uint32) bool {
-	powered := dec.Mul(sdk.NewDec(10).Power(uint64(maxDecimals)))
+func CheckIfExceedDecimals(dec math.LegacyDec, maxDecimals uint32) bool {
+	powered := dec.Mul(math.LegacyNewDec(10).Power(uint64(maxDecimals)))
 	return !powered.Equal(powered.Ceil())
 }
 
 // GetIsOrderLess returns true if the order is less than the other order
-func GetIsOrderLess(referencePrice, order1Price, order2Price sdk.Dec, order1IsBuy, order2IsBuy, isSortingFromWorstToBest bool) bool {
-	var firstDistanceToReferencePrice, secondDistanceToReferencePrice sdk.Dec
+func GetIsOrderLess(referencePrice, order1Price, order2Price math.LegacyDec, order1IsBuy, order2IsBuy, isSortingFromWorstToBest bool) bool {
+	var firstDistanceToReferencePrice, secondDistanceToReferencePrice math.LegacyDec
 
 	if order1IsBuy {
 		firstDistanceToReferencePrice = referencePrice.Sub(order1Price)
@@ -48,18 +51,22 @@ func (k *Keeper) checkIfMarketLaunchProposalExist(
 	proposalType string,
 	marketID common.Hash,
 ) bool {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	exists := false
-	params := k.govKeeper.GetParams(ctx)
+	params, _ := k.govKeeper.Params.Get(ctx)
 	// Note: we do 10 * voting period to iterate all active proposals safely
 	endTime := ctx.BlockTime().Add(10 * (*params.VotingPeriod))
+	rng := collections.NewPrefixUntilPairRange[time.Time, uint64](endTime)
+	_ = k.govKeeper.ActiveProposalsQueue.Walk(ctx, rng, func(key collections.Pair[time.Time, uint64], _ uint64) (bool, error) {
+		proposal, err := k.govKeeper.Proposals.Get(ctx, key.K2())
+		if err != nil {
+			return false, err
+		}
 
-	k.govKeeper.IterateActiveProposalsQueue(ctx, endTime, func(proposal v1.Proposal) bool {
-		found := proposalAlreadyExists(proposal, proposalType, marketID)
-
-		exists = found
-		return found
+		exists = proposalAlreadyExists(proposal, proposalType, marketID)
+		return exists, nil
 	})
 
 	return exists
@@ -110,7 +117,7 @@ func proposalAlreadyExists(prop v1.Proposal, proposalType string, marketID commo
 }
 
 // getReadableDec is a test utility function to return a readable representation of decimal strings
-func getReadableDec(d sdk.Dec) string {
+func getReadableDec(d math.LegacyDec) string {
 	if d.IsNil() {
 		return d.String()
 	}

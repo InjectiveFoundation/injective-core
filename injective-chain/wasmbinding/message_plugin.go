@@ -6,7 +6,8 @@ import (
 
 	"cosmossdk.io/errors"
 	wasmkeeper "github.com/CosmWasm/wasmd/x/wasm/keeper"
-	wasmvmtypes "github.com/CosmWasm/wasmvm/types"
+	wasmvmtypes "github.com/CosmWasm/wasmvm/v2/types"
+	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	bankkeeper "github.com/cosmos/cosmos-sdk/x/bank/keeper"
@@ -45,23 +46,23 @@ type CustomMessenger struct {
 	tokenFactoryKeeper *tokenfactorykeeper.Keeper
 }
 
-func (m *CustomMessenger) DispatchMsg(ctx sdk.Context, contractAddr sdk.AccAddress, contractIBCPortID string, msg wasmvmtypes.CosmosMsg) (events []sdk.Event, data [][]byte, err error) {
+func (m *CustomMessenger) DispatchMsg(ctx sdk.Context, contractAddr sdk.AccAddress, contractIBCPortID string, msg wasmvmtypes.CosmosMsg) (events []sdk.Event, data [][]byte, msgResponses [][]*codectypes.Any, err error) {
 	if msg.Custom == nil {
 		return m.wrapped.DispatchMsg(ctx, contractAddr, contractIBCPortID, msg)
 	}
 
 	var wrappedContractMsg bindings.InjectiveMsgWrapper
 	if err := json.Unmarshal(msg.Custom, &wrappedContractMsg); err != nil {
-		return nil, nil, errors.Wrap(err, "Error parsing msg data")
+		return nil, nil, nil, errors.Wrap(err, "Error parsing msg data")
 	}
 
 	var contractMsg bindings.InjectiveMsg
 
 	if err := json.Unmarshal(wrappedContractMsg.MsgData, &contractMsg); err != nil {
-		return nil, nil, errors.Wrap(err, "injective msg")
+		return nil, nil, nil, errors.Wrap(err, "injective msg")
 	}
 
-	var sdkMsg sdk.Msg
+	var sdkMsg sdk.LegacyMsg
 
 	switch {
 	/// tokenfactory msgs
@@ -75,26 +76,30 @@ func (m *CustomMessenger) DispatchMsg(ctx sdk.Context, contractAddr sdk.AccAddre
 
 		rcpt, err := parseAddress(mint.MintTo)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 
 		sdkMsg = tokenfactorytypes.NewMsgMint(contractAddr.String(), mint.Amount)
 
-		events, data, err := m.handleSdkMessageWithResults(ctx, contractAddr, sdkMsg)
+		events, data, responses, err := m.handleSdkMessageWithResults(ctx, contractAddr, sdkMsg)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, responses, err
 		}
 
 		// create context with new event manager
 		ctx = ctx.WithEventManager(sdk.NewEventManager())
 
+		if m.bankKeeper.BlockedAddr(rcpt) {
+			return nil, nil, nil, errors.Wrapf(sdkerrors.ErrUnauthorized, "%s is not allowed to receive funds", rcpt)
+		}
+
 		err = m.bankKeeper.SendCoins(ctx, contractAddr, rcpt, sdk.NewCoins(mint.Amount))
 		if err != nil {
-			return nil, nil, errors.Wrap(err, "sending newly minted coins from message")
+			return nil, nil, nil, errors.Wrap(err, "sending newly minted coins from message")
 		}
 		// merge the events together
 		events = append(events, ctx.EventManager().Events()...)
-		return events, data, nil
+		return events, data, responses, nil
 	case contractMsg.BurnTokens != nil:
 		contractMsg.BurnTokens.Sender = contractAddr.String()
 		sdkMsg = contractMsg.BurnTokens
@@ -175,7 +180,7 @@ func (m *CustomMessenger) DispatchMsg(ctx sdk.Context, contractAddr sdk.AccAddre
 	case contractMsg.RewardsOptOut != nil:
 		sdkMsg = contractMsg.RewardsOptOut
 	default:
-		return nil, nil, wasmvmtypes.UnsupportedRequest{Kind: fmt.Sprintf("Unknown Injective Wasm Message: %T", contractMsg)}
+		return nil, nil, nil, wasmvmtypes.UnsupportedRequest{Kind: fmt.Sprintf("Unknown Injective Wasm Message: %T", contractMsg)}
 	}
 
 	return m.handleSdkMessageWithResults(ctx, contractAddr, sdkMsg)
@@ -184,29 +189,36 @@ func (m *CustomMessenger) DispatchMsg(ctx sdk.Context, contractAddr sdk.AccAddre
 func (m *CustomMessenger) handleSdkMessageWithResults(
 	ctx sdk.Context,
 	contractAddr sdk.Address,
-	msg sdk.Msg,
-) (events []sdk.Event, data [][]byte, err error) {
+	msg sdk.LegacyMsg,
+) (events []sdk.Event, data [][]byte, msgResponses [][]*codectypes.Any, err error) {
 	res, err := m.handleSdkMessage(ctx, contractAddr, msg)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	// append data
+	// append data and msgResponses
 	data = append(data, res.Data)
+	msgResponses = append(msgResponses, res.MsgResponses)
 	// append events
 	sdkEvents := make([]sdk.Event, len(res.Events))
 	for i := range res.Events {
 		sdkEvents[i] = sdk.Event(res.Events[i])
 	}
 	events = append(events, sdkEvents...)
-	return events, data, nil
+	return events, data, msgResponses, nil
 }
 
 // This function is forked from wasmd. sdk.Msg will be validated and routed to the corresponding module msg server in this function.
-func (m *CustomMessenger) handleSdkMessage(ctx sdk.Context, contractAddr sdk.Address, msg sdk.Msg) (*sdk.Result, error) {
-	if err := msg.ValidateBasic(); err != nil {
-		return nil, err
+func (m *CustomMessenger) handleSdkMessage(ctx sdk.Context, contractAddr sdk.Address, msg sdk.LegacyMsg) (*sdk.Result, error) {
+
+	message, ok := msg.(sdk.HasValidateBasic)
+	// TODO: refactor away from validate basic usage eventually
+	if ok {
+		if err := message.ValidateBasic(); err != nil {
+			return nil, err
+		}
 	}
+
 	// make sure this account can send it
 	for _, acct := range msg.GetSigners() {
 		if !acct.Equals(contractAddr) {

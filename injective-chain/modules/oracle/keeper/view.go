@@ -1,6 +1,7 @@
 package keeper
 
 import (
+	"cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
@@ -10,15 +11,16 @@ import (
 )
 
 type ViewKeeper interface {
-	GetPrice(ctx sdk.Context, oracletype types.OracleType, base string, quote string) *sdk.Dec
-	GetCumulativePrice(ctx sdk.Context, oracleType types.OracleType, base string, quote string) *sdk.Dec
-	GetProviderPrice(ctx sdk.Context, oracletype types.OracleType, provider string, symbol string) *sdk.Dec
-	GetCumulativeProviderPrice(ctx sdk.Context, oracleType types.OracleType, provider string, symbol string) *sdk.Dec
+	GetPrice(ctx sdk.Context, oracletype types.OracleType, base string, quote string) *math.LegacyDec
+	GetCumulativePrice(ctx sdk.Context, oracleType types.OracleType, base string, quote string) *math.LegacyDec
+	GetProviderPrice(ctx sdk.Context, oracletype types.OracleType, provider string, symbol string) *math.LegacyDec
+	GetCumulativeProviderPrice(ctx sdk.Context, oracleType types.OracleType, provider string, symbol string) *math.LegacyDec
 }
 
 // GetPrice returns the price for a given pair for a given oracle type.
-func (k *Keeper) GetPrice(ctx sdk.Context, oracletype types.OracleType, base, quote string) *sdk.Dec {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+func (k *Keeper) GetPrice(ctx sdk.Context, oracletype types.OracleType, base, quote string) *math.LegacyDec {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	switch oracletype {
 	case types.OracleType_Band:
@@ -44,14 +46,25 @@ func (k *Keeper) GetPrice(ctx sdk.Context, oracletype types.OracleType, base, qu
 	case types.OracleType_Provider:
 		// GetProviderPrice should be called instead
 		return nil
+	case types.OracleType_Stork:
+		return k.GetStorkPrice(ctx, base, quote)
 	}
 
 	return nil
 }
 
 // GetPriceState returns the price for a given pair for a given oracle type.
-func (k *Keeper) GetPricePairState(ctx sdk.Context, oracletype types.OracleType, base, quote string) *types.PricePairState {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+func (k *Keeper) GetPricePairState(ctx sdk.Context, oracletype types.OracleType, base, quote string, scalingOptions *types.ScalingOptions) *types.PricePairState {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
+	if scalingOptions != nil {
+		isSupportedWithScaling := oracletype != types.OracleType_PriceFeed && quote != types.QuoteUSD
+
+		if !isSupportedWithScaling {
+			return nil
+		}
+	}
 
 	if oracletype == types.OracleType_PriceFeed {
 		priceFeedState := k.GetPriceFeedPriceState(ctx, base, quote)
@@ -61,8 +74,8 @@ func (k *Keeper) GetPricePairState(ctx sdk.Context, oracletype types.OracleType,
 
 		pricePairPriceFeedState := &types.PricePairState{
 			PairPrice:            priceFeedState.Price,
-			BasePrice:            sdk.Dec{},
-			QuotePrice:           sdk.Dec{},
+			BasePrice:            math.LegacyDec{},
+			QuotePrice:           math.LegacyDec{},
 			BaseCumulativePrice:  priceFeedState.CumulativePrice,
 			QuoteCumulativePrice: priceFeedState.CumulativePrice,
 			BaseTimestamp:        priceFeedState.Timestamp,
@@ -96,8 +109,16 @@ func (k *Keeper) GetPricePairState(ctx sdk.Context, oracletype types.OracleType,
 		return nil
 	}
 
+	var pairPrice math.LegacyDec
+
+	if scalingOptions != nil {
+		pairPrice = baseRate.Mul(math.LegacyNewDec(10).Power(uint64(scalingOptions.QuoteDecimals))).Quo(quoteRate.Mul(math.LegacyNewDec(10).Power(uint64(scalingOptions.BaseDecimals))))
+	} else {
+		pairPrice = baseRate.Quo(quoteRate)
+	}
+
 	pricePairState := types.PricePairState{
-		PairPrice:            baseRate.Quo(quoteRate),
+		PairPrice:            pairPrice,
 		BasePrice:            baseRate,
 		QuotePrice:           quoteRate,
 		BaseCumulativePrice:  basePriceState.CumulativePrice,
@@ -109,8 +130,9 @@ func (k *Keeper) GetPricePairState(ctx sdk.Context, oracletype types.OracleType,
 }
 
 // GetCumulativePrice returns the cumulative price for a given pair for a given oracle type.
-func (k *Keeper) GetCumulativePrice(ctx sdk.Context, oracleType types.OracleType, base, quote string) *sdk.Dec {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+func (k *Keeper) GetCumulativePrice(ctx sdk.Context, oracleType types.OracleType, base, quote string) *math.LegacyDec {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	var basePriceState, quotePriceState *types.PriceState
 
@@ -202,13 +224,30 @@ func (k *Keeper) GetCumulativePrice(ctx sdk.Context, oracleType types.OracleType
 	case types.OracleType_Provider:
 		// GetCumulativeProviderPrice should be called instead
 		return nil
+	case types.OracleType_Stork:
+		baseStorkPriceState := k.GetStorkPriceState(ctx, base)
+
+		if baseStorkPriceState == nil {
+			return nil
+		}
+
+		if quote != types.QuoteUSD {
+			quoteStorkPriceState := k.GetStorkPriceState(ctx, quote)
+
+			if quoteStorkPriceState == nil {
+				return nil
+			}
+
+			basePriceState = &baseStorkPriceState.PriceState
+			quotePriceState = &quoteStorkPriceState.PriceState
+		}
 	default:
 		return nil
 	}
 
 	blockTime := ctx.BlockTime().Unix()
 
-	var priceCumulative *sdk.Dec
+	var priceCumulative *math.LegacyDec
 
 	switch {
 	case priceState != nil:

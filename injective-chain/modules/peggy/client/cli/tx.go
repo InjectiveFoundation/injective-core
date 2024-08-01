@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 
-	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types/v1beta1"
 	ethCrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/spf13/cobra"
 
@@ -17,8 +16,6 @@ import (
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/client/tx"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-
-	govcli "github.com/cosmos/cosmos-sdk/x/gov/client/cli"
 
 	cliflags "github.com/InjectiveLabs/injective-core/cli/flags"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/peggy/types"
@@ -38,9 +35,9 @@ func GetTxCmd(storeKey string) *cobra.Command {
 		CmdRequestBatch(),
 		CmdSetOrchestratorAddress(),
 		GetUnsafeTestingCmd(),
-		NewBlacklistEthereumAddressesProposalTxCmd(),
-		NewRevokeEthereumBlacklistProposalCmd(),
 		NewCancelSendToEth(),
+		BlacklistEthereumAddresses(),
+		RevokeBlacklistEthereumAddresses(),
 	}...)
 
 	return peggyTxCmd
@@ -230,156 +227,58 @@ func CmdSetOrchestratorAddress() *cobra.Command {
 	return cmd
 }
 
-func NewBlacklistEthereumAddressesProposalTxCmd() *cobra.Command {
+func BlacklistEthereumAddresses() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "blacklist-ethereum-addresses-proposal [blacklist-addresses] [flags]",
-		Args:  cobra.ExactArgs(1),
-		Short: "Submit a proposal to Blacklist Ethereum Addresses.",
-		Long: `Submit a proposal to Blacklist Ethereum Addresses.
-
-		Example:
-		$ %s tx peggy blacklist-ethereum-addresses-proposal blacklistaddr1,blacklistaddr2 --title="Blacklist Ethereum Addresses." --description="XX" --deposit="1000000000000000000inj" --from=genesis --keyring-backend=file --yes
-		`,
+		Use:   "blacklist-ethereum-addresses [addresses]",
+		Short: "Blacklist Ethereum addresses",
+		Long: `"Example:
+		injectived tx peggy blacklist-ethereum-addresses "0x0000000000000000000000000000000000000000,0x1111111111111111111111111111111111111111"`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			clientCtx, err := client.GetClientTxContext(cmd)
+			cliCtx, err := client.GetClientTxContext(cmd)
 			if err != nil {
 				return err
 			}
-
-			blacklistAddresses := strings.Split(args[0], ",")
-
-			content, err := blacklistEthereumAddressesProposalArgsToContent(cmd, blacklistAddresses)
-			if err != nil {
-				return err
+			addressList := strings.Split(args[0], ",")
+			msg := types.MsgBlacklistEthereumAddresses{
+				Signer:             cliCtx.GetFromAddress().String(),
+				BlacklistAddresses: addressList,
 			}
-
-			from := clientCtx.GetFromAddress()
-
-			depositStr, err := cmd.Flags().GetString(govcli.FlagDeposit)
-			if err != nil {
-				return err
-			}
-			deposit, err := sdk.ParseCoinsNormalized(depositStr)
-			if err != nil {
-				return err
-			}
-
-			msg, err := govtypes.NewMsgSubmitProposal(content, deposit, from)
-			if err != nil {
-				return err
-			}
-
 			if err := msg.ValidateBasic(); err != nil {
 				return err
 			}
-
-			return tx.GenerateOrBroadcastTxCLI(clientCtx, cmd.Flags(), msg)
+			// Send it
+			return tx.GenerateOrBroadcastTxCLI(cliCtx, cmd.Flags(), &msg)
 		},
 	}
-
-	cmd.Flags().String(govcli.FlagTitle, "", "title of proposal")
-	cmd.Flags().String(govcli.FlagDescription, "", "description of proposal")
-	cmd.Flags().String(govcli.FlagDeposit, "", "deposit of proposal")
-
 	cliflags.AddTxFlagsToCmd(cmd)
 	return cmd
 }
 
-func NewRevokeEthereumBlacklistProposalCmd() *cobra.Command {
+func RevokeBlacklistEthereumAddresses() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "revoke-blacklist-ethereum-addresses-proposal [blacklist-addresses] [flags]",
-		Args:  cobra.ExactArgs(1),
-		Short: "Submit a proposal to revoke Blacklist Ethereum Addresses.",
-		Long: `Submit a proposal to revoke Blacklist Ethereum Addresses.
-
-		Example:
-		$ %s tx oracle revoke-blacklist-ethereum-addresses-proposal blacklistaddr1,blacklistaddr2 --title="revoke Blacklist Ethereum Addresses" --description="XX" --deposit="1000000000000000000inj" --from=genesis --keyring-backend=file --yes
-		`,
+		Use:   "revoke-blacklist-ethereum-addresses [addresses]",
+		Short: "Revoke Blacklist Ethereum addresses",
+		Long: `"Example:
+		injectived tx peggy revoke-blacklist-ethereum-addresses "0x0000000000000000000000000000000000000000,0x1111111111111111111111111111111111111111"`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			clientCtx, err := client.GetClientTxContext(cmd)
+			cliCtx, err := client.GetClientTxContext(cmd)
 			if err != nil {
 				return err
 			}
-
-			blacklistAddresses := strings.Split(args[0], ",")
-
-			content, err := revokeEthereumBlacklistProposalArgsToContent(cmd, blacklistAddresses)
-			if err != nil {
-				return err
+			addressList := strings.Split(args[0], ",")
+			msg := types.MsgRevokeEthereumBlacklist{
+				Signer:             cliCtx.GetFromAddress().String(),
+				BlacklistAddresses: addressList,
 			}
-
-			from := clientCtx.GetFromAddress()
-
-			depositStr, err := cmd.Flags().GetString(govcli.FlagDeposit)
-			if err != nil {
-				return err
-			}
-			deposit, err := sdk.ParseCoinsNormalized(depositStr)
-			if err != nil {
-				return err
-			}
-
-			msg, err := govtypes.NewMsgSubmitProposal(content, deposit, from)
-			if err != nil {
-				return err
-			}
-
 			if err := msg.ValidateBasic(); err != nil {
 				return err
 			}
-
-			return tx.GenerateOrBroadcastTxCLI(clientCtx, cmd.Flags(), msg)
+			// Send it
+			return tx.GenerateOrBroadcastTxCLI(cliCtx, cmd.Flags(), &msg)
 		},
 	}
-
-	cmd.Flags().String(govcli.FlagTitle, "", "title of proposal")
-	cmd.Flags().String(govcli.FlagDescription, "", "description of proposal")
-	cmd.Flags().String(govcli.FlagDeposit, "", "deposit of proposal")
-
 	cliflags.AddTxFlagsToCmd(cmd)
 	return cmd
-}
-
-func blacklistEthereumAddressesProposalArgsToContent(cmd *cobra.Command, blacklistAddresses []string) (govtypes.Content, error) {
-	title, err := cmd.Flags().GetString(govcli.FlagTitle)
-	if err != nil {
-		return nil, err
-	}
-
-	description, err := cmd.Flags().GetString(govcli.FlagDescription)
-	if err != nil {
-		return nil, err
-	}
-
-	content := &types.BlacklistEthereumAddressesProposal{
-		Title:              title,
-		Description:        description,
-		BlacklistAddresses: blacklistAddresses,
-	}
-	if err := content.ValidateBasic(); err != nil {
-		return nil, err
-	}
-	return content, nil
-}
-
-func revokeEthereumBlacklistProposalArgsToContent(cmd *cobra.Command, blacklistAddresses []string) (govtypes.Content, error) {
-	title, err := cmd.Flags().GetString(govcli.FlagTitle)
-	if err != nil {
-		return nil, err
-	}
-
-	description, err := cmd.Flags().GetString(govcli.FlagDescription)
-	if err != nil {
-		return nil, err
-	}
-
-	content := &types.RevokeEthereumBlacklistProposal{
-		Title:              title,
-		Description:        description,
-		BlacklistAddresses: blacklistAddresses,
-	}
-	if err := content.ValidateBasic(); err != nil {
-		return nil, err
-	}
-	return content, nil
 }

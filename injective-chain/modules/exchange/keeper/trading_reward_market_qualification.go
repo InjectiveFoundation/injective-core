@@ -1,7 +1,7 @@
 package keeper
 
 import (
-	"github.com/cosmos/cosmos-sdk/store/prefix"
+	"cosmossdk.io/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
@@ -10,7 +10,8 @@ import (
 )
 
 func (k *Keeper) SetTradingRewardsMarketQualificationForAllQualifyingMarkets(ctx sdk.Context, campaignInfo *types.TradingRewardCampaignInfo) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	marketIDQuoteDenoms := k.GetAllMarketIDsWithQuoteDenoms(ctx)
 
@@ -32,7 +33,8 @@ func (k *Keeper) SetTradingRewardsMarketQualificationForAllQualifyingMarkets(ctx
 
 // IsMarketQualifiedForTradingRewards returns true if the given marketID qualifies for trading rewards
 func (k *Keeper) IsMarketQualifiedForTradingRewards(ctx sdk.Context, marketID common.Hash) bool {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	bz := store.Get(types.GetCampaignMarketQualificationKey(marketID))
@@ -45,7 +47,8 @@ func (k *Keeper) IsMarketQualifiedForTradingRewards(ctx sdk.Context, marketID co
 
 // DeleteTradingRewardsMarketQualification deletes the market's trading reward qualification indicator
 func (k *Keeper) DeleteTradingRewardsMarketQualification(ctx sdk.Context, marketID common.Hash) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	store.Delete(types.GetCampaignMarketQualificationKey(marketID))
@@ -53,7 +56,8 @@ func (k *Keeper) DeleteTradingRewardsMarketQualification(ctx sdk.Context, market
 
 // DeleteAllTradingRewardsMarketQualifications deletes the trading reward qualifications for all markets
 func (k *Keeper) DeleteAllTradingRewardsMarketQualifications(ctx sdk.Context) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	marketIDs, _ := k.GetAllTradingRewardsMarketQualification(ctx)
 	for _, marketID := range marketIDs {
@@ -63,7 +67,8 @@ func (k *Keeper) DeleteAllTradingRewardsMarketQualifications(ctx sdk.Context) {
 
 // SetTradingRewardsMarketQualification sets the market's trading reward qualification indicator
 func (k *Keeper) SetTradingRewardsMarketQualification(ctx sdk.Context, marketID common.Hash, isQualified bool) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	qualificationBz := []byte{types.TrueByte}
@@ -75,7 +80,8 @@ func (k *Keeper) SetTradingRewardsMarketQualification(ctx sdk.Context, marketID 
 
 // GetAllTradingRewardsMarketQualification gets all market qualification statuses
 func (k *Keeper) GetAllTradingRewardsMarketQualification(ctx sdk.Context) ([]common.Hash, []bool) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	marketIDs := make([]common.Hash, 0)
 	isQualified := make([]bool, 0)
@@ -95,7 +101,8 @@ func (k *Keeper) iterateTradingRewardsMarketQualifications(
 	ctx sdk.Context,
 	process func(common.Hash, bool) (stop bool),
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 
@@ -117,7 +124,8 @@ func (k *Keeper) CheckQuoteAndSetTradingRewardQualification(
 	marketID common.Hash,
 	quoteDenom string,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	if campaign := k.GetCampaignInfo(ctx); campaign != nil {
 		disqualified := false

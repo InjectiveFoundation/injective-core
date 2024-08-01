@@ -30,6 +30,8 @@ func GetQueryCmd() *cobra.Command {
 		// CmdGetAttestationRequest(),
 		QueryObserved(),
 		QueryApproved(),
+		QueryPeggyParams(),
+		QueryPeggyModuleState(),
 	}...)
 
 	return peggyQueryCmd
@@ -202,5 +204,64 @@ func CmdGetPendingOutgoingTXBatchRequest() *cobra.Command {
 		},
 	}
 	cliflags.AddQueryFlagsToCmd(cmd)
+	return cmd
+}
+
+// QueryPeggyParams queries peggy module params info
+func QueryPeggyParams() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "params",
+		Short: "Gets peggy params info.",
+		Long:  "Gets peggy params info.",
+		Args:  cobra.ExactArgs(0),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clientCtx, err := client.GetClientQueryContext(cmd)
+			if err != nil {
+				return err
+			}
+
+			queryClient := types.NewQueryClient(clientCtx)
+
+			req := &types.QueryParamsRequest{}
+
+			res, err := queryClient.Params(cmd.Context(), req)
+			if err != nil {
+				return err
+			}
+
+			return clientCtx.PrintProto(res)
+		},
+	}
+
+	cliflags.AddQueryFlagsToCmd(cmd)
+	return cmd
+}
+
+// QueryPeggyModuleState creates a new command for querying the current state of the Peggy module
+func QueryPeggyModuleState() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "module-state",
+		Short: "Query the current state of the Peggy module",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clientCtx, err := client.GetClientQueryContext(cmd)
+			if err != nil {
+				return err
+			}
+
+			queryClient := types.NewQueryClient(clientCtx)
+			res, err := queryClient.PeggyModuleState(
+				cmd.Context(),
+				&types.QueryModuleStateRequest{},
+			)
+			if err != nil {
+				return err
+			}
+
+			return clientCtx.PrintProto(res)
+		},
+	}
+
+	cliflags.AddQueryFlagsToCmd(cmd)
+
 	return cmd
 }

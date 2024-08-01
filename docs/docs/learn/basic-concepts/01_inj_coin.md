@@ -7,7 +7,7 @@ hide_title: true
 
 # INJ
 
-INJ is Injective’s native staking token. Staked holders can govern and decide the future of the protocol.
+INJ is Injective’s native staking token. Stakers can govern and decide the future of the protocol.
 
 ## Base Denomination
 
@@ -17,7 +17,7 @@ INJ uses [Atto](https://en.wikipedia.org/wiki/Atto-) as the base denomination to
 1 inj = 1×10⁻¹⁸ INJ
 ```
 
-This matches Ethereum denomination of:
+This matches Ethereum's denomination:
 
 ```
 1 wei = 1x10⁻¹⁸ ETH
@@ -30,16 +30,17 @@ This matches Ethereum denomination of:
 
 The Injective PoS blockchain is governed by the native INJ token.
 
-Use cases for the token include but are not limited to the following: governance, staking, and dApp value capture.
+Use cases for the token include but are not limited to governance, staking, and dApp value capture.
 
-The initial supply of INJ is 100,000,000 tokens and shall increase over time through block rewards.
+The initial supply of INJ is 100,000,000 tokens. The supply will increase over time through block rewards.
 
 The target INJ inflation is 7% at genesis and will decrease over time to 2%. Gradually, the total supply of INJ may be lower than the initial supply due to the deflationary mechanism detailed in the Exchange Fee Value Accrual section below.
 
 ## 2. Governance
-The INJ token also serves as the native governance token for the Injective Chain. 
 
-INJ is used to govern all aspects of the chain including:
+The INJ token serves as the native governance token for the Injective Chain. 
+
+INJ is used to govern all aspects of the chain, including:
 - Auction Module [Parameters](../../develop/modules/Injective/auction/05_params.md)
 - Exchange Module [Custom proposals](../../develop/modules/Injective/exchange/06_proposals.md) and [Parameters](../../develop/modules/Injective/exchange/10_params.md)
 - Insurance Module [Parameters](../../develop/modules/Injective/insurance/06_params.md)
@@ -53,7 +54,7 @@ Full details on the governance process can be found [here](https://blog.injectiv
 
 ## 3. Exchange dApps Incentives
 The exchange protocol implements a global minimum trading fee of $r_m=0.1\%$ for makers and $r_t=0.2\%$ for takers.
-As an incentive mechanism to encourage exchange dApps to source trading activity on the exchange protocol, exchange dApps who originate orders into the shared orderbook are rewarded with $\beta = 40\%$ of the trading fee arising from orders that they source.
+As an incentive mechanism to encourage exchange dApps to source trading activity on the exchange protocol, exchange dApps that originate orders into the shared orderbook are rewarded with $\beta = 40\%$ of the trading fees arising from all orders that they source.
 
 ## 4. Exchange Fee Value Accrual
 The remaining $60\%$ of the exchange fee will undergo an on-chain buy-back-and-burn event where the aggregate exchange fee basket is auctioned off to the highest bidder in exchange for INJ. 
@@ -61,6 +62,6 @@ The INJ proceeds of this auction are then burned, thus deflating the total INJ s
 
 More details on the auction mechanism can be found [here](../../develop/modules/Injective/auction/README.md). 
 
-## 5. Collateral Backing for Derivatives
-INJ will be utilized as an alternative to stablecoins as margin and collateral for Injective's derivatives markets. 
-In some derivative markets, INJ can also be used as collateral backing or insurance pool staking where stakers can earn interest on their locked tokens.
+## 5. Backing Collateral for Derivatives
+INJ can be utilized as an alternative to stablecoins as margin and collateral for Injective's derivatives markets. 
+In some derivative markets, INJ can also be used as backing collateral for insurance pool staking, where stakers can earn interest on their locked tokens.

@@ -14,6 +14,7 @@ func GetQueryCmd() *cobra.Command {
 	cmd.AddCommand(
 		GetAuctionParamsCmd(),
 		GetAuctionInfo(),
+		GetLastAuctionResult(),
 	)
 	return cmd
 }
@@ -33,5 +34,15 @@ func GetAuctionInfo() *cobra.Command {
 		types.NewQueryClient,
 		&types.QueryCurrentAuctionBasketRequest{}, cli.FlagsMapping{}, cli.ArgsMapping{})
 	cmd.Long = "Gets current auction round info, including coin basket and highest bidder"
+	return cmd
+}
+
+func GetLastAuctionResult() *cobra.Command {
+	cmd := cli.QueryCmd(
+		"last-auction-result",
+		"Gets last auction result",
+		types.NewQueryClient,
+		&types.QueryLastAuctionResultRequest{}, cli.FlagsMapping{}, cli.ArgsMapping{})
+	cmd.Long = "Gets last auction result"
 	return cmd
 }

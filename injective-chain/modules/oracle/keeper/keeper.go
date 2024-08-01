@@ -1,15 +1,16 @@
 package keeper
 
 import (
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/types"
+	"cosmossdk.io/log"
+	storetypes "cosmossdk.io/store/types"
 	"github.com/InjectiveLabs/metrics"
-	"github.com/cometbft/cometbft/libs/log"
 	"github.com/cosmos/cosmos-sdk/codec"
-	storetypes "github.com/cosmos/cosmos-sdk/store/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authkeeper "github.com/cosmos/cosmos-sdk/x/auth/keeper"
 
-	capabilitykeeper "github.com/cosmos/cosmos-sdk/x/capability/keeper"
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/types"
+
+	capabilitykeeper "github.com/cosmos/ibc-go/modules/capability/keeper"
 )
 
 // Keeper defines a module interface that facilitates the getting and setting of oracle reference data
@@ -73,6 +74,6 @@ func (k *Keeper) Logger(ctx sdk.Context) log.Logger {
 	return ctx.Logger().With("module", types.ModuleName)
 }
 
-func (k *Keeper) getStore(ctx sdk.Context) sdk.KVStore {
+func (k *Keeper) getStore(ctx sdk.Context) storetypes.KVStore {
 	return ctx.KVStore(k.storeKey)
 }

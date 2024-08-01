@@ -1,12 +1,13 @@
 package keeper
 
 import (
+	"cosmossdk.io/log"
+	storetypes "cosmossdk.io/store/types"
 	"github.com/InjectiveLabs/metrics"
-	"github.com/cometbft/cometbft/libs/log"
 	"github.com/cosmos/cosmos-sdk/codec"
-	storetypes "github.com/cosmos/cosmos-sdk/store/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authkeeper "github.com/cosmos/cosmos-sdk/x/auth/keeper"
+	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 
 	exchangekeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/keeper"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/insurance/types"
@@ -48,10 +49,21 @@ func NewKeeper(
 	}
 }
 
-func (k *Keeper) GetStore(ctx sdk.Context) sdk.KVStore {
+func (k *Keeper) GetStore(ctx sdk.Context) storetypes.KVStore {
 	return ctx.KVStore(k.storeKey)
 }
 
 func (k *Keeper) Logger(ctx sdk.Context) log.Logger {
 	return ctx.Logger().With("module", types.ModuleName)
+}
+
+// CreateModuleAccount creates a module account with minting and burning capabilities
+func (k *Keeper) CreateModuleAccount(ctx sdk.Context) {
+	baseAcc := authtypes.NewEmptyModuleAccount(types.ModuleName, authtypes.Minter, authtypes.Burner)
+	moduleAcc := (k.accountKeeper.NewAccount(ctx, baseAcc)).(sdk.ModuleAccountI) // set the account number
+	k.accountKeeper.SetModuleAccount(ctx, moduleAcc)
+}
+
+func (k *Keeper) SetExchangeKeeper(ek *exchangekeeper.Keeper) {
+	k.exchangeKeeper = ek
 }

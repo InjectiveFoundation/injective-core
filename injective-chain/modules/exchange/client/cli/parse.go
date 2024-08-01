@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"os"
 
+	"cosmossdk.io/math"
 	"github.com/cosmos/cosmos-sdk/client"
-	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/spf13/cobra"
 
 	govcli "github.com/cosmos/cosmos-sdk/x/gov/client/cli"
@@ -144,7 +144,7 @@ func parseDerivativeOrderFlags(cmd *cobra.Command, ctx client.Context) (*exchang
 		return nil, err
 	}
 
-	margin := sdk.ZeroDec()
+	margin := math.LegacyZeroDec()
 
 	reduceOnly, err := cmd.Flags().GetBool(FlagReduceOnly)
 	if err != nil {
@@ -179,7 +179,7 @@ func parseDerivativeOrderFlags(cmd *cobra.Command, ctx client.Context) (*exchang
 		if orderType == exchangetypes.OrderType_BUY {
 			margin = price.Mul(quantity)
 		} else {
-			margin = exchangetypes.GetScaledPrice(sdk.OneDec(), market.OracleScaleFactor).Sub(price).Mul(quantity)
+			margin = exchangetypes.GetScaledPrice(math.LegacyOneDec(), market.OracleScaleFactor).Sub(price).Mul(quantity)
 		}
 	}
 	subaccountId, err := cmd.Flags().GetString(FlagSubaccountID)
@@ -204,6 +204,16 @@ func parseDerivativeOrderFlags(cmd *cobra.Command, ctx client.Context) (*exchang
 		Margin:       margin,
 		TriggerPrice: nil, // not supported currently
 	}
+
+	cidFlag := cmd.Flags().Lookup(FlagCID)
+	if cidFlag != nil {
+		cid, err := cmd.Flags().GetString(FlagCID)
+		if err != nil {
+			return nil, err
+		}
+		order.OrderInfo.Cid = cid
+	}
+
 	return &order, nil
 }
 

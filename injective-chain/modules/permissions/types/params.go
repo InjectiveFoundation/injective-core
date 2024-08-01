@@ -1,22 +1,25 @@
 package types
 
 import (
-	sdk "github.com/cosmos/cosmos-sdk/types"
 	paramtypes "github.com/cosmos/cosmos-sdk/x/params/types"
 )
 
-// ParamTable for gamm module.
+// ParamTable
 func ParamKeyTable() paramtypes.KeyTable {
 	return paramtypes.NewKeyTable().RegisterParamSet(&Params{})
 }
 
-func NewParams(denomCreationFee sdk.Coins) Params {
-	return Params{}
+func NewParams(wasmHookQueryMaxGas uint64) Params {
+	return Params{
+		WasmHookQueryMaxGas: wasmHookQueryMaxGas,
+	}
 }
 
-// default gamm module parameters.
+// default module parameters.
 func DefaultParams() Params {
-	return Params{}
+	return Params{
+		WasmHookQueryMaxGas: 200_000,
+	}
 }
 
 // validate params.

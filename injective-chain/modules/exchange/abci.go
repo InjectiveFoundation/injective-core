@@ -30,8 +30,7 @@ func NewBlockHandler(k keeper.Keeper) *BlockHandler {
 }
 
 func (h *BlockHandler) BeginBlocker(ctx sdk.Context) {
-	metrics.ReportFuncCall(h.svcTags)
-	doneFn := metrics.ReportFuncTiming(h.svcTags)
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, h.svcTags)
 	defer doneFn()
 
 	// swap the gas meter with a threadsafe version
@@ -49,8 +48,7 @@ func (h *BlockHandler) BeginBlocker(ctx sdk.Context) {
 }
 
 func (h *BlockHandler) EndBlocker(ctx sdk.Context) {
-	metrics.ReportFuncCall(h.svcTags)
-	doneFn := metrics.ReportFuncTiming(h.svcTags)
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, h.svcTags)
 	defer doneFn()
 
 	// swap the gas meter with a threadsafe version

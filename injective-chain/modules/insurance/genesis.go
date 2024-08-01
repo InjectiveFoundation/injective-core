@@ -18,6 +18,8 @@ func InitGenesis(ctx sdk.Context, k keeper.Keeper, data types.GenesisState) {
 	}
 	k.SetNextShareDenomId(ctx, data.NextShareDenomId)
 	k.SetNextRedemptionScheduleId(ctx, data.NextRedemptionScheduleId)
+
+	k.CreateModuleAccount(ctx)
 }
 
 // ExportGenesis export the state of module

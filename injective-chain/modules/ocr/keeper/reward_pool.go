@@ -5,7 +5,7 @@ import (
 
 	"cosmossdk.io/errors"
 	"cosmossdk.io/math"
-	"github.com/cosmos/cosmos-sdk/store/prefix"
+	"cosmossdk.io/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/InjectiveLabs/metrics"
@@ -91,7 +91,8 @@ func (k *Keeper) DepositIntoRewardPool(
 	sender sdk.AccAddress,
 	amount sdk.Coin,
 ) error {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	poolAmount := k.GetRewardPoolAmount(ctx, feedId)
 
@@ -105,7 +106,7 @@ func (k *Keeper) DepositIntoRewardPool(
 			return types.ErrIncorrectRewardPoolDenom
 		}
 
-		newPoolAmount := sdk.NewCoin(feedConfig.ModuleParams.LinkDenom, sdk.ZeroInt())
+		newPoolAmount := sdk.NewCoin(feedConfig.ModuleParams.LinkDenom, math.ZeroInt())
 		poolAmount = &newPoolAmount
 	} else if poolAmount.Denom != amount.Denom {
 		return types.ErrIncorrectRewardPoolDenom
@@ -131,7 +132,8 @@ func (k *Keeper) WithdrawFromRewardPool(
 	recipient sdk.AccAddress,
 	amount sdk.Coin,
 ) error {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	poolAmount := k.GetRewardPoolAmount(ctx, feedId)
 
@@ -145,7 +147,7 @@ func (k *Keeper) WithdrawFromRewardPool(
 			return types.ErrIncorrectRewardPoolDenom
 		}
 
-		newPoolAmount := sdk.NewCoin(feedConfig.ModuleParams.LinkDenom, sdk.ZeroInt())
+		newPoolAmount := sdk.NewCoin(feedConfig.ModuleParams.LinkDenom, math.ZeroInt())
 		poolAmount = &newPoolAmount
 	} else if poolAmount.Denom != amount.Denom {
 		return types.ErrIncorrectRewardPoolDenom
@@ -174,7 +176,8 @@ func (k *Keeper) DisburseFromRewardPool(
 	feedId string,
 	rewards []*types.Reward,
 ) error {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	if len(rewards) == 0 {
 		return nil
@@ -188,7 +191,7 @@ func (k *Keeper) DisburseFromRewardPool(
 		return types.ErrIncorrectRewardPoolDenom
 	}
 
-	totalReward := sdk.NewCoin(rewards[0].Amount.Denom, sdk.ZeroInt())
+	totalReward := sdk.NewCoin(rewards[0].Amount.Denom, math.ZeroInt())
 	for _, reward := range rewards {
 		if err := k.bankKeeper.SendCoinsFromModuleToAccount(ctx, types.ModuleName, reward.Addr, sdk.Coins{reward.Amount}); err != nil {
 			return err
@@ -206,7 +209,8 @@ func (k *Keeper) setRewardPoolAmount(
 	feedId string,
 	amount sdk.Coin,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	key := types.GetFeedPoolKey(feedId)
 	bz := k.cdc.MustMarshal(&amount)
@@ -217,7 +221,8 @@ func (k *Keeper) GetRewardPoolAmount(
 	ctx sdk.Context,
 	feedId string,
 ) *sdk.Coin {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	bz := k.getStore(ctx).Get(types.GetFeedPoolKey(feedId))
 	if bz == nil {
@@ -232,7 +237,8 @@ func (k *Keeper) GetRewardPoolAmount(
 func (k *Keeper) GetAllRewardPools(
 	ctx sdk.Context,
 ) []*types.RewardPool {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	rewardPoolStore := prefix.NewStore(store, types.FeedPoolPrefix)
@@ -268,11 +274,11 @@ func (k *Keeper) ProcessRewardPayout(ctx sdk.Context, feedConfig *types.FeedConf
 	observationCounts := k.GetFeedObservationCounts(ctx, feedId)
 
 	linkRewards := make(map[string]math.Int, len(feedConfig.Transmitters))
-	totalRewards := sdk.ZeroInt()
+	totalRewards := math.ZeroInt()
 
 	for _, c := range transmissionCounts.Counts {
 		count := c.Count
-		reward := feedConfig.ModuleParams.LinkPerTransmission.Mul(sdk.NewInt(int64(count)))
+		reward := feedConfig.ModuleParams.LinkPerTransmission.Mul(math.NewInt(int64(count)))
 
 		// calculate recipient from transmitter
 		transmitter, _ := sdk.AccAddressFromBech32(c.Address)
@@ -290,7 +296,7 @@ func (k *Keeper) ProcessRewardPayout(ctx sdk.Context, feedConfig *types.FeedConf
 	for _, c := range observationCounts.Counts {
 		count := c.Count
 		observer := c.Address
-		reward := feedConfig.ModuleParams.LinkPerObservation.Mul(sdk.NewInt(int64(count)))
+		reward := feedConfig.ModuleParams.LinkPerObservation.Mul(math.NewInt(int64(count)))
 
 		v, ok := linkRewards[observer]
 		if ok {
@@ -351,7 +357,8 @@ func (k *Keeper) GetPayee(
 	feedId string,
 	transmitter sdk.AccAddress,
 ) (payee *sdk.AccAddress) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	bz := k.getStore(ctx).Get(types.GetPayeePrefix(feedId, transmitter))
 	if bz == nil {
@@ -368,7 +375,8 @@ func (k *Keeper) SetPayee(
 	transmitter sdk.AccAddress,
 	payee sdk.AccAddress,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	key := types.GetPayeePrefix(feedId, transmitter)
 	k.getStore(ctx).Set(key, payee.Bytes())
@@ -379,7 +387,8 @@ func (k *Keeper) GetPendingPayeeshipTransfer(
 	feedId string,
 	transmitter sdk.AccAddress,
 ) (payee *sdk.AccAddress) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	bz := k.getStore(ctx).Get(types.GetPendingPayeeshipTransferPrefix(feedId, transmitter))
 	if bz == nil {
@@ -393,7 +402,8 @@ func (k *Keeper) GetPendingPayeeshipTransfer(
 func (k *Keeper) GetAllPendingPayeeships(
 	ctx sdk.Context,
 ) []*types.PendingPayeeship {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	payeeshipStore := prefix.NewStore(store, types.PendingPayeeTransferPrefix)
@@ -428,7 +438,8 @@ func (k *Keeper) SetPendingPayeeshipTransfer(
 	transmitter sdk.AccAddress,
 	payee sdk.AccAddress,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	key := types.GetPendingPayeeshipTransferPrefix(feedId, transmitter)
 	k.getStore(ctx).Set(key, payee.Bytes())
@@ -439,7 +450,8 @@ func (k *Keeper) DeletePendingPayeeshipTransfer(
 	feedId string,
 	transmitter sdk.AccAddress,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	key := types.GetPendingPayeeshipTransferPrefix(feedId, transmitter)
 	k.getStore(ctx).Delete(key)

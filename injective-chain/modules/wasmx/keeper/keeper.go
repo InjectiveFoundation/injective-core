@@ -1,15 +1,17 @@
 package keeper
 
 import (
+	"cosmossdk.io/log"
+	storetypes "cosmossdk.io/store/types"
+	feegrantkeeper "cosmossdk.io/x/feegrant/keeper"
 	wasmkeeper "github.com/CosmWasm/wasmd/x/wasm/keeper"
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/types"
 	"github.com/InjectiveLabs/metrics"
-	"github.com/cometbft/cometbft/libs/log"
 	"github.com/cosmos/cosmos-sdk/codec"
-	storetypes "github.com/cosmos/cosmos-sdk/store/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authkeeper "github.com/cosmos/cosmos-sdk/x/auth/keeper"
-	feegrantkeeper "github.com/cosmos/cosmos-sdk/x/feegrant/keeper"
+	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
+
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/types"
 )
 
 // Keeper of this module maintains collections of wasmx.
@@ -55,7 +57,7 @@ func (k *Keeper) Logger(ctx sdk.Context) log.Logger {
 	return ctx.Logger().With("module", types.ModuleName)
 }
 
-func (k *Keeper) getStore(ctx sdk.Context) sdk.KVStore {
+func (k *Keeper) getStore(ctx sdk.Context) storetypes.KVStore {
 	return ctx.KVStore(k.storeKey)
 }
 
@@ -76,4 +78,11 @@ func (k *Keeper) SetWasmKeepers(wvk types.WasmViewKeeper, wck types.WasmContract
 
 func (k *Keeper) AccountExists(ctx sdk.Context, addr sdk.AccAddress) bool {
 	return k.accountKeeper.GetAccount(ctx, addr) != nil
+}
+
+// CreateModuleAccount creates a module account with burning capabilities
+func (k *Keeper) CreateModuleAccount(ctx sdk.Context) {
+	baseAcc := authtypes.NewEmptyModuleAccount(types.ModuleName, authtypes.Burner)
+	moduleAcc := (k.accountKeeper.NewAccount(ctx, baseAcc)).(sdk.ModuleAccountI) // set the account number
+	k.accountKeeper.SetModuleAccount(ctx, moduleAcc)
 }

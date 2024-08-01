@@ -1,7 +1,7 @@
 package keeper
 
 import (
-	"github.com/cosmos/cosmos-sdk/store/prefix"
+	"cosmossdk.io/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
@@ -16,7 +16,8 @@ func (k *Keeper) CheckAndSetFeeDiscountAccountActivityIndicator(
 	marketID common.Hash,
 	account sdk.AccAddress,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	if k.HasFeeRewardTransientActiveAccountIndicator(ctx, account) {
 		return
@@ -47,7 +48,8 @@ func (k *Keeper) CheckAndSetFeeDiscountAccountActivityIndicator(
 }
 
 func (k *Keeper) SetFeeDiscountMarketQualificationForAllQualifyingMarkets(ctx sdk.Context, schedule *types.FeeDiscountSchedule) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	marketIDQuoteDenoms := k.GetAllMarketIDsWithQuoteDenoms(ctx)
 
@@ -69,7 +71,8 @@ func (k *Keeper) SetFeeDiscountMarketQualificationForAllQualifyingMarkets(ctx sd
 
 // IsMarketQualifiedForFeeDiscount returns true if the given marketID qualifies for fee discount
 func (k *Keeper) IsMarketQualifiedForFeeDiscount(ctx sdk.Context, marketID common.Hash) bool {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	bz := store.Get(types.GetFeeDiscountMarketQualificationKey(marketID))
@@ -82,7 +85,8 @@ func (k *Keeper) IsMarketQualifiedForFeeDiscount(ctx sdk.Context, marketID commo
 
 // DeleteFeeDiscountMarketQualification deletes the market's fee discount qualification indicator
 func (k *Keeper) DeleteFeeDiscountMarketQualification(ctx sdk.Context, marketID common.Hash) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	store.Delete(types.GetFeeDiscountMarketQualificationKey(marketID))
@@ -90,7 +94,8 @@ func (k *Keeper) DeleteFeeDiscountMarketQualification(ctx sdk.Context, marketID 
 
 // DeleteAllFeeDiscountMarketQualifications deletes the fee discount qualifications for all markets
 func (k *Keeper) DeleteAllFeeDiscountMarketQualifications(ctx sdk.Context) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	marketIDs, _ := k.GetAllFeeDiscountMarketQualification(ctx)
 	for _, marketID := range marketIDs {
@@ -100,7 +105,8 @@ func (k *Keeper) DeleteAllFeeDiscountMarketQualifications(ctx sdk.Context) {
 
 // SetFeeDiscountMarketQualification sets the market's fee discount qualification status in the KV Store
 func (k *Keeper) SetFeeDiscountMarketQualification(ctx sdk.Context, marketID common.Hash, isQualified bool) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	qualificationBz := []byte{types.TrueByte}
@@ -112,7 +118,8 @@ func (k *Keeper) SetFeeDiscountMarketQualification(ctx sdk.Context, marketID com
 
 // GetAllFeeDiscountMarketQualification gets all market fee discount qualification statuses
 func (k *Keeper) GetAllFeeDiscountMarketQualification(ctx sdk.Context) ([]common.Hash, []bool) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	marketIDs := make([]common.Hash, 0)
 	isQualified := make([]bool, 0)
@@ -132,7 +139,8 @@ func (k *Keeper) iterateFeeDiscountMarketQualifications(
 	ctx sdk.Context,
 	process func(common.Hash, bool) (stop bool),
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 
@@ -154,7 +162,8 @@ func (k *Keeper) CheckQuoteAndSetFeeDiscountQualification(
 	marketID common.Hash,
 	quoteDenom string,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	if schedule := k.GetFeeDiscountSchedule(ctx); schedule != nil {
 		disqualified := false

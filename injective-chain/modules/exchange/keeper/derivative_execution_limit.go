@@ -1,6 +1,7 @@
 package keeper
 
 import (
+	"cosmossdk.io/math"
 	"github.com/InjectiveLabs/metrics"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -14,7 +15,8 @@ func (k *Keeper) ExecuteDerivativeLimitOrderMatching(
 	stakingInfo *FeeDiscountStakingInfo,
 	modifiedPositionCache ModifiedPositionCache,
 ) *DerivativeBatchExecutionData {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	marketID := matchedMarketDirection.MarketId
 
@@ -99,7 +101,7 @@ func (k *Keeper) updateTransientOrderHashesToCancel(
 			transientOrderHashesToCancel[common.BytesToHash(roOrderToCancel.OrderHash)] = struct{}{}
 			roQuantityToCancel = roQuantityToCancel.Sub(roOrderToCancel.GetQuantity())
 
-			if roQuantityToCancel.LTE(sdk.ZeroDec()) {
+			if roQuantityToCancel.LTE(math.LegacyZeroDec()) {
 				break
 			}
 		}
@@ -152,7 +154,8 @@ func (k *Keeper) PersistDerivativeMatchingExecution(
 	derivativeVwapData DerivativeVwapInfo,
 	tradingRewardPoints types.TradingRewardPoints,
 ) types.TradingRewardPoints {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	for batchIdx := range batchDerivativeMatchingExecutionData {
 		execution := batchDerivativeMatchingExecutionData[batchIdx]
@@ -166,7 +169,7 @@ func (k *Keeper) PersistDerivativeMatchingExecution(
 			vwapMarkPrice := execution.MarkPrice
 			if vwapMarkPrice.IsNil() || vwapMarkPrice.IsNegative() {
 				// hack to make this work with binary options
-				vwapMarkPrice = sdk.ZeroDec()
+				vwapMarkPrice = math.LegacyZeroDec()
 			}
 			derivativeVwapData.ApplyVwap(marketID, &vwapMarkPrice, execution.VwapData, execution.Market.GetMarketType())
 		}

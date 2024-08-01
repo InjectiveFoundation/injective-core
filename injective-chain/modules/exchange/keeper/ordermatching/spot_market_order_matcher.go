@@ -1,17 +1,17 @@
 package ordermatching
 
 import (
-	sdk "github.com/cosmos/cosmos-sdk/types"
+	"cosmossdk.io/math"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 )
 
 type SpotMarketOrderbook struct {
-	notional      sdk.Dec
-	totalQuantity sdk.Dec
+	notional      math.LegacyDec
+	totalQuantity math.LegacyDec
 
 	orders         []*types.SpotMarketOrder
-	fillQuantities []sdk.Dec
+	fillQuantities []math.LegacyDec
 	orderIdx       int
 }
 
@@ -22,14 +22,14 @@ func NewSpotMarketOrderbook(
 		return nil
 	}
 
-	fillQuantities := make([]sdk.Dec, len(spotMarketOrders))
+	fillQuantities := make([]math.LegacyDec, len(spotMarketOrders))
 	for idx := range spotMarketOrders {
-		fillQuantities[idx] = sdk.ZeroDec()
+		fillQuantities[idx] = math.LegacyZeroDec()
 	}
 
 	orderGroup := SpotMarketOrderbook{
-		notional:      sdk.ZeroDec(),
-		totalQuantity: sdk.ZeroDec(),
+		notional:      math.LegacyZeroDec(),
+		totalQuantity: math.LegacyZeroDec(),
 
 		orders:         spotMarketOrders,
 		fillQuantities: fillQuantities,
@@ -39,10 +39,10 @@ func NewSpotMarketOrderbook(
 	return &orderGroup
 }
 
-func (b *SpotMarketOrderbook) GetNotional() sdk.Dec                  { return b.notional }
-func (b *SpotMarketOrderbook) GetTotalQuantityFilled() sdk.Dec       { return b.totalQuantity }
-func (b *SpotMarketOrderbook) GetOrderbookFillQuantities() []sdk.Dec { return b.fillQuantities }
-func (b *SpotMarketOrderbook) Done() bool                            { return b.orderIdx == len(b.orders) }
+func (b *SpotMarketOrderbook) GetNotional() math.LegacyDec                  { return b.notional }
+func (b *SpotMarketOrderbook) GetTotalQuantityFilled() math.LegacyDec       { return b.totalQuantity }
+func (b *SpotMarketOrderbook) GetOrderbookFillQuantities() []math.LegacyDec { return b.fillQuantities }
+func (b *SpotMarketOrderbook) Done() bool                                   { return b.orderIdx == len(b.orders) }
 func (b *SpotMarketOrderbook) Peek() *types.PriceLevel {
 	if b.Done() {
 		return nil
@@ -59,7 +59,7 @@ func (b *SpotMarketOrderbook) Peek() *types.PriceLevel {
 	}
 }
 
-func (b *SpotMarketOrderbook) Fill(fillQuantity sdk.Dec) error {
+func (b *SpotMarketOrderbook) Fill(fillQuantity math.LegacyDec) error {
 	newFillAmount := b.fillQuantities[b.orderIdx].Add(fillQuantity)
 
 	if newFillAmount.GT(b.orders[b.orderIdx].OrderInfo.Quantity) {

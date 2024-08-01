@@ -11,62 +11,31 @@ import DocCardList from "@theme/DocCardList";
 
 import { ChainupIcon, Distributed2Icon, NetworkIcon, ExchangeIcon, BuilddexIcon, DistributedIcon, CosmwasmIcon, YoutubeIcon } from "../../../src/icons";
 
-# Developer Guides
+# Getting Started
 
-This section offers rich guides and coding examples on CosmWasm CW20 contracts, building orderbook exchanges and we'll go  through joining Injective's mainnet and testnet networks.
-# Building Guides
-
-
-<Section title="Guides to get you started building on Injective." id="guides" hasSubSections >
-  <Section title= "">
+  <Section title= "This section offers guides and examples to get started building on Injective.">
+    <Card
+      title="Your First Injective dApp"
+      description="Learn how to build a dApp on Injective using CosmWasm."
+      to="./injective-101/"
+      icon={<CosmwasmIcon />}
+    /> 
    <Card
-      title="Build your DEX on Injective"
-      description="This document describes how to build an orderbook exchange."
+      title="Build a DEX on Injective"
+      description="Learn how to integrate with Injective's native orderbook."
       to="./exchange/"
       icon={<BuilddexIcon />}
    /> 
     <Card
-      title="CosmWasm on Injective"
-      description="This document describes how to build a dApp using CosmWasm."
-      to="./cosmwasm-dapps/"
-      icon={<CosmwasmIcon />}
-    /> 
-    <Card
-      title="Injective Hackathon 2023" 
-      description="Video guides and workshops from the Injective tech team."
-      to="https://www.youtube.com/playlist?list=PLTS_stt4XpDC3isu2cnBGpfviy3y7_Egu"
-      icon={<YoutubeIcon />}
-    />
-    <Card
       title="Native Token Launch on Injective" 
-      description="This document describes how to launch a native token on Injective"
-      to="./token_launch/"
+      description="Learn how to launch a token on Injective."
+      to="./token-launch/"
       icon={<BuilddexIcon />}
     />
-    </Section>
-</Section>
-
-
-
-<Section title="Run a Node Guides" id="web-sdks" hasSubSections >
-  <Section title= "">
     <Card
-      title="Mainnet Chain Upgrades"
-      description="Upgrade your node to the latest update."
-      to="../../nodes/Validators/mainnet/Canonical_Chain_Upgrade/canonical-chain-upgrade/"
-      icon={<ChainupIcon />}
-   /> 
-   <Card
-      title="Join Injective Mainnet"
-      description="Injective tech fundamentals to start building on Injective."
-      to="../../nodes/RunNode/mainnet/"
-      icon={<DistributedIcon />}
-   /> 
-    <Card
-      title="Join Injective Testnet"
-      description="Set up your tools and build on Injective."
-      to="../../nodes/RunNode/testnet/"
-      icon={<Distributed2Icon />}
-    /> 
+    title="Injective Hackathon 2023 Workshops" 
+    description="Live recordings of workshops from the Injective Labs tech team."
+    to="https://www.youtube.com/playlist?list=PLTS_stt4XpDC3isu2cnBGpfviy3y7_Egu"
+    icon={<YoutubeIcon />}
+    />
     </Section>
-</Section>

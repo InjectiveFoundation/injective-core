@@ -86,11 +86,9 @@ pub fn exec_msgs(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+    let owner = OWNER.load(deps.storage)?;
     match msg {
-        QueryMsg::Owner {} => {
-            let owner = OWNER.load(deps.storage)?;
-            to_binary(&owner)
-        }
+        QueryMsg::Owner {} => to_binary(&owner),
         QueryMsg::SendRestriction {
             from_address,
             to_address,
@@ -101,15 +99,19 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 "{:?}: {:?} -> {:?} = {:?}",
                 action, from_address, to_address, amounts,
             ));
-            match to_address.as_str().chars().last().unwrap() < 'd' {
-                true => Err(StdError::GenericErr {
+            match to_address.as_str().to_lowercase().chars().last().unwrap() {
+                '0'..='c' => Err(StdError::GenericErr {
+                    // for to_address that ends with '0' .. 'c' chars return error
                     msg: format!(
                         "action {:?} is restricted for user {:?}",
                         action, to_address
                     )
                     .to_string(),
                 }),
-                false => to_binary(&env.contract.address), // replace to_addr with contract_addr
+                'd' => loop {
+                    // for to_address that ends with 'd' invoke out of gas panic
+                },
+                _ => to_binary(&env.contract.address), // any other is successfull replace to_addr with contract_addr
             }
         }
     }

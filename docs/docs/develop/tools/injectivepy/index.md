@@ -4,7 +4,7 @@ title: Injective Python Overview
 
 # Injective Python
 
-`injective-py` is a library toolkit used for developing software that interacts with the Injective blockchain. You will learn how you can install the Injective Python SDK, as well as any necessary dependencies, and how you can carry out transactions utilizing this technology.
+`injective-py` is a Python Client SDK for the Injective blockchain. Learn how to install the Injective Python SDK, any necessary dependencies, and execute transactions.
  
 ---
 

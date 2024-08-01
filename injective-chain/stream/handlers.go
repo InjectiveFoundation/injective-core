@@ -2,9 +2,11 @@ package stream
 
 import (
 	"fmt"
+	"os"
+
+	"cosmossdk.io/log"
 	"github.com/InjectiveLabs/injective-core/injective-chain/stream/types"
 	abci "github.com/cometbft/cometbft/abci/types"
-	log "github.com/xlab/suplog"
 )
 
 func handleBankBalanceEvent(inBuffer *types.StreamResponseMap, ev abci.Event) error {
@@ -29,7 +31,7 @@ func handleSpotOrderEvent(inBuffer *types.StreamResponseMap, ev abci.Event) erro
 	for _, msg := range msgs {
 		spotLimitOrder := msg.GetOrder()
 		if spotLimitOrder == nil {
-			log.Warningf("chain streamer: spotLimitOrder is nil, skipping")
+			log.NewLogger(os.Stderr).Warn("chain streamer: spotLimitOrder is nil, skipping")
 			continue
 		}
 		order := spotLimitOrder.GetOrder()
@@ -58,7 +60,7 @@ func handleCancelSpotOrderEvent(inBuffer *types.StreamResponseMap, ev abci.Event
 	for _, msg := range msgs {
 		spotLimitOrder := msg.GetOrder()
 		if spotLimitOrder == nil {
-			log.Warningf("chain streamer: spotLimitOrder is nil, skipping")
+			log.NewLogger(os.Stderr).Warn("chain streamer: spotLimitOrder is nil, skipping")
 			continue
 		}
 		order := spotLimitOrder.GetOrder()

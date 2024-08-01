@@ -1,6 +1,7 @@
 package keeper
 
 import (
+	"cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	ocrtypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/ocr/types"
@@ -20,7 +21,7 @@ func (k Keeper) Hooks() Hooks { return Hooks{k} }
 func (h Hooks) AfterSetFeedConfig(ctx sdk.Context, feedConfig *ocrtypes.FeedConfig) {
 }
 
-func (h Hooks) AfterTransmit(ctx sdk.Context, feedId string, answer sdk.Dec, timestamp int64) {
+func (h Hooks) AfterTransmit(ctx sdk.Context, feedId string, answer math.LegacyDec, timestamp int64) {
 	if answer.IsNil() || answer.IsNegative() {
 		return
 	}

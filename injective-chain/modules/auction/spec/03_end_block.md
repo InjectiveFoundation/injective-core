@@ -11,7 +11,7 @@ The settlement of a given auction round occurs when `blockTime ≥ EndingTimeSta
 
 - The winning INJ bid amount is burned.
 - The basket of coins held by the auction module is transferred to the winning bidder. 
-- `EventAuctionResult` is emitted.
+- `LastAuctionResult` is written to state and `EventAuctionResult` is emitted.
 - The `LastBid` is cleared.
 - The AuctionRound is incremented by 1 and the EndingTimestamp is incremented by `AuctionPeriod`. 
 - The accumulated exchange fees are transferred from the `exchange` module to the `auction` module for the new upcoming auction. 

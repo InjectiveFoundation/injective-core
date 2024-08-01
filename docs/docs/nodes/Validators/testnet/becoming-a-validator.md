@@ -48,7 +48,7 @@ Remember the address starting from `inj`, this is going to be your Injective Cha
 
 ### Step 2: Obtain INJ
 
-In order to proceed with the next step, you will have to obtain some INJ on the Injective Chain.
+In order to proceed with the next step, you will have to obtain some INJ on Injective.
 
 You can request funds from the [Testnet Faucet](https://faucet.injective.network/).
 

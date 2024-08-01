@@ -1,6 +1,6 @@
 {
-  "label": "Chain Modules",
-  "position": 4,
+  "label": "Modules",
+  "position": 3,
   "link": {
     "type": "doc",
     "id":"index"

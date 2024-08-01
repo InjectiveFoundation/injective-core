@@ -2,7 +2,8 @@ package keeper
 
 import (
 	"cosmossdk.io/errors"
-	"github.com/cosmos/cosmos-sdk/store/prefix"
+	"cosmossdk.io/math"
+	"cosmossdk.io/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
@@ -16,9 +17,10 @@ import (
 func (k *Keeper) ExpiryFuturesMarketLaunch(
 	ctx sdk.Context,
 	ticker, quoteDenom, oracleBase string, oracleQuote string, oracleScaleFactor uint32, oracleType oracletypes.OracleType, expiry int64,
-	initialMarginRatio, maintenanceMarginRatio, makerFeeRate, takerFeeRate, minPriceTickSize, minQuantityTickSize sdk.Dec,
+	initialMarginRatio, maintenanceMarginRatio, makerFeeRate, takerFeeRate, minPriceTickSize, minQuantityTickSize, minNotional math.LegacyDec,
 ) (*types.DerivativeMarket, *types.ExpiryFuturesMarketInfo, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	exchangeParams := k.GetParams(ctx)
 	relayerFeeShareRate := exchangeParams.RelayerFeeShareRate
@@ -82,6 +84,7 @@ func (k *Keeper) ExpiryFuturesMarketLaunch(
 		Status:                 types.MarketStatus_Active,
 		MinPriceTickSize:       minPriceTickSize,
 		MinQuantityTickSize:    minQuantityTickSize,
+		MinNotional:            minNotional,
 	}
 
 	const thirtyMinutesInSeconds = 60 * 30
@@ -90,8 +93,8 @@ func (k *Keeper) ExpiryFuturesMarketLaunch(
 		MarketId:                           marketID.Hex(),
 		ExpirationTimestamp:                expiry,
 		TwapStartTimestamp:                 expiry - thirtyMinutesInSeconds,
-		SettlementPrice:                    sdk.Dec{},
-		ExpirationTwapStartPriceCumulative: sdk.Dec{},
+		SettlementPrice:                    math.LegacyDec{},
+		ExpirationTwapStartPriceCumulative: math.LegacyDec{},
 	}
 
 	k.SetDerivativeMarketWithInfo(ctx, market, nil, nil, marketInfo)
@@ -103,7 +106,8 @@ func (k *Keeper) ExpiryFuturesMarketLaunch(
 
 // GetExpiryFuturesMarketInfo gets the expiry futures market's market info from the keeper.
 func (k *Keeper) GetExpiryFuturesMarketInfo(ctx sdk.Context, marketID common.Hash) *types.ExpiryFuturesMarketInfo {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	expiryFuturesMarketInfoStore := prefix.NewStore(store, types.ExpiryFuturesMarketInfoPrefix)
@@ -120,7 +124,8 @@ func (k *Keeper) GetExpiryFuturesMarketInfo(ctx sdk.Context, marketID common.Has
 
 // SetExpiryFuturesMarketInfo saves the expiry futures market's market info to the keeper.
 func (k *Keeper) SetExpiryFuturesMarketInfo(ctx sdk.Context, marketID common.Hash, marketInfo *types.ExpiryFuturesMarketInfo) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	expiryFuturesMarketInfoStore := prefix.NewStore(store, types.ExpiryFuturesMarketInfoPrefix)
@@ -137,7 +142,8 @@ func (k *Keeper) SetExpiryFuturesMarketInfo(ctx sdk.Context, marketID common.Has
 
 // DeleteExpiryFuturesMarketInfo deletes the expiry futures market's market info from the keeper.
 func (k *Keeper) DeleteExpiryFuturesMarketInfo(ctx sdk.Context, marketID common.Hash) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	expiryFuturesMarketInfoStore := prefix.NewStore(store, types.ExpiryFuturesMarketInfoPrefix)
@@ -146,7 +152,8 @@ func (k *Keeper) DeleteExpiryFuturesMarketInfo(ctx sdk.Context, marketID common.
 
 // SetExpiryFuturesMarketInfoByTimestamp saves the expiry futures market's market info index to the keeper.
 func (k *Keeper) SetExpiryFuturesMarketInfoByTimestamp(ctx sdk.Context, marketID common.Hash, timestamp int64) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	key := types.GetExpiryFuturesMarketInfoByTimestampKey(timestamp, marketID)
@@ -155,7 +162,8 @@ func (k *Keeper) SetExpiryFuturesMarketInfoByTimestamp(ctx sdk.Context, marketID
 
 // DeleteExpiryFuturesMarketInfoByTimestamp deletes the expiry futures market's market info index from the keeper.
 func (k *Keeper) DeleteExpiryFuturesMarketInfoByTimestamp(ctx sdk.Context, marketID common.Hash, timestamp int64) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	key := types.GetExpiryFuturesMarketInfoByTimestampKey(timestamp, marketID)
@@ -164,7 +172,8 @@ func (k *Keeper) DeleteExpiryFuturesMarketInfoByTimestamp(ctx sdk.Context, marke
 
 // GetAllExpiryFuturesMarketInfoStates returns all expiry futures market's market infos.
 func (k *Keeper) GetAllExpiryFuturesMarketInfoStates(ctx sdk.Context) []types.ExpiryFuturesMarketInfoState {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	marketInfoStates := make([]types.ExpiryFuturesMarketInfoState, 0)
 	appendMarketInfo := func(p *types.ExpiryFuturesMarketInfo, marketID common.Hash) (stop bool) {
@@ -181,7 +190,8 @@ func (k *Keeper) GetAllExpiryFuturesMarketInfoStates(ctx sdk.Context) []types.Ex
 
 // IterateExpiryFuturesMarketInfos iterates over expiry futures market's market info calling process on each market info.
 func (k *Keeper) IterateExpiryFuturesMarketInfos(ctx sdk.Context, process func(*types.ExpiryFuturesMarketInfo, common.Hash) (stop bool)) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 

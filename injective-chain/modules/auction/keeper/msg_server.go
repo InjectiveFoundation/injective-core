@@ -3,6 +3,7 @@ package keeper
 import (
 	"context"
 
+	"cosmossdk.io/math"
 	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
 
 	"cosmossdk.io/errors"
@@ -33,7 +34,8 @@ func NewMsgServerImpl(keeper Keeper) types.MsgServer {
 }
 
 func (k msgServer) UpdateParams(c context.Context, msg *types.MsgUpdateParams) (*types.MsgUpdateParamsResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	if msg.Authority != k.authority {
 		return nil, errors.Wrapf(govtypes.ErrInvalidSigner, "invalid authority: expected %s, got %s", k.authority, msg.Authority)
@@ -49,7 +51,8 @@ func (k msgServer) UpdateParams(c context.Context, msg *types.MsgUpdateParams) (
 }
 
 func (k msgServer) Bid(goCtx context.Context, msg *types.MsgBid) (*types.MsgBidResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
+	defer doneFn()
 
 	// prepare context
 	ctx := sdk.UnwrapSDKContext(goCtx)
@@ -68,7 +71,7 @@ func (k msgServer) Bid(goCtx context.Context, msg *types.MsgBid) (*types.MsgBidR
 
 	// ensure last_bid * (1+min_next_increment_rate) <= new_bid
 	params := k.GetParams(ctx)
-	if lastBid.Amount.Amount.ToDec().Mul(sdk.OneDec().Add(params.MinNextBidIncrementRate)).GT(msg.BidAmount.Amount.ToDec()) {
+	if lastBid.Amount.Amount.ToLegacyDec().Mul(math.LegacyOneDec().Add(params.MinNextBidIncrementRate)).GT(msg.BidAmount.Amount.ToLegacyDec()) {
 		metrics.ReportFuncError(k.svcTags)
 		return nil, errors.Wrapf(sdkerrors.ErrInvalidRequest, "new bid should be bigger than last bid + min increment percentage")
 	}
@@ -112,7 +115,8 @@ func (k msgServer) Bid(goCtx context.Context, msg *types.MsgBid) (*types.MsgBidR
 }
 
 func (k msgServer) refundLastBidder(ctx sdk.Context) error {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	lastBid := k.GetHighestBid(ctx)
 	lastBidAmount := lastBid.Amount.Amount

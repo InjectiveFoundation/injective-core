@@ -14,7 +14,8 @@ import (
 var _ types.QueryServer = &Keeper{}
 
 func (k *Keeper) Params(c context.Context, _ *types.QueryParamsRequest) (*types.QueryParamsResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 	params := k.GetParams(ctx)
@@ -27,7 +28,8 @@ func (k *Keeper) Params(c context.Context, _ *types.QueryParamsRequest) (*types.
 }
 
 func (k *Keeper) FeedConfig(c context.Context, req *types.QueryFeedConfigRequest) (*types.QueryFeedConfigResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 	ctx := sdk.UnwrapSDKContext(c)
 
 	feedId := req.FeedId
@@ -44,7 +46,8 @@ func (k *Keeper) FeedConfig(c context.Context, req *types.QueryFeedConfigRequest
 }
 
 func (k *Keeper) FeedConfigInfo(c context.Context, req *types.QueryFeedConfigInfoRequest) (*types.QueryFeedConfigInfoResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 
@@ -62,7 +65,8 @@ func (k *Keeper) FeedConfigInfo(c context.Context, req *types.QueryFeedConfigInf
 }
 
 func (k *Keeper) LatestRound(c context.Context, req *types.QueryLatestRoundRequest) (*types.QueryLatestRoundResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 
@@ -85,7 +89,8 @@ func (k *Keeper) LatestRound(c context.Context, req *types.QueryLatestRoundReque
 }
 
 func (k *Keeper) LatestTransmissionDetails(c context.Context, req *types.QueryLatestTransmissionDetailsRequest) (*types.QueryLatestTransmissionDetailsResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 
@@ -110,7 +115,8 @@ func (k *Keeper) OwedAmount(c context.Context, req *types.QueryOwedAmountRequest
 
 // OcrModuleState retrieves the entire OCR module's state
 func (k *Keeper) OcrModuleState(c context.Context, _ *types.QueryModuleStateRequest) (*types.QueryModuleStateResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 

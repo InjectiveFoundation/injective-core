@@ -2,9 +2,9 @@ package keeper
 
 import (
 	"cosmossdk.io/errors"
+	"cosmossdk.io/store/prefix"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/ocr/types"
 	"github.com/InjectiveLabs/metrics"
-	"github.com/cosmos/cosmos-sdk/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 )
@@ -80,7 +80,8 @@ func (k *Keeper) TransmitterReport(
 	epoch, round uint64,
 	report types.Report,
 ) error {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	if len(report.Observations) <= int(feedConfigInfo.F*2) {
 		return errors.Wrap(sdkerrors.ErrInvalidRequest, "too few values to trust median")
@@ -128,7 +129,8 @@ func (k *Keeper) IncreaseAggregatorRoundID(
 	ctx sdk.Context,
 	feedId string,
 ) uint64 {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 
@@ -150,7 +152,8 @@ func (k *Keeper) SetAggregatorRoundID(
 	feedId string,
 	roundID uint64,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	key := types.GetAggregatorRoundIDKey(feedId)
@@ -161,7 +164,8 @@ func (k *Keeper) LatestAggregatorRoundID(
 	ctx sdk.Context,
 	feedId string,
 ) uint64 {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 
@@ -177,7 +181,8 @@ func (k *Keeper) LatestAggregatorRoundID(
 func (k *Keeper) GetAllLatestAggregatorRoundIDs(
 	ctx sdk.Context,
 ) []*types.FeedLatestAggregatorRoundIDs {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	epochRoundStore := prefix.NewStore(store, types.AggregatorRoundIDPrefix)
@@ -204,7 +209,8 @@ func (k *Keeper) SetTransmission(
 	feedId string,
 	transmission *types.Transmission,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	key := types.GetTransmissionKey(feedId)
 	bz := k.cdc.MustMarshal(transmission)
@@ -215,7 +221,8 @@ func (k *Keeper) GetTransmission(
 	ctx sdk.Context,
 	feedId string,
 ) *types.Transmission {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	bz := k.getStore(ctx).Get(types.GetTransmissionKey(feedId))
 	if bz == nil {
@@ -230,7 +237,8 @@ func (k *Keeper) GetTransmission(
 func (k *Keeper) GetAllFeedTransmissions(
 	ctx sdk.Context,
 ) []*types.FeedTransmission {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	transmissionStore := prefix.NewStore(store, types.TransmissionPrefix)
@@ -264,7 +272,8 @@ func (k *Keeper) SetLatestEpochAndRound(
 	feedId string,
 	epochAndRound *types.EpochAndRound,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	key := types.GetLatestEpochAndRoundKey(feedId)
 	bz := k.cdc.MustMarshal(epochAndRound)
@@ -277,7 +286,8 @@ func (k *Keeper) GetLatestEpochAndRound(
 	ctx sdk.Context,
 	feedId string,
 ) *types.EpochAndRound {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	// check transient store
 	if res := k.GetTransientLatestEpochAndRound(ctx, feedId); res != nil {
@@ -297,7 +307,8 @@ func (k *Keeper) GetLatestEpochAndRound(
 func (k *Keeper) GetAllLatestEpochAndRounds(
 	ctx sdk.Context,
 ) []*types.FeedEpochAndRound {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	epochRoundStore := prefix.NewStore(store, types.LatestEpochAndRoundPrefix)

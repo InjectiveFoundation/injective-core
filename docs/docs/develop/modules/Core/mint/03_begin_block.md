@@ -12,7 +12,7 @@ possible is defined to be 10% per year, however the annual inflation is capped
 as between 5% and 10%.
 
 ```
-NextInflationRate(params Params, bondedRatio sdk.Dec) (inflation sdk.Dec) {
+NextInflationRate(params Params, bondedRatio math.LegacyDec) (inflation math.LegacyDec) {
 	inflationRateChangePerYear = (1 - bondedRatio/params.GoalBonded) * params.InflationRateChange
 	inflationRateChange = inflationRateChangePerYear/blocksPerYr
 
@@ -35,7 +35,7 @@ Calculate the annual provisions based on current total supply and inflation
 rate. This parameter is calculated once per block.
 
 ```
-NextAnnualProvisions(params Params, totalSupply sdk.Dec) (provisions sdk.Dec) {
+NextAnnualProvisions(params Params, totalSupply math.LegacyDec) (provisions math.LegacyDec) {
 	return Inflation * totalSupply
 ```
 

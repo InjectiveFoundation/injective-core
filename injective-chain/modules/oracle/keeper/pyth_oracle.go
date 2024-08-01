@@ -1,8 +1,9 @@
 package keeper
 
 import (
+	"cosmossdk.io/math"
+	"cosmossdk.io/store/prefix"
 	"github.com/InjectiveLabs/metrics"
-	"github.com/cosmos/cosmos-sdk/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
@@ -11,7 +12,8 @@ import (
 
 // ProcessPythPriceAttestations sets the pyth price state.
 func (k *Keeper) ProcessPythPriceAttestations(ctx sdk.Context, priceAttestations []*types.PriceAttestation) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	pythPriceStates := make([]*types.PythPriceState, 0, len(priceAttestations))
 
@@ -65,7 +67,8 @@ func (k *Keeper) ProcessPythPriceAttestations(ctx sdk.Context, priceAttestations
 
 // GetPythPriceState reads the stored pyth price state.
 func (k *Keeper) GetPythPriceState(ctx sdk.Context, priceID common.Hash) *types.PythPriceState {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	var priceState types.PythPriceState
 	bz := k.getStore(ctx).Get(types.GetPythPriceStoreKey(priceID))
@@ -79,7 +82,8 @@ func (k *Keeper) GetPythPriceState(ctx sdk.Context, priceID common.Hash) *types.
 
 // SetPythPriceState sets the pyth price state.
 func (k *Keeper) SetPythPriceState(ctx sdk.Context, priceState *types.PythPriceState) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	priceID := common.HexToHash(priceState.PriceId)
 	bz := k.cdc.MustMarshal(priceState)
@@ -92,9 +96,10 @@ func (k *Keeper) SetPythPriceState(ctx sdk.Context, priceState *types.PythPriceS
 	})
 }
 
-// GetPythPrice fetches the pyth price for a given pair in sdk.Dec
-func (k *Keeper) GetPythPrice(ctx sdk.Context, base, quote string) *sdk.Dec {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+// GetPythPrice fetches the pyth price for a given pair in math.LegacyDec
+func (k *Keeper) GetPythPrice(ctx sdk.Context, base, quote string) *math.LegacyDec {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 	// query ref by using GetPythPriceState
 	basePriceState := k.GetPythPriceState(ctx, common.HexToHash(base))
 	if basePriceState == nil {
@@ -123,7 +128,8 @@ func (k *Keeper) GetPythPrice(ctx sdk.Context, base, quote string) *sdk.Dec {
 
 // GetAllPythPriceStates fetches all Pyth price states in the store
 func (k *Keeper) GetAllPythPriceStates(ctx sdk.Context) []*types.PythPriceState {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	pythPriceStore := prefix.NewStore(ctx.KVStore(k.storeKey), types.PythPriceKey)
 

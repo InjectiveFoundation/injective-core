@@ -1,8 +1,8 @@
 package keeper
 
 import (
+	"cosmossdk.io/store/prefix"
 	"github.com/InjectiveLabs/metrics"
-	"github.com/cosmos/cosmos-sdk/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
@@ -16,7 +16,8 @@ func (k *Keeper) SetTransientDeposit(
 	denom string,
 	deposit *types.Deposit,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getTransientStore(ctx)
 	key := types.GetDepositKey(subaccountID, denom)
@@ -28,7 +29,8 @@ func (k *Keeper) SetTransientDeposit(
 func (k *Keeper) EmitAllTransientDepositUpdates(
 	ctx sdk.Context,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getTransientStore(ctx)
 	depositStore := prefix.NewStore(store, types.DepositsPrefix)

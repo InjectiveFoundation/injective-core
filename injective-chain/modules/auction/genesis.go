@@ -25,6 +25,12 @@ func InitGenesis(ctx sdk.Context, keeper auctionkeeper.Keeper, data types.Genesi
 	} else {
 		keeper.SetEndingTimeStamp(ctx, data.AuctionEndingTimestamp)
 	}
+
+	if data.LastAuctionResult != nil {
+		keeper.SetLastAuctionResult(ctx, *data.LastAuctionResult)
+	}
+
+	keeper.CreateModuleAccount(ctx)
 }
 
 func ExportGenesis(ctx sdk.Context, k auctionkeeper.Keeper) *types.GenesisState {
@@ -33,5 +39,6 @@ func ExportGenesis(ctx sdk.Context, k auctionkeeper.Keeper) *types.GenesisState 
 		AuctionRound:           k.GetAuctionRound(ctx),
 		HighestBid:             k.GetHighestBid(ctx),
 		AuctionEndingTimestamp: k.GetEndingTimeStamp(ctx),
+		LastAuctionResult:      k.GetLastAuctionResult(ctx),
 	}
 }

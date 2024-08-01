@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"cosmossdk.io/errors"
-	"github.com/cosmos/cosmos-sdk/store/prefix"
+	"cosmossdk.io/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
@@ -23,7 +23,8 @@ const OutgoingTxBatchSize = 100
 //   - persist an outgoing batch object with an incrementing ID = nonce
 //   - emit an event
 func (k *Keeper) BuildOutgoingTXBatch(ctx sdk.Context, contractAddress common.Address, maxElements int) (*types.OutgoingTxBatch, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	if maxElements == 0 {
 		metrics.ReportFuncError(k.svcTags)
@@ -74,7 +75,8 @@ func (k *Keeper) BuildOutgoingTXBatch(ctx sdk.Context, contractAddress common.Ad
 
 // / This gets the batch timeout height in Ethereum blocks.
 func (k *Keeper) getBatchTimeoutHeight(ctx sdk.Context) uint64 {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	params := k.GetParams(ctx)
 	currentCosmosHeight := ctx.BlockHeight()
@@ -99,7 +101,8 @@ func (k *Keeper) getBatchTimeoutHeight(ctx sdk.Context) uint64 {
 // It frees all the transactions in the batch, then cancels all earlier batches, this function panics instead
 // of returning errors because any failure will cause a double spend.
 func (k *Keeper) OutgoingTxBatchExecuted(ctx sdk.Context, tokenContract common.Address, nonce uint64) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	b := k.GetOutgoingTXBatch(ctx, tokenContract, nonce)
 	if b == nil {
@@ -132,7 +135,8 @@ func (k *Keeper) OutgoingTxBatchExecuted(ctx sdk.Context, tokenContract common.A
 
 // StoreBatch stores a transaction batch
 func (k *Keeper) StoreBatch(ctx sdk.Context, batch *types.OutgoingTxBatch) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	// set the current block height when storing the batch
@@ -146,7 +150,8 @@ func (k *Keeper) StoreBatch(ctx sdk.Context, batch *types.OutgoingTxBatch) {
 
 // StoreBatchUnsafe stores a transaction batch w/o setting the height
 func (k *Keeper) StoreBatchUnsafe(ctx sdk.Context, batch *types.OutgoingTxBatch) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	key := types.GetOutgoingTxBatchKey(common.HexToAddress(batch.TokenContract), batch.BatchNonce)
@@ -165,7 +170,8 @@ func (k *Keeper) StoreBatchUnsafe(ctx sdk.Context, batch *types.OutgoingTxBatch)
 
 // DeleteBatch deletes an outgoing transaction batch
 func (k *Keeper) DeleteBatch(ctx sdk.Context, batch types.OutgoingTxBatch) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	store.Delete(types.GetOutgoingTxBatchKey(common.HexToAddress(batch.TokenContract), batch.BatchNonce))
@@ -174,7 +180,8 @@ func (k *Keeper) DeleteBatch(ctx sdk.Context, batch types.OutgoingTxBatch) {
 
 // pickUnbatchedTX find TX in pool and remove from "available" second index
 func (k *Keeper) pickUnbatchedTX(ctx sdk.Context, contractAddress common.Address, maxElements int) ([]*types.OutgoingTransferTx, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	selectedTx := make([]*types.OutgoingTransferTx, 0)
 	var err error
@@ -199,7 +206,8 @@ func (k *Keeper) pickUnbatchedTX(ctx sdk.Context, contractAddress common.Address
 
 // GetOutgoingTXBatch loads a batch object. Returns nil when not exists.
 func (k *Keeper) GetOutgoingTXBatch(ctx sdk.Context, tokenContract common.Address, nonce uint64) *types.OutgoingTxBatch {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	key := types.GetOutgoingTxBatchKey(tokenContract, nonce)
@@ -220,7 +228,8 @@ func (k *Keeper) GetOutgoingTXBatch(ctx sdk.Context, tokenContract common.Addres
 
 // CancelOutgoingTXBatch releases all TX in the batch and deletes the batch
 func (k *Keeper) CancelOutgoingTXBatch(ctx sdk.Context, tokenContract common.Address, nonce uint64) error {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	batch := k.GetOutgoingTXBatch(ctx, tokenContract, nonce)
 	if batch == nil {
@@ -248,7 +257,8 @@ func (k *Keeper) CancelOutgoingTXBatch(ctx sdk.Context, tokenContract common.Add
 
 // IterateOutgoingTXBatches iterates through all outgoing batches in DESC order.
 func (k *Keeper) IterateOutgoingTXBatches(ctx sdk.Context, cb func(key []byte, batch *types.OutgoingTxBatch) bool) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	prefixStore := prefix.NewStore(ctx.KVStore(k.storeKey), types.OutgoingTXBatchKey)
 	iter := prefixStore.ReverseIterator(nil, nil)
@@ -265,7 +275,8 @@ func (k *Keeper) IterateOutgoingTXBatches(ctx sdk.Context, cb func(key []byte, b
 
 // GetOutgoingTxBatches returns the outgoing tx batches
 func (k *Keeper) GetOutgoingTxBatches(ctx sdk.Context) (out []*types.OutgoingTxBatch) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	k.IterateOutgoingTXBatches(ctx, func(_ []byte, batch *types.OutgoingTxBatch) bool {
 		out = append(out, batch)
@@ -277,7 +288,8 @@ func (k *Keeper) GetOutgoingTxBatches(ctx sdk.Context) (out []*types.OutgoingTxB
 
 // GetLastOutgoingBatchByTokenType gets the latest outgoing tx batch by token type
 func (k *Keeper) GetLastOutgoingBatchByTokenType(ctx sdk.Context, token common.Address) *types.OutgoingTxBatch {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	batches := k.GetOutgoingTxBatches(ctx)
 	var lastBatch *types.OutgoingTxBatch = nil
@@ -295,7 +307,8 @@ func (k *Keeper) GetLastOutgoingBatchByTokenType(ctx sdk.Context, token common.A
 
 // SetLastSlashedBatchBlock sets the latest slashed Batch block height
 func (k *Keeper) SetLastSlashedBatchBlock(ctx sdk.Context, blockHeight uint64) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	store.Set(types.LastSlashedBatchBlock, types.UInt64Bytes(blockHeight))
@@ -303,7 +316,8 @@ func (k *Keeper) SetLastSlashedBatchBlock(ctx sdk.Context, blockHeight uint64) {
 
 // GetLastSlashedBatchBlock returns the latest slashed Batch block
 func (k *Keeper) GetLastSlashedBatchBlock(ctx sdk.Context) uint64 {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := ctx.KVStore(k.storeKey)
 	storedBytes := store.Get(types.LastSlashedBatchBlock)
@@ -317,7 +331,8 @@ func (k *Keeper) GetLastSlashedBatchBlock(ctx sdk.Context) uint64 {
 
 // GetUnslashedBatches returns all the unslashed batches in state
 func (k *Keeper) GetUnslashedBatches(ctx sdk.Context, maxHeight uint64) (out []*types.OutgoingTxBatch) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	lastSlashedBatchBlock := k.GetLastSlashedBatchBlock(ctx)
 	k.IterateBatchBySlashedBatchBlock(ctx, lastSlashedBatchBlock, maxHeight, func(_ []byte, batch *types.OutgoingTxBatch) bool {
@@ -332,7 +347,8 @@ func (k *Keeper) GetUnslashedBatches(ctx sdk.Context, maxHeight uint64) (out []*
 
 // IterateBatchBySlashedBatchBlock iterates through all Batch by last slashed Batch block in ASC order
 func (k *Keeper) IterateBatchBySlashedBatchBlock(ctx sdk.Context, lastSlashedBatchBlock, maxHeight uint64, cb func([]byte, *types.OutgoingTxBatch) bool) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	prefixStore := prefix.NewStore(ctx.KVStore(k.storeKey), types.OutgoingTXBatchBlockKey)
 	iter := prefixStore.Iterator(types.UInt64Bytes(lastSlashedBatchBlock), types.UInt64Bytes(maxHeight))

@@ -14,7 +14,6 @@ FEEDADMIN="inj1k2z3chspuk9wsufle69svmtmnlc07rvw9djya7"
 
 # Set moniker and chain-id for Ethermint (Moniker can be anything, chain-id must be an integer)
 injectived init $MONIKER --chain-id $CHAINID
-injectived config chain-id $CHAINID
 perl -i -pe 's/^timeout_commit = ".*?"/timeout_commit = "2500ms"/' ~/.injectived/config/config.toml
 perl -i -pe 's/^minimum-gas-prices = ".*?"/minimum-gas-prices = "500000000inj"/' ~/.injectived/config/app.toml
 
@@ -24,6 +23,7 @@ cat $HOME/.injectived/config/genesis.json | jq '.app_state["gov"]["params"]["min
 cat $HOME/.injectived/config/genesis.json | jq '.app_state["gov"]["params"]["min_initial_deposit_ratio"]="0.100000000000000000"' > $HOME/.injectived/config/tmp_genesis.json && mv $HOME/.injectived/config/tmp_genesis.json $HOME/.injectived/config/genesis.json
 echo "NOTE: Setting Governance Voting Period to 10 seconds for easy testing"
 cat $HOME/.injectived/config/genesis.json | jq '.app_state["gov"]["params"]["voting_period"]="10s"' > $HOME/.injectived/config/tmp_genesis.json && mv $HOME/.injectived/config/tmp_genesis.json $HOME/.injectived/config/genesis.json
+cat $HOME/.injectived/config/genesis.json | jq '.app_state["gov"]["params"]["expedited_voting_period"]="5s"' > $HOME/.injectived/config/tmp_genesis.json && mv $HOME/.injectived/config/tmp_genesis.json $HOME/.injectived/config/genesis.json
 cat $HOME/.injectived/config/genesis.json | jq '.app_state["mint"]["params"]["mint_denom"]="inj"' > $HOME/.injectived/config/tmp_genesis.json && mv $HOME/.injectived/config/tmp_genesis.json $HOME/.injectived/config/genesis.json
 cat $HOME/.injectived/config/genesis.json | jq '.app_state["auction"]["params"]["auction_period"]="10"' > $HOME/.injectived/config/tmp_genesis.json && mv $HOME/.injectived/config/tmp_genesis.json $HOME/.injectived/config/genesis.json
 cat $HOME/.injectived/config/genesis.json | jq '.app_state["ocr"]["params"]["module_admin"]="'$FEEDADMIN'"' > $HOME/.injectived/config/tmp_genesis.json && mv $HOME/.injectived/config/tmp_genesis.json $HOME/.injectived/config/genesis.json
@@ -164,14 +164,14 @@ yes $PASSPHRASE | injectived add-genesis-account --chain-id $CHAINID $(injective
 
 echo "Signing genesis transaction"
 # Sign genesis transaction
-yes $PASSPHRASE | injectived gentx genesis 1000000000000000000000inj --chain-id $CHAINID
+yes $PASSPHRASE | injectived genesis gentx genesis 1000000000000000000000inj --chain-id $CHAINID
 
 echo "Collecting genesis transaction"
 # Collect genesis tx
-yes $PASSPHRASE | injectived collect-gentxs
+yes $PASSPHRASE | injectived genesis collect-gentxs
 
 echo "Validating genesis"
 # Run this to ensure everything worked and that the genesis file is setup correctly
-injectived validate-genesis
+injectived genesis validate
 
 echo "Setup done!"

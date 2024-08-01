@@ -13,7 +13,8 @@ import (
 var _ types.QueryServer = &Keeper{}
 
 func (k *Keeper) AuctionParams(c context.Context, _ *types.QueryAuctionParamsRequest) (*types.QueryAuctionParamsResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 
@@ -26,7 +27,8 @@ func (k *Keeper) AuctionParams(c context.Context, _ *types.QueryAuctionParamsReq
 }
 
 func (k *Keeper) CurrentAuctionBasket(c context.Context, _ *types.QueryCurrentAuctionBasketRequest) (*types.QueryCurrentAuctionBasketResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 	auctionModuleAddress := k.accountKeeper.GetModuleAddress(types.ModuleName)
@@ -55,7 +57,8 @@ func (k *Keeper) CurrentAuctionBasket(c context.Context, _ *types.QueryCurrentAu
 }
 
 func (k *Keeper) AuctionModuleState(c context.Context, _ *types.QueryModuleStateRequest) (*types.QueryModuleStateResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 
@@ -66,6 +69,17 @@ func (k *Keeper) AuctionModuleState(c context.Context, _ *types.QueryModuleState
 			HighestBid:             k.GetHighestBid(ctx),
 			AuctionEndingTimestamp: k.GetEndingTimeStamp(ctx),
 		},
+	}
+	return res, nil
+}
+
+func (k *Keeper) LastAuctionResult(c context.Context, _ *types.QueryLastAuctionResultRequest) (*types.QueryLastAuctionResultResponse, error) {
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+
+	ctx := sdk.UnwrapSDKContext(c)
+
+	res := &types.QueryLastAuctionResultResponse{
+		LastAuctionResult: k.GetLastAuctionResult(ctx),
 	}
 	return res, nil
 }

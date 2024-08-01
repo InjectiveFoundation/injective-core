@@ -1,7 +1,9 @@
 package keeper
 
 import (
+	errorsmod "cosmossdk.io/errors"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/tokenfactory/types"
 )
@@ -73,6 +75,10 @@ func (k Keeper) forceTransfer(ctx sdk.Context, amount sdk.Coin, fromAddr, toAddr
 	toSdkAddr, err := sdk.AccAddressFromBech32(toAddr)
 	if err != nil {
 		return err
+	}
+
+	if k.bankKeeper.BlockedAddr(toSdkAddr) {
+		return errorsmod.Wrapf(sdkerrors.ErrUnauthorized, "%s is not allowed to receive funds", toSdkAddr)
 	}
 
 	return k.bankKeeper.SendCoins(ctx, fromSdkAddr, toSdkAddr, sdk.NewCoins(amount))

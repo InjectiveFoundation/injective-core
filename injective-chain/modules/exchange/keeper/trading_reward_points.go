@@ -1,7 +1,8 @@
 package keeper
 
 import (
-	"github.com/cosmos/cosmos-sdk/store/prefix"
+	"cosmossdk.io/math"
+	"cosmossdk.io/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/InjectiveLabs/metrics"
@@ -10,20 +11,22 @@ import (
 )
 
 // GetCampaignTradingRewardPoints fetches the trading reward points for a given account.
-func (k *Keeper) GetCampaignTradingRewardPoints(ctx sdk.Context, account sdk.AccAddress) sdk.Dec {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+func (k *Keeper) GetCampaignTradingRewardPoints(ctx sdk.Context, account sdk.AccAddress) math.LegacyDec {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	bz := store.Get(types.GetTradingRewardAccountPointsKey(account))
 	if bz == nil {
-		return sdk.ZeroDec()
+		return math.LegacyZeroDec()
 	}
 	return types.DecBytesToDec(bz)
 }
 
 // DeleteAccountCampaignTradingRewardPoints deletes the trading reward points for a given account.
 func (k *Keeper) DeleteAccountCampaignTradingRewardPoints(ctx sdk.Context, account sdk.AccAddress) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	store.Delete(types.GetTradingRewardAccountPointsKey(account))
@@ -33,9 +36,10 @@ func (k *Keeper) DeleteAccountCampaignTradingRewardPoints(ctx sdk.Context, accou
 func (k *Keeper) UpdateAccountCampaignTradingRewardPoints(
 	ctx sdk.Context,
 	account sdk.AccAddress,
-	addedPoints sdk.Dec,
+	addedPoints math.LegacyDec,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	if addedPoints.IsZero() {
 		return
@@ -47,8 +51,9 @@ func (k *Keeper) UpdateAccountCampaignTradingRewardPoints(
 }
 
 // SetAccountCampaignTradingRewardPoints sets the trading reward points for a given account.
-func (k *Keeper) SetAccountCampaignTradingRewardPoints(ctx sdk.Context, account sdk.AccAddress, points sdk.Dec) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+func (k *Keeper) SetAccountCampaignTradingRewardPoints(ctx sdk.Context, account sdk.AccAddress, points math.LegacyDec) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 
@@ -59,7 +64,8 @@ func (k *Keeper) SetAccountCampaignTradingRewardPoints(ctx sdk.Context, account 
 
 // GetAllTradingRewardCampaignAccountPoints gets the trading reward points for all accounts
 func (k *Keeper) GetAllTradingRewardCampaignAccountPoints(ctx sdk.Context) (accountPoints []*types.TradingRewardCampaignAccountPoints) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	accountPoints = make([]*types.TradingRewardCampaignAccountPoints, 0)
 
@@ -76,11 +82,12 @@ func (k *Keeper) GetAllTradingRewardCampaignAccountPoints(ctx sdk.Context) (acco
 }
 
 // GetAllAccountCampaignTradingRewardPointsWithTotalPoints gets the trading reward points for all accounts
-func (k *Keeper) GetAllAccountCampaignTradingRewardPointsWithTotalPoints(ctx sdk.Context) (accountPoints []*types.TradingRewardAccountPoints, totalPoints sdk.Dec) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+func (k *Keeper) GetAllAccountCampaignTradingRewardPointsWithTotalPoints(ctx sdk.Context) (accountPoints []*types.TradingRewardAccountPoints, totalPoints math.LegacyDec) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	accountPoints = make([]*types.TradingRewardAccountPoints, 0)
-	totalPoints = sdk.ZeroDec()
+	totalPoints = math.LegacyZeroDec()
 
 	appendPoints := func(points *types.TradingRewardAccountPoints) (stop bool) {
 		accountPoints = append(accountPoints, points)
@@ -97,7 +104,8 @@ func (k *Keeper) IterateAccountCampaignTradingRewardPoints(
 	ctx sdk.Context,
 	process func(*types.TradingRewardAccountPoints) (stop bool),
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 
@@ -124,13 +132,14 @@ func (k *Keeper) IterateAccountCampaignTradingRewardPoints(
 // GetTotalTradingRewardPoints gets the total trading reward points
 func (k *Keeper) GetTotalTradingRewardPoints(
 	ctx sdk.Context,
-) sdk.Dec {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+) math.LegacyDec {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	bz := store.Get(types.TradingRewardCampaignTotalPointsKey)
 	if bz == nil {
-		return sdk.ZeroDec()
+		return math.LegacyZeroDec()
 	}
 	return types.DecBytesToDec(bz)
 }
@@ -138,9 +147,10 @@ func (k *Keeper) GetTotalTradingRewardPoints(
 // IncrementTotalTradingRewardPoints sets the total trading reward points
 func (k *Keeper) IncrementTotalTradingRewardPoints(
 	ctx sdk.Context,
-	points sdk.Dec,
+	points math.LegacyDec,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	currPoints := k.GetTotalTradingRewardPoints(ctx)
 	newPoints := currPoints.Add(points)
@@ -150,9 +160,10 @@ func (k *Keeper) IncrementTotalTradingRewardPoints(
 // SetTotalTradingRewardPoints sets the total trading reward points
 func (k *Keeper) SetTotalTradingRewardPoints(
 	ctx sdk.Context,
-	points sdk.Dec,
+	points math.LegacyDec,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	bz := types.DecToDecBytes(points)
@@ -163,7 +174,8 @@ func (k *Keeper) SetTotalTradingRewardPoints(
 func (k *Keeper) DeleteTotalTradingRewardPoints(
 	ctx sdk.Context,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	store.Delete(types.TradingRewardCampaignTotalPointsKey)
@@ -171,7 +183,7 @@ func (k *Keeper) DeleteTotalTradingRewardPoints(
 
 // PersistTradingRewardPoints persists the trading reward points
 func (k *Keeper) PersistTradingRewardPoints(ctx sdk.Context, tradingRewards types.TradingRewardPoints) {
-	totalTradingRewardPoints := sdk.ZeroDec()
+	totalTradingRewardPoints := math.LegacyZeroDec()
 
 	for _, account := range tradingRewards.GetSortedAccountKeys() {
 		addr, _ := sdk.AccAddressFromBech32(account)

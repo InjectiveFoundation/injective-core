@@ -58,8 +58,9 @@ type MsgInstantSpotMarketLaunch struct {
 	Ticker              string
 	BaseDenom           string
 	QuoteDenom          string
-	MinPriceTickSize    sdk.Dec
-	MinQuantityTickSize sdk.Dec
+	MinPriceTickSize    math.LegacyDec
+	MinQuantityTickSize math.LegacyDec
+    MinNotional         math.LegacyDec
 }
 ```
 
@@ -85,12 +86,13 @@ type MsgInstantPerpetualMarketLaunch struct {
 	OracleQuote             string
 	OracleScaleFactor       uint32
 	OracleType              types1.OracleType
-	MakerFeeRate            sdk.Dec
-	TakerFeeRate            sdk.Dec
-	InitialMarginRatio      sdk.Dec
-	MaintenanceMarginRatio  sdk.Dec
-	MinPriceTickSize        sdk.Dec
-	MinQuantityTickSize     sdk.Dec
+	MakerFeeRate            math.LegacyDec
+	TakerFeeRate            math.LegacyDec
+	InitialMarginRatio      math.LegacyDec
+	MaintenanceMarginRatio  math.LegacyDec
+	MinPriceTickSize        math.LegacyDec
+	MinQuantityTickSize     math.LegacyDec
+    MinNotional             math.LegacyDec
 }
 ```
 
@@ -124,12 +126,13 @@ type MsgInstantExpiryFuturesMarketLaunch struct {
 	OracleType              types1.OracleType
 	OracleScaleFactor       uint32
 	Expiry                  int64
-	MakerFeeRate            sdk.Dec
-	TakerFeeRate            sdk.Dec
-	InitialMarginRatio      sdk.Dec
-	MaintenanceMarginRatio  sdk.Dec
-	MinPriceTickSize        sdk.Dec
-	MinQuantityTickSize     sdk.Dec
+	MakerFeeRate            math.LegacyDec
+	TakerFeeRate            math.LegacyDec
+	InitialMarginRatio      math.LegacyDec
+	MaintenanceMarginRatio  math.LegacyDec
+	MinPriceTickSize        math.LegacyDec
+	MinQuantityTickSize     math.LegacyDec
+    MinNotional             math.LegacyDec
 }
 ```
 
@@ -208,6 +211,7 @@ type MsgCancelSpotOrder struct {
 	MarketId     string
 	SubaccountId string
 	OrderHash    string
+    Cid          string
 }
 ```
 
@@ -293,6 +297,8 @@ type MsgCancelDerivativeOrder struct {
 	MarketId     string
 	SubaccountId string
 	OrderHash    string
+    OrderMask    int32
+    Cid          string
 }
 ```
 
@@ -392,7 +398,7 @@ type MsgIncreasePositionMargin struct {
 	DestinationSubaccountId string
 	MarketId                string
 	// amount defines the amount of margin to add to the position
-	Amount                  sdk.Dec
+	Amount                  math.LegacyDec
 }
 ```
 

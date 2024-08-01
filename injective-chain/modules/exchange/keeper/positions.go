@@ -1,7 +1,7 @@
 package keeper
 
 import (
-	"github.com/cosmos/cosmos-sdk/store/prefix"
+	"cosmossdk.io/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
@@ -15,7 +15,8 @@ func (k *Keeper) SetPosition(
 	marketID, subaccountID common.Hash,
 	position *types.Position,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	k.SetTransientPosition(ctx, marketID, subaccountID, position)
 
@@ -36,7 +37,8 @@ func (k *Keeper) GetPosition(
 	ctx sdk.Context,
 	marketID, subaccountID common.Hash,
 ) *types.Position {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 
@@ -58,7 +60,8 @@ func (k *Keeper) HasPosition(
 	ctx sdk.Context,
 	marketID, subaccountID common.Hash,
 ) bool {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	positionStore := prefix.NewStore(store, types.DerivativePositionsPrefix)
@@ -71,7 +74,8 @@ func (k *Keeper) DeletePosition(
 	ctx sdk.Context,
 	marketID, subaccountID common.Hash,
 ) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	k.InvalidateConditionalOrdersIfNoMarginLocked(ctx, marketID, subaccountID, true, nil, nil)
 
@@ -84,7 +88,8 @@ func (k *Keeper) DeletePosition(
 
 // GetAllPositionsByMarket returns all positions in a given derivative market
 func (k *Keeper) GetAllPositionsByMarket(ctx sdk.Context, marketID common.Hash) []*types.DerivativePosition {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	positions := make([]*types.DerivativePosition, 0)
 	appendPosition := func(p *types.Position, key []byte) (stop bool) {
@@ -105,7 +110,8 @@ func (k *Keeper) GetAllPositionsByMarket(ctx sdk.Context, marketID common.Hash) 
 
 // IteratePositionsByMarket Iterates over all the positions in a given market calling process on each position.
 func (k *Keeper) IteratePositionsByMarket(ctx sdk.Context, marketID common.Hash, process func(*types.Position, []byte) (stop bool)) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	positionStore := prefix.NewStore(store, append(types.DerivativePositionsPrefix, marketID.Bytes()...))
@@ -125,7 +131,8 @@ func (k *Keeper) IteratePositionsByMarket(ctx sdk.Context, marketID common.Hash,
 
 // GetAllActivePositionsBySubaccountID returns all active positions for a given subaccountID
 func (k *Keeper) GetAllActivePositionsBySubaccountID(ctx sdk.Context, subaccountID common.Hash) []types.DerivativePosition {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	markets := k.GetAllActiveDerivativeMarkets(ctx)
 	positions := make([]types.DerivativePosition, 0)
@@ -149,7 +156,8 @@ func (k *Keeper) GetAllActivePositionsBySubaccountID(ctx sdk.Context, subaccount
 
 // GetAllPositions returns all positions.
 func (k *Keeper) GetAllPositions(ctx sdk.Context) []types.DerivativePosition {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	positions := make([]types.DerivativePosition, 0)
 	appendPosition := func(p *types.Position, key []byte) (stop bool) {
@@ -169,7 +177,8 @@ func (k *Keeper) GetAllPositions(ctx sdk.Context) []types.DerivativePosition {
 
 // IteratePositions iterates over all positions calling process on each position.
 func (k *Keeper) IteratePositions(ctx sdk.Context, process func(*types.Position, []byte) (stop bool)) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.getStore(ctx)
 	positionStore := prefix.NewStore(store, types.DerivativePositionsPrefix)

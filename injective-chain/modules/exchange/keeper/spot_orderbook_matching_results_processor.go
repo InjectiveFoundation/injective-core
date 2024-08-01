@@ -1,21 +1,23 @@
 package keeper
 
 import (
+	"cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/keeper/ordermatching"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	"github.com/InjectiveLabs/metrics"
 )
 
 // processBothRestingSpotLimitOrderbookMatchingResults processes both the orderbook matching results to produce the spot execution batch events and filledDelta.
-// Note: clearingPrice should be set to sdk.Dec{} for normal fills
+// Note: clearingPrice should be set to math.LegacyDec{} for normal fills
 func (k *Keeper) processBothRestingSpotLimitOrderbookMatchingResults(
 	ctx sdk.Context,
 	o *ordermatching.SpotOrderbookMatchingResults,
 	marketID common.Hash,
-	clearingPrice sdk.Dec,
-	tradeFeeRate, relayerFeeShareRate sdk.Dec,
+	clearingPrice math.LegacyDec,
+	tradeFeeRate, relayerFeeShareRate math.LegacyDec,
 	baseDenomDepositDeltas types.DepositDeltas,
 	quoteDenomDepositDeltas types.DepositDeltas,
 	pointsMultiplier types.PointsMultiplier,
@@ -26,6 +28,9 @@ func (k *Keeper) processBothRestingSpotLimitOrderbookMatchingResults(
 	filledDeltas []*types.SpotLimitOrderDelta,
 	tradingRewardPoints types.TradingRewardPoints,
 ) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
 	var spotLimitBuyOrderStateExpansions, spotLimitSellOrderStateExpansions []*spotOrderStateExpansion
 	var buyTradingRewards, sellTradingRewards types.TradingRewardPoints
 	var currFilledDeltas []*types.SpotLimitOrderDelta
@@ -65,13 +70,13 @@ func (k *Keeper) processBothRestingSpotLimitOrderbookMatchingResults(
 }
 
 // processBothTransientSpotLimitOrderbookMatchingResults processes the transient spot limit orderbook matching results.
-// Note: clearingPrice should be set to sdk.Dec{} for normal fills
+// Note: clearingPrice should be set to math.LegacyDec{} for normal fills
 func (k *Keeper) processBothTransientSpotLimitOrderbookMatchingResults(
 	ctx sdk.Context,
 	o *ordermatching.SpotOrderbookMatchingResults,
 	marketID common.Hash,
-	clearingPrice sdk.Dec,
-	makerFeeRate, takerFeeRate, relayerFeeShareRate sdk.Dec,
+	clearingPrice math.LegacyDec,
+	makerFeeRate, takerFeeRate, relayerFeeShareRate math.LegacyDec,
 	baseDenomDepositDeltas types.DepositDeltas,
 	quoteDenomDepositDeltas types.DepositDeltas,
 	pointsMultiplier types.PointsMultiplier,
@@ -83,6 +88,9 @@ func (k *Keeper) processBothTransientSpotLimitOrderbookMatchingResults(
 	newRestingSellSpotLimitOrders []*types.SpotLimitOrder,
 	tradingRewardPoints types.TradingRewardPoints,
 ) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
 	var expansions []*spotOrderStateExpansion
 	var buyTradingRewards types.TradingRewardPoints
 	var sellTradingRewards types.TradingRewardPoints
@@ -117,17 +125,20 @@ func (k *Keeper) processTransientSpotLimitBuyOrderbookMatchingResults(
 	ctx sdk.Context,
 	marketID common.Hash,
 	o *ordermatching.SpotOrderbookMatchingResults,
-	clearingPrice sdk.Dec,
-	makerFeeRate, takerFeeRate, relayerFeeShare sdk.Dec,
+	clearingPrice math.LegacyDec,
+	makerFeeRate, takerFeeRate, relayerFeeShare math.LegacyDec,
 	pointsMultiplier types.PointsMultiplier,
 	feeDiscountConfig *FeeDiscountConfig,
 ) ([]*spotOrderStateExpansion, []*types.SpotLimitOrder) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
 	orderbookFills := o.TransientBuyOrderbookFills
 	stateExpansions := make([]*spotOrderStateExpansion, len(orderbookFills.Orders))
 	newRestingOrders := make([]*types.SpotLimitOrder, 0, len(orderbookFills.Orders))
 
 	for idx, order := range orderbookFills.Orders {
-		fillQuantity := sdk.ZeroDec()
+		fillQuantity := math.LegacyZeroDec()
 		if orderbookFills.FillQuantities != nil {
 			fillQuantity = orderbookFills.FillQuantities[idx]
 		}
@@ -150,16 +161,19 @@ func (k *Keeper) processTransientSpotLimitBuyOrderbookMatchingResults(
 }
 
 // processTransientSpotLimitSellOrderbookMatchingResults processes.
-// Note: clearingPrice should be set to sdk.Dec{} for normal fills
+// Note: clearingPrice should be set to math.LegacyDec{} for normal fills
 func (k *Keeper) processTransientSpotLimitSellOrderbookMatchingResults(
 	ctx sdk.Context,
 	marketID common.Hash,
 	o *ordermatching.SpotOrderbookMatchingResults,
-	clearingPrice sdk.Dec,
-	takerFeeRate, relayerFeeShare sdk.Dec,
+	clearingPrice math.LegacyDec,
+	takerFeeRate, relayerFeeShare math.LegacyDec,
 	pointsMultiplier types.PointsMultiplier,
 	feeDiscountConfig *FeeDiscountConfig,
 ) ([]*spotOrderStateExpansion, []*types.SpotLimitOrder) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
 	orderbookFills := o.TransientSellOrderbookFills
 
 	stateExpansions := make([]*spotOrderStateExpansion, len(orderbookFills.Orders))

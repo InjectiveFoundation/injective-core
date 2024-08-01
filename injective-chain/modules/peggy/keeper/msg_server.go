@@ -40,7 +40,8 @@ func NewMsgServerImpl(keeper Keeper) types.MsgServer {
 var _ types.MsgServer = msgServer{}
 
 func (k msgServer) SetOrchestratorAddresses(c context.Context, msg *types.MsgSetOrchestratorAddresses) (*types.MsgSetOrchestratorAddressesResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 	validatorAccountAddr, _ := sdk.AccAddressFromBech32(msg.Sender)
@@ -58,9 +59,12 @@ func (k msgServer) SetOrchestratorAddresses(c context.Context, msg *types.MsgSet
 	_, foundExistingEthAddress := k.GetEthAddressByValidator(ctx, validatorAddr)
 
 	// ensure that the validator exists
-	if k.Keeper.StakingKeeper.Validator(ctx, validatorAddr) == nil {
+	if val, err := k.Keeper.StakingKeeper.Validator(ctx, validatorAddr); err != nil || val == nil {
+		if err == nil {
+			err = stakingtypes.ErrNoValidatorFound
+		}
 		metrics.ReportFuncError(k.svcTags)
-		return nil, errors.Wrap(stakingtypes.ErrNoValidatorFound, validatorAddr.String())
+		return nil, errors.Wrap(err, validatorAddr.String())
 	} else if foundExistingOrchestratorKey || foundExistingEthAddress {
 		metrics.ReportFuncError(k.svcTags)
 		return nil, errors.Wrap(types.ErrResetDelegateKeys, validatorAddr.String())
@@ -84,7 +88,8 @@ func (k msgServer) SetOrchestratorAddresses(c context.Context, msg *types.MsgSet
 
 // ValsetConfirm handles MsgValsetConfirm
 func (k msgServer) ValsetConfirm(c context.Context, msg *types.MsgValsetConfirm) (*types.MsgValsetConfirmResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 	valset := k.GetValset(ctx, msg.Nonce)
@@ -142,7 +147,8 @@ func (k msgServer) ValsetConfirm(c context.Context, msg *types.MsgValsetConfirm)
 
 // SendToEth handles MsgSendToEth
 func (k msgServer) SendToEth(c context.Context, msg *types.MsgSendToEth) (*types.MsgSendToEthResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 	sender, err := sdk.AccAddressFromBech32(msg.Sender)
@@ -174,7 +180,8 @@ func (k msgServer) SendToEth(c context.Context, msg *types.MsgSendToEth) (*types
 
 // RequestBatch handles MsgRequestBatch
 func (k msgServer) RequestBatch(c context.Context, msg *types.MsgRequestBatch) (*types.MsgRequestBatchResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 
@@ -210,7 +217,8 @@ func (k msgServer) RequestBatch(c context.Context, msg *types.MsgRequestBatch) (
 
 // ConfirmBatch handles MsgConfirmBatch
 func (k msgServer) ConfirmBatch(c context.Context, msg *types.MsgConfirmBatch) (*types.MsgConfirmBatchResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 
@@ -277,7 +285,8 @@ func (k msgServer) ConfirmBatch(c context.Context, msg *types.MsgConfirmBatch) (
 // executed aka 'observed' and had it's slashing window expire) that will never be cleaned up in the endblocker. This
 // should not be a security risk as 'old' events can never execute but it does store spam in the chain.
 func (k msgServer) DepositClaim(c context.Context, msg *types.MsgDepositClaim) (*types.MsgDepositClaimResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 
@@ -289,7 +298,11 @@ func (k msgServer) DepositClaim(c context.Context, msg *types.MsgDepositClaim) (
 	}
 
 	// return an error if the validator isn't in the active set
-	val := k.StakingKeeper.Validator(ctx, validator)
+	val, err := k.StakingKeeper.Validator(ctx, validator)
+	if err != nil {
+		metrics.ReportFuncError(k.svcTags)
+		return nil, errors.Wrap(err, "validator can't be retrieved")
+	}
 	if val == nil || !val.IsBonded() {
 		metrics.ReportFuncError(k.svcTags)
 		return nil, errors.Wrap(sdkerrors.ErrorInvalidSigner, "validator not in active set")
@@ -325,7 +338,8 @@ func (k msgServer) DepositClaim(c context.Context, msg *types.MsgDepositClaim) (
 // executed aka 'observed' and had it's slashing window expire) that will never be cleaned up in the endblocker. This
 // should not be a security risk as 'old' events can never execute but it does store spam in the chain.
 func (k msgServer) WithdrawClaim(c context.Context, msg *types.MsgWithdrawClaim) (*types.MsgWithdrawClaimResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 
@@ -337,7 +351,11 @@ func (k msgServer) WithdrawClaim(c context.Context, msg *types.MsgWithdrawClaim)
 	}
 
 	// return an error if the validator isn't in the active set
-	val := k.StakingKeeper.Validator(ctx, validator)
+	val, err := k.StakingKeeper.Validator(ctx, validator)
+	if err != nil {
+		metrics.ReportFuncError(k.svcTags)
+		return nil, errors.Wrap(err, "validator can't be retrieved")
+	}
 	if val == nil || !val.IsBonded() {
 		metrics.ReportFuncError(k.svcTags)
 		return nil, errors.Wrap(sdkerrors.ErrorInvalidSigner, "validator not in active set")
@@ -361,7 +379,8 @@ func (k msgServer) WithdrawClaim(c context.Context, msg *types.MsgWithdrawClaim)
 
 // ERC20DeployedClaim handles MsgERC20Deployed
 func (k msgServer) ERC20DeployedClaim(c context.Context, msg *types.MsgERC20DeployedClaim) (*types.MsgERC20DeployedClaimResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 
@@ -373,7 +392,11 @@ func (k msgServer) ERC20DeployedClaim(c context.Context, msg *types.MsgERC20Depl
 	}
 
 	// return an error if the validator isn't in the active set
-	val := k.StakingKeeper.Validator(ctx, validator)
+	val, err := k.StakingKeeper.Validator(ctx, validator)
+	if err != nil {
+		metrics.ReportFuncError(k.svcTags)
+		return nil, errors.Wrap(err, "validator can't be retrieved")
+	}
 	if val == nil || !val.IsBonded() {
 		metrics.ReportFuncError(k.svcTags)
 		return nil, errors.Wrap(sdkerrors.ErrorInvalidSigner, "validator not in active set")
@@ -397,7 +420,8 @@ func (k msgServer) ERC20DeployedClaim(c context.Context, msg *types.MsgERC20Depl
 
 // ValsetUpdateClaim handles claims for executing a validator set update on Ethereum
 func (k msgServer) ValsetUpdateClaim(c context.Context, msg *types.MsgValsetUpdatedClaim) (*types.MsgValsetUpdatedClaimResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 
@@ -409,7 +433,11 @@ func (k msgServer) ValsetUpdateClaim(c context.Context, msg *types.MsgValsetUpda
 	}
 
 	// return an error if the validator isn't in the active set
-	val := k.StakingKeeper.Validator(ctx, validator)
+	val, err := k.StakingKeeper.Validator(ctx, validator)
+	if err != nil {
+		metrics.ReportFuncError(k.svcTags)
+		return nil, errors.Wrap(err, "validator can't be retrieved")
+	}
 	if val == nil || !val.IsBonded() {
 		metrics.ReportFuncError(k.svcTags)
 		return nil, errors.Wrap(sdkerrors.ErrorInvalidSigner, "validator not in active set")
@@ -432,7 +460,8 @@ func (k msgServer) ValsetUpdateClaim(c context.Context, msg *types.MsgValsetUpda
 }
 
 func (k msgServer) CancelSendToEth(c context.Context, msg *types.MsgCancelSendToEth) (*types.MsgCancelSendToEthResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 	sender, err := sdk.AccAddressFromBech32(msg.Sender)
@@ -456,7 +485,8 @@ func (k msgServer) CancelSendToEth(c context.Context, msg *types.MsgCancelSendTo
 }
 
 func (k msgServer) SubmitBadSignatureEvidence(c context.Context, msg *types.MsgSubmitBadSignatureEvidence) (*types.MsgSubmitBadSignatureEvidenceResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 
@@ -476,7 +506,8 @@ func (k msgServer) SubmitBadSignatureEvidence(c context.Context, msg *types.MsgS
 }
 
 func (k msgServer) UpdateParams(c context.Context, msg *types.MsgUpdateParams) (*types.MsgUpdateParamsResponse, error) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
 
 	if msg.Authority != k.authority {
 		return nil, errors.Wrapf(govtypes.ErrInvalidSigner, "invalid authority: expected %s, got %s", k.authority, msg.Authority)
@@ -490,4 +521,52 @@ func (k msgServer) UpdateParams(c context.Context, msg *types.MsgUpdateParams) (
 	k.SetParams(ctx, &msg.Params)
 
 	return &types.MsgUpdateParamsResponse{}, nil
+}
+
+func (k msgServer) BlacklistEthereumAddresses(ctx context.Context, msg *types.MsgBlacklistEthereumAddresses) (*types.MsgBlacklistEthereumAddressesResponse, error) {
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+
+	sdkContext := sdk.UnwrapSDKContext(ctx)
+
+	isValidSigner := k.authority == msg.Signer || k.isAdmin(sdkContext, msg.Signer)
+	if !isValidSigner {
+		return nil, errors.Wrapf(govtypes.ErrInvalidSigner, "the signer %s is not the valid authority or one of the Peggy module admins", msg.Signer)
+	}
+
+	for _, address := range msg.BlacklistAddresses {
+		blacklistAddr, err := types.NewEthAddress(address)
+		if err != nil {
+			return nil, errors.Wrapf(err, "invalid blacklist address %s", address)
+		}
+		k.SetEthereumBlacklistAddress(sdkContext, *blacklistAddr)
+	}
+
+	return &types.MsgBlacklistEthereumAddressesResponse{}, nil
+}
+
+func (k msgServer) RevokeEthereumBlacklist(ctx context.Context, msg *types.MsgRevokeEthereumBlacklist) (*types.MsgRevokeEthereumBlacklistResponse, error) {
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+
+	sdkContext := sdk.UnwrapSDKContext(ctx)
+
+	isValidSigner := k.authority == msg.Signer || k.isAdmin(sdkContext, msg.Signer)
+	if !isValidSigner {
+		return nil, errors.Wrapf(govtypes.ErrInvalidSigner, "the signer %s is not the valid authority or one of the Peggy module admins", msg.Signer)
+	}
+
+	for _, blacklistAddress := range msg.BlacklistAddresses {
+
+		blacklistAddr, err := types.NewEthAddress(blacklistAddress)
+		if err != nil {
+			return nil, errors.Wrapf(err, "invalid blacklist address %s", blacklistAddress)
+		}
+
+		if !k.IsOnBlacklist(sdkContext, *blacklistAddr) {
+			return nil, fmt.Errorf("invalid blacklist address")
+		} else {
+			k.DeleteEthereumBlacklistAddress(sdkContext, *blacklistAddr)
+		}
+	}
+
+	return &types.MsgRevokeEthereumBlacklistResponse{}, nil
 }

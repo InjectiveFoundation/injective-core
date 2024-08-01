@@ -1,15 +1,17 @@
 package v2
 
 import (
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/tokenfactory/exported"
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/tokenfactory/types"
+	storetypes "cosmossdk.io/store/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/gogoproto/proto"
+
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/tokenfactory/exported"
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/tokenfactory/types"
 )
 
 func Migrate(
 	ctx sdk.Context,
-	store sdk.KVStore,
+	store storetypes.KVStore,
 	legacySubspace exported.Subspace,
 ) error {
 	var currParams types.Params

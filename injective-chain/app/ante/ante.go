@@ -3,10 +3,10 @@ package ante
 import (
 	"fmt"
 
-	storetypes "github.com/cosmos/cosmos-sdk/store/types"
-	ibckeeper "github.com/cosmos/ibc-go/v7/modules/core/keeper"
-	log "github.com/xlab/suplog"
+	storetypes "cosmossdk.io/store/types"
+	ibckeeper "github.com/cosmos/ibc-go/v8/modules/core/keeper"
 
+	corestoretypes "cosmossdk.io/core/store"
 	"cosmossdk.io/errors"
 	"github.com/cosmos/cosmos-sdk/crypto/keys/ed25519"
 	"github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
@@ -15,9 +15,8 @@ import (
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/cosmos/cosmos-sdk/types/tx/signing"
 	authante "github.com/cosmos/cosmos-sdk/x/auth/ante"
-	authsigning "github.com/cosmos/cosmos-sdk/x/auth/signing"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
-	ibcante "github.com/cosmos/ibc-go/v7/modules/core/ante"
+	ibcante "github.com/cosmos/ibc-go/v8/modules/core/ante"
 
 	wasmkeeper "github.com/CosmWasm/wasmd/x/wasm/keeper"
 	wasmTypes "github.com/CosmWasm/wasmd/x/wasm/types"
@@ -32,28 +31,6 @@ const (
 	secp256k1VerifyCost uint64 = 21000
 )
 
-// AccountKeeper defines an expected keeper interface for the auth module's AccountKeeper
-type AccountKeeper interface {
-	NewAccount(sdk.Context, authtypes.AccountI) authtypes.AccountI
-	NewAccountWithAddress(ctx sdk.Context, addr sdk.AccAddress) authtypes.AccountI
-
-	GetAccount(ctx sdk.Context, addr sdk.AccAddress) authtypes.AccountI
-	GetAllAccounts(ctx sdk.Context) []authtypes.AccountI
-	SetAccount(ctx sdk.Context, acc authtypes.AccountI)
-
-	IterateAccounts(ctx sdk.Context, process func(authtypes.AccountI) bool)
-
-	ValidatePermissions(macc authtypes.ModuleAccountI) error
-
-	GetModuleAddress(moduleName string) sdk.AccAddress
-	GetModuleAddressAndPermissions(moduleName string) (addr sdk.AccAddress, permissions []string)
-	GetModuleAccountAndPermissions(ctx sdk.Context, moduleName string) (authtypes.ModuleAccountI, []string)
-	GetModuleAccount(ctx sdk.Context, moduleName string) authtypes.ModuleAccountI
-	SetModuleAccount(ctx sdk.Context, macc authtypes.ModuleAccountI)
-
-	authante.AccountKeeper
-}
-
 // BankKeeper defines an expected keeper interface for the bank module's Keeper
 type BankKeeper interface {
 	authtypes.BankKeeper
@@ -65,23 +42,37 @@ type FeegrantKeeper interface {
 	UseGrantedFees(ctx sdk.Context, granter, grantee sdk.AccAddress, fee sdk.Coins, msgs []sdk.Msg) error
 }
 
+// HandlerOptions extend the SDK's AnteHandler options by requiring the IBC
+// channel keeper.
+type HandlerOptions struct {
+	authante.HandlerOptions
+
+	IBCKeeper             *ibckeeper.Keeper
+	WasmConfig            *wasmTypes.WasmConfig
+	WasmKeeper            *wasmkeeper.Keeper
+	TXCounterStoreService corestoretypes.KVStoreService
+}
+
 // NewAnteHandler returns an ante handler responsible for attempting to route an
 // Ethereum or SDK transaction to an internal ante handler for performing
 // transaction-level processing (e.g. fee payment, signature verification) before
 // being passed onto it's respective handler.
 func NewAnteHandler(
-	ak AccountKeeper,
-	bankKeeper BankKeeper,
-	feegrantKeeper FeegrantKeeper,
-	signModeHandler authsigning.SignModeHandler,
-	txCounterStoreKey storetypes.StoreKey,
-	wasmConfig wasmTypes.WasmConfig,
-	ibcKeeper *ibckeeper.Keeper,
+	options HandlerOptions,
+	// ak AccountKeeper,
+	// bankKeeper BankKeeper,
+	// feegrantKeeper FeegrantKeeper,
+	// signModeHandler authsigning.SignModeHandler,
+	// txCounterStoreKey storetypes.StoreKey,
+	// wasmConfig wasmTypes.WasmConfig,
+	// ibcKeeper *ibckeeper.Keeper,
 ) sdk.AnteHandler {
 	return func(
 		ctx sdk.Context, tx sdk.Tx, sim bool,
 	) (newCtx sdk.Context, err error) {
 		var anteHandler sdk.AnteHandler
+
+		ak := options.AccountKeeper
 
 		txWithExtensions, ok := tx.(authante.HasExtensionOptionsTx)
 		if ok {
@@ -96,26 +87,26 @@ func NewAnteHandler(
 					switch tx.(type) {
 					case sdk.Tx:
 						anteHandler = sdk.ChainAnteDecorators(
-							authante.NewSetUpContextDecorator(),                                      // outermost AnteDecorator. SetUpContext must be called first
-							wasmkeeper.NewLimitSimulationGasDecorator(wasmConfig.SimulationGasLimit), // after setup context to enforce limits early
-							wasmkeeper.NewCountTXDecorator(txCounterStoreKey),
+							authante.NewSetUpContextDecorator(),                                              // outermost AnteDecorator. SetUpContext must be called first
+							wasmkeeper.NewLimitSimulationGasDecorator(options.WasmConfig.SimulationGasLimit), // after setup context to enforce limits early
+							wasmkeeper.NewCountTXDecorator(options.TXCounterStoreService),
 							authante.NewValidateBasicDecorator(),
 							authante.NewTxTimeoutHeightDecorator(),
 							authante.NewValidateMemoDecorator(ak),
 							authante.NewConsumeGasForTxSizeDecorator(ak),
 							authante.NewSetPubKeyDecorator(ak), // SetPubKeyDecorator must be called before all signature verification decorators
 							authante.NewValidateSigCountDecorator(ak),
-							NewDeductFeeDecorator(ak, bankKeeper), // overidden for fee delegation
+							NewDeductFeeDecorator(ak, options.BankKeeper), // overidden for fee delegation
 							authante.NewSigGasConsumeDecorator(ak, DefaultSigVerificationGasConsumer),
-							NewEip712SigVerificationDecorator(ak, signModeHandler), // overidden for EIP712 Tx signatures
-							authante.NewIncrementSequenceDecorator(ak),             // innermost AnteDecorator
+							NewEip712SigVerificationDecorator(ak),      // overidden for EIP712 Tx signatures
+							authante.NewIncrementSequenceDecorator(ak), // innermost AnteDecorator
 						)
 					default:
 						return ctx, errors.Wrapf(sdkerrors.ErrUnknownRequest, "invalid transaction type: %T", tx)
 					}
 
 				default:
-					log.WithField("type_url", typeURL).Errorln("rejecting tx with unsupported extension option")
+					ctx.Logger().Error("rejecting tx with unsupported extension option", "type_url", typeURL)
 					return ctx, sdkerrors.ErrUnknownExtensionOptions
 				}
 
@@ -128,21 +119,21 @@ func NewAnteHandler(
 		switch tx.(type) {
 		case sdk.Tx:
 			anteHandler = sdk.ChainAnteDecorators(
-				authante.NewSetUpContextDecorator(),                                      // outermost AnteDecorator. SetUpContext must be called first
-				wasmkeeper.NewLimitSimulationGasDecorator(wasmConfig.SimulationGasLimit), // after setup context to enforce limits early
-				wasmkeeper.NewCountTXDecorator(txCounterStoreKey),
+				authante.NewSetUpContextDecorator(),                                              // outermost AnteDecorator. SetUpContext must be called first
+				wasmkeeper.NewLimitSimulationGasDecorator(options.WasmConfig.SimulationGasLimit), // after setup context to enforce limits early
+				wasmkeeper.NewCountTXDecorator(options.TXCounterStoreService),
 				authante.NewExtensionOptionsDecorator(nil),
 				authante.NewValidateBasicDecorator(),
 				authante.NewTxTimeoutHeightDecorator(),
 				authante.NewValidateMemoDecorator(ak),
 				authante.NewConsumeGasForTxSizeDecorator(ak),
-				authante.NewDeductFeeDecorator(ak, bankKeeper, feegrantKeeper, nil),
+				authante.NewDeductFeeDecorator(ak, options.BankKeeper, options.FeegrantKeeper, nil),
 				authante.NewSetPubKeyDecorator(ak), // SetPubKeyDecorator must be called before all signature verification decorators
 				authante.NewValidateSigCountDecorator(ak),
 				authante.NewSigGasConsumeDecorator(ak, DefaultSigVerificationGasConsumer),
-				authante.NewSigVerificationDecorator(ak, signModeHandler),
+				authante.NewSigVerificationDecorator(ak, options.SignModeHandler),
 				authante.NewIncrementSequenceDecorator(ak),
-				ibcante.NewRedundantRelayDecorator(ibcKeeper),
+				ibcante.NewRedundantRelayDecorator(options.IBCKeeper),
 			)
 		default:
 			return ctx, errors.Wrapf(sdkerrors.ErrUnknownRequest, "invalid transaction type: %T", tx)
@@ -158,7 +149,7 @@ var _ = DefaultSigVerificationGasConsumer
 // for signature verification based upon the public key type. The cost is fetched from the given params and is matched
 // by the concrete type.
 func DefaultSigVerificationGasConsumer(
-	meter sdk.GasMeter, sig signing.SignatureV2, params authtypes.Params,
+	meter storetypes.GasMeter, sig signing.SignatureV2, params authtypes.Params,
 ) error {
 	pubkey := sig.PubKey
 	switch pubkey := pubkey.(type) {
@@ -193,7 +184,7 @@ func DefaultSigVerificationGasConsumer(
 
 // ConsumeMultisignatureVerificationGas consumes gas from a GasMeter for verifying a multisig pubkey signature
 func ConsumeMultisignatureVerificationGas(
-	meter sdk.GasMeter, sig *signing.MultiSignatureData, pubkey multisig.PubKey,
+	meter storetypes.GasMeter, sig *signing.MultiSignatureData, pubkey multisig.PubKey,
 	params authtypes.Params, accSeq uint64,
 ) error {
 

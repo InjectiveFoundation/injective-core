@@ -91,7 +91,7 @@ type FeedConfigInfo struct {
 // Transmission records the median answer from the transmit transaction at
 // time timestamp
 type Transmission struct {
-	Answer                sdk.Dec
+	Answer                math.LegacyDec
 	ObservationsTimestamp int64
 	TransmissionTimestamp int64
 }
@@ -105,7 +105,7 @@ type Transmission struct {
 type Report struct {
 	ObservationsTimestamp int64
 	Observers             []byte
-	Observations          []sdk.Dec
+	Observations          []math.LegacyDec
 }
 ```
 
@@ -133,13 +133,13 @@ type OnchainConfig struct {
 	// feed_id is an unique ID for the target of this config
 	FeedId string
 	// lowest answer the median of a report is allowed to be
-	MinAnswer sdk.Dec
+	MinAnswer math.LegacyDec
 	// highest answer the median of a report is allowed to be
-	MaxAnswer sdk.Dec
+	MaxAnswer math.LegacyDec
 	// Fixed LINK reward for each observer
-	LinkPerObservation sdkmath.Int
+	LinkPerObservation math.Int
 	// Fixed LINK reward for transmitter
-	LinkPerTransmission sdkmath.Int
+	LinkPerTransmission math.Int
 	// Native denom for LINK coin in the bank keeper
 	LinkDenom string
 	// Enables unique reports
@@ -190,13 +190,13 @@ type FeedProperties struct {
 	// offchain_config serialized data used by oracles to configure their offchain operation
 	OffchainConfig []byte
 	// lowest answer the median of a report is allowed to be
-	MinAnswer sdk.Dec
+	MinAnswer math.LegacyDec
 	// highest answer the median of a report is allowed to be
-	MaxAnswer sdk.Dec
+	MaxAnswer math.LegacyDec
 	// Fixed LINK reward for each observer
-	LinkPerObservation sdkmath.Int
+	LinkPerObservation math.Int
 	// Fixed LINK reward for transmitter
-	LinkPerTransmission sdkmath.Int
+	LinkPerTransmission math.Int
 	// Enables unique reports
 	UniqueReports bool
 	// short human-readable description of observable this feed's answers pertain to

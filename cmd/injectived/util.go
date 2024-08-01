@@ -13,13 +13,12 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
+	"cosmossdk.io/log"
 	tmcfg "github.com/cometbft/cometbft/config"
-	"github.com/cometbft/cometbft/libs/log"
 	"github.com/cosmos/cosmos-sdk/client/flags"
 	"github.com/cosmos/cosmos-sdk/server"
 
 	"github.com/InjectiveLabs/injective-core/cmd/injectived/config"
-	"github.com/InjectiveLabs/injective-core/logging"
 )
 
 // InterceptConfigsPreRunHandler performs a pre-run function for the root daemon
@@ -60,28 +59,30 @@ func InterceptConfigsPreRunHandler(cmd *cobra.Command) error {
 	if err != nil {
 		return err
 	}
-
+	
 	// return value is a tendermint configuration object
 	serverCtx.Config = interceptedConfig
 	bindFlags(basename, cmd, serverCtx.Viper)
 
-	logLevel := serverCtx.Viper.GetString("log-level")
-	switch {
-	case len(logLevel) > 0:
-		interceptedConfig.LogLevel = logLevel
-	case interceptedConfig.LogLevel == "":
+	interceptedConfig.LogLevel = serverCtx.Viper.GetString("log-level")
+	if interceptedConfig.LogLevel == "" {
 		interceptedConfig.LogLevel = "main:info,state:info,statesync:info,*:error"
-	default:
-		logLevel = "info"
 	}
 
 	useJSON := strings.ToLower(serverCtx.Viper.GetString(flags.FlagLogFormat)) != tmcfg.LogFormatPlain
 
-	logger := logging.NewWrappedSuplog(logLevel, interceptedConfig.LogLevel, useJSON)
-
-	if serverCtx.Viper.GetBool(server.FlagTrace) {
-		logger = log.NewTracingLogger(logger)
+	logLevelFn, err := log.ParseLogLevel(interceptedConfig.LogLevel)
+	if err != nil {
+		return err
 	}
+
+	logOpts := []log.Option{log.FilterOption(logLevelFn)}
+	if useJSON {
+		logOpts = append(logOpts, log.OutputJSONOption())
+	}
+	logOpts = append(logOpts, log.TraceOption(serverCtx.Viper.GetBool(server.FlagTrace)))
+
+	logger := log.NewLogger(os.Stderr, logOpts...)
 
 	serverCtx.Config = interceptedConfig
 	serverCtx.Logger = logger.With("module", "main")
@@ -101,6 +102,12 @@ func interceptConfigs(rootViper *viper.Viper) (*tmcfg.Config, error) {
 
 	conf := tmcfg.DefaultConfig()
 
+	conf.P2P.FlushThrottleTimeout = 10 * time.Millisecond
+	conf.Consensus.PeerGossipSleepDuration = 10 * time.Millisecond
+	conf.P2P.MaxNumInboundPeers = 40
+	conf.P2P.MaxNumOutboundPeers = 40
+	conf.Mempool.Size = 200
+
 	switch _, err := os.Stat(tmCfgFile); {
 	case os.IsNotExist(err):
 		tmcfg.EnsureRoot(rootDir)
@@ -113,7 +120,6 @@ func interceptConfigs(rootViper *viper.Viper) (*tmcfg.Config, error) {
 		conf.P2P.RecvRate = 5120000
 		conf.P2P.SendRate = 5120000
 		conf.Consensus.TimeoutCommit = 1 * time.Second
-		tmcfg.WriteConfigFile(tmCfgFile, conf)
 
 	case err != nil:
 		return nil, err
@@ -134,6 +140,9 @@ func interceptConfigs(rootViper *viper.Viper) (*tmcfg.Config, error) {
 	if err := rootViper.Unmarshal(conf); err != nil {
 		return nil, err
 	}
+
+	// write modified conf back to file
+	tmcfg.WriteConfigFile(tmCfgFile, conf)
 
 	conf.SetRoot(rootDir)
 

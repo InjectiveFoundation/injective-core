@@ -9,21 +9,24 @@ import (
 
 // AuctionPeriodDuration auction period param
 func (k *Keeper) AuctionPeriodDuration(ctx sdk.Context) int64 {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	return k.GetParams(ctx).AuctionPeriod
 }
 
 // MinNextBidIncrementRate returns min percentage increment param
 func (k *Keeper) MinNextBidIncrementRate(ctx sdk.Context) string {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	return k.GetParams(ctx).MinNextBidIncrementRate.String()
 }
 
 // GetParams returns the total set of auction parameters.
 func (k *Keeper) GetParams(ctx sdk.Context) types.Params {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.GetStore(ctx)
 	bz := store.Get(types.ParamsKey)
@@ -39,7 +42,8 @@ func (k *Keeper) GetParams(ctx sdk.Context) types.Params {
 
 // SetParams set the params
 func (k *Keeper) SetParams(ctx sdk.Context, params types.Params) {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
 
 	store := k.GetStore(ctx)
 	store.Set(types.ParamsKey, k.cdc.MustMarshal(&params))

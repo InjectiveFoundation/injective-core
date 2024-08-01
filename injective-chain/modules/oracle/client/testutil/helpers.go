@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	"cosmossdk.io/math"
+	abci "github.com/cometbft/cometbft/abci/types"
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/client/flags"
 	"github.com/cosmos/cosmos-sdk/testutil"
@@ -22,8 +24,19 @@ import (
 var commonArgs = []string{
 	fmt.Sprintf("--%s=true", flags.FlagSkipConfirmation),
 	fmt.Sprintf("--%s=%s", flags.FlagBroadcastMode, flags.BroadcastSync),
-	fmt.Sprintf("--%s=%s", flags.FlagFees, sdk.NewCoins(sdk.NewCoin(sdk.DefaultBondDenom, sdk.NewInt(10))).String()),
+	fmt.Sprintf("--%s=%s", flags.FlagFees, sdk.NewCoins(sdk.NewCoin(sdk.DefaultBondDenom, math.NewInt(10))).String()),
 	fmt.Sprintf("--%s=%s", flags.FlagChainID, "injective-1"),
+}
+
+func FindProposalID(events []abci.Event) string {
+	for _, e := range events {
+		for _, attr := range e.Attributes {
+			if attr.Key == "proposal_id" {
+				return attr.Value
+			}
+		}
+	}
+	return ""
 }
 
 func GrantPriceFeederPrivilege(net *network.Network, clientCtx client.Context, base, quote, relayers string, from fmt.Stringer, extraArgs ...string) (testutil.BufferWriter, error) {
@@ -34,7 +47,8 @@ func GrantPriceFeederPrivilege(net *network.Network, clientCtx client.Context, b
 		fmt.Sprintf("--%s=%s", govcli.FlagDeposit, sdk.NewCoin(sdk.DefaultBondDenom, govtypes.DefaultMinDepositTokens).String()),
 		fmt.Sprintf("--%s=%s", flags.FlagFrom, from.String()),
 		fmt.Sprintf("--%s=true", flags.FlagSkipConfirmation),
-		fmt.Sprintf("--%s=%s", flags.FlagFees, sdk.NewCoins(sdk.NewCoin(sdk.DefaultBondDenom, sdk.NewInt(10))).String()),
+		fmt.Sprintf("--%s=%s", flags.FlagGas, flags.GasFlagAuto),
+		fmt.Sprintf("--%s=%s", flags.FlagGasAdjustment, "1.5"),
 	}
 
 	args = append(args, commonArgs...)
@@ -50,15 +64,12 @@ func GrantPriceFeederPrivilege(net *network.Network, clientCtx client.Context, b
 		return output, err
 	}
 	txResp, _ = clitestutil.GetTxResponse(net, clientCtx, txResp.TxHash)
-	if len(txResp.Logs) == 0 {
+	
+	if len(txResp.Events) == 0 {
 		return output, errors.New("proposal log does not exist")
 	}
 
-	if txResp.Logs[0].Events[1].Attributes[0].Key != "proposal_id" {
-		return output, errors.New("proposal_id event is not set in correct place")
-	}
-
-	proposalID := txResp.Logs[0].Events[1].Attributes[0].Value
+	proposalID := FindProposalID(txResp.Events)
 
 	// vote
 	return govtestutil.MsgVote(clientCtx, from.String(), proposalID, "yes")
@@ -72,7 +83,7 @@ func GrantBandOraclePrivilege(net *network.Network, clientCtx client.Context, re
 		fmt.Sprintf("--%s=%s", govcli.FlagDeposit, sdk.NewCoin(sdk.DefaultBondDenom, govtypes.DefaultMinDepositTokens).String()),
 		fmt.Sprintf("--%s=%s", flags.FlagFrom, from.String()),
 		fmt.Sprintf("--%s=true", flags.FlagSkipConfirmation),
-		fmt.Sprintf("--%s=%s", flags.FlagFees, sdk.NewCoins(sdk.NewCoin(sdk.DefaultBondDenom, sdk.NewInt(10))).String()),
+		fmt.Sprintf("--%s=%s", flags.FlagFees, sdk.NewCoins(sdk.NewCoin(sdk.DefaultBondDenom, math.NewInt(10))).String()),
 	}
 
 	args = append(args, commonArgs...)

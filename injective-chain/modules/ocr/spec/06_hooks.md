@@ -8,7 +8,7 @@ Other modules may register operations to execute when a certain event has occurr
 
 - `AfterSetFeedConfig(ctx sdk.Context, feedConfig *FeedConfig)`
     - called after feed config is created or updated
-- `AfterTransmit(ctx sdk.Context, feedId string, answer sdk.Dec, timestamp int64)`
+- `AfterTransmit(ctx sdk.Context, feedId string, answer math.LegacyDec, timestamp int64)`
     - called when info is transmitted
 - `AfterFundFeedRewardPool(ctx sdk.Context, feedId string, newPoolAmount sdk.Coin)`
     - called when feed reward pool is updated

@@ -1,10 +1,12 @@
 package bindings
 
 import (
-	sdkmath "cosmossdk.io/math"
+	"cosmossdk.io/math"
+	"cosmossdk.io/x/feegrant"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/x/authz"
-	"github.com/cosmos/cosmos-sdk/x/feegrant"
+
+	auctiontypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/auction/types"
 
 	exchangetypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 	oracletypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/types"
@@ -25,7 +27,9 @@ type InjectiveQuery struct {
 	WasmxQuery
 }
 
-type AuctionQuery struct{}
+type AuctionQuery struct {
+	LastAuctionResult *auctiontypes.QueryLastAuctionResultRequest `json:"last_auction_result,omitempty"`
+}
 
 type AuthzQuery struct {
 	Grants        *authz.QueryGrantsRequest        `json:"grants,omitempty"`
@@ -110,7 +114,7 @@ type DerivativeMarketQueryResponse struct {
 type FullDerivativeMarketQuery struct {
 	Market    *exchangetypes.DerivativeMarket                   `protobuf:"bytes,1,opt,name=market,proto3" json:"market,omitempty"`
 	Info      *exchangetypes.FullDerivativeMarket_PerpetualInfo `json:"info"`
-	MarkPrice sdk.Dec                                           `protobuf:"bytes,4,opt,name=mark_price,json=markPrice,proto3,customtype=github.com/cosmos/cosmos-sdk/types.Dec" json:"mark_price"`
+	MarkPrice math.LegacyDec                                    `protobuf:"bytes,4,opt,name=mark_price,json=markPrice,proto3,customtype=github.com/cosmos/cosmos-sdk/types.Dec" json:"mark_price"`
 }
 
 type DenomAdmin struct {
@@ -128,7 +132,7 @@ type DenomAdminResponse struct {
 }
 
 type DenomTotalSupplyResponse struct {
-	TotalSupply sdkmath.Int `json:"total_supply"`
+	TotalSupply math.Int `json:"total_supply"`
 }
 
 type DenomCreationFeeResponse struct {
@@ -145,5 +149,5 @@ type StakingDelegationAmount struct {
 }
 
 type StakingDelegationAmountResponse struct {
-	StakedAmount sdkmath.Int `json:"staked_amount"`
+	StakedAmount math.Int `json:"staked_amount"`
 }
