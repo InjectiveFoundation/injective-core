@@ -245,8 +245,8 @@ github.com/InjectiveLabs/bandchain-packet v0.0.4-inj-1 h1:ZnvCV/lzjWmBwuGbkAz+ok
 github.com/InjectiveLabs/bandchain-packet v0.0.4-inj-1/go.mod h1:QELTDYiwnbAqIgTF9zeKr+hVlK6eVyt6Nxmh6/1mmzQ=
 github.com/InjectiveLabs/cometbft v0.38.10-inj-1 h1:k4I22d5KcXEluYFSVfuSepkibyUesMD+UGOpBwqjXbo=
 github.com/InjectiveLabs/cometbft v0.38.10-inj-1/go.mod h1:jHPx9vQpWzPHEAiYI/7EDKaB1NXhK6o3SArrrY8ExKc=
-github.com/InjectiveLabs/cosmos-sdk v0.50.8-inj-0 h1:Jf+0AEdUUNG1mNARompZWTFI/UltAUGX66owYks7TAs=
-github.com/InjectiveLabs/cosmos-sdk v0.50.8-inj-0/go.mod h1:igpF5mgbiTmaS3hO/yoIIv7+ICbzMBIowFWSw5aOrKA=
+github.com/InjectiveLabs/cosmos-sdk v0.50.8-inj-1 h1:TdfQuosho3cVL88TV8uACNWiuuuux22qvBnhKiA47SM=
+github.com/InjectiveLabs/cosmos-sdk v0.50.8-inj-1/go.mod h1:igpF5mgbiTmaS3hO/yoIIv7+ICbzMBIowFWSw5aOrKA=
 github.com/InjectiveLabs/cosmos-sdk/store v0.50.6-inj-0 h1:75YtRrju3R21u/VXttzuBoh49o28xABR2OUqioT9hMQ=
 github.com/InjectiveLabs/cosmos-sdk/store v0.50.6-inj-0/go.mod h1:ZW4eIE98wivInyQyhxU2nHqEielc/iZAcr41qNyWSrw=
 github.com/InjectiveLabs/cosmos-sdk/x/evidence v0.50.6-inj-0 h1:rb73cHJPCTwnBq96WC9L1ymqnHe5i4of1wjpXFAOUe4=
