@@ -157,7 +157,7 @@ func (k *Keeper) PersistSingleSpotMarketOrderExecution(
 		ctx.EventManager().EmitTypedEvent(execution.LimitOrderExecutionEvent[0])
 	}
 
-	if execution.TradingRewardPoints != nil && len(execution.TradingRewardPoints) > 0 {
+	if len(execution.TradingRewardPoints) > 0 {
 		tradingRewardPoints = types.MergeTradingRewardPoints(tradingRewardPoints, execution.TradingRewardPoints)
 	}
 

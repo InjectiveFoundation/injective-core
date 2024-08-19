@@ -473,7 +473,7 @@ func refundFees(
 		fees,
 	)
 	if err != nil {
-		return sdkerrortypes.ErrInsufficientFunds.Wrapf(err.Error())
+		return sdkerrortypes.ErrInsufficientFunds.Wrap(err.Error())
 	}
 
 	return nil

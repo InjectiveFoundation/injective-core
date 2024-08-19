@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"google.golang.org/grpc/keepalive"
 	"time"
+
+	"google.golang.org/grpc/keepalive"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -20,7 +21,7 @@ var kacp = keepalive.ClientParameters{
 }
 
 func main() {
-	cc, err := grpc.Dial(
+	cc, err := grpc.NewClient(
 		"localhost:9999",
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithKeepaliveParams(kacp),

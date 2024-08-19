@@ -5,9 +5,10 @@ import (
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
+	"github.com/InjectiveLabs/metrics"
+
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/auction/types"
 	chaintypes "github.com/InjectiveLabs/injective-core/injective-chain/types"
-	"github.com/InjectiveLabs/metrics"
 )
 
 var _ types.QueryServer = &Keeper{}
@@ -37,12 +38,18 @@ func (k *Keeper) CurrentAuctionBasket(c context.Context, _ *types.QueryCurrentAu
 	coins := k.bankKeeper.GetAllBalances(ctx, auctionModuleAddress)
 	lastBid := k.GetHighestBid(ctx)
 
-	coinsWithoutINJ := make([]sdk.Coin, 0)
+	currentBasketCoins := make([]sdk.Coin, 0)
 	for _, coin := range coins {
+		// We subtract the current highest bid amount from the basket
 		if coin.Denom == chaintypes.InjectiveCoin {
-			continue
+			coin = coin.SubAmount(lastBid.Amount.Amount)
+			maxCap := k.GetParams(ctx).InjBasketMaxCap
+
+			if coin.Amount.GT(maxCap) {
+				coin.Amount = maxCap
+			}
 		}
-		coinsWithoutINJ = append(coinsWithoutINJ, coin)
+		currentBasketCoins = append(currentBasketCoins, coin)
 	}
 
 	closingTime := k.GetEndingTimeStamp(ctx)
@@ -51,7 +58,7 @@ func (k *Keeper) CurrentAuctionBasket(c context.Context, _ *types.QueryCurrentAu
 		AuctionClosingTime: closingTime,
 		HighestBidAmount:   lastBid.Amount.Amount,
 		HighestBidder:      lastBid.Bidder,
-		Amount:             sdk.NewCoins(coinsWithoutINJ...),
+		Amount:             sdk.NewCoins(currentBasketCoins...),
 	}
 	return res, nil
 }

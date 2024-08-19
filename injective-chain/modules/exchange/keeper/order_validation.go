@@ -49,7 +49,7 @@ func (k *Keeper) ensureValidDerivativeOrder(
 	isPostOnlyMode := k.IsPostOnlyMode(ctx)
 
 	if isMarketOrder && isPostOnlyMode {
-		return orderHash, errors.Wrapf(types.ErrPostOnlyMode, fmt.Sprintf("cannot create market orders in post only mode until height %d", k.GetParams(ctx).PostOnlyModeHeightThreshold))
+		return orderHash, errors.Wrap(types.ErrPostOnlyMode, fmt.Sprintf("cannot create market orders in post only mode until height %d", k.GetParams(ctx).PostOnlyModeHeightThreshold))
 	}
 
 	// enforce that post only limit orders don't cross the top of the book
@@ -174,7 +174,7 @@ func (k *Keeper) ensureValidDerivativeOrder(
 		// Reject if the subaccount's available deposits does not have at least the required funds for the trade
 		var markPriceToCheck = markPrice
 		if derivativeOrder.IsConditional() {
-			markPriceToCheck = *derivativeOrder.TriggerPrice // for conditionals triggerprice == mark price at the point in the future when the order will materialise
+			markPriceToCheck = *derivativeOrder.TriggerPrice // for conditionals trigger price == mark price at the point in the future when the order will materialize
 		}
 		marginHold, err := derivativeOrder.CheckMarginAndGetMarginHold(market.GetInitialMarginRatio(), markPriceToCheck, tradeFeeRate, marketType, market.GetOracleScaleFactor())
 		if err != nil {

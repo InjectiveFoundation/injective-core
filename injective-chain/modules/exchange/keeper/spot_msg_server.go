@@ -196,7 +196,7 @@ func (k SpotMsgServer) CreateSpotMarketOrder(goCtx context.Context, msg *types.M
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
 	if k.IsPostOnlyMode(ctx) {
-		return nil, types.ErrPostOnlyMode.Wrapf(fmt.Sprintf("cannot create market orders in post only mode until height %d", k.GetParams(ctx).PostOnlyModeHeightThreshold))
+		return nil, types.ErrPostOnlyMode.Wrap(fmt.Sprintf("cannot create market orders in post only mode until height %d", k.GetParams(ctx).PostOnlyModeHeightThreshold))
 	}
 
 	var (

@@ -184,7 +184,7 @@ func (k *Keeper) PersistSpotMatchingExecution(ctx sdk.Context, batchSpotMatching
 			}
 		}
 
-		if execution.TradingRewardPoints != nil && len(execution.TradingRewardPoints) > 0 {
+		if len(execution.TradingRewardPoints) > 0 {
 			tradingRewardPoints = types.MergeTradingRewardPoints(tradingRewardPoints, execution.TradingRewardPoints)
 		}
 	}

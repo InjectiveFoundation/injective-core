@@ -217,9 +217,10 @@ func (k *Keeper) PersistDerivativeMatchingExecution(
 			ctx.EventManager().EmitTypedEvent(execution.CancelLimitOrderEvents[idx])
 		}
 
-		if execution.TradingRewards != nil && len(execution.TradingRewards) > 0 {
+		if len(execution.TradingRewards) > 0 {
 			tradingRewardPoints = types.MergeTradingRewardPoints(tradingRewardPoints, execution.TradingRewards)
 		}
 	}
+
 	return tradingRewardPoints
 }

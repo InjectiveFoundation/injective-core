@@ -18,10 +18,10 @@ vote() {
         yes $PASSPHRASE | injectived tx gov vote $PROPOSAL_ID yes $TX_OPTS
 }
 
-yes $PASSPHRASE | injectived tx gov submit-legacy-proposal software-upgrade v1.12 \
+yes $PASSPHRASE | injectived tx upgrade software-upgrade v1.13.1 \
  --title "Injective Protocol 1.12 Dry Run" \
- --description "Injective Upgrade 1.12" \
  --upgrade-height $HALT_HEIGHT \
+ --summary "hi" \
  --deposit 500000000000000000000inj $TX_OPTS \
  --no-validate
 

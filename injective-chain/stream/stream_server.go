@@ -3,10 +3,11 @@ package stream
 import (
 	"context"
 	"fmt"
-	servertypes "github.com/cosmos/cosmos-sdk/server/types"
 	"net"
 	"os"
 	"time"
+
+	servertypes "github.com/cosmos/cosmos-sdk/server/types"
 
 	"cosmossdk.io/log"
 	"github.com/cometbft/cometbft/libs/pubsub"
@@ -94,7 +95,7 @@ func (s *StreamServer) Stop() {
 
 func (s *StreamServer) Stream(req *types.StreamRequest, server types.Stream_StreamServer) error {
 	if err := req.Validate(); err != nil {
-		return status.Errorf(codes.InvalidArgument, err.Error())
+		return status.Error(codes.InvalidArgument, err.Error())
 	}
 	clientId := uuid.New().String()
 	sub, err := s.Bus.Subscribe(context.Background(), clientId, types.Empty{}, int(s.bufferCapacity))
@@ -118,7 +119,7 @@ func (s *StreamServer) Stream(req *types.StreamRequest, server types.Stream_Stre
 			return status.Errorf(codes.Canceled, "server is shutting down")
 		case message := <-ch:
 			if err, ok := message.Data().(error); ok {
-				return status.Errorf(codes.Internal, err.Error())
+				return status.Error(codes.Internal, err.Error())
 			}
 
 			inResp, ok := message.Data().(*types.StreamResponseMap)
@@ -143,13 +144,13 @@ func (s *StreamServer) Stream(req *types.StreamRequest, server types.Stream_Stre
 			if req.SpotOrdersFilter != nil && inResp.SpotOrdersByMarketID != nil {
 				outResp.SpotOrders, err = FilterMulti[types.SpotOrderUpdate](inResp.SpotOrdersByMarketID, inResp.SpotOrdersBySubaccount, req.SpotOrdersFilter.MarketIds, req.SpotOrdersFilter.SubaccountIds)
 				if err != nil {
-					return status.Errorf(codes.Internal, err.Error())
+					return status.Error(codes.Internal, err.Error())
 				}
 			}
 			if req.DerivativeOrdersFilter != nil && inResp.DerivativeOrdersByMarketID != nil {
 				outResp.DerivativeOrders, err = FilterMulti[types.DerivativeOrderUpdate](inResp.DerivativeOrdersByMarketID, inResp.DerivativeOrdersBySubaccount, req.DerivativeOrdersFilter.MarketIds, req.DerivativeOrdersFilter.SubaccountIds)
 				if err != nil {
-					return status.Errorf(codes.Internal, err.Error())
+					return status.Error(codes.Internal, err.Error())
 				}
 			}
 			if req.SpotOrderbooksFilter != nil && inResp.SpotOrderbookUpdatesByMarketID != nil {
@@ -161,7 +162,7 @@ func (s *StreamServer) Stream(req *types.StreamRequest, server types.Stream_Stre
 			if req.PositionsFilter != nil && inResp.PositionsByMarketID != nil {
 				outResp.Positions, err = FilterMulti[types.Position](inResp.PositionsByMarketID, inResp.PositionsBySubaccount, req.PositionsFilter.MarketIds, req.PositionsFilter.SubaccountIds)
 				if err != nil {
-					return status.Errorf(codes.Internal, err.Error())
+					return status.Error(codes.Internal, err.Error())
 				}
 			}
 			if req.SubaccountDepositsFilter != nil && inResp.SubaccountDepositsBySubaccountID != nil {
@@ -173,18 +174,18 @@ func (s *StreamServer) Stream(req *types.StreamRequest, server types.Stream_Stre
 			if req.SpotTradesFilter != nil && inResp.SpotTradesByMarketID != nil {
 				outResp.SpotTrades, err = FilterMulti[types.SpotTrade](inResp.SpotTradesByMarketID, inResp.SpotTradesBySubaccount, req.SpotTradesFilter.MarketIds, req.SpotTradesFilter.SubaccountIds)
 				if err != nil {
-					return status.Errorf(codes.Internal, err.Error())
+					return status.Error(codes.Internal, err.Error())
 				}
 			}
 			if req.DerivativeTradesFilter != nil && inResp.DerivativeTradesByMarketID != nil {
 				outResp.DerivativeTrades, err = FilterMulti[types.DerivativeTrade](inResp.DerivativeTradesByMarketID, inResp.DerivativeTradesBySubaccount, req.DerivativeTradesFilter.MarketIds, req.DerivativeTradesFilter.SubaccountIds)
 				if err != nil {
-					return status.Errorf(codes.Internal, err.Error())
+					return status.Error(codes.Internal, err.Error())
 				}
 			}
 			err = server.Send(outResp)
 			if err != nil {
-				return status.Errorf(codes.Internal, err.Error())
+				return status.Error(codes.Internal, err.Error())
 			}
 			height += 1
 		case <-server.Context().Done():

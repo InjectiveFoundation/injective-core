@@ -18,6 +18,11 @@ message Params {
     (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
     (gogoproto.nullable) = false
   ];
+  // inj_basket_max_cap defines the maximum cap for INJ contained in an auction basket
+  string inj_basket_max_cap = 3 [
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
 }
 
 message Bid {

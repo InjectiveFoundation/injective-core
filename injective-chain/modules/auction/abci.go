@@ -28,6 +28,8 @@ func (am AppModule) EndBlocker(ctx sdk.Context) {
 	lastBid := am.keeper.GetHighestBid(ctx)
 	lastBidAmount := lastBid.Amount.Amount
 
+	maxInjCap := am.keeper.GetParams(ctx).InjBasketMaxCap
+
 	// settle auction round
 	if lastBidAmount.IsPositive() && lastBid.Bidder != "" {
 		lastBidder, err := sdk.AccAddressFromBech32(lastBid.Bidder)
@@ -36,30 +38,38 @@ func (am AppModule) EndBlocker(ctx sdk.Context) {
 			logger.Info(err.Error())
 			return
 		}
-		coins := am.bankKeeper.GetAllBalances(ctx, auctionModuleAddress)
 
+		// burn exactly module's inj amount received from bid
+		injBalanceInAuctionModule := am.bankKeeper.GetBalance(ctx, auctionModuleAddress, chaintypes.InjectiveCoin)
+		if injBalanceInAuctionModule.IsPositive() {
+			injBurnAmount := sdk.NewCoin(chaintypes.InjectiveCoin, lastBidAmount)
+			err = am.bankKeeper.BurnCoins(ctx, auctiontypes.ModuleName, sdk.NewCoins(injBurnAmount))
+
+			if err != nil {
+				metrics.ReportFuncError(am.svcTags)
+				logger.Info(err.Error())
+			}
+		}
+
+		// send tokens to winner or append to next auction round
+		coins := am.bankKeeper.GetAllBalances(ctx, auctionModuleAddress)
 		for _, coin := range coins {
-			// burn exactly module's inj amount received from bid
+			// cap the amount of inj that can be sent to the winner
 			if coin.Denom == chaintypes.InjectiveCoin {
-				injBurnAmount := sdk.NewCoins(sdk.NewCoin(chaintypes.InjectiveCoin, lastBidAmount))
-				err = am.bankKeeper.BurnCoins(ctx, auctiontypes.ModuleName, injBurnAmount)
-				if err != nil {
-					metrics.ReportFuncError(am.svcTags)
-					logger.Info(err.Error())
+				if coin.Amount.GT(maxInjCap) {
+					coin.Amount = maxInjCap
 				}
-				continue
 			}
 
-			// send tokens to winner or append to next auction round
 			if err := am.bankKeeper.SendCoinsFromModuleToAccount(ctx, auctiontypes.ModuleName, lastBidder, sdk.NewCoins(coin)); err != nil {
 				metrics.ReportFuncError(am.svcTags)
 				am.keeper.Logger(ctx).Error("Transferring coins to winner failed")
-				return
 			}
 		}
 
 		// emit typed event for auction result
 		auctionRound := am.keeper.GetAuctionRound(ctx)
+
 		// Store the auction result, so that it can be queried later
 		am.keeper.SetLastAuctionResult(ctx, auctiontypes.LastAuctionResult{
 			Winner: lastBid.Bidder,
@@ -85,6 +95,13 @@ func (am AppModule) EndBlocker(ctx sdk.Context) {
 	balances := am.exchangeKeeper.WithdrawAllAuctionBalances(ctx)
 
 	newBasket := am.bankKeeper.GetAllBalances(ctx, auctionModuleAddress)
+
+	// for correctness, emit the correct INJ value in the new basket in the event the INJ balances exceed the cap
+	newInjAmount := newBasket.AmountOf(chaintypes.InjectiveCoin)
+	if newInjAmount.GT(maxInjCap) {
+		excessInj := newInjAmount.Sub(maxInjCap)
+		newBasket = newBasket.Sub(sdk.NewCoin(chaintypes.InjectiveCoin, excessInj))
+	}
 
 	// nolint:errcheck //ignored on purpose
 	ctx.EventManager().EmitTypedEvent(&auctiontypes.EventAuctionStart{
