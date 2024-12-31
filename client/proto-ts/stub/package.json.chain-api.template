@@ -7,7 +7,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/InjectiveLabs/injective-core.git"
+    "url": "git+https://github.com/InjectiveFoundation/injective-core.git"
   },
   "keywords": [
     "injective-core",
@@ -17,9 +17,9 @@
   "author": "Injective Labs",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/InjectiveLabs/injective-core/issues"
+    "url": "https://github.com/InjectiveFoundation/injective-core/issues"
   },
-  "homepage": "https://github.com/InjectiveLabs/injective-core#readme",
+  "homepage": "https://github.com/InjectiveFoundation/injective-core#readme",
   "dependencies": {
     "@injectivelabs/grpc-web": "^0.0.1",
     "google-protobuf": "^3.13.0"
