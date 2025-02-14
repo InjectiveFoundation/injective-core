@@ -110,10 +110,21 @@ func (k *Keeper) OutgoingTxBatchExecuted(ctx sdk.Context, tokenContract common.A
 		panic(fmt.Sprintf("unknown batch nonce for outgoing tx batch %s %d", tokenContract, nonce))
 	}
 
+	_, denom := k.ERC20ToDenomLookup(ctx, tokenContract)
+	ev := &types.EventWithdrawalsCompleted{
+		Denom:       denom,
+		Withdrawals: make([]*types.Withdrawal, 0, len(b.Transactions)),
+	}
+
 	// cleanup outgoing TX pool, while these transactions where hidden from GetPoolTransactions
 	// they still exist in the pool and need to be cleaned up.
 	for _, tx := range b.Transactions {
 		k.removePoolEntry(ctx, tx.Id)
+		ev.Withdrawals = append(ev.Withdrawals, &types.Withdrawal{
+			Sender:   tx.Sender,
+			Receiver: tx.DestAddress,
+			Amount:   tx.Erc20Token.Amount,
+		})
 	}
 
 	// Iterate through remaining batches
@@ -131,6 +142,8 @@ func (k *Keeper) OutgoingTxBatchExecuted(ctx sdk.Context, tokenContract common.A
 
 	// Delete batch since it is finished
 	k.DeleteBatch(ctx, *b)
+
+	_ = ctx.EventManager().EmitTypedEvent(ev)
 }
 
 // StoreBatch stores a transaction batch

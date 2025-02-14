@@ -11,6 +11,9 @@ import (
 	"strings"
 	"time"
 
+	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
+	v1 "github.com/cosmos/cosmos-sdk/x/gov/types/v1"
+
 	"cosmossdk.io/math"
 	"github.com/cosmos/cosmos-sdk/x/authz"
 	"github.com/cosmos/gogoproto/grpc"
@@ -20,6 +23,7 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authzcli "github.com/cosmos/cosmos-sdk/x/authz/client/cli"
 	govcli "github.com/cosmos/cosmos-sdk/x/gov/client/cli"
+	govgeneraltypes "github.com/cosmos/cosmos-sdk/x/gov/types"
 	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types/v1beta1"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/spf13/cobra"
@@ -95,6 +99,7 @@ func NewTxCmd() *cobra.Command {
 		NewUpdateDenomDecimalsProposalTxCmd(),
 		NewIncreasePositionMarginTxCmd(),
 		NewDecreasePositionMarginTxCmd(),
+		NewMsgLiquidatePositionTxCmd(),
 	)
 	return cmd
 }
@@ -108,13 +113,22 @@ func NewInstantSpotMarketLaunchTxCmd() *cobra.Command {
 			"MinPriceTickSize":    cli.Flag{Flag: FlagMinPriceTickSize, UseDefaultIfOmitted: true},
 			"MinQuantityTickSize": cli.Flag{Flag: FlagMinQuantityTickSize, UseDefaultIfOmitted: true},
 			"MinNotional":         cli.Flag{Flag: FlagMinNotional, UseDefaultIfOmitted: true},
+			"BaseDecimals":        cli.Flag{Flag: FlagBaseDecimals},
+			"QuoteDecimals":       cli.Flag{Flag: FlagQuoteDecimals},
 		},
 		cli.ArgsMapping{},
 	)
-	cmd.Example = `tx exchange instant-spot-market-launch INJ/ATOM uinj uatom --min-price-tick-size=1000000000 --min-quantity-tick-size=1000000000000000 --min-notional=1`
+	cmd.Example = `tx exchange instant-spot-market-launch INJ/ATOM uinj uatom \
+			--min-price-tick-size=1000000000 \
+			--min-quantity-tick-size=1000000000000000 \
+			--min-notional=1 \
+			--base-decimals=18 \
+			--quote-decimals=6`
 	cmd.Flags().String(FlagMinPriceTickSize, "1000000000", "min price tick size")
 	cmd.Flags().String(FlagMinQuantityTickSize, "1000000000000000", "min quantity tick size")
 	cmd.Flags().String(FlagMinNotional, "0", "min notional")
+	cmd.Flags().String(FlagBaseDecimals, "0", "base token decimals")
+	cmd.Flags().String(FlagQuoteDecimals, "0", "quote token decimals")
 	return cmd
 }
 
@@ -327,8 +341,12 @@ func NewCreateDerivativeMarketOrderTxCmd() *cobra.Command {
 						orderType = types.OrderType_STOP_BUY
 					case "take-buy":
 						orderType = types.OrderType_TAKE_BUY
+					case "buy-atomic":
+						orderType = types.OrderType_BUY_ATOMIC
+					case "sell-atomic":
+						orderType = types.OrderType_SELL_ATOMIC
 					default:
-						return orderType, fmt.Errorf(`order type must be "buy", "sell", "take-buy", "stop-buy", "take-sell" or "stop-sell"`)
+						return orderType, fmt.Errorf(`order type must be "buy", "sell", "take-buy", "stop-buy", "take-sell" or "stop-sell" or "buy-atomic" or "sell-atomic"`)
 					}
 					return int(orderType), nil
 				},
@@ -401,9 +419,17 @@ func NewSpotMarketUpdateParamsProposalTxCmd() *cobra.Command {
 					return fmt.Sprintf("%v", int32(status)), nil
 				},
 			},
+			"BaseDecimals":   cli.Flag{Flag: FlagBaseDecimals},
+			"QuoteDecimals":  cli.Flag{Flag: FlagQuoteDecimals},
 			"InitialDeposit": cli.Flag{Flag: govcli.FlagDeposit},
 		}, cli.ArgsMapping{})
-	cmd.Example = `tx exchange update-spot-market-params --market-id="0xacdd4f9cb90ecf5c4e254acbf65a942f562ca33ba718737a93e5cb3caadec3aa" --title="Spot market params update" --description="XX" --deposit="1000000000000000000inj"`
+	cmd.Example = `tx exchange update-spot-market-params \
+			--market-id="0xacdd4f9cb90ecf5c4e254acbf65a942f562ca33ba718737a93e5cb3caadec3aa" \
+			--base-decimals=18 \
+			--quote-decimals=6 \
+			--title="Spot market params update" \
+			--description="XX" \
+			--deposit="1000000000000000000inj"`
 
 	cmd.Flags().String(FlagMarketID, "", "Spot market ID")
 	cmd.Flags().String(FlagTicker, "", "market ticker")
@@ -416,6 +442,8 @@ func NewSpotMarketUpdateParamsProposalTxCmd() *cobra.Command {
 	cmd.Flags().String(FlagMarketStatus, "", "market status")
 	cmd.Flags().String(FlagAdmin, "", "market admin")
 	cmd.Flags().Uint32(FlagAdminPermissions, 0, "admin permissions level")
+	cmd.Flags().Uint32(FlagBaseDecimals, 0, "base asset decimals")
+	cmd.Flags().Uint32(FlagQuoteDecimals, 0, "quote asset decimals")
 	cliflags.AddGovProposalFlags(cmd)
 
 	return cmd
@@ -440,6 +468,8 @@ func NewSpotMarketLaunchProposalTxCmd() *cobra.Command {
 			"MinNotional":         cli.Flag{Flag: FlagMinNotional},
 			"Admin":               cli.Flag{Flag: FlagAdmin},
 			"AdminPermissions":    cli.Flag{Flag: FlagAdminPermissions},
+			"BaseDecimals":        cli.Flag{Flag: FlagBaseDecimals},
+			"QuoteDecimals":       cli.Flag{Flag: FlagQuoteDecimals},
 			"InitialDeposit":      cli.Flag{Flag: govcli.FlagDeposit},
 		}, cli.ArgsMapping{})
 	cmd.Example = `tx exchange spot-market-launch INJ/ATOM uinj uatom \
@@ -448,6 +478,8 @@ func NewSpotMarketLaunchProposalTxCmd() *cobra.Command {
 			--min-notional=1000000000 \
 			--maker-fee-rate="0.001" \
 			--taker-fee-rate="0.001" \
+			--base-decimals=18 \
+			--quote-decimals=6 \
 			--title="INJ/ATOM spot market" \
 			--description="XX" \
 			--deposit="1000000000000000000inj"`
@@ -459,6 +491,8 @@ func NewSpotMarketLaunchProposalTxCmd() *cobra.Command {
 	cmd.Flags().String(FlagMinNotional, "0", "min notional")
 	cmd.Flags().String(FlagAdmin, "", "market admin")
 	cmd.Flags().Uint32(FlagAdminPermissions, 0, "admin permissions level")
+	cmd.Flags().String(FlagBaseDecimals, "0", "base token decimals")
+	cmd.Flags().String(FlagQuoteDecimals, "0", "quote token decimals")
 	cliflags.AddGovProposalFlags(cmd)
 
 	return cmd
@@ -1910,7 +1944,7 @@ func NewBatchExchangeModificationProposalTxCmd() *cobra.Command {
 		Long: strings.TrimSpace(
 			fmt.Sprintf(`Submit a proposal for batch exchange modifications.
 Example:
-$ %s tx gov batch-exchange-modifications-proposal --proposal="path/to/proposal.json" --from=mykey --deposit=1000000inj
+$ %s tx gov batch-exchange-modifications-proposal --proposal="path/to/proposal.json" --from=mykey --deposit=100000000000000000000inj --expedited=false
 
 Where proposal.json contains:
 {
@@ -2039,12 +2073,33 @@ Where proposal.json contains:
 				return err
 			}
 
-			content, err := parseBatchExchangeModificationsProposalFlags(cmd.Flags())
+			proposal, err := parseBatchExchangeModificationsProposalFlags(cmd.Flags())
 			if err != nil {
 				return err
 			}
 
-			msg, err := govtypes.NewMsgSubmitProposal(content, amount, clientCtx.GetFromAddress())
+			batchModificationMessage := types.MsgBatchExchangeModification{
+				Sender:   authtypes.NewModuleAddress(govgeneraltypes.ModuleName).String(),
+				Proposal: proposal,
+			}
+			messages := []sdk.Msg{
+				&batchModificationMessage,
+			}
+
+			expedited, err := cmd.Flags().GetBool(FlagExpedited)
+			if err != nil {
+				return err
+			}
+
+			msg, err := v1.NewMsgSubmitProposal(
+				messages,
+				amount,
+				clientCtx.GetFromAddress().String(),
+				"",
+				proposal.Title,
+				proposal.Description,
+				expedited,
+			)
 			if err != nil {
 				return fmt.Errorf("invalid message: %w", err)
 			}
@@ -2056,6 +2111,7 @@ Where proposal.json contains:
 	cmd.Flags().String(govcli.FlagDeposit, "", "The proposal deposit")
 	cmd.Flags().
 		String(govcli.FlagProposal, "", "Proposal file path (if this path is given, other proposal flags are ignored)")
+	cmd.Flags().Bool(FlagExpedited, false, "set the expedited value for the governance proposal")
 	cliflags.AddTxFlagsToCmd(cmd)
 
 	return cmd
@@ -2560,12 +2616,26 @@ $ %s tx exchange update-spot-market 0x1e11532fc29f1bc3eb75f6fddf4997e904c780ddf1
 				}
 			}
 
+			strMinNotional, err := cmd.Flags().GetString(FlagMinNotional)
+			if err != nil {
+				return err
+			}
+
+			var minNotional math.LegacyDec
+			if strMinNotional != "" {
+				minNotional, err = math.LegacyNewDecFromStr(strMinNotional)
+				if err != nil {
+					return err
+				}
+			}
+
 			msg := &types.MsgUpdateSpotMarket{
 				Admin:                  clientCtx.GetFromAddress().String(),
 				MarketId:               common.HexToHash(args[0]).String(),
 				NewTicker:              ticker,
 				NewMinPriceTickSize:    minPriceTickSize,
 				NewMinQuantityTickSize: minQuantityTickSize,
+				NewMinNotional:         minNotional,
 			}
 
 			if err := msg.ValidateBasic(); err != nil {
@@ -2579,6 +2649,7 @@ $ %s tx exchange update-spot-market 0x1e11532fc29f1bc3eb75f6fddf4997e904c780ddf1
 	cmd.Flags().String(FlagTicker, "", "new market ticker")
 	cmd.Flags().String(FlagMinPriceTickSize, "", "new min price tick size")
 	cmd.Flags().String(FlagMinQuantityTickSize, "", "new min quantity tick size")
+	cmd.Flags().String(FlagMinNotional, "", "new min notional")
 
 	cliflags.AddTxFlagsToCmd(cmd)
 
@@ -3194,6 +3265,40 @@ func NewDecreasePositionMarginTxCmd() *cobra.Command {
 		},
 	)
 	cmd.Example = `injectived tx exchange decrease-position-margin 0xf22dccace9d0610334f32637100cad2934528f81000000000000000000000000 0xf22dccace9d0610334f32637100cad2934528f81000000000000000000000000 "ETH/USDT PERP" 10000000`
+	return cmd
+}
+
+func NewMsgLiquidatePositionTxCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "liquidate-position <subaccount-id> <market-id>",
+		Args:  cobra.ExactArgs(2),
+		Short: "Liquidate a position",
+		Long: `Liquidate a position
+
+		Example:
+		$ %s tx exchange liquidate-position 0xf22dccace9d0610334f32637100cad2934528f81000000000000000000000000 0x77261d2236f465ca70995043e4134897bcf8aee1262ba69d93ad819d5722cd6a
+		`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clientCtx, err := client.GetClientTxContext(cmd)
+			if err != nil {
+				return err
+			}
+
+			// build msg
+			msg := &types.MsgLiquidatePosition{
+				Sender: clientCtx.GetFromAddress().String(),
+				SubaccountId: args[0],
+				MarketId: args[1],
+			}
+
+			if err := msg.ValidateBasic(); err != nil {
+				return err
+			}
+
+			return tx.GenerateOrBroadcastTxCLI(clientCtx, cmd.Flags(), msg)
+		},
+	}
+	cliflags.AddTxFlagsToCmd(cmd)
 	return cmd
 }
 

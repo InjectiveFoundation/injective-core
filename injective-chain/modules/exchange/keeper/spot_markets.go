@@ -5,6 +5,7 @@ import (
 	"cosmossdk.io/math"
 	"cosmossdk.io/store/prefix"
 	"github.com/InjectiveLabs/metrics"
+	"github.com/cosmos/cosmos-sdk/baseapp"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
@@ -243,7 +244,10 @@ func (k *Keeper) handleSpotMakerFeeIncrease(ctx sdk.Context, buyOrderbook []*typ
 		hasSufficientFundsToPayExtraFee := k.HasSufficientFunds(ctx, subaccountID, denom, extraFee)
 
 		if hasSufficientFundsToPayExtraFee {
-			err := k.chargeAccount(ctx, subaccountID, denom, extraFee)
+			// bank charge should fail if the account no longer has permissions to send the tokens
+			chargeCtx := ctx.WithValue(baseapp.DoNotFailFastSendContextKey, nil)
+
+			err := k.chargeAccount(chargeCtx, subaccountID, denom, extraFee)
 
 			// defensive programming: continue to next order if charging the extra fee succeeds
 			// otherwise cancel the order
@@ -270,6 +274,15 @@ func (k *Keeper) ExecuteSpotMarketParamUpdateProposal(ctx sdk.Context, p *types.
 		k.CancelAllRestingLimitOrdersFromSpotMarket(ctx, prevMarket, prevMarket.MarketID())
 	}
 
+	if !k.IsDenomDecimalsValid(ctx, prevMarket.BaseDenom, p.BaseDecimals) {
+		metrics.ReportFuncCall(k.svcTags)
+		return errors.Wrapf(types.ErrDenomDecimalsDoNotMatch, "denom %s does not have %d decimals", prevMarket.BaseDenom, p.BaseDecimals)
+	}
+	if !k.IsDenomDecimalsValid(ctx, prevMarket.QuoteDenom, p.QuoteDecimals) {
+		metrics.ReportFuncCall(k.svcTags)
+		return errors.Wrapf(types.ErrDenomDecimalsDoNotMatch, "denom %s does not have %d decimals", prevMarket.QuoteDenom, p.QuoteDecimals)
+	}
+
 	// we cancel only buy orders, as sell order pay their fee from obtained funds in quote currency upon matching
 	buyOrderbook := k.GetAllSpotLimitOrdersByMarketDirection(ctx, marketID, true)
 	if p.MakerFeeRate.LT(prevMarket.MakerFeeRate) {
@@ -290,6 +303,8 @@ func (k *Keeper) ExecuteSpotMarketParamUpdateProposal(ctx sdk.Context, p *types.
 		p.Status,
 		p.Ticker,
 		p.AdminInfo,
+		p.BaseDecimals,
+		p.QuoteDecimals,
 	)
 
 	return nil
@@ -314,6 +329,7 @@ func (k *Keeper) UpdateSpotMarketParam(
 	status types.MarketStatus,
 	ticker string,
 	adminInfo *types.AdminInfo,
+	baseDecimals, quoteDecimals uint32,
 ) *types.SpotMarket {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
@@ -346,12 +362,15 @@ func (k *Keeper) UpdateSpotMarketParam(
 		market.AdminPermissions = 0
 	}
 
+	market.BaseDecimals = baseDecimals
+	market.QuoteDecimals = quoteDecimals
+
 	k.SetSpotMarket(ctx, market)
 
 	return market
 }
 
-func (k *Keeper) SpotMarketLaunch(ctx sdk.Context, ticker, baseDenom, quoteDenom string, minPriceTickSize, minQuantityTickSize, minNotional math.LegacyDec) (*types.SpotMarket, error) {
+func (k *Keeper) SpotMarketLaunch(ctx sdk.Context, ticker, baseDenom, quoteDenom string, minPriceTickSize, minQuantityTickSize, minNotional math.LegacyDec, baseDecimals, quoteDecimals uint32) (*types.SpotMarket, error) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
@@ -361,7 +380,7 @@ func (k *Keeper) SpotMarketLaunch(ctx sdk.Context, ticker, baseDenom, quoteDenom
 	takerFeeRate := exchangeParams.DefaultSpotTakerFeeRate
 	relayerFeeShareRate := exchangeParams.RelayerFeeShareRate
 
-	return k.SpotMarketLaunchWithCustomFees(ctx, ticker, baseDenom, quoteDenom, minPriceTickSize, minQuantityTickSize, minNotional, makerFeeRate, takerFeeRate, relayerFeeShareRate, types.EmptyAdminInfo())
+	return k.SpotMarketLaunchWithCustomFees(ctx, ticker, baseDenom, quoteDenom, minPriceTickSize, minQuantityTickSize, minNotional, makerFeeRate, takerFeeRate, relayerFeeShareRate, types.EmptyAdminInfo(), baseDecimals, quoteDecimals)
 }
 
 func (k *Keeper) SpotMarketLaunchWithCustomFees(
@@ -370,6 +389,7 @@ func (k *Keeper) SpotMarketLaunchWithCustomFees(
 	minPriceTickSize, minQuantityTickSize, minNotional math.LegacyDec,
 	makerFeeRate, takerFeeRate, relayerFeeShareRate math.LegacyDec,
 	adminInfo types.AdminInfo,
+	baseDecimals, quoteDecimals uint32,
 ) (*types.SpotMarket, error) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
@@ -389,6 +409,16 @@ func (k *Keeper) SpotMarketLaunchWithCustomFees(
 	if !k.IsDenomValid(ctx, quoteDenom) {
 		metrics.ReportFuncCall(k.svcTags)
 		return nil, errors.Wrapf(types.ErrInvalidQuoteDenom, "denom %s does not exist in supply", quoteDenom)
+	}
+
+	if !k.IsDenomDecimalsValid(ctx, baseDenom, baseDecimals) {
+		metrics.ReportFuncCall(k.svcTags)
+		return nil, errors.Wrapf(types.ErrDenomDecimalsDoNotMatch, "denom %s does not have %d decimals", baseDenom, baseDecimals)
+	}
+
+	if !k.IsDenomDecimalsValid(ctx, quoteDenom, quoteDecimals) {
+		metrics.ReportFuncCall(k.svcTags)
+		return nil, errors.Wrapf(types.ErrDenomDecimalsDoNotMatch, "denom %s does not have %d decimals", quoteDenom, quoteDecimals)
 	}
 
 	marketID := types.NewSpotMarketID(baseDenom, quoteDenom)
@@ -411,6 +441,8 @@ func (k *Keeper) SpotMarketLaunchWithCustomFees(
 		MinNotional:         minNotional,
 		Admin:               adminInfo.Admin,
 		AdminPermissions:    adminInfo.AdminPermissions,
+		BaseDecimals:        baseDecimals,
+		QuoteDecimals:       quoteDecimals,
 	}
 
 	k.SetSpotMarket(ctx, &market)

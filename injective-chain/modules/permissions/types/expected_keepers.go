@@ -5,8 +5,6 @@ import (
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
-
-	tftypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/tokenfactory/types"
 )
 
 type BankKeeper interface {
@@ -17,7 +15,7 @@ type BankKeeper interface {
 }
 
 type TokenFactoryKeeper interface {
-	GetAuthorityMetadata(ctx sdk.Context, denom string) (tftypes.DenomAuthorityMetadata, error)
+	GetDenomAdmin(ctx sdk.Context, denom string) (sdk.AccAddress, error)
 }
 
 type WasmKeeper interface {

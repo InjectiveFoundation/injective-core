@@ -9,55 +9,40 @@ This is a reference document for Peggy message types. For code reference and exa
 
 ## User messages
 
-These are messages sent on the Injective Chain peggy module. See [workflow](./02_workflow.md) for a more detailed summary of the entire deposit and withdraw process.
+These are messages sent on the Injective Chain peggy module by the end user. See [workflow](./02_workflow.md) for a more detailed summary of the entire deposit and withdraw process.
 
 ### SendToEth
 
-```go
+Sent to Injective whenever a user wishes to make a withdrawal back to Ethereum. Submitted amount is removed from the user's balance immediately.
+The withdrawal is added to the outgoing tx pool as a `types.OutgoingTransferTx` where it will remain until it is included in a batch.
 
-// MsgSendToEth
-// This is the message that a user calls when they want to bridge an asset
-// it will later be removed when it is included in a batch and successfully
-// submitted tokens are removed from the users balance immediately
-// -------------
-// AMOUNT:
-// the coin to send across the bridge, note the restriction that this is a
-// single coin not a set of coins that is normal in other Injective messages
-// FEE:
-// the fee paid for the bridge, distinct from the fee paid to the chain to
-// actually send this message in the first place. So a successful send has
-// two layers of fees for the user
+```go
 type MsgSendToEth struct {
-	Sender    string     
-	EthDest   string     
-	Amount    types.Coin 
-	BridgeFee types.Coin 
+	Sender    string    // sender's Injective address
+	EthDest   string    // receiver's Ethereum address
+	Amount    types.Coin    // amount of tokens to bridge
+	BridgeFee types.Coin    // additional fee for bridge relayers. Must be of same token type as Amount
 }
 
 ```
-SendToEth allows the user to specify an Ethereum destination, a token to send to Ethereum and a fee denominated in that same token
-to pay the relayer. Note that this transaction will contain two fees. One fee amount to submit to the Injective Chain, that can be paid
-in any token and one fee amount for the Ethereum relayer that must be paid in the same token that is being bridged.
 
 ### CancelSendToEth
+
+This message allows the user to cancel a specific withdrawal that is not yet batched. User balance is refunded (`Amount` + `BridgeFee`).
+
 ```go
-// This call allows the sender (and only the sender)
-// to cancel a given MsgSendToEth and receive a refund
-// of the tokens
 type MsgCancelSendToEth struct {
-	TransactionId uint64 
-	Sender        string 
+	TransactionId uint64    // unique tx nonce of the withdrawal
+	Sender        string    // original sender of the withdrawal
 }
 
-```
-CancelSendToEth allows a user to retrieve a transaction that is in the batch pool but has not yet been packaged into a transaction batch by a relayer running [RequestBatch](./04_messages.md#RequestBatch). 
+``` 
 
 ### SubmitBadSignatureEvidence
 
+This call allows anyone to submit evidence that a validator has signed a valset or batch that never existed. Subject contains the batch or valset.
+
 ```go
-// This call allows anyone to submit evidence that a
-// validator has signed a valset or batch that never
-// existed. Subject contains the batch or valset.
 type MsgSubmitBadSignatureEvidence struct {
 	Subject   *types1.Any 
 	Signature string      
@@ -65,163 +50,134 @@ type MsgSubmitBadSignatureEvidence struct {
 }
 ```
 
-SubmitBadSignatureEvidence allows anyone to submit evidence that a validator has signed a valset or batch that never existed.
+## Batch Creator Messages
 
-## Relayer Messages
-
-These are messages run by relayers. Relayers are unpermissioned and simply work to move things from the Injective Chain to Ethereum.
+These messages are sent by the `Batch Creator` subprocess of `peggo`
 
 ### RequestBatch
 
+This message is sent whenever some `Batch Creator` finds pooled withdrawals that when batched would satisfy their minimum batch fee (`PEGGO_MIN_BATCH_FEE_USD`).
+After receiving this message the `Peggy module` collects all withdrawals of the requested token denom, creates a unique token batch (`types.OutgoingTxBatch`) and places it in the `Outgoing Batch pool`.
+Withdrawals that are batched cannot be cancelled with `MsgCancelSendToEth`.
+
+
 ```go
-// MsgRequestBatch
-// this is a message anyone can send that requests a batch of transactions to
-// send across the bridge be created for whatever block height this message is
-// included in. This acts as a coordination point, the handler for this message
-// looks at the AddToOutgoingPool tx's in the store and generates a batch, also
-// available in the store tied to this message. The validators then grab this
-// batch, sign it, submit the signatures with a MsgConfirmBatch before a relayer
-// can finally submit the batch
-// -------------
 type MsgRequestBatch struct {
-	Orchestrator string 
-	Denom        string
+	Orchestrator string // orchestrator address interested in creating the batch. Not permissioned.  
+	Denom        string // the specific token whose withdrawals will be batched together
 }
 ```
 
-Relayers use `QueryPendingSendToEth` in [query.proto](https://github.com/InjectiveLabs/injective-core/blob/master/proto/injective/peggy/v1/query.proto) to query the potential fees for a batch of each
-token type. When they find a batch that they wish to relay they send in a RequestBatch message and the Peggy module creates a batch.
-
-This then triggers the Ethereum Signers to send in ConfirmBatch messages, which the signatures required to submit the batch to the Ethereum chain.
-
-At this point any relayer can package these signatures up into a transaction and send them to Ethereum.
-
-As noted above this message is unpermissioned and it is safe to allow anyone to call this message at any time. 
 
 ## Oracle Messages
 
-All validators run two processes in addition to their Injective node. An Ethereum oracle and Ethereum signer, these are bundled into a single Orchestrator binary for ease of use.
-
-The oracle observes the Ethereum chain for events from the [Peggy.sol](https://github.com/InjectiveLabs/peggo/blob/master/solidity/contracts/Peggy.sol) contract before submitting them as messages to the Injective Chain.
+These messages are sent by the `Oracle` subprocess of `peggo`
 
 ### DepositClaim
-```go
 
-// EthereumBridgeDepositClaim
-// When more than 66% of the active validator set has
-// claimed to have seen the deposit enter the ethereum blockchain coins are
-// issued to the Injective address in question
-// -------------
+Sent to Injective when a `SendToInjectiveEvent` is emitted from the `Peggy contract`.
+This occurs whenever a user is making an individual deposit from Ethereum to Injective. 
+
+```go
 type MsgDepositClaim struct {
-	EventNonce     uint64                                
-	BlockHeight    uint64                                
-	TokenContract  string                                
-	Amount         math.Int 
-	EthereumSender string                                 
-	CosmosReceiver string                                 
-	Orchestrator   string                                 
+	EventNonce     uint64   // unique nonce of the event                                
+	BlockHeight    uint64   // Ethereum block height at which the event was emitted                                
+	TokenContract  string   // contract address of the ERC20 token                                 
+	Amount         sdkmath.Int  // amount of deposited tokens 
+	EthereumSender string   // sender's Ethereum address                                 
+	CosmosReceiver string   // receiver's Injective address                                 
+	Orchestrator   string   // address of the Orchestrator which observed the event                               
 }
 ```
-Deposit claims represent a `SendToCosmosEvent` emitted by the Peggy contract. After 2/3 of the validators confirm a deposit claim,  the representative tokens will be issued to the specified `CosmosReceiver` Injective Chain account.
 
 ### WithdrawClaim
 
+Sent to Injective when a `TransactionBatchExecutedEvent` is emitted from the `Peggy contract`.
+This occurs when a `Relayer` has successfully called `submitBatch` on the contract to complete a batch of withdrawals.
+
 ```go
-// WithdrawClaim claims that a batch of withdrawal
-// operations on the bridge contract was executed.
 type MsgWithdrawClaim struct {
-	EventNonce    uint64 
-	BlockHeight   uint64 
-	BatchNonce    uint64 
-	TokenContract string 
-	Orchestrator  string 
+	EventNonce    uint64    // unique nonce of the event
+	BlockHeight   uint64    // Ethereum block height at which the event was emitted
+	BatchNonce    uint64    // nonce of the batch executed on Ethereum
+	TokenContract string    // contract address of the ERC20 token
+	Orchestrator  string    // address of the Orchestrator which observed the event
 }
 ```
-Withdraw claims represent a `TransactionBatchExecutedEvent` from the Peggy contract. When this passes the oracle vote the batch in state is cleaned up and tokens are burned/locked.
 
-### ValsetUpdateClaim
+### ValsetUpdatedClaim
+
+Sent to Injective when a `ValsetUpdatedEvent` is emitted from the `Peggy contract`.
+This occurs when a `Relayer` has successfully called `updateValset` on the contract to update the `Validator Set` on Ethereum.
 
 ```go
 
-// This informs the peggy module that a validator
-// set has been updated.
 type MsgValsetUpdatedClaim struct {
-	EventNonce   uint64                           
-	ValsetNonce  uint64                           
-	BlockHeight  uint64                           
-	Members      []*BridgeValidator               
-	RewardAmount math.Int 
-	RewardToken  string                                 
-	Orchestrator string                                 
+	EventNonce   uint64 // unique nonce of the event                      
+	ValsetNonce  uint64 // nonce of the valset                           
+	BlockHeight  uint64 // Ethereum block height at which the event was emitted                           
+	Members      []*BridgeValidator // members of the Validator Set               
+	RewardAmount sdkmath.Int // Reward for relaying the valset update 
+	RewardToken  string // reward token contract address                                 
+	Orchestrator string // address of the Orchestrator which observed the event                                 
 }
 ```
-claim representing a `ValsetUpdatedEvent` from the Peggy contract. When this passes the oracle vote reward amounts are tallied and minted.
 
 ### ERC20DeployedClaim
-```go
 
-// ERC20DeployedClaim allows the peggy module
-// to learn about an ERC-20 that someone deployed
-// to represent a Cosmos asset
+Sent to Injective when a `ERC20DeployedEvent` is emitted from the `Peggy contract`.
+This occurs whenever the `deployERC20` method is called on the contract to issue a new token asset eligible for bridging. 
+
+```go
 type MsgERC20DeployedClaim struct {
-	EventNonce    uint64 
-	BlockHeight   uint64 
-	CosmosDenom   string 
-	TokenContract string 
-	Name          string 
-	Symbol        string 
-	Decimals      uint64 
-	Orchestrator  string 
+	EventNonce    uint64    // unique nonce of the event
+	BlockHeight   uint64    // Ethereum block height at which the event was emitted
+	CosmosDenom   string    // denom of the token
+	TokenContract string    // contract address of the token
+	Name          string    // name of the token
+	Symbol        string    // symbol of the token
+	Decimals      uint64    // number of decimals the token has
+	Orchestrator  string    // address of the Orchestrator which observed the event
 }
 ```
-claim representing a `ERC20DeployedEvent` from the Peggy contract. When this passes the oracle vote it is checked for accuracy and adopted or rejected as the ERC-20 representation of a Cosmos SDK based asset. 
 
-## Ethereum Signer Messages
 
-All validators run two processes in addition to their Injective Chain node. An Ethereum oracle and Ethereum signer, these are bundled into a single Orchestrator binary for ease of use.
+## Signer Messages
 
-The Ethereum signer watches several [query endpoints](https://github.com/InjectiveLabs/injective-core/blob/master/proto/injective/peggy/v1/query.proto) and it's only job is to submit a signature for anything that appears on those endpoints. For this reason the validator must provide a secure RPC to an Injective Chain node following chain consensus. Or they risk being tricked into signing the wrong thing.
+These messages are sent by the `Signer` subprocess of `peggo`
 
 ### ConfirmBatch
-```go
 
-// MsgConfirmBatch
-// When validators observe a MsgRequestBatch they form a batch by ordering
-// transactions currently in the txqueue in order of highest to lowest fee,
-// cutting off when the batch either reaches a hardcoded maximum size (to be
-// decided, probably around 100) or when transactions stop being profitable
-// This message includes the batch as well as an Ethereum signature over this batch by the validator
-// -------------
+When `Signer` finds a batch that the `Orchestrator` (`Validator`) has not signed off, it constructs a signature with its `Delegated Ethereum Key` and sends the confirmation to Injective.
+It's crucial that a `Validator` eventually provides their confirmation for a created batch as they will be slashed otherwise. 
+
+```go
 type MsgConfirmBatch struct {
-	Nonce         uint64 
-	TokenContract string 
-	EthSigner     string 
-	Orchestrator  string 
-	Signature     string 
+	Nonce         uint64    // nonce of the batch 
+	TokenContract string    // contract address of batch token
+	EthSigner     string    // Validator's delegated Ethereum address (previously registered)
+	Orchestrator  string    // address of the Orchestrator confirming the batch
+	Signature     string    // Validator's signature of the batch
 }
 ```
-Submits an Ethereum signature over a batch appearing in the `LastPendingBatchRequestByAddr` query.
 
 ### ValsetConfirm
-```go
 
-// MsgValsetConfirm
-// this is the message sent by the validators when they wish to submit their
-// signatures over the validator set at a given block height. A validator must
-// first call MsgSetEthAddress to set their Ethereum address to be used for
-// signing. Then someone (anyone) must make a ValsetRequest the request is
-// essentially a messaging mechanism to determine which block all validators
-// should submit signatures over. Finally validators sign the validator set,
-// powers, and Ethereum addresses of the entire validator set at the height of a
-// ValsetRequest and submit that signature with this message.
+When `Signer` finds a valset update that the `Orchestrator` (`Validator`) has not signed off, it constructs a signature with its `Delegated Ethereum Key` and sends the confirmation to Injective.
+It's crucial that a `Validator` eventually provides their confirmation for a created valset update as they will be slashed otherwise.
+
+```go
 type MsgValsetConfirm struct {
-	Nonce        uint64 
-	Orchestrator string 
-	EthAddress   string 
-	Signature    string 
+	Nonce        uint64 // nonce of the valset 
+	Orchestrator string // address of the Orchestrator confirming the valset
+	EthAddress   string // Validator's delegated Ethereum address (previously registered)
+	Signature    string // Validator's signature of the valset
 }
 ```
-Submits an Ethereum signature over a batch appearing in the `LastPendingValsetRequestByAddr` query.
+
+## Relayer Messages
+
+The `Relayer` does not send any message to Injective, rather it constructs Ethereum transactions with Injective data to update the `Peggy contract` via `submitBatch` and `updateValset` methods.
 
 ## Validator Messages
 
@@ -229,25 +185,14 @@ These are messages sent directly using the validator's message key.
 
 ### SetOrchestratorAddresses
 
-```go
+Sent to Injective by an `Operator` managing a `Validator` node. Before being able to start their `Orchestrator` (`peggo`) process, they must register a chosen Ethereum address to represent their `Validator` on Ethereum. 
+Optionally, an additional Injective address can be provided (`Orchestrator` field) to represent that `Validator` in the bridging process (`peggo`). Defaults to `Validator`'s own address if omitted.  
 
-// MsgSetOrchestratorAddresses
-// this message allows validators to delegate their voting responsibilities
-// to a given key. This key is then used as an optional authentication method
-// for sigining oracle claims
-// VALIDATOR
-// The validator field is a injvaloper1... string (i.e. sdk.ValAddress)
-// that references a validator in the active set
-// ORCHESTRATOR
-// The orchestrator field is a inj1... string  (i.e. sdk.AccAddress) that
-// references the key that is being delegated to
-// ETH_ADDRESS
-// This is a hex encoded 0x Ethereum public key that will be used by this validator
-// on Ethereum
+```go
 type MsgSetOrchestratorAddresses struct {
-	Sender       string
-	Orchestrator string
-	EthAddress   string
+	Sender       string // address of the Injective validator
+	Orchestrator string // optional Injective address to represent the Validator in the bridging process (Defaults to Sender if left empty)
+	EthAddress   string // the Sender's (Validator) delegated Ethereum address
 }
 ```
 This message sets the Orchestrator's delegate keys. 

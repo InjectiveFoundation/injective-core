@@ -2,44 +2,46 @@ package stream
 
 import (
 	"context"
-	"fmt"
-	"os"
-
+	"cosmossdk.io/errors"
 	"cosmossdk.io/log"
-	"github.com/InjectiveLabs/injective-core/injective-chain/stream/types"
+	"fmt"
 	abci "github.com/cometbft/cometbft/abci/types"
 	"github.com/cometbft/cometbft/libs/pubsub"
 	"github.com/cosmos/cosmos-sdk/baseapp"
+	sdk "github.com/cosmos/cosmos-sdk/types"
+	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
+	"github.com/cosmos/gogoproto/proto"
+	"os"
+
+	exchangetypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	oracletypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/types"
+	"github.com/InjectiveLabs/injective-core/injective-chain/stream/types"
 )
 
-type Topic string
-
-const BankBalances = Topic("cosmos.bank.v1beta1.EventSetBalances")
-const SpotOrders = Topic("injective.exchange.v1beta1.EventNewSpotOrders")
-const DerivativeOrders = Topic("injective.exchange.v1beta1.EventNewDerivativeOrders")
-const OrderbookUpdate = Topic("injective.exchange.v1beta1.EventOrderbookUpdate")
-const BatchSpotExecution = Topic("injective.exchange.v1beta1.EventBatchSpotExecution")
-const BatchDerivativeExecution = Topic("injective.exchange.v1beta1.EventBatchDerivativeExecution")
-const SubaccountDeposit = Topic("injective.exchange.v1beta1.EventBatchDepositUpdate")
-const Position = Topic("injective.exchange.v1beta1.EventBatchDerivativePosition")
-const CoinbaseOracle = Topic("injective.oracle.v1beta1.SetCoinbasePriceEvent")
-const PythOracle = Topic("injective.oracle.v1beta1.EventSetPythPrices")
-const BandIBCOracle = Topic("injective.oracle.v1beta1.SetBandIBCPriceEvent")
-const ProviderOracle = Topic("injective.oracle.v1beta1.SetProviderPriceEvent")
-const PriceFeedOracle = Topic("injective.oracle.v1beta1.SetPriceFeedPriceEvent")
-const ConditionalDerivativeOrder = Topic("injective.exchange.v1beta1.EventNewConditionalDerivativeOrder")
-const CancelSpotOrders = Topic("injective.exchange.v1beta1.EventCancelSpotOrder")
-const CancelDerivativeOrders = Topic("injective.exchange.v1beta1.EventCancelDerivativeOrder")
-
-const StreamEvents = "stream.events"
-
-type eventHandler = func(buffer *types.StreamResponseMap, event abci.Event) error
+var supportedEventTypes = map[string]struct{}{
+	proto.MessageName(&banktypes.EventSetBalances{}):                       {},
+	proto.MessageName(&exchangetypes.EventBatchDepositUpdate{}):            {},
+	proto.MessageName(&exchangetypes.EventOrderbookUpdate{}):               {},
+	proto.MessageName(&exchangetypes.EventNewSpotOrders{}):                 {},
+	proto.MessageName(&exchangetypes.EventNewDerivativeOrders{}):           {},
+	proto.MessageName(&exchangetypes.EventNewConditionalDerivativeOrder{}): {},
+	proto.MessageName(&exchangetypes.EventCancelSpotOrder{}):               {},
+	proto.MessageName(&exchangetypes.EventCancelDerivativeOrder{}):         {},
+	proto.MessageName(&exchangetypes.EventBatchSpotExecution{}):            {},
+	proto.MessageName(&exchangetypes.EventBatchDerivativeExecution{}):      {},
+	proto.MessageName(&exchangetypes.EventBatchDerivativePosition{}):       {},
+	proto.MessageName(&oracletypes.SetCoinbasePriceEvent{}):                {},
+	proto.MessageName(&oracletypes.EventSetPythPrices{}):                   {},
+	proto.MessageName(&oracletypes.SetBandIBCPriceEvent{}):                 {},
+	proto.MessageName(&oracletypes.SetProviderPriceEvent{}):                {},
+	proto.MessageName(&oracletypes.SetPriceFeedPriceEvent{}):               {},
+	proto.MessageName(&oracletypes.EventSetStorkPrices{}):                  {},
+}
 
 type Publisher struct {
 	inABCIEvents   chan baseapp.StreamEvents
 	bus            *pubsub.Server
 	done           chan struct{}
-	eventHandlers  map[Topic]eventHandler
 	bufferCapacity uint
 }
 
@@ -48,10 +50,8 @@ func NewPublisher(inABCIEvents chan baseapp.StreamEvents, bus *pubsub.Server) *P
 		inABCIEvents:   inABCIEvents,
 		bus:            bus,
 		done:           make(chan struct{}),
-		eventHandlers:  make(map[Topic]eventHandler),
 		bufferCapacity: 100,
 	}
-	p.registerHandlers()
 	return p
 }
 
@@ -95,13 +95,8 @@ func (e *Publisher) Run(ctx context.Context) error {
 				inBuffer.BlockHeight = events.Height
 
 				for _, ev := range events.Events {
-					if handler, ok := e.eventHandlers[Topic(ev.Type)]; ok {
-						err := handler(inBuffer, ev)
-						if err != nil {
-							if he := e.bus.Publish(ctx, err); he != nil {
-								logger.Error("failed to publish", "error", err)
-							}
-						}
+					if err := e.ProcessEvent(ctx, inBuffer, ev, logger); err != nil {
+						logger.Error("failed to process event", "error", err)
 					}
 				}
 
@@ -136,31 +131,66 @@ func (e *Publisher) Stop() error {
 	return nil
 }
 
-func (e *Publisher) registerHandlers() {
-	// Register events
-	e.RegisterEventHandler(BankBalances, handleBankBalanceEvent)
-	e.RegisterEventHandler(SpotOrders, handleSpotOrderEvent)
-	e.RegisterEventHandler(DerivativeOrders, handleDerivativeOrderEvent)
-	e.RegisterEventHandler(OrderbookUpdate, handleOrderbookUpdateEvent)
-	e.RegisterEventHandler(SubaccountDeposit, handleSubaccountDepositEvent)
-	e.RegisterEventHandler(BatchSpotExecution, handleBatchSpotExecutionEvent)
-	e.RegisterEventHandler(BatchDerivativeExecution, handleBatchDerivativeExecutionEvent)
-	e.RegisterEventHandler(Position, handleBatchDerivativePositionEvent)
-	e.RegisterEventHandler(CoinbaseOracle, handleSetCoinbasePriceEvent)
-	e.RegisterEventHandler(ConditionalDerivativeOrder, handleConditionalDerivativeOrderEvent)
-	e.RegisterEventHandler(PythOracle, handleSetPythPricesEvent)
-	e.RegisterEventHandler(BandIBCOracle, handleSetBandIBCPricesEvent)
-	e.RegisterEventHandler(ProviderOracle, handleSetProviderPriceEvent)
-	e.RegisterEventHandler(PriceFeedOracle, handleSetPriceFeedPriceEvent)
-	e.RegisterEventHandler(CancelSpotOrders, handleCancelSpotOrderEvent)
-	e.RegisterEventHandler(CancelDerivativeOrders, handleCancelDerivativeOrderEvent)
-}
-
-func (e *Publisher) RegisterEventHandler(topic Topic, handler eventHandler) {
-	e.eventHandlers[topic] = handler
-}
-
 func (e *Publisher) WithBufferCapacity(capacity uint) *Publisher {
 	e.bufferCapacity = capacity
 	return e
+}
+
+func (e *Publisher) ProcessEvent(ctx context.Context, inBuffer *types.StreamResponseMap, event abci.Event, logger log.Logger) error {
+	if _, found := supportedEventTypes[event.Type]; found {
+		filteredAttributes := make([]abci.EventAttribute, 0)
+		for _, attr := range event.Attributes {
+			if attr.Key != "mode" || (attr.Value != "BeginBlock" && attr.Value != "EndBlock") {
+				filteredAttributes = append(filteredAttributes, attr)
+			}
+		}
+		event.Attributes = filteredAttributes
+		parsedEvent, parseEventError := sdk.ParseTypedEvent(event)
+		if parseEventError != nil {
+			wrappedError := errors.Wrapf(parseEventError, "failed to parse event type %s (%s)", event.Type, event.String())
+			if publishError := e.bus.Publish(ctx, wrappedError); publishError != nil {
+				logger.Error("failed to publish event parsing error", "error", publishError)
+			}
+			return wrappedError
+		}
+
+		switch chainEvent := parsedEvent.(type) {
+		case *banktypes.EventSetBalances:
+			handleBankBalanceEvent(inBuffer, chainEvent)
+		case *exchangetypes.EventBatchDepositUpdate:
+			handleSubaccountDepositEvent(inBuffer, chainEvent)
+		case *exchangetypes.EventOrderbookUpdate:
+			handleOrderbookUpdateEvent(inBuffer, chainEvent)
+		case *exchangetypes.EventNewSpotOrders:
+			handleSpotOrderEvent(inBuffer, chainEvent)
+		case *exchangetypes.EventNewDerivativeOrders:
+			handleDerivativeOrderEvent(inBuffer, chainEvent)
+		case *exchangetypes.EventNewConditionalDerivativeOrder:
+			handleConditionalDerivativeOrderEvent(inBuffer, chainEvent)
+		case *exchangetypes.EventCancelSpotOrder:
+			handleCancelSpotOrderEvent(inBuffer, chainEvent)
+		case *exchangetypes.EventCancelDerivativeOrder:
+			handleCancelDerivativeOrderEvent(inBuffer, chainEvent)
+		case *exchangetypes.EventBatchSpotExecution:
+			handleBatchSpotExecutionEvent(inBuffer, chainEvent)
+		case *exchangetypes.EventBatchDerivativeExecution:
+			handleBatchDerivativeExecutionEvent(inBuffer, chainEvent)
+		case *exchangetypes.EventBatchDerivativePosition:
+			handleBatchDerivativePositionEvent(inBuffer, chainEvent)
+		case *oracletypes.SetCoinbasePriceEvent:
+			handleSetCoinbasePriceEvent(inBuffer, chainEvent)
+		case *oracletypes.EventSetPythPrices:
+			handleSetPythPricesEvent(inBuffer, chainEvent)
+		case *oracletypes.SetBandIBCPriceEvent:
+			handleSetBandIBCPricesEvent(inBuffer, chainEvent)
+		case *oracletypes.SetProviderPriceEvent:
+			handleSetProviderPriceEvent(inBuffer, chainEvent)
+		case *oracletypes.SetPriceFeedPriceEvent:
+			handleSetPriceFeedPriceEvent(inBuffer, chainEvent)
+		case *oracletypes.EventSetStorkPrices:
+			handleSetStorkPricesEvent(inBuffer, chainEvent)
+		}
+	}
+
+	return nil
 }

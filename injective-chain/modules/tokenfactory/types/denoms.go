@@ -20,6 +20,9 @@ const (
 	// MaxCreatorLength = 59 + MaxHrpLength
 	MaxCreatorLength  = 59 + MaxHrpLength
 	MinSubdenomLength = 1
+	MaxNameLength     = 40
+	MaxSymbolLength   = 40
+	MaxDecimals       = 24
 )
 
 // GetTokenDenom constructs a denom string for tokens created by tokenfactory

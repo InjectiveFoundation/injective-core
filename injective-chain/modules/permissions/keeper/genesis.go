@@ -9,11 +9,22 @@ import (
 // InitGenesis initializes the permissions module's state from a provided genesis
 // state.
 func (k Keeper) InitGenesis(ctx sdk.Context, genState types.GenesisState) {
+	if err := genState.Params.Validate(); err != nil {
+		panic(err)
+	}
+
 	k.SetParams(ctx, genState.Params)
 
-	for _, ns := range genState.Namespaces {
-		err := k.storeNamespace(ctx, ns)
+	for idx := range genState.Namespaces {
+		err := k.createNamespace(ctx, genState.Namespaces[idx])
 		if err != nil {
+			panic(err)
+		}
+	}
+
+	for _, voucher := range genState.Vouchers {
+		address := sdk.MustAccAddressFromBech32(voucher.Address)
+		if err := k.setVoucher(ctx, address, voucher.Voucher); err != nil {
 			panic(err)
 		}
 	}
@@ -34,5 +45,11 @@ func (k Keeper) ExportGenesis(ctx sdk.Context) *types.GenesisState {
 		gs.Namespaces = append(gs.Namespaces, *ns)
 	}
 
+	vouchers, err := k.getAllVouchers(ctx)
+	if err != nil {
+		panic(err)
+	}
+
+	gs.Vouchers = vouchers
 	return gs
 }

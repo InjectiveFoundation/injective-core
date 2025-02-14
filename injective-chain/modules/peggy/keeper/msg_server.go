@@ -517,6 +517,14 @@ func (k msgServer) UpdateParams(c context.Context, msg *types.MsgUpdateParams) (
 		return nil, err
 	}
 
+	// defensive programming: ValidateBasic above can pass even though
+	// the SegregatedWalletAddress field was not provided (by accident). If this param update
+	// were to pass (via gov proposal) then in case of a bad Peggy deposit we would not be able
+	// to send it to this wallet and the funds would be lost
+	if _, err := sdk.AccAddressFromBech32(msg.Params.SegregatedWalletAddress); err != nil {
+		return nil, err
+	}
+
 	ctx := sdk.UnwrapSDKContext(c)
 	k.SetParams(ctx, &msg.Params)
 

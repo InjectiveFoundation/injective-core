@@ -33,6 +33,11 @@ func (k *Keeper) PerpetualMarketLaunch(
 		metrics.ReportFuncError(k.svcTags)
 		return nil, nil, errors.Wrapf(types.ErrInvalidQuoteDenom, "denom %s does not exist in supply", quoteDenom)
 	}
+	quoteDecimals, err := k.TokenDenomDecimals(ctx, quoteDenom)
+	if err != nil {
+		metrics.ReportFuncError(k.svcTags)
+		return nil, nil, err
+	}
 
 	marketID := types.NewPerpetualMarketID(ticker, quoteDenom, oracleBase, oracleQuote, oracleType)
 
@@ -49,7 +54,7 @@ func (k *Keeper) PerpetualMarketLaunch(
 		}
 	}
 
-	_, err := k.GetDerivativeMarketPrice(ctx, oracleBase, oracleQuote, oracleScaleFactor, oracleType)
+	_, err = k.GetDerivativeMarketPrice(ctx, oracleBase, oracleQuote, oracleScaleFactor, oracleType)
 	if err != nil {
 		metrics.ReportFuncError(k.svcTags)
 		return nil, nil, err
@@ -84,6 +89,7 @@ func (k *Keeper) PerpetualMarketLaunch(
 		MinPriceTickSize:       minPriceTickSize,
 		MinQuantityTickSize:    minQuantityTickSize,
 		MinNotional:            minNotional,
+		QuoteDecimals:          quoteDecimals,
 	}
 
 	marketInfo := &types.PerpetualMarketInfo{

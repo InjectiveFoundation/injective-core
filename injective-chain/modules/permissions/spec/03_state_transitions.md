@@ -51,12 +51,22 @@ message Role {
   string role = 1;
   uint32 permissions = 2;
 }
+
+enum Action {
+  UNSPECIFIED = 0;
+  MINT = 1;
+  RECEIVE = 2;
+  BURN = 4;
+  SEND = 8;
+}
 ```
 
 **Steps**
 
 - Create a new denom
 - Create a `MsgCreateNamespace` message with `Denom`, `RolePermissions` and `AddressRoles`.
+  - To set the `permissions` to grant a given role, compute the bitwise OR of the `Action`s that the role is allowed to perform.
+    - For example, to configure a role to have the ability to receive, send and mint tokens, the `permissions` for that role would be 11 (1 + 2 + 8 = 11).
 - Validate the `MsgCreateNamespace` object.
 - Send the create namespace message.
 

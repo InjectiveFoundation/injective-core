@@ -18,7 +18,7 @@ type GenesisState struct {
 
 ## Params
 
-The permissions module doesn't use any params.
+The permissions module has the following params.
 ```go
 // Params defines the parameters for the permissions module.
 type Params struct {

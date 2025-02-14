@@ -46,6 +46,8 @@ const (
 	FlagCID                      = "cid"
 	FlagSettlementPrice          = "settlement-price"
 	FlagDecimals                 = "decimals"
+	FlagBaseDecimals             = "base-decimals"
+	FlagQuoteDecimals            = "quote-decimals"
 	FlagDenom                    = "denom"
 	FlagDenoms                   = "denoms"
 	FlagExpirationTime           = "expiration-time"
@@ -54,4 +56,5 @@ const (
 	FlagSubscriptionMaxPenalty   = "max-penalty"
 	FlagSubscriptionMinIncentive = "min-incentive"
 	FlagFunds                    = "funds"
+	FlagExpedited                = "expedited"
 )

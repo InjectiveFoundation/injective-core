@@ -19,7 +19,7 @@ Alice buys 1 contract at $0.20 (margined with $0.20) against Bob who sells 1 con
 
 - Alice wins $0.80 if the market settles at $1 and Bob wins $0.2 if the market settles at $0.
 
-### Oracle
+## Oracle
 
 Binary options markets are tightly coupled to the Provider Oracle type, which allows a governance-registered provider to relay price feed data for arbitrary new price feeds under the provider's subtype without the need for extra governance for adding successively new price feeds. Each binary options market is comprised of the following oracle parameters:
 * Oracle symbol (e.g. UFC-KHABIB-TKO-09082022)
@@ -35,7 +35,23 @@ Oracle can also post the final price of **-1**, which is the flag price than tri
 
 Further documentation on the oracle provider type can be found in the Oracle module documentation.  
 
+### Registering an oracle provider
+
+To register your oracle provider, you need to submit a `GrantProviderPrivilegeProposal` governance proposal. This proposal will register your provider and will allow your address to relay price feeds. 
+
+```go
+type GrantProviderPrivilegeProposal struct {
+	Title       string   
+	Description string   
+	Provider    string    // the name of the provider, should be specific to you
+	Relayers    []string  // addresses which will be able to relay prices 
+}
+```
+
+Once the proposal passes, your provider will be registered and you'll be able to relay your price feeds (example below). 
+
 ## Market Lifecycle
+
 ### Market Creation
 A binary options market can be created through an instant launch (through a `MsgInstantBinaryOptionsMarketLaunch`) or through governance (through a `BinaryOptionsMarketLaunchProposal`). 
 
@@ -50,3 +66,50 @@ Pertinently, binary options markets also have a characteristic `ExpirationTimest
 * **Expired** = trading is closed, open orders are cancelled, no change to positions. 
 * **Demolished** = positions are settled / refunded (depending on the settlement), market is demolished
 
+The nature of the status transitions for binary options markets are as follows:
+
+| Status Change | Workflow |
+| --- | --- |
+| Active → Expired | Expiration is part of the standard workflow for a market. Trading is halted immediately for the market and all open orders are cancelled. The market can now be settled immediately (forcefully) by the admin or oracle or be settled naturally using the latest oracle price when we reach SettlementTimestamp.
+| Expired → Demolished (Settlement) | All positions are settled at either the price set by forceful settlement or natural settlement. The market can never be traded on or reactivated again. For natural settlement, upon the SettlementTimestamp time, the last oracle price is recorded and used for settlement. For ‘force-settle’, Admin should post the MarketUpdate msg with SettlementPrice in it being set in a price band of [0, 1]. 
+| Active/Expired → Demolished (Refund) | All positions get refunded. The market can never be traded on or reactivated again. Admin should post the MarketUpdate msg with SettlementPrice in it being set to -1. |
+
+
+### Market Settlement
+
+The settlement price options are explained above in the [oracle](#oracle) section. 
+
+Settling a market can be achieved using one of these two options: 
+1. Using the registered provider oracle for the particular market. Once the provider oracle is granted privileges to relay prices (explained above), the address with the privileges can relay prices for a particular price feed using the `MsgRelayProviderPrices` message. 
+```go
+// MsgRelayProviderPrices defines a SDK message for setting a price through the provider oracle.
+type MsgRelayProviderPrices struct {
+	Sender   string                        
+	Provider string                        
+	Symbols  []string                      
+	Prices   []cosmossdk_io_math.LegacyDec 
+}
+```
+
+2. Using the `MsgAdminUpdateBinaryOptionsMarket` which allows the market's admin (creator) to submit a settlement price directly to the market. 
+```go
+type MsgAdminUpdateBinaryOptionsMarket struct {
+  // new price at which market will be settled
+  SettlementPrice *Dec 
+  // expiration timestamp
+  ExpirationTimestamp int64
+  // expiration timestamp
+  SettlementTimestamp int64
+  // Status of the market
+  Status MarketStatus
+}
+
+// Where Status can be one of these options
+enum MarketStatus {
+  Unspecified = 0;
+  Active = 1;
+  Paused = 2;
+  Demolished = 3;
+  Expired = 4;
+} 
+```

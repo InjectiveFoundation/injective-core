@@ -23,7 +23,7 @@ func (k *Keeper) GetPastBucketTotalVolume(
 	if bz == nil {
 		return math.LegacyZeroDec()
 	}
-	return types.DecBytesToDec(bz)
+	return types.UnsignedDecBytesToDec(bz)
 }
 
 // IncrementPastBucketTotalVolume increments the total volume in past buckets for the given account
@@ -66,7 +66,7 @@ func (k *Keeper) SetPastBucketTotalVolume(
 	defer doneFn()
 
 	store := k.getStore(ctx)
-	bz := types.DecToDecBytes(volume)
+	bz := types.UnsignedDecToUnsignedDecBytes(volume)
 	store.Set(types.GetFeeDiscountPastBucketAccountVolumeKey(account), bz)
 }
 
@@ -130,7 +130,7 @@ func (k *Keeper) iteratePastBucketTotalVolume(
 	for ; iterator.Valid(); iterator.Next() {
 		addr := sdk.AccAddress(iterator.Key())
 		bz := iterator.Value()
-		if process(addr, types.DecBytesToDec(bz)) {
+		if process(addr, types.UnsignedDecBytesToDec(bz)) {
 			return
 		}
 	}

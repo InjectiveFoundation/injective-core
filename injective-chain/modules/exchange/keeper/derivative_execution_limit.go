@@ -165,6 +165,14 @@ func (k *Keeper) PersistDerivativeMatchingExecution(
 
 		marketID := execution.Market.MarketID()
 
+		// market orders are matched in previous step but still existing transiently, cancelling would lead to double counting
+		shouldCancelMarketOrders := false
+		isMarketSolvent := k.EnsureMarketSolvency(ctx, execution.Market, execution.MarketBalanceDelta, shouldCancelMarketOrders)
+
+		if !isMarketSolvent {
+			continue
+		}
+
 		if execution.VwapData != nil && !execution.VwapData.Price.IsZero() && !execution.VwapData.Quantity.IsZero() {
 			vwapMarkPrice := execution.MarkPrice
 			if vwapMarkPrice.IsNil() || vwapMarkPrice.IsNegative() {

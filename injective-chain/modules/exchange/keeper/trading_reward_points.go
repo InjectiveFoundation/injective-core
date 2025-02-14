@@ -20,7 +20,7 @@ func (k *Keeper) GetCampaignTradingRewardPoints(ctx sdk.Context, account sdk.Acc
 	if bz == nil {
 		return math.LegacyZeroDec()
 	}
-	return types.DecBytesToDec(bz)
+	return types.UnsignedDecBytesToDec(bz)
 }
 
 // DeleteAccountCampaignTradingRewardPoints deletes the trading reward points for a given account.
@@ -58,7 +58,7 @@ func (k *Keeper) SetAccountCampaignTradingRewardPoints(ctx sdk.Context, account 
 	store := k.getStore(ctx)
 
 	key := types.GetTradingRewardAccountPointsKey(account)
-	bz := types.DecToDecBytes(points)
+	bz := types.UnsignedDecToUnsignedDecBytes(points)
 	store.Set(key, bz)
 }
 
@@ -116,7 +116,7 @@ func (k *Keeper) IterateAccountCampaignTradingRewardPoints(
 
 	for ; iterator.Valid(); iterator.Next() {
 		bz := iterator.Value()
-		points := types.DecBytesToDec(bz)
+		points := types.UnsignedDecBytesToDec(bz)
 		account := sdk.AccAddress(iterator.Key())
 
 		accountPoints := &types.TradingRewardAccountPoints{
@@ -141,7 +141,7 @@ func (k *Keeper) GetTotalTradingRewardPoints(
 	if bz == nil {
 		return math.LegacyZeroDec()
 	}
-	return types.DecBytesToDec(bz)
+	return types.UnsignedDecBytesToDec(bz)
 }
 
 // IncrementTotalTradingRewardPoints sets the total trading reward points
@@ -166,7 +166,7 @@ func (k *Keeper) SetTotalTradingRewardPoints(
 	defer doneFn()
 
 	store := k.getStore(ctx)
-	bz := types.DecToDecBytes(points)
+	bz := types.UnsignedDecToUnsignedDecBytes(points)
 	store.Set(types.TradingRewardCampaignTotalPointsKey, bz)
 }
 

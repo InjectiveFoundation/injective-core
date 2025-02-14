@@ -54,17 +54,21 @@ func (k msgServer) Bid(goCtx context.Context, msg *types.MsgBid) (*types.MsgBidR
 	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
 	defer doneFn()
 
-	// prepare context
 	ctx := sdk.UnwrapSDKContext(goCtx)
-
 	round := k.GetAuctionRound(ctx)
+
+	if round == 0 {
+		return nil, errors.Wrap(types.ErrBidRound, "auction has not been initialized")
+	}
+
 	if msg.Round != round {
 		metrics.ReportFuncError(k.svcTags)
 		return nil, errors.Wrapf(types.ErrBidRound, "current round is %d but got bid for %d", round, msg.Round)
 	}
+
 	// check valid bid
 	lastBid := k.GetHighestBid(ctx)
-	if msg.BidAmount.Amount.LT(lastBid.Amount.Amount) {
+	if msg.BidAmount.Amount.LTE(lastBid.Amount.Amount) {
 		metrics.ReportFuncError(k.svcTags)
 		return nil, errors.Wrap(sdkerrors.ErrInvalidRequest, "Bid must exceed current highest bid")
 	}
@@ -105,11 +109,10 @@ func (k msgServer) Bid(goCtx context.Context, msg *types.MsgBid) (*types.MsgBidR
 	k.SetBid(ctx, msg.Sender, msg.BidAmount)
 
 	// emit typed event for bid
-	auctionRound := k.GetAuctionRound(ctx)
 	_ = ctx.EventManager().EmitTypedEvent(&types.EventBid{
 		Bidder: msg.Sender,
 		Amount: msg.BidAmount,
-		Round:  auctionRound,
+		Round:  round,
 	})
 	return &types.MsgBidResponse{}, nil
 }

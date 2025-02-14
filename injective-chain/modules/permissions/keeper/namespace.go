@@ -1,96 +1,157 @@
 package keeper
 
 import (
+	"cosmossdk.io/errors"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/gogoproto/proto"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/permissions/types"
 )
 
-// GetNamespaceForDenom return namespace for the denom. If includeRoles is true, then it also populates AddressRoles and RolePermissions fields inside namespace.
+func (k Keeper) HasNamespace(ctx sdk.Context, denom string) bool {
+	store := k.getNamespacesStore(ctx)
+	return store.Has([]byte(denom))
+}
+
+// GetNamespace return namespace for the denom. If includeFull is true, then it also populates AddressRoles and RolePermissions fields inside namespace.
 // You can query those roles separately via corresponding methods.
-func (k Keeper) GetNamespaceForDenom(ctx sdk.Context, denom string, includeRoles bool) (*types.Namespace, error) {
+func (k Keeper) GetNamespace(ctx sdk.Context, denom string, includeFull bool) (*types.Namespace, error) {
+	namespace, err := k.getNamespace(ctx, denom)
+	if err != nil {
+		return nil, err
+	}
+
+	if namespace == nil {
+		return nil, nil
+	}
+
+	if !includeFull {
+		return namespace, nil
+	}
+
+	roles, err := k.GetAllRoles(ctx, denom)
+	if err != nil {
+		return nil, err
+	}
+
+	actorRoles, err := k.GetAllActorRoles(ctx, denom)
+	if err != nil {
+		return nil, err
+	}
+
+	roleManagers, err := k.GetAllRoleManagers(ctx, denom)
+	if err != nil {
+		return nil, err
+	}
+
+	policyStatuses, err := k.GetAllPolicyStatuses(ctx, denom)
+	if err != nil {
+		return nil, err
+	}
+
+	policyManagerCapabilities, err := k.GetAllPolicyManagerCapabilities(ctx, denom)
+	if err != nil {
+		return nil, err
+	}
+
+	namespace.RolePermissions = roles
+	namespace.ActorRoles = actorRoles
+	namespace.RoleManagers = roleManagers
+	namespace.PolicyStatuses = policyStatuses
+	namespace.PolicyManagerCapabilities = policyManagerCapabilities
+	return namespace, nil
+}
+
+func (k Keeper) getNamespace(ctx sdk.Context, denom string) (*types.Namespace, error) {
 	store := k.getNamespacesStore(ctx)
 	bz := store.Get([]byte(denom))
 	if bz == nil {
 		return nil, nil
 	}
-	var ns types.Namespace
-	if err := proto.Unmarshal(bz, &ns); err != nil {
+	var namespace types.Namespace
+	if err := proto.Unmarshal(bz, &namespace); err != nil {
 		return nil, err
 	}
-
-	if includeRoles {
-		addressRoles, err := k.GetAllAddressRoles(ctx, denom)
-		if err != nil {
-			return nil, err
-		}
-		ns.AddressRoles = addressRoles
-
-		roles, err := k.GetAllRoles(ctx, denom)
-		if err != nil {
-			return nil, err
-		}
-		ns.RolePermissions = roles
-	}
-
-	return &ns, nil
+	return &namespace, nil
 }
 
-func (k Keeper) storeNamespace(ctx sdk.Context, ns types.Namespace) error {
-	// save new roles
-	for _, rolePermissions := range ns.RolePermissions {
-		if err := k.storeRole(ctx, ns.Denom, rolePermissions.Role, rolePermissions.Permissions); err != nil {
+func (k Keeper) createNamespace(ctx sdk.Context, ns types.Namespace) error {
+	denom := ns.Denom
+	roleNameToRoleID := make(map[string]uint32)
+
+	// store new roles
+	for _, role := range ns.RolePermissions {
+		if err := k.setRole(ctx, denom, role); err != nil {
+			return err
+		}
+		roleNameToRoleID[role.Name] = role.RoleId
+	}
+
+	// store new actor roles
+	for _, actorRole := range ns.ActorRoles {
+		actor := sdk.MustAccAddressFromBech32(actorRole.Actor)
+
+		// obtain roleIDs for the actor roles
+		roleIDs := make([]uint32, 0, len(actorRole.Roles))
+		for _, roleName := range actorRole.Roles {
+			roleID, ok := roleNameToRoleID[roleName]
+			if !ok {
+				return types.ErrUnknownRole.Wrapf("role %s not found", roleName)
+			}
+			roleIDs = append(roleIDs, roleID)
+		}
+
+		if err := k.setActorRoles(ctx, denom, actor, roleIDs); err != nil {
 			return err
 		}
 	}
-	// nil them inside namespace
+
+	// store manager roles
+	for _, managerRoles := range ns.RoleManagers {
+		manager := sdk.MustAccAddressFromBech32(managerRoles.Manager)
+		for _, roleName := range managerRoles.Roles {
+			roleID, ok := roleNameToRoleID[roleName]
+			if !ok {
+				return types.ErrUnknownRole.Wrapf("role %s not found", roleName)
+			}
+			k.setRoleManager(ctx, denom, manager, roleID)
+		}
+	}
+
+	// store policy statuses
+	for _, policyStatus := range ns.PolicyStatuses {
+		if err := k.setPolicyStatus(ctx, denom, policyStatus); err != nil {
+			return err
+		}
+	}
+
+	// store policy manager capabilities
+	for _, policyManagerCapability := range ns.PolicyManagerCapabilities {
+		if err := k.setPolicyManagerCapability(ctx, denom, policyManagerCapability); err != nil {
+			return err
+		}
+	}
+
+	// nil the values to not store it inside namespace storage
 	ns.RolePermissions = nil
-
-	// store new address roles
-	for _, addrRoles := range ns.AddressRoles {
-		if err := k.storeAddressRoles(ctx, ns.Denom, sdk.MustAccAddressFromBech32(addrRoles.Address), addrRoles.Roles); err != nil {
-			return err
-		}
-	}
-
-	// nil the roles to not store it inside namespace storage
-	ns.AddressRoles = nil
+	ns.ActorRoles = nil
+	ns.RoleManagers = nil
+	ns.PolicyStatuses = nil
+	ns.PolicyManagerCapabilities = nil
 
 	// store namespace itself
 	return k.setNamespace(ctx, ns)
 }
 
-// 1. Mint == {from: denom admin, to: minter address, except tokenfactory module address to filter out transfers between tf module <-> denom admin, since the hook is also called for them}
-// Since mints can only be done from the denom admin address, we assume that all mints are performed by the denom admin and then transferred to the minter address. Therefore, any send from the denom admin address can be considered a mint performed by the minter address (even though it is technically done by the denom admin).
-// 2. Burn == {from: burner address, to: denom admin, except tokenfactory module address to filter out transfers between tf module <-> denom admin, since the hook is also called for them}
-// Similarly, burns can only be performed from the denom admin address, so transfers to the denom admin address are considered burns.
-// 3. Everything else is just a receive
-func (k Keeper) deriveAction(ctx sdk.Context, denom, from, to string) types.Action {
-	denomAuthority, err := k.tfKeeper.GetAuthorityMetadata(ctx, denom)
-	if err != nil {
-		return types.Action_RECEIVE // RECEIVE is default action
-	}
-
-	switch {
-	case from == denomAuthority.Admin && to != denomAuthority.Admin && to != k.tfModuleAddress:
-		return types.Action_MINT
-	case from != denomAuthority.Admin && from != k.tfModuleAddress && to == denomAuthority.Admin:
-		return types.Action_BURN
-	default:
-		return types.Action_RECEIVE
-	}
-}
-
-func (k Keeper) deleteNamespace(ctx sdk.Context, denom string) {
-	// remove address roles
-	k.deleteAllAddressRoles(ctx, denom)
-	// remove roles
-	k.deleteRoles(ctx, denom)
-	// remove namespace
-	store := k.getNamespacesStore(ctx)
-	store.Delete([]byte(denom))
-}
+// func (k Keeper) deleteNamespace(ctx sdk.Context, denom string) {
+// 	// remove address roles
+// 	k.deleteAllActorRoles(ctx, denom)
+// 	// remove roles
+// 	k.deleteRoles(ctx, denom)
+// 	// remove namespace
+// 	store := k.getNamespacesStore(ctx)
+// 	store.Delete([]byte(denom))
+// }
 
 func (k Keeper) setNamespace(ctx sdk.Context, ns types.Namespace) error {
 	store := k.getNamespacesStore(ctx)
@@ -112,11 +173,34 @@ func (k Keeper) GetAllNamespaces(ctx sdk.Context) ([]*types.Namespace, error) {
 
 	for ; iter.Valid(); iter.Next() {
 		denom := string(iter.Key())
-		ns, err := k.GetNamespaceForDenom(ctx, denom, true)
+		namespace, err := k.GetNamespace(ctx, denom, true)
 		if err != nil {
 			return nil, err
 		}
-		namespaces = append(namespaces, ns)
+		namespaces = append(namespaces, namespace)
 	}
 	return namespaces, nil
+}
+
+// GetAllNamespaceDenoms returns all namespace denoms
+func (k Keeper) GetAllNamespaceDenoms(ctx sdk.Context) []string {
+	denoms := make([]string, 0)
+	store := k.getNamespacesStore(ctx)
+	iter := store.Iterator(nil, nil)
+	defer iter.Close()
+
+	for ; iter.Valid(); iter.Next() {
+		denom := string(iter.Key())
+		denoms = append(denoms, denom)
+	}
+	return denoms
+}
+
+func (k Keeper) ValidateNamespaceUpdatePermissions(ctx sdk.Context, sender sdk.AccAddress, denom string, namespaceChanges types.NamespaceUpdates) error {
+	for _, action := range namespaceChanges.ChangeActions {
+		if !k.HasPermissionsForAction(ctx, denom, sender, action) {
+			return errors.Wrapf(types.ErrUnauthorized, "sender %s unauthorized for action %s", sender, action)
+		}
+	}
+	return nil
 }

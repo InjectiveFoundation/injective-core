@@ -60,12 +60,18 @@ func (k *Keeper) PersistSingleDerivativeMarketOrderExecution(
 	tradingRewardPoints types.TradingRewardPoints,
 	modifiedPositionCache ModifiedPositionCache,
 	isLiquidation bool,
-) types.TradingRewardPoints {
+) (points types.TradingRewardPoints, isMarketSolvent bool) {
 	if execution == nil {
-		return tradingRewardPoints
+		return tradingRewardPoints, true
 	}
 
 	marketID := execution.Market.MarketID()
+	isMarketSolvent = k.EnsureMarketSolvency(ctx, execution.Market, execution.MarketBalanceDelta, true)
+
+	if !isMarketSolvent {
+		return tradingRewardPoints, isMarketSolvent
+	}
+
 	hasValidMarkPrice := execution.Market.GetMarketType() == types.MarketType_BinaryOption || !execution.MarkPrice.IsNil() && execution.MarkPrice.IsPositive()
 
 	if execution.VwapData != nil && !execution.VwapData.Price.IsZero() && !execution.VwapData.Quantity.IsZero() && hasValidMarkPrice {
@@ -119,7 +125,7 @@ func (k *Keeper) PersistSingleDerivativeMarketOrderExecution(
 		tradingRewardPoints = types.MergeTradingRewardPoints(tradingRewardPoints, execution.TradingRewards)
 	}
 
-	return tradingRewardPoints
+	return tradingRewardPoints, isMarketSolvent
 }
 
 func (k *Keeper) PersistDerivativeMarketOrderExecution(
@@ -133,7 +139,7 @@ func (k *Keeper) PersistDerivativeMarketOrderExecution(
 	defer doneFn()
 
 	for _, derivativeExecutionData := range batchDerivativeExecutionData {
-		tradingRewardPoints = k.PersistSingleDerivativeMarketOrderExecution(ctx, derivativeExecutionData, derivativeVwapData, tradingRewardPoints, modifiedPositionCache, false)
+		tradingRewardPoints, _ = k.PersistSingleDerivativeMarketOrderExecution(ctx, derivativeExecutionData, derivativeVwapData, tradingRewardPoints, modifiedPositionCache, false)
 	}
 
 	return tradingRewardPoints

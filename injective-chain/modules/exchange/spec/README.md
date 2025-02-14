@@ -15,15 +15,15 @@ The `exchange` module enables the exchange of tokens on two types of markets:
 
 ## Contents
 
-1. **[Derivative Market Concepts](00_derivative_market_concepts.md)**
-2. **[Spot Market Concepts](01_spot_market_concepts.md)**
-3. **[Other Concepts](02_other_concepts.md)**
-4. **[State](03_state.md)**
-5. **[State Transitions](04_state_transitions.md)**
-6. **[Messages](05_messages.md)**
-7. **[Proposals](06_proposals.md)**
-8. **[Begin Block](07_begin_block.md)**
-9. **[End Block](08_end_block.md)**
-10. **[Events](09_events.md)**
-11. **[Params](10_params.md)**
-12. **[MsgPrivilegedExecuteContract](11_msg_privileged_execute_contract.md)**
+1. [Derivative Market Concepts](00_derivative_market_concepts.md)
+2. [Spot Market Concepts](01_spot_market_concepts.md)
+3. [Other Concepts](02_other_concepts.md)
+4. [State](03_state.md)
+5. [State Transitions](04_state_transitions.md)
+6. [Messages](05_messages.md)
+7. [Proposals](06_proposals.md)
+8. [Begin Block](07_begin_block.md)
+9. [End Block](08_end_block.md)
+10. [Events](09_events.md)
+11. [Params](10_params.md)
+12. [MsgPrivilegedExecuteContract](11_msg_privileged_execute_contract.md)

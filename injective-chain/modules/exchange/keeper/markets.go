@@ -1,6 +1,7 @@
 package keeper
 
 import (
+	"cosmossdk.io/errors"
 	"cosmossdk.io/math"
 	"cosmossdk.io/store/prefix"
 	"github.com/InjectiveLabs/metrics"
@@ -194,6 +195,31 @@ func (k *Keeper) GetDerivativeOrBinaryOptionsMarket(ctx sdk.Context, marketID co
 		return market
 	}
 
+	return nil
+}
+
+// DemolishOrPauseGenericMarket sets the market status to demolished for binary option markets or paused for derivative markets
+func (k *Keeper) DemolishOrPauseGenericMarket(ctx sdk.Context, market DerivativeMarketI) error {
+	switch market.GetMarketType() {
+	case types.MarketType_BinaryOption:
+		boMarket, ok := market.(*types.BinaryOptionsMarket)
+		if !ok {
+			metrics.ReportFuncError(k.svcTags)
+			return errors.Wrapf(types.ErrBinaryOptionsMarketNotFound, "binary options market conversion in settlement failed")
+		}
+
+		boMarket.Status = types.MarketStatus_Demolished
+		k.SetBinaryOptionsMarket(ctx, boMarket)
+	default:
+		derivativeMarket, ok := market.(*types.DerivativeMarket)
+		if !ok {
+			metrics.ReportFuncError(k.svcTags)
+			return errors.Wrapf(types.ErrDerivativeMarketNotFound, "derivative market conversion in settlement failed")
+		}
+
+		derivativeMarket.Status = types.MarketStatus_Paused
+		k.SetDerivativeMarket(ctx, derivativeMarket)
+	}
 	return nil
 }
 

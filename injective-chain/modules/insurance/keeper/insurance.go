@@ -112,8 +112,20 @@ func (k *Keeper) globalRedemptionIterator(ctx sdk.Context) db.Iterator {
 	return storetypes.KVStorePrefixIterator(store, types.RedemptionSchedulePrefixKey)
 }
 
-func (k *Keeper) getRedemptionAmountFromShare(fund types.InsuranceFund, shareAmount math.Int) sdk.Coin {
-	redemptionAmount := shareAmount.Mul(fund.Balance).Quo(fund.TotalShare)
+func (k *Keeper) getRedemptionAmountFromShare(ctx sdk.Context, marketID common.Hash, fund types.InsuranceFund, shareAmount math.Int) sdk.Coin {
+	marketBalance := k.exchangeKeeper.GetMarketBalance(ctx, marketID)
+	fundBalance := fund.Balance.ToLegacyDec()
+
+	if marketBalance.IsNegative() {
+		fundBalance = fundBalance.Add(marketBalance)
+	}
+
+	if fundBalance.IsNegative() {
+		metrics.ReportFuncError(k.svcTags)
+		return sdk.NewCoin(fund.DepositDenom, math.ZeroInt())
+	}
+
+	redemptionAmount := shareAmount.Mul(fundBalance.TruncateInt()).Quo(fund.TotalShare)
 	return sdk.NewCoin(fund.DepositDenom, redemptionAmount)
 }
 
@@ -122,7 +134,7 @@ func (k *Keeper) GetAllInsuranceFundRedemptions(ctx sdk.Context) []types.Redempt
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	schedules := []types.RedemptionSchedule{}
+	schedules := make([]types.RedemptionSchedule, 0)
 	iterator := k.globalRedemptionIterator(ctx)
 
 	defer iterator.Close()
@@ -479,7 +491,7 @@ func (k *Keeper) GetEstimatedRedemptions(ctx sdk.Context, sender sdk.AccAddress,
 
 	shareBaseDenom := fund.ShareDenom()
 	shareAmount := k.bankKeeper.GetBalance(ctx, sender, shareBaseDenom)
-	redemptionCoin := k.getRedemptionAmountFromShare(*fund, shareAmount.Amount)
+	redemptionCoin := k.getRedemptionAmountFromShare(ctx, marketID, *fund, shareAmount.Amount)
 
 	return sdk.Coins{redemptionCoin}
 }
@@ -494,7 +506,7 @@ func (k *Keeper) GetPendingRedemptions(ctx sdk.Context, sender sdk.AccAddress, m
 		return sdk.Coins{}
 	}
 
-	// iterate all redemptions and sum up pendings
+	// iterate all redemptions and sum up pending redemptions
 	redemptions := sdk.Coins{}
 	iterator := k.globalRedemptionIterator(ctx)
 	defer iterator.Close()
@@ -502,7 +514,7 @@ func (k *Keeper) GetPendingRedemptions(ctx sdk.Context, sender sdk.AccAddress, m
 		schedule := k.unmarshalRedemptionSchedule(iterator.Value())
 		if schedule.MarketId == marketID.String() && schedule.Redeemer == sender.String() {
 			shareAmount := schedule.RedemptionAmount.Amount
-			redemptions = redemptions.Add(k.getRedemptionAmountFromShare(*fund, shareAmount))
+			redemptions = redemptions.Add(k.getRedemptionAmountFromShare(ctx, marketID, *fund, shareAmount))
 		}
 	}
 
@@ -630,7 +642,7 @@ func (k *Keeper) withdrawRedemption(ctx sdk.Context, schedule *types.RedemptionS
 	// send deposit tokens to redeemer - this should come before burn for correct calculation
 	shareAmount := schedule.RedemptionAmount.Amount
 
-	redeemCoin := k.getRedemptionAmountFromShare(*fund, shareAmount)
+	redeemCoin := k.getRedemptionAmountFromShare(ctx, marketID, *fund, shareAmount)
 	if redeemCoin.Amount.IsPositive() {
 		err = k.bankKeeper.SendCoinsFromModuleToAccount(ctx, types.ModuleName, redeemer, sdk.Coins{redeemCoin})
 		if err != nil {

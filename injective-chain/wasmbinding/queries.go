@@ -295,6 +295,7 @@ func (qp QueryPlugin) HandleExchangeQuery(ctx sdk.Context, queryData json.RawMes
 	var err error
 
 	switch {
+
 	case query.ExchangeParams != nil:
 		params := qp.exchangeKeeper.GetParams(ctx)
 		bz, err = json.Marshal(exchangetypes.QueryExchangeParamsResponse{Params: params})

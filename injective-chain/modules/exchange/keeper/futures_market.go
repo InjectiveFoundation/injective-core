@@ -36,6 +36,11 @@ func (k *Keeper) ExpiryFuturesMarketLaunch(
 		metrics.ReportFuncError(k.svcTags)
 		return nil, nil, errors.Wrapf(types.ErrInvalidQuoteDenom, "denom %s does not exist in supply", quoteDenom)
 	}
+	quoteDecimals, err := k.TokenDenomDecimals(ctx, quoteDenom)
+	if err != nil {
+		metrics.ReportFuncError(k.svcTags)
+		return nil, nil, err
+	}
 
 	marketID := types.NewExpiryFuturesMarketID(ticker, quoteDenom, oracleBase, oracleQuote, oracleType, expiry)
 	if k.HasDerivativeMarket(ctx, marketID, true) || k.HasDerivativeMarket(ctx, marketID, false) {
@@ -56,7 +61,7 @@ func (k *Keeper) ExpiryFuturesMarketLaunch(
 		return nil, nil, errors.Wrapf(types.ErrExpiryFuturesMarketExpired, "ticker %s quoteDenom %s oracleBase %s oracleQuote %s expiry %d expired. Current blocktime %d", ticker, quoteDenom, oracleBase, oracleQuote, expiry, ctx.BlockTime().Unix())
 	}
 
-	_, err := k.GetDerivativeMarketPrice(ctx, oracleBase, oracleQuote, oracleScaleFactor, oracleType)
+	_, err = k.GetDerivativeMarketPrice(ctx, oracleBase, oracleQuote, oracleScaleFactor, oracleType)
 	if err != nil {
 		metrics.ReportFuncError(k.svcTags)
 		return nil, nil, err
@@ -85,6 +90,7 @@ func (k *Keeper) ExpiryFuturesMarketLaunch(
 		MinPriceTickSize:       minPriceTickSize,
 		MinQuantityTickSize:    minQuantityTickSize,
 		MinNotional:            minNotional,
+		QuoteDecimals:          quoteDecimals,
 	}
 
 	const thirtyMinutesInSeconds = 60 * 30

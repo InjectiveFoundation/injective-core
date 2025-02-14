@@ -8,10 +8,11 @@ import (
 )
 
 type DerivativeOrderStateExpansion struct {
-	SubaccountID  common.Hash
-	PositionDelta *types.PositionDelta
-	Payout        math.LegacyDec
-	Pnl           math.LegacyDec
+	SubaccountID       common.Hash
+	PositionDelta      *types.PositionDelta
+	Payout             math.LegacyDec
+	Pnl                math.LegacyDec
+	MarketBalanceDelta math.LegacyDec
 
 	TotalBalanceDelta     math.LegacyDec
 	AvailableBalanceDelta math.LegacyDec

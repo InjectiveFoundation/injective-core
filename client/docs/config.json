@@ -219,14 +219,6 @@
       }
     },
     {
-      "url": "tmp-swagger-gen/packetforward/v1/query.swagger.json",
-      "operationIds": {
-        "rename": {
-          "Params": "PacketForwardParams"
-        }
-      }
-    },
-    {
       "url": "tmp-swagger-gen/cosmwasm/wasm/v1/query.swagger.json"
     }
   ]

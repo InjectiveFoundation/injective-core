@@ -34,6 +34,12 @@ func (k SpotMsgServer) InstantSpotMarketLaunch(goCtx context.Context, msg *types
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
+	sender, _ := sdk.AccAddressFromBech32(msg.Sender)
+
+	if err := k.checkDenomMinNotional(ctx, sender, msg.QuoteDenom, msg.MinNotional); err != nil {
+		return nil, err
+	}
+
 	// check if the market launch proposal already exists
 	marketID := types.NewSpotMarketID(msg.BaseDenom, msg.QuoteDenom)
 	if k.checkIfMarketLaunchProposalExist(ctx, types.ProposalTypeSpotMarketLaunch, marketID) {
@@ -42,8 +48,17 @@ func (k SpotMsgServer) InstantSpotMarketLaunch(goCtx context.Context, msg *types
 		return nil, types.ErrMarketLaunchProposalAlreadyExists.Wrapf("the spot market launch proposal already exists: marketID=%s", marketID.Hex())
 	}
 
-	senderAddr, _ := sdk.AccAddressFromBech32(msg.Sender)
-	_, err := k.SpotMarketLaunch(ctx, msg.Ticker, msg.BaseDenom, msg.QuoteDenom, msg.MinPriceTickSize, msg.MinQuantityTickSize, msg.MinNotional)
+	_, err := k.SpotMarketLaunch(
+		ctx,
+		msg.Ticker,
+		msg.BaseDenom,
+		msg.QuoteDenom,
+		msg.MinPriceTickSize,
+		msg.MinQuantityTickSize,
+		msg.MinNotional,
+		msg.BaseDecimals,
+		msg.QuoteDecimals,
+	)
 	if err != nil {
 		metrics.ReportFuncError(k.svcTags)
 		k.Logger(ctx).Error("failed launching spot market", err)
@@ -51,7 +66,7 @@ func (k SpotMsgServer) InstantSpotMarketLaunch(goCtx context.Context, msg *types
 	}
 
 	fee := k.GetParams(ctx).SpotMarketInstantListingFee
-	err = k.DistributionKeeper.FundCommunityPool(ctx, sdk.Coins{fee}, senderAddr)
+	err = k.DistributionKeeper.FundCommunityPool(ctx, sdk.Coins{fee}, sender)
 	if err != nil {
 		metrics.ReportFuncError(k.svcTags)
 		k.Logger(ctx).Error("failed launching spot market", err)
@@ -196,7 +211,7 @@ func (k SpotMsgServer) CreateSpotMarketOrder(goCtx context.Context, msg *types.M
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
 	if k.IsPostOnlyMode(ctx) {
-		return nil, types.ErrPostOnlyMode.Wrap(fmt.Sprintf("cannot create market orders in post only mode until height %d", k.GetParams(ctx).PostOnlyModeHeightThreshold))
+		return nil, types.ErrPostOnlyMode.Wrapf("cannot create market orders in post only mode until height %d", k.GetParams(ctx).PostOnlyModeHeightThreshold)
 	}
 
 	var (

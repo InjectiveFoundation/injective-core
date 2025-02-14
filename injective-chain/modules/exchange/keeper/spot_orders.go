@@ -14,6 +14,24 @@ import (
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 )
 
+func (k *Keeper) GetAllStandardizedSpotLimitOrdersByMarketDirection(
+	ctx sdk.Context,
+	marketID common.Hash,
+	isBuy bool,
+) (orders []*types.TrimmedLimitOrder) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
+	orders = make([]*types.TrimmedLimitOrder, 0)
+	appendOrder := func(order *types.SpotLimitOrder) (stop bool) {
+		orders = append(orders, order.ToStandardized())
+		return false
+	}
+
+	k.IterateSpotLimitOrdersByMarketDirection(ctx, marketID, isBuy, appendOrder)
+	return orders
+}
+
 // SetNewSpotLimitOrder stores SpotLimitOrder and order index in keeper.
 func (k *Keeper) SetNewSpotLimitOrder(
 	ctx sdk.Context,
@@ -749,7 +767,7 @@ func (k *Keeper) getConditionalOrderBytesBySubaccountIDAndHash(
 		return nil, false
 	}
 
-	triggerPrice := types.DecBytesToDec(triggerPriceKey)
+	triggerPrice := types.UnsignedDecBytesToDec(triggerPriceKey)
 	// Fetch LimitOrder from ordersStore
 	orderBz = ordersStore.Get(types.GetOrderByStringPriceKeyPrefix(marketID, direction, triggerPrice.String(), orderHash))
 	return orderBz, direction

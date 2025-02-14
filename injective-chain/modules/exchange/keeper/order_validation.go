@@ -1,8 +1,6 @@
 package keeper
 
 import (
-	"fmt"
-
 	"cosmossdk.io/errors"
 	"cosmossdk.io/math"
 	"github.com/InjectiveLabs/metrics"
@@ -49,7 +47,7 @@ func (k *Keeper) ensureValidDerivativeOrder(
 	isPostOnlyMode := k.IsPostOnlyMode(ctx)
 
 	if isMarketOrder && isPostOnlyMode {
-		return orderHash, errors.Wrap(types.ErrPostOnlyMode, fmt.Sprintf("cannot create market orders in post only mode until height %d", k.GetParams(ctx).PostOnlyModeHeightThreshold))
+		return orderHash, errors.Wrapf(types.ErrPostOnlyMode, "cannot create market orders in post only mode until height %d", k.GetParams(ctx).PostOnlyModeHeightThreshold)
 	}
 
 	// enforce that post only limit orders don't cross the top of the book

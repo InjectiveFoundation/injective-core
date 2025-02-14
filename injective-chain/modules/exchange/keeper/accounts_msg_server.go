@@ -8,6 +8,7 @@ import (
 	"github.com/InjectiveLabs/metrics"
 	"github.com/cosmos/cosmos-sdk/telemetry"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	errortypes "github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
@@ -286,4 +287,25 @@ func (k AccountsMsgServer) ActivateStakeGrant(
 	k.setActiveGrant(ctx, grantee, types.NewActiveGrant(granter, grantAuthorizationAmount))
 
 	return &types.MsgActivateStakeGrantResponse{}, nil
+}
+
+func (k AccountsMsgServer) BatchExchangeModification(
+	goCtx context.Context,
+	msg *types.MsgBatchExchangeModification,
+) (*types.MsgBatchExchangeModificationResponse, error) {
+	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
+	defer doneFn()
+
+	ctx := sdk.UnwrapSDKContext(goCtx)
+
+	isGovernanceAllowed := msg.Sender == k.authority
+	if !isGovernanceAllowed {
+		return nil, errortypes.ErrUnauthorized
+	}
+
+	if err := k.handleBatchExchangeModificationProposal(ctx, msg.Proposal); err != nil {
+		return nil, err
+	}
+
+	return &types.MsgBatchExchangeModificationResponse{}, nil
 }

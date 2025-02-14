@@ -15,7 +15,7 @@ func GetQueryCmd() *cobra.Command {
 		GetParams(),
 		GetNamespaces(),
 		GetNamespaceByDenom(),
-		GetNamespaceRoleAddresses(),
+		GetNamespaceRoleActors(),
 		GetNamespaceAddressRoles(),
 		GetVouchersForAddress(),
 	)
@@ -35,38 +35,38 @@ func GetNamespaces() *cobra.Command {
 	return cli.QueryCmd("namespaces",
 		"Returns all created namespaces in the module",
 		types.NewQueryClient,
-		&types.QueryAllNamespacesRequest{}, nil, nil,
+		&types.QueryNamespacesRequest{}, nil, nil,
 	)
 }
 
 func GetNamespaceByDenom() *cobra.Command {
-	return cli.QueryCmd("namespace <denom> <include_roles>",
+	return cli.QueryCmd("namespace <denom>",
 		"Returns the namespace associated with denom",
 		types.NewQueryClient,
-		&types.QueryNamespaceByDenomRequest{}, nil, nil,
+		&types.QueryNamespaceRequest{}, nil, nil,
 	)
 }
 
-func GetNamespaceRoleAddresses() *cobra.Command {
-	return cli.QueryCmd("addresses <denom> <role>",
-		"Returns the addresses associated with role in denom's namespace",
+func GetNamespaceRoleActors() *cobra.Command {
+	return cli.QueryCmd("actors <denom> <role>",
+		"Returns the actors associated with a given role in the namespace for a denom",
 		types.NewQueryClient,
-		&types.QueryAddressesByRoleRequest{}, nil, nil,
+		&types.QueryActorsByRoleRequest{}, nil, nil,
 	)
 }
 
 func GetNamespaceAddressRoles() *cobra.Command {
-	return cli.QueryCmd("roles <denom> <address>",
-		"Returns the roles associated with the address in denom's namespace",
+	return cli.QueryCmd("roles <denom> <actor>",
+		"Returns the roles associated with the actor in denom's namespace",
 		types.NewQueryClient,
-		&types.QueryAddressRolesRequest{}, nil, nil,
+		&types.QueryRolesByActorRequest{}, nil, nil,
 	)
 }
 
 func GetVouchersForAddress() *cobra.Command {
-	return cli.QueryCmd("vouchers <address>",
-		"Returns all the vouchers held for this address inside the module",
+	return cli.QueryCmd("vouchers <denom>",
+		"Returns the vouchers held for this denom inside the module",
 		types.NewQueryClient,
-		&types.QueryVouchersForAddressRequest{}, nil, nil,
+		&types.QueryVouchersRequest{}, nil, nil,
 	)
 }

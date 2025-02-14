@@ -61,6 +61,12 @@ func (k *Keeper) checkBadSignatureEvidenceInternal(ctx sdk.Context, subject type
 		return errors.Wrap(types.ErrInvalid, "signature decoding")
 	}
 
+	// return if the offending validator was already slashed for this evidence
+	if checkpoint := k.GetFakeCheckpoint(ctx, sigBytes); !bytes.Equal(checkpoint[:], common.Hash{}.Bytes()) {
+		metrics.ReportFuncError(k.svcTags)
+		return errors.Wrap(types.ErrInvalid, fmt.Sprintf("validator already slashed for fake checkpoint %s and signature %s", checkpoint.Hex(), signature))
+	}
+
 	// Get eth address of the offending validator using the checkpoint and the signature
 	ethAddress, err := types.EthAddressFromSignature(checkpoint, sigBytes)
 	if err != nil {
@@ -97,6 +103,9 @@ func (k *Keeper) checkBadSignatureEvidenceInternal(ctx sdk.Context, subject type
 		}
 	}
 
+	// set the fake checkpoint under provided signature so validator cannot be slashed again for the same evidence
+	k.SetFakeCheckpoint(ctx, sigBytes, checkpoint)
+
 	return nil
 }
 
@@ -121,4 +130,25 @@ func (k *Keeper) GetPastEthSignatureCheckpoint(ctx sdk.Context, checkpoint commo
 	} else {
 		return false
 	}
+}
+
+func (k *Keeper) GetFakeCheckpoint(ctx sdk.Context, signature []byte) common.Hash {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
+	store := ctx.KVStore(k.storeKey)
+	bz := store.Get(types.GetFakeCheckpointKey(signature))
+	if bz == nil {
+		return common.Hash{}
+	}
+
+	return common.BytesToHash(bz)
+}
+
+func (k *Keeper) SetFakeCheckpoint(ctx sdk.Context, signature []byte, checkpoint common.Hash) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
+	store := ctx.KVStore(k.storeKey)
+	store.Set(types.GetFakeCheckpointKey(signature), checkpoint.Bytes())
 }

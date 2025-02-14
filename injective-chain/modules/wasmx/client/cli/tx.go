@@ -8,12 +8,14 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/CosmWasm/wasmd/x/wasm/ioutils"
 	wasmtypes "github.com/CosmWasm/wasmd/x/wasm/types"
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/client/tx"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/cosmos/cosmos-sdk/x/authz"
 	govcli "github.com/cosmos/cosmos-sdk/x/gov/client/cli"
 	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types/v1beta1"
 	"github.com/spf13/cobra"
@@ -22,6 +24,7 @@ import (
 	"github.com/InjectiveLabs/injective-core/cli"
 	cliflags "github.com/InjectiveLabs/injective-core/cli/flags"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/types"
+	"github.com/InjectiveLabs/injective-core/injective-chain/version"
 )
 
 const (
@@ -40,6 +43,14 @@ const (
 	flagAmount                = "amount"
 	FlagContractCallerAddress = "contract-caller-address"
 	FlagContractExecMsg       = "contract-exec-msg"
+
+	flagAllowedMsgKeys  = "allow-msg-keys"
+	flagAllowedRawMsgs  = "allow-raw-msgs"
+	flagExpiration      = "expiration"
+	flagMaxCalls        = "max-calls"
+	flagMaxFunds        = "max-funds"
+	flagAllowAllMsgs    = "allow-all-messages"
+	flagNoTokenTransfer = "no-token-transfer"
 )
 
 // NewTxCmd returns a root CLI command handler for certain modules/wasmx transaction commands.
@@ -55,6 +66,7 @@ func NewTxCmd() *cobra.Command {
 		ContractDeactivateTxCmd(),
 		ExecuteContractCompatCmd(),
 		RegisterContractTxCmd(),
+		GrantCmd(),
 	)
 	return cmd
 }
@@ -613,6 +625,172 @@ func ExecuteContractCompatCmd() *cobra.Command {
 	cmd.Flags().String(flagAmount, "", "Coins to send to the contract along with command")
 	cliflags.AddTxFlagsToCmd(cmd)
 	return cmd
+}
+
+func GrantCmd() *cobra.Command {
+	txCmd := &cobra.Command{
+		Use:                "grant",
+		Short:              "Grant a authz permission",
+		DisableFlagParsing: true,
+		SilenceUsage:       true,
+	}
+	txCmd.AddCommand(
+		GrantAuthorizationCmd(),
+	)
+	return txCmd
+}
+
+func GrantAuthorizationCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "contract [grantee] [message_type=\"execution\"|\"migration\"] [contract_addr_bech32] --allow-raw-msgs [msg1,msg2,...] --allow-msg-keys [key1,key2,...] --allow-all-messages",
+		Short: "Grant authorization to interact with a contract on behalf of you",
+		Long: fmt.Sprintf(`Grant authorization to an address.
+Examples:
+$ %s tx grant contract <grantee_addr> execution <contract_addr> --allow-all-messages --max-calls 1 --no-token-transfer --expiration 1667979596
+
+$ %s tx grant contract <grantee_addr> execution <contract_addr> --allow-all-messages --max-funds 100000uwasm --expiration 1667979596
+
+$ %s tx grant contract <grantee_addr> execution <contract_addr> --allow-all-messages --max-calls 5 --max-funds 100000uwasm --expiration 1667979596
+`, version.AppName, version.AppName, version.AppName),
+		Args: cobra.ExactArgs(3),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clientCtx, err := client.GetClientTxContext(cmd)
+			if err != nil {
+				return err
+			}
+
+			grantee, err := sdk.AccAddressFromBech32(args[0])
+			if err != nil {
+				return err
+			}
+
+			contract, err := sdk.AccAddressFromBech32(args[2])
+			if err != nil {
+				return err
+			}
+
+			msgKeys, err := cmd.Flags().GetStringSlice(flagAllowedMsgKeys)
+			if err != nil {
+				return err
+			}
+
+			rawMsgs, err := cmd.Flags().GetStringSlice(flagAllowedRawMsgs)
+			if err != nil {
+				return err
+			}
+
+			maxFundsStr, err := cmd.Flags().GetString(flagMaxFunds)
+			if err != nil {
+				return fmt.Errorf("max funds: %w", err)
+			}
+
+			maxCalls, err := cmd.Flags().GetUint64(flagMaxCalls)
+			if err != nil {
+				return err
+			}
+
+			exp, err := cmd.Flags().GetInt64(flagExpiration)
+			if err != nil {
+				return err
+			}
+			if exp == 0 {
+				return errors.New("expiration must be set")
+			}
+
+			allowAllMsgs, err := cmd.Flags().GetBool(flagAllowAllMsgs)
+			if err != nil {
+				return err
+			}
+
+			noTokenTransfer, err := cmd.Flags().GetBool(flagNoTokenTransfer)
+			if err != nil {
+				return err
+			}
+
+			var limit wasmtypes.ContractAuthzLimitX
+			switch {
+			case maxFundsStr != "" && maxCalls != 0 && !noTokenTransfer:
+				maxFunds, err := sdk.ParseCoinsNormalized(maxFundsStr)
+				if err != nil {
+					return fmt.Errorf("max funds: %w", err)
+				}
+				limit = wasmtypes.NewCombinedLimit(maxCalls, maxFunds...)
+			case maxFundsStr != "" && maxCalls == 0 && !noTokenTransfer:
+				maxFunds, err := sdk.ParseCoinsNormalized(maxFundsStr)
+				if err != nil {
+					return fmt.Errorf("max funds: %w", err)
+				}
+				limit = wasmtypes.NewMaxFundsLimit(maxFunds...)
+			case maxCalls != 0 && noTokenTransfer && maxFundsStr == "":
+				limit = wasmtypes.NewMaxCallsLimit(maxCalls)
+			default:
+				return errors.New("invalid limit setup")
+			}
+
+			var filter wasmtypes.ContractAuthzFilterX
+			switch {
+			case allowAllMsgs && len(msgKeys) != 0 || allowAllMsgs && len(rawMsgs) != 0 || len(msgKeys) != 0 && len(rawMsgs) != 0:
+				return errors.New("cannot set more than one filter within one grant")
+			case allowAllMsgs:
+				filter = wasmtypes.NewAllowAllMessagesFilter()
+			case len(msgKeys) != 0:
+				filter = wasmtypes.NewAcceptedMessageKeysFilter(msgKeys...)
+			case len(rawMsgs) != 0:
+				msgs := make([]wasmtypes.RawContractMessage, len(rawMsgs))
+				for i, msg := range rawMsgs {
+					msgs[i] = wasmtypes.RawContractMessage(msg)
+				}
+				filter = wasmtypes.NewAcceptedMessagesFilter(msgs...)
+			default:
+				return errors.New("invalid filter setup")
+			}
+
+			grant, err := wasmtypes.NewContractGrant(contract, limit, filter)
+			if err != nil {
+				return err
+			}
+
+			var authorization authz.Authorization
+			switch args[1] {
+			case "execution":
+				authorization = types.NewContractExecutionCompatAuthorization(*grant)
+			default:
+				return fmt.Errorf("%s authorization type not supported", args[1])
+			}
+
+			expire, err := getExpireTime(cmd)
+			if err != nil {
+				return err
+			}
+
+			grantMsg, err := authz.NewMsgGrant(clientCtx.GetFromAddress(), grantee, authorization, expire)
+			if err != nil {
+				return err
+			}
+			return tx.GenerateOrBroadcastTxCLI(clientCtx, cmd.Flags(), grantMsg)
+		},
+	}
+	cliflags.AddTxFlagsToCmd(cmd)
+	cmd.Flags().StringSlice(flagAllowedMsgKeys, []string{}, "Allowed msg keys")
+	cmd.Flags().StringSlice(flagAllowedRawMsgs, []string{}, "Allowed raw msgs")
+	cmd.Flags().Uint64(flagMaxCalls, 0, "Maximal number of calls to the contract")
+	cmd.Flags().String(flagMaxFunds, "", "Maximal amount of tokens transferable to the contract.")
+	cmd.Flags().Int64(flagExpiration, 0, "The Unix timestamp.")
+	cmd.Flags().Bool(flagAllowAllMsgs, false, "Allow all messages")
+	cmd.Flags().Bool(flagNoTokenTransfer, false, "Don't allow token transfer")
+	return cmd
+}
+
+func getExpireTime(cmd *cobra.Command) (*time.Time, error) {
+	exp, err := cmd.Flags().GetInt64(flagExpiration)
+	if err != nil {
+		return nil, err
+	}
+	if exp == 0 {
+		return nil, nil
+	}
+	e := time.Unix(exp, 0)
+	return &e, nil
 }
 
 func parseBatchStoreCodeProposalFlags(fs *pflag.FlagSet) (*types.BatchStoreCodeProposal, error) {

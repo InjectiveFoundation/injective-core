@@ -11,7 +11,7 @@
     {
       "actionType": "createTfDenom",
       "subdenom": "custom/quote",
-      "decimals": 6
+      "decimals": 18
     },
     {
       "actionType": "mintTfDenom",
@@ -54,7 +54,9 @@
       "marketType": "spot",
       "ticker": "custom/base/custom/quote",
       "baseDenom": "$tf(1)",
-      "quoteDenom": "$tf(0)"
+      "quoteDenom": "$tf(0)",
+      "baseDecimals": 18,
+      "quoteDecimals": 6
     },
     {
       "actionType": "endblocker",

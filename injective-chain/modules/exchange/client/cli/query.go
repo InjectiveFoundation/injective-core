@@ -35,6 +35,11 @@ func GetQueryCmd() *cobra.Command {
 		GetAllBinaryOptionsMarketsCmd(),
 		GetActiveStakeGrantForGranteeCmd(),
 		GetGranterAuthorizationsCmd(),
+		GetMarketBalanceCmd(),
+		GetSubaccountPositionsForMarket(),
+		GetFeeDiscountAccountInfo(),
+		GetMinNotionalForDenom(),
+		GetAllDenomMinNotionals(),
 	)
 	return cmd
 }
@@ -145,8 +150,13 @@ func GetAllDerivativeMarkets() *cobra.Command {
 			}
 			queryClient := types.NewQueryClient(clientCtx)
 
+			status, err := cmd.Flags().GetString(FlagMarketStatus)
+			if err != nil {
+				return err
+			}
+
 			req := &types.QueryDerivativeMarketsRequest{
-				Status: "Active",
+				Status: status,
 			}
 			res, err := queryClient.DerivativeMarkets(context.Background(), req)
 			if err != nil {
@@ -156,6 +166,7 @@ func GetAllDerivativeMarkets() *cobra.Command {
 		},
 	}
 
+	cmd.Flags().String(FlagMarketStatus, "Active", "Market status: Active, Paused, Demolished, Expired or Unspecified")
 	cliflags.AddQueryFlagsToCmd(cmd)
 	return cmd
 }
@@ -323,8 +334,13 @@ func GetAllBinaryOptionsMarketsCmd() *cobra.Command {
 			}
 			queryClient := types.NewQueryClient(clientCtx)
 
+			status, err := cmd.Flags().GetString(FlagMarketStatus)
+			if err != nil {
+				return err
+			}
+
 			req := &types.QueryBinaryMarketsRequest{
-				Status: "Active",
+				Status: status,
 			}
 			res, err := queryClient.BinaryOptionsMarkets(context.Background(), req)
 			if err != nil {
@@ -334,6 +350,7 @@ func GetAllBinaryOptionsMarketsCmd() *cobra.Command {
 		},
 	}
 
+	cmd.Flags().String(FlagMarketStatus, "Active", "Market status: Active, Paused, Demolished, Expired or Unspecified")
 	cliflags.AddQueryFlagsToCmd(cmd)
 	return cmd
 }
@@ -392,4 +409,107 @@ func GetGranterAuthorizationsCmd() *cobra.Command {
 	}
 
 	return cmd
+}
+
+// GetMarketBalance queries the balance of a market
+func GetMarketBalanceCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "market-balance [market_id]",
+		Short: "Gets the balance of a market",
+		Long:  "Gets the balance of a market",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clientCtx, err := client.GetClientQueryContext(cmd)
+			if err != nil {
+				return err
+			}
+			queryClient := types.NewQueryClient(clientCtx)
+
+			req := &types.QueryMarketBalanceRequest{
+				MarketId: args[0],
+			}
+			res, err := queryClient.MarketBalance(context.Background(), req)
+			if err != nil {
+				return err
+			}
+			return clientCtx.PrintProto(res)
+		},
+	}
+
+	cliflags.AddQueryFlagsToCmd(cmd)
+	return cmd
+}
+
+// Get SubaccountPositionsForMarket queries the positions of a subaccount for a given market id
+func GetSubaccountPositionsForMarket() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "subaccount-positions-in-market [market_id] [subaccount_id]",
+		Short: "Gets the positions of a subaccount for a given market",
+		Long:  "Gets the positions of a subaccount for a given market",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clientCtx, err := client.GetClientQueryContext(cmd)
+			if err != nil {
+				return err
+			}
+			queryClient := types.NewQueryClient(clientCtx)
+
+			req := &types.QuerySubaccountPositionInMarketRequest{
+				MarketId:     args[0],
+				SubaccountId: args[1],
+			}
+			res, err := queryClient.SubaccountPositionInMarket(context.Background(), req)
+			if err != nil {
+				return err
+			}
+			return clientCtx.PrintProto(res)
+		},
+	}
+
+	cliflags.AddQueryFlagsToCmd(cmd)
+	return cmd
+}
+
+func GetFeeDiscountAccountInfo() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "fee-discount-account-info [address]",
+		Short: "Gets the fee discount account info",
+		Long:  "Gets the fee discount account info",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clientCtx, err := client.GetClientQueryContext(cmd)
+			if err != nil {
+				return err
+			}
+			queryClient := types.NewQueryClient(clientCtx)
+
+			req := &types.QueryFeeDiscountAccountInfoRequest{
+				Account: args[0],
+			}
+			res, err := queryClient.FeeDiscountAccountInfo(context.Background(), req)
+			if err != nil {
+				return err
+			}
+			return clientCtx.PrintProto(res)
+		},
+	}
+
+	cliflags.AddQueryFlagsToCmd(cmd)
+	return cmd
+}
+
+func GetMinNotionalForDenom() *cobra.Command {
+	return cli.QueryCmd("min-notional-for-denom <denom>",
+		"Returns the minimum notional amount for this denom as a quote asset",
+		types.NewQueryClient,
+		&types.QueryDenomMinNotionalRequest{}, nil, nil,
+	)
+}
+
+func GetAllDenomMinNotionals() *cobra.Command {
+	return cli.QueryCmd("denom-min-notionals",
+		"Returns all the minimum notional amounts for all denoms",
+		types.NewQueryClient,
+		&types.QueryDenomMinNotionalsRequest{}, nil, nil,
+	)
 }

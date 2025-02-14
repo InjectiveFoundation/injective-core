@@ -21,7 +21,7 @@ Home of the following services:
 
 ### Building from sources
 
-In order to build from source you’ll need at least [Go 1.22+](https://golang.org/dl/).
+In order to build from source you’ll need at least [Go 1.16+](https://golang.org/dl/).
 
 ```bash
 # need to clone if you plan to run tests, and use Makefile
@@ -44,10 +44,6 @@ $ ./injectived.sh
 
 Voila! You have now successfully setup a full node on the Injective Chain.
 
-## Generating the module specification docs
-```bash
-$ cd docs && yarn && yarn run serve
-```
 ## Generating REST and gRPC Gateway docs
 First, ensure that the `Enable` and `Swagger` values are true in APIConfig set in `cmd/injectived/config/config.go`.
 

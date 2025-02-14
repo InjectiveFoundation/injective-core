@@ -22,10 +22,10 @@ git clone https://github.com/InjectiveLabs/cosmos-sdk.git -b $COSMOS_SDK_VERSION
 git clone https://github.com/InjectiveLabs/ibc-go.git -b $IBC_GO_VERSION_TAG --depth 1 --single-branch
 git clone https://github.com/InjectiveLabs/wasmd.git -b $WASMD_VERSION_TAG --depth 1 --single-branch
 
-buf export ./cosmos-sdk --output=third_party
-buf export ./ibc-go --exclude-imports --output=third_party
+buf export ./cosmos-sdk --output=./third_party
+buf export ./ibc-go --exclude-imports --output=./third_party
 buf export ./wasmd --exclude-imports --output=./third_party
-buf export https://github.com/cometbft/cometbft.git --exclude-imports --output=third_party
+buf export https://github.com/cometbft/cometbft.git --exclude-imports --output=./third_party
 buf export https://github.com/cosmos/ics23.git --exclude-imports --output=./third_party
 buf export https://github.com/cosmos/ibc-apps.git --exclude-imports --output=./third_party --path=middleware/packet-forward-middleware/proto && mv ./third_party/middleware/packet-forward-middleware/proto/packetforward ./third_party
 

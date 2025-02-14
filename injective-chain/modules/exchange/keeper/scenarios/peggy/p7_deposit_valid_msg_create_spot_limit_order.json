@@ -19,7 +19,9 @@
       "marketType": "spot",
       "ticker": "peggy0x11A227e1aAb93Ad76646663381A94Fdaa3256FCF/USDT0",
       "baseDenom": "peggy0x11A227e1aAb93Ad76646663381A94Fdaa3256FCF",
-      "quoteDenom": "USDT0"
+      "quoteDenom": "USDT0",
+      "baseDecimals": 18,
+      "quoteDecimals": 6
     },
     {
       "actionType": "spotLimitOrder",

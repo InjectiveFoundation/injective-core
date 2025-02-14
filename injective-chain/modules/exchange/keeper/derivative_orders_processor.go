@@ -213,7 +213,7 @@ func (k *Keeper) ExecuteDerivativeMarketOrderImmediately(
 	marketOrder *types.DerivativeMarketOrder,
 	positionStates map[common.Hash]*PositionState,
 	isLiquidation bool,
-) (*types.DerivativeMarketOrderResults, error) {
+) (*types.DerivativeMarketOrderResults, bool, error) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
@@ -229,7 +229,6 @@ func (k *Keeper) ExecuteDerivativeMarketOrderImmediately(
 	marketID := market.MarketID()
 
 	stakingInfo, feeDiscountConfig := k.getFeeDiscountConfigAndStakingInfoForMarket(ctx, marketID)
-	tradingRewards := types.NewTradingRewardPoints()
 
 	takerFeeRate := market.GetTakerFeeRate()
 	if marketOrder.OrderType.IsAtomic() {
@@ -253,19 +252,19 @@ func (k *Keeper) ExecuteDerivativeMarketOrderImmediately(
 	if isLiquidation {
 		if marketOrder.IsBuy() && derivativeMarketOrderExecution.MarketBuyClearingQuantity.IsZero() {
 			metrics.ReportFuncError(k.svcTags)
-			return nil, types.ErrNoLiquidity
+			return nil, true, types.ErrNoLiquidity
 		}
 
 		if !marketOrder.IsBuy() && derivativeMarketOrderExecution.MarketSellClearingQuantity.IsZero() {
 			metrics.ReportFuncError(k.svcTags)
-			return nil, types.ErrNoLiquidity
+			return nil, true, types.ErrNoLiquidity
 		}
 	}
 
 	batchExecutionData := derivativeMarketOrderExecution.getMarketDerivativeBatchExecutionData(market, markPrice, funding, positionStates, isLiquidation)
 	modifiedPositionCache := NewModifiedPositionCache()
 	derivativeVwapData := NewDerivativeVwapInfo()
-	tradingRewards = k.PersistSingleDerivativeMarketOrderExecution(ctx, batchExecutionData, derivativeVwapData, tradingRewards, modifiedPositionCache, isLiquidation)
+	tradingRewards, isMarketSolvent := k.PersistSingleDerivativeMarketOrderExecution(ctx, batchExecutionData, derivativeVwapData, types.NewTradingRewardPoints(), modifiedPositionCache, isLiquidation)
 
 	sortedSubaccountIDs := modifiedPositionCache.GetSortedSubaccountIDsByMarket(marketID)
 	k.AppendModifiedSubaccountsByMarket(ctx, marketID, sortedSubaccountIDs)
@@ -279,7 +278,7 @@ func (k *Keeper) ExecuteDerivativeMarketOrderImmediately(
 	}
 
 	results := batchExecutionData.getAtomicDerivativeMarketOrderResults()
-	return results, nil
+	return results, isMarketSolvent, nil
 }
 
 func (k *Keeper) GetDerivativeMarketOrderExecutionData(
@@ -458,6 +457,7 @@ func (k *Keeper) processDerivativeMarketOrderbookMatchingResults(
 				PositionDelta:         nil,
 				Payout:                math.LegacyZeroDec(),
 				Pnl:                   math.LegacyZeroDec(),
+				MarketBalanceDelta:    math.LegacyZeroDec(),
 				TotalBalanceDelta:     math.LegacyZeroDec(),
 				AvailableBalanceDelta: o.MarginHold,
 				AuctionFeeReward:      math.LegacyZeroDec(),
@@ -681,11 +681,13 @@ func (k *Keeper) applyPositionDeltaAndGetDerivativeMarketOrderStateExpansion(
 		totalBalanceChange,
 	)
 
+	marketBalanceDelta := GetMarketBalanceDelta(payout, collateralizationMargin, feeData.traderFee, order.IsReduceOnly())
 	stateExpansion := DerivativeOrderStateExpansion{
 		SubaccountID:          order.SubaccountID(),
 		PositionDelta:         positionDelta,
 		Payout:                payout,
 		Pnl:                   pnl,
+		MarketBalanceDelta:    marketBalanceDelta,
 		TotalBalanceDelta:     totalBalanceChange,
 		AvailableBalanceDelta: availableBalanceChange,
 		AuctionFeeReward:      feeData.auctionFeeReward,
@@ -866,11 +868,13 @@ func (k *Keeper) applyPositionDeltaAndGetDerivativeLimitOrderStateExpansion(
 		totalBalanceChange,
 	)
 
+	marketBalanceDelta := GetMarketBalanceDelta(payout, collateralizationMargin, feeData.traderFee, order.IsReduceOnly())
 	stateExpansion := DerivativeOrderStateExpansion{
 		SubaccountID:          order.SubaccountID(),
 		PositionDelta:         positionDelta,
 		Payout:                payout,
 		Pnl:                   pnl,
+		MarketBalanceDelta:    marketBalanceDelta,
 		TotalBalanceDelta:     totalBalanceChange,
 		AvailableBalanceDelta: availableBalanceChange,
 		AuctionFeeReward:      feeData.auctionFeeReward,
@@ -889,6 +893,8 @@ func (k *Keeper) applyPositionDeltaAndGetDerivativeLimitOrderStateExpansion(
 	return &stateExpansion
 }
 
+// Can happen if sell order is matched at better price incurring a higher trading fee that needs to be charged to trader. Function is implemented
+// in a more general way to also handle other unknown cases as defensive programming.
 func (k *Keeper) adjustPositionMarginIfNecessary(
 	ctx sdk.Context,
 	market DerivativeMarketI,
@@ -915,6 +921,14 @@ func (k *Keeper) adjustPositionMarginIfNecessary(
 	}
 
 	// check if position has sufficient margin to deduct from, may not be the case during liquidations beyond bankruptcy
+	//
+	// NOTE that one may think that a reduce-only order could result in a case where a trader has insufficient balance and no position margin.
+	// This would require a reduce-only order of the full position size at exactly bankruptcy price, leading to zero total payout.
+	// -> user would have zero balance and zero margin and we could not charge him.
+	// However, this is not exploitable, because a user would first need to create an order at a price even worse than bankruptcy price
+	// to create a non-zero matched fee charge (trading fee of matched vs. order price). Fortunately we always check if an order closes
+	// a position beyond bankruptcy price (`CheckValidPositionToReduce`), even during FBA matching and we use the original order price for this check.
+
 	hasSufficientMarginToCharge := position.Margin.GT(availableBalanceChange.Abs())
 	if !hasSufficientMarginToCharge {
 		return availableBalanceChange, totalBalanceChange

@@ -268,6 +268,10 @@ func (k *Keeper) InitGenesis(ctx sdk.Context, data types.GenesisState) {
 		grantee := sdk.MustAccAddressFromBech32(grant.Grantee)
 		k.setActiveGrant(ctx, grantee, grant.ActiveGrant)
 	}
+
+	for _, denomMinNotional := range data.DenomMinNotionals {
+		k.SetMinNotionalForDenom(ctx, denomMinNotional.Denom, denomMinNotional.MinNotional)
+	}
 }
 
 func (k *Keeper) ExportGenesis(ctx sdk.Context) *types.GenesisState {
@@ -308,5 +312,6 @@ func (k *Keeper) ExportGenesis(ctx sdk.Context) *types.GenesisState {
 		MarketVolumes:                                k.GetAllMarketAggregateVolumes(ctx),
 		GrantAuthorizations:                          k.GetAllGrantAuthorizations(ctx),
 		ActiveGrants:                                 k.GetAllActiveGrants(ctx),
+		DenomMinNotionals:                            k.GetAllDenomMinNotionals(ctx),
 	}
 }

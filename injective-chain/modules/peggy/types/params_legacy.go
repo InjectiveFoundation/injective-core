@@ -69,6 +69,8 @@ var (
 
 	ParamStoreAdmins = []byte("Admins")
 
+	ParamStoreSegregatedWalletAddress = []byte("SegregatedWalletAddress")
+
 	// Ensure that params implements the proper interface
 	_ paramtypes.ParamSet = &Params{}
 )
@@ -104,5 +106,6 @@ func (p *Params) ParamSetPairs() paramtypes.ParamSetPairs {
 		paramtypes.NewParamSetPair(ParamsStoreKeyBridgeContractStartHeight, &p.BridgeContractStartHeight, validateBridgeContractStartHeight),
 		paramtypes.NewParamSetPair(ParamStoreValsetRewardAmount, &p.ValsetReward, validateValsetReward),
 		paramtypes.NewParamSetPair(ParamStoreAdmins, &p.Admins, validateAdmins),
+		paramtypes.NewParamSetPair(ParamStoreSegregatedWalletAddress, &p.SegregatedWalletAddress, validateSegregatedWallet),
 	}
 }

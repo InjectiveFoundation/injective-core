@@ -5,7 +5,7 @@ title: EndBlocker
 
 # EndBlocker
 
-The exchange [EndBlocker](https://docs.cosmos.network/master/building-modules/beginblock-endblock.html) runs at the end of every block in our defined order after governance and staking modules, and before the peggy, auction and insurance modules. It is particularly important that the governance module's EndBlocker runs before the exchange module's.
+The exchange EndBlocker runs at the end of every block in our defined order after governance and staking modules, and before the peggy, auction and insurance modules. It is particularly important that the governance module's EndBlocker runs before the exchange module's.
 
 - Stage 0: Determine the fee discounts for all the accounts that have placed an order in a fee-discount supported market in the current block.
 - Stage 1: Process all market orders in parallel - spot market and derivative market orders

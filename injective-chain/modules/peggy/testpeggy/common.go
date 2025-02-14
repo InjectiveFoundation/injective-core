@@ -292,8 +292,10 @@ func SetupFiveValChain(t *testing.T) (TestInput, sdk.Context) {
 }
 
 type ValidatorInfo struct {
-	AccAddr sdk.AccAddress
-	ValAddr sdk.ValAddress
+	AccAddr  sdk.AccAddress
+	OrchAddr sdk.AccAddress
+	ValAddr  sdk.ValAddress
+	EthAddr  common.Address
 	ConsKey,
 	PubKey ccrypto.PubKey
 }
@@ -572,7 +574,6 @@ func CreateTestEnv(t *testing.T) TestInput {
 		&insuranceKeeper,
 		distKeeper,
 		stakingKeeper,
-		nil, // TODO: FIX!
 		authority,
 	)
 

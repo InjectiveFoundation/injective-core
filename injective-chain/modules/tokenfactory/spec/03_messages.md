@@ -11,13 +11,18 @@ In this section we describe the processing of the tokenfactory messages and the 
 ### CreateDenom
 
 Creates a denom of `factory/{creator address}/{subdenom}` given the denom creator
-address and the subdenom. Subdenoms can contain `[a-zA-Z0-9./]`.
-
-```go
+address, subdenom and associated metadata (name, symbol, decimals). Subdenoms can contain `[a-zA-Z0-9./]`.
+`allow_admin_burn` can be set to true to allow the admin to burn tokens from other addresses.
+```protobuf
 message MsgCreateDenom {
   string sender = 1 [ (gogoproto.moretags) = "yaml:\"sender\"" ];
+  // subdenom can be up to 44 "alphanumeric" characters long.
   string subdenom = 2 [ (gogoproto.moretags) = "yaml:\"subdenom\"" ];
-}
+  string name = 3 [ (gogoproto.moretags) = "yaml:\"name\"" ];
+  string symbol = 4 [ (gogoproto.moretags) = "yaml:\"symbol\"" ];
+  uint32 decimals = 5 [ (gogoproto.moretags) = "yaml:\"decimals\"" ];
+  // true if admins are allowed to burn tokens from other addresses
+  bool allow_admin_burn = 6 [ (gogoproto.moretags) = "yaml:\"allow_admin_burn\"" ];}
 ```
 
 **State Modifications:**
@@ -36,7 +41,7 @@ message MsgCreateDenom {
 Minting of a specific denom is only allowed for the current admin.
 Note, the current admin is defaulted to the creator of the denom.
 
-```go
+```protobuf
 message MsgMint {
   string sender = 1 [ (gogoproto.moretags) = "yaml:\"sender\"" ];
   cosmos.base.v1beta1.Coin amount = 2 [
@@ -58,7 +63,7 @@ message MsgMint {
 Burning of a specific denom is only allowed for the current admin.
 Note, the current admin is defaulted to the creator of the denom.
 
-```go
+```protobuf
 message MsgBurn {
   string sender = 1 [ (gogoproto.moretags) = "yaml:\"sender\"" ];
   cosmos.base.v1beta1.Coin amount = 2 [
@@ -77,9 +82,9 @@ message MsgBurn {
 
 ### ChangeAdmin
 
-Change the admin of a denom. Note, this is only allowed to be called by the current admin of the denom.
+Change the admin of a denom. Note, this is only allowed to be called by the current admin of the denom. After the admin address is set to zero address, token holders can still execute `MsgBurn` for tokens they possess.
 
-```go
+```protobuf
 message MsgChangeAdmin {
   string sender = 1 [ (gogoproto.moretags) = "yaml:\"sender\"" ];
   string denom = 2 [ (gogoproto.moretags) = "yaml:\"denom\"" ];
@@ -90,19 +95,32 @@ message MsgChangeAdmin {
 ### SetDenomMetadata
 
 Setting of metadata for a specific denom is only allowed for the admin of the denom.
-It allows the overwriting of the denom metadata in the bank module.
+It allows the overwriting of the denom metadata in the bank module. The admin can also disable the admin burn
+capability, if enabled.
 
-```go
-message MsgChangeAdmin {
+```protobuf
+message MsgSetDenomMetadata {
+  option (amino.name) = "injective/tokenfactory/set-denom-metadata";
+  option (cosmos.msg.v1.signer) = "sender";
+
   string sender = 1 [ (gogoproto.moretags) = "yaml:\"sender\"" ];
-  cosmos.bank.v1beta1.Metadata metadata = 2 [ (gogoproto.moretags) = "yaml:\"metadata\"", (gogoproto.nullable)   = false ];
+  cosmos.bank.v1beta1.Metadata metadata = 2 [
+    (gogoproto.moretags) = "yaml:\"metadata\"",
+    (gogoproto.nullable) = false
+  ];
+
+  message AdminBurnDisabled {
+    // true if the admin burn capability should be disabled
+    bool should_disable = 1 [ (gogoproto.moretags) = "yaml:\"should_disable\"" ];
+  }
+  AdminBurnDisabled admin_burn_disabled = 3 [ (gogoproto.moretags) = "yaml:\"admin_burn_disabled\"" ];
 }
 ```
 
 **State Modifications:**
 
 - Check that sender of the message is the admin of denom
-- Modify `AuthorityMetadata` state entry to change the admin of the denom
+- Modify `AuthorityMetadata` state entry to change the admin of the denom and to potentially disable admin burn capability.
 
 
 ## Expectations from the chain

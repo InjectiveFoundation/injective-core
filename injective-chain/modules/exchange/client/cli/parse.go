@@ -233,8 +233,12 @@ func orderTypeFromFlag(cmd *cobra.Command, flag string) (exchangetypes.OrderType
 		orderType = exchangetypes.OrderType_SELL
 	case "sellPostOnly":
 		orderType = exchangetypes.OrderType_SELL_PO
+	case "buyAtomic":
+		orderType = exchangetypes.OrderType_BUY_ATOMIC
+	case "sellAtomic":
+		orderType = exchangetypes.OrderType_SELL_ATOMIC
 	default:
-		return exchangetypes.OrderType_UNSPECIFIED, errors.New("order type must be \"buy\", \"buyPostOnly\", \"sellPostOnly\" or \"sell\"")
+		return exchangetypes.OrderType_UNSPECIFIED, errors.New("order type must be \"buy\", \"buyPostOnly\", \"sellPostOnly\" or \"sell\" or \"buyAtomic\" or \"sellAtomic\"")
 	}
 
 	return orderType, nil

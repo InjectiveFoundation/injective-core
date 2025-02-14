@@ -1,7 +1,0 @@
-# State
-
-## Index
-
-## CapabilityOwners
-
-## Capability

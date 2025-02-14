@@ -61,6 +61,12 @@ func (k DerivativesMsgServer) InstantPerpetualMarketLaunch(goCtx context.Context
 		return nil, sdkerrors.ErrUnauthorized.Wrap("Unauthorized to instant launch a perpetual market")
 	}
 
+	senderAddr, _ := sdk.AccAddressFromBech32(msg.Sender)
+
+	if err := k.checkDenomMinNotional(ctx, senderAddr, msg.QuoteDenom, msg.MinNotional); err != nil {
+		return nil, err
+	}
+
 	// check if the market launch proposal already exists
 	marketID := types.NewPerpetualMarketID(msg.Ticker, msg.QuoteDenom, msg.OracleBase, msg.OracleQuote, msg.OracleType)
 	if k.checkIfMarketLaunchProposalExist(ctx, types.ProposalTypePerpetualMarketLaunch, marketID) {
@@ -69,7 +75,6 @@ func (k DerivativesMsgServer) InstantPerpetualMarketLaunch(goCtx context.Context
 		return nil, types.ErrMarketLaunchProposalAlreadyExists.Wrapf("the perpetual market launch proposal already exists: marketID=%s", marketID.Hex())
 	}
 
-	senderAddr, _ := sdk.AccAddressFromBech32(msg.Sender)
 	fee := k.GetParams(ctx).DerivativeMarketInstantListingFee
 	err := k.DistributionKeeper.FundCommunityPool(ctx, sdk.Coins{fee}, senderAddr)
 	if err != nil {
@@ -108,6 +113,12 @@ func (k DerivativesMsgServer) InstantExpiryFuturesMarketLaunch(goCtx context.Con
 		return nil, sdkerrors.ErrUnauthorized.Wrap("Unauthorized to instant launch an expiry futures market")
 	}
 
+	senderAddr, _ := sdk.AccAddressFromBech32(msg.Sender)
+
+	if err := k.checkDenomMinNotional(ctx, senderAddr, msg.QuoteDenom, msg.MinNotional); err != nil {
+		return nil, err
+	}
+
 	// check if the market launch proposal already exists
 	marketID := types.NewExpiryFuturesMarketID(msg.Ticker, msg.QuoteDenom, msg.OracleBase, msg.OracleQuote, msg.OracleType, msg.Expiry)
 	if k.checkIfMarketLaunchProposalExist(ctx, types.ProposalTypeExpiryFuturesMarketLaunch, marketID) {
@@ -116,7 +127,6 @@ func (k DerivativesMsgServer) InstantExpiryFuturesMarketLaunch(goCtx context.Con
 		return nil, types.ErrMarketLaunchProposalAlreadyExists.Wrapf("the expiry futures market launch proposal already exists: marketID=%s", marketID.Hex())
 	}
 
-	senderAddr, _ := sdk.AccAddressFromBech32(msg.Sender)
 	fee := k.GetParams(ctx).DerivativeMarketInstantListingFee
 	err := k.DistributionKeeper.FundCommunityPool(ctx, sdk.Coins{fee}, senderAddr)
 	if err != nil {
@@ -323,9 +333,16 @@ func (k *Keeper) createDerivativeMarketOrder(ctx sdk.Context, sender sdk.AccAddr
 			funding = k.GetPerpetualMarketFunding(ctx, marketID)
 		}
 		positionStates := NewPositionStates()
-		results, err = k.ExecuteDerivativeMarketOrderImmediately(ctx, market, markPrice, funding, marketOrder, positionStates, false)
+
+		var isMarketSolvent bool
+
+		results, isMarketSolvent, err = k.ExecuteDerivativeMarketOrderImmediately(ctx, market, markPrice, funding, marketOrder, positionStates, false)
 		if err != nil {
 			return orderHash, nil, err
+		}
+
+		if !isMarketSolvent {
+			return orderHash, nil, types.ErrInsufficientMarketBalance
 		}
 	} else {
 		// 5. Store the order in the transient derivative market order store and transient market indicator store
@@ -565,6 +582,8 @@ func (k DerivativesMsgServer) IncreasePositionMargin(goCtx context.Context, msg 
 		return nil, err
 	}
 
+	k.IncrementMarketBalance(ctx, marketID, marginIncrement)
+
 	position := k.GetPosition(ctx, marketID, destinationSubaccountID)
 	if position == nil {
 		metrics.ReportFuncError(k.svcTags)
@@ -644,6 +663,12 @@ func (k DerivativesMsgServer) DecreasePositionMargin(goCtx context.Context, msg 
 	if err := types.CheckInitialMarginMarkPriceRequirement(position.IsLong, markPriceThreshold, markPrice); err != nil {
 		return nil, err
 	}
+
+	marketBalance := k.GetMarketBalance(ctx, marketID)
+	if marketBalance.LT(msg.Amount) {
+		return nil, types.ErrInsufficientMarketBalance
+	}
+	k.DecrementMarketBalance(ctx, marketID, msg.Amount)
 
 	k.SetPosition(ctx, marketID, sourceSubaccountID, position)
 

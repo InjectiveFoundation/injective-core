@@ -7,10 +7,9 @@ import (
 	"os"
 	"time"
 
-	servertypes "github.com/cosmos/cosmos-sdk/server/types"
-
 	"cosmossdk.io/log"
 	"github.com/cometbft/cometbft/libs/pubsub"
+	servertypes "github.com/cosmos/cosmos-sdk/server/types"
 	"github.com/google/uuid"
 	"github.com/spf13/cast"
 	"google.golang.org/grpc"

@@ -50,6 +50,24 @@ func (k *Keeper) CancelAllRestingDerivativeLimitOrdersForSubaccount(
 	}
 }
 
+func (k *Keeper) GetAllStandardizedDerivativeLimitOrdersByMarketDirection(
+	ctx sdk.Context,
+	marketID common.Hash,
+	isBuy bool,
+) (orders []*types.TrimmedLimitOrder) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
+	orders = make([]*types.TrimmedLimitOrder, 0)
+	appendOrder := func(order *types.DerivativeLimitOrder) (stop bool) {
+		orders = append(orders, order.ToStandardized())
+		return false
+	}
+
+	k.IterateDerivativeLimitOrdersByMarketDirection(ctx, marketID, isBuy, appendOrder)
+	return orders
+}
+
 // CancelRestingDerivativeLimitOrdersForSubaccountUpToBalance cancels all of the derivative limit orders for a given subaccount and marketID until
 // the given balance has been freed up, i.e., total balance becoming available balance.
 func (k *Keeper) CancelRestingDerivativeLimitOrdersForSubaccountUpToBalance(

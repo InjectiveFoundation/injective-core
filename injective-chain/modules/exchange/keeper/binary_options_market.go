@@ -38,6 +38,11 @@ func (k *Keeper) BinaryOptionsMarketLaunch(
 		metrics.ReportFuncError(k.svcTags)
 		return nil, errors.Wrapf(types.ErrInvalidQuoteDenom, "denom %s does not exist in supply", quoteDenom)
 	}
+	quoteDecimals, err := k.TokenDenomDecimals(ctx, quoteDenom)
+	if err != nil {
+		metrics.ReportFuncError(k.svcTags)
+		return nil, err
+	}
 
 	if market, _ := k.GetBinaryOptionsMarketAndStatus(ctx, marketID); market != nil {
 		metrics.ReportFuncError(k.svcTags)
@@ -83,6 +88,7 @@ func (k *Keeper) BinaryOptionsMarketLaunch(
 		MinQuantityTickSize: minQuantityTickSize,
 		MinNotional:         minNotional,
 		SettlementPrice:     nil,
+		QuoteDecimals:       quoteDecimals,
 	}
 
 	k.SetBinaryOptionsMarket(ctx, market)

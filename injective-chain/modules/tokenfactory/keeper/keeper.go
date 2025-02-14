@@ -15,10 +15,12 @@ import (
 )
 
 type Keeper struct {
-	storeKey storetypes.StoreKey
+	storeKey       storetypes.StoreKey
+	moduleAccounts map[string]bool
 
 	accountKeeper       types.AccountKeeper
 	bankKeeper          types.BankKeeper
+	permissionsKeeper   types.PermissionsKeeper
 	communityPoolKeeper types.CommunityPoolKeeper
 
 	authority string
@@ -30,15 +32,21 @@ func NewKeeper(
 	accountKeeper types.AccountKeeper,
 	bankKeeper types.BankKeeper,
 	communityPoolKeeper types.CommunityPoolKeeper,
+	moduleAccounts map[string]bool,
 	authority string,
 ) Keeper {
 	return Keeper{
 		storeKey:            storeKey,
+		moduleAccounts:      moduleAccounts,
 		accountKeeper:       accountKeeper,
 		bankKeeper:          bankKeeper,
 		communityPoolKeeper: communityPoolKeeper,
 		authority:           authority,
 	}
+}
+
+func (k *Keeper) SetPermissionsKeeper(permissionsKeeper types.PermissionsKeeper) {
+	k.permissionsKeeper = permissionsKeeper
 }
 
 // Logger returns a logger for the x/tokenfactory module

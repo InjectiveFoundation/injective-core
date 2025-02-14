@@ -24,6 +24,7 @@ type DerivativeBatchExecutionData struct {
 
 	// updated positions
 	Positions             []*types.Position
+	MarketBalanceDelta    math.LegacyDec
 	PositionSubaccountIDs []common.Hash
 
 	// resting limit order filled deltas to apply
@@ -83,6 +84,7 @@ type DerivativeMatchingExpansionData struct {
 	TransientLimitSellOrderCancels []*types.DerivativeLimitOrder
 	ClearingPrice                  math.LegacyDec
 	ClearingQuantity               math.LegacyDec
+	MarketBalanceDelta             math.LegacyDec
 	NewRestingLimitBuyOrders       []*types.DerivativeLimitOrder // transient buy orders that become new resting limit orders
 	NewRestingLimitSellOrders      []*types.DerivativeLimitOrder // transient sell orders that become new resting limit orders
 }
@@ -99,12 +101,15 @@ func NewDerivativeMatchingExpansionData(clearingPrice, clearingQuantity math.Leg
 		TransientLimitSellOrderCancels: make([]*types.DerivativeLimitOrder, 0),
 		ClearingPrice:                  clearingPrice,
 		ClearingQuantity:               clearingQuantity,
+		MarketBalanceDelta:             math.LegacyZeroDec(),
 		NewRestingLimitBuyOrders:       make([]*types.DerivativeLimitOrder, 0),
 		NewRestingLimitSellOrders:      make([]*types.DerivativeLimitOrder, 0),
 	}
 }
 
 func (e *DerivativeMatchingExpansionData) AddExpansion(isBuy, isTransient bool, expansion *DerivativeOrderStateExpansion) {
+	e.MarketBalanceDelta = e.MarketBalanceDelta.Add(expansion.MarketBalanceDelta)
+
 	switch {
 	case isBuy && isTransient:
 		e.TransientLimitBuyExpansions = append(e.TransientLimitBuyExpansions, expansion)
@@ -138,6 +143,7 @@ type DerivativeMarketOrderExpansionData struct {
 	MarketSellClearingPrice      math.LegacyDec
 	MarketBuyClearingQuantity    math.LegacyDec
 	MarketSellClearingQuantity   math.LegacyDec
+	MarketBalanceDelta           math.LegacyDec
 }
 
 func (d *DerivativeMarketOrderExpansionData) SetExecutionData(
@@ -162,6 +168,16 @@ func (d *DerivativeMarketOrderExpansionData) SetExecutionData(
 		d.MarketSellExpansions = marketOrderStateExpansions
 		d.LimitBuyExpansions = restingLimitOrderStateExpansions
 		d.MarketSellOrderCancels = marketOrderCancels
+	}
+
+	d.MarketBalanceDelta = math.LegacyZeroDec()
+	for idx := range marketOrderStateExpansions {
+		e := marketOrderStateExpansions[idx]
+		d.MarketBalanceDelta = d.MarketBalanceDelta.Add(e.MarketBalanceDelta)
+	}
+	for idx := range restingLimitOrderStateExpansions {
+		e := restingLimitOrderStateExpansions[idx]
+		d.MarketBalanceDelta = d.MarketBalanceDelta.Add(e.MarketBalanceDelta)
 	}
 }
 
@@ -211,6 +227,7 @@ func (e *DerivativeMatchingExpansionData) GetLimitMatchingDerivativeBatchExecuti
 		DepositSubaccountIDs:                  depositDeltaKeys,
 		TradingRewards:                        tradingRewardPoints,
 		Positions:                             positions,
+		MarketBalanceDelta:                    e.MarketBalanceDelta,
 		PositionSubaccountIDs:                 positionSubaccountIDs,
 		RestingLimitOrderFilledDeltas:         restingOrderFilledDeltas,
 		TransientLimitOrderFilledDeltas:       transientOrderFilledDeltas,
@@ -440,6 +457,7 @@ func (e *DerivativeMarketOrderExpansionData) getMarketDerivativeBatchExecutionDa
 		DepositSubaccountIDs:                  depositDeltaKeys,
 		TradingRewards:                        tradingRewardPoints,
 		Positions:                             positions,
+		MarketBalanceDelta:                    e.MarketBalanceDelta,
 		PositionSubaccountIDs:                 positionSubaccountIDs,
 		TransientLimitOrderFilledDeltas:       nil,
 		RestingLimitOrderFilledDeltas:         filledDeltas,

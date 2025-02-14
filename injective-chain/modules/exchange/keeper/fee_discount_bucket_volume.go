@@ -40,7 +40,7 @@ func (k *Keeper) GetFeeDiscountAccountVolumeInBucket(
 	if bz == nil {
 		return math.LegacyZeroDec()
 	}
-	return types.DecBytesToDec(bz)
+	return types.UnsignedDecBytesToDec(bz)
 }
 
 // DeleteFeeDiscountAccountVolumeInBucket deletes the volume for a given account for a given bucket.
@@ -88,7 +88,7 @@ func (k *Keeper) SetFeeDiscountAccountVolumeInBucket(
 	store := k.getStore(ctx)
 
 	key := types.GetFeeDiscountAccountVolumeInBucketKey(bucketStartTimestamp, account)
-	bz := types.DecToDecBytes(points)
+	bz := types.UnsignedDecToUnsignedDecBytes(points)
 	store.Set(key, bz)
 }
 
@@ -194,7 +194,7 @@ func (k *Keeper) iterateAccountVolume(
 	for ; iterator.Valid(); iterator.Next() {
 		bucketStartTime, accountAddress := types.ParseFeeDiscountBucketAccountVolumeIteratorKey(iterator.Key())
 		bz := iterator.Value()
-		if process(bucketStartTime, accountAddress, types.DecBytesToDec(bz)) {
+		if process(bucketStartTime, accountAddress, types.UnsignedDecBytesToDec(bz)) {
 			return
 		}
 	}
@@ -239,7 +239,7 @@ func (k *Keeper) iterateAccountVolumeInBucket(
 	for ; iterator.Valid(); iterator.Next() {
 		addr := sdk.AccAddress(iterator.Key())
 		bz := iterator.Value()
-		if process(addr, types.DecBytesToDec(bz)) {
+		if process(addr, types.UnsignedDecBytesToDec(bz)) {
 			return
 		}
 	}

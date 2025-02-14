@@ -2,6 +2,7 @@ package stream
 
 import (
 	"fmt"
+
 	"github.com/InjectiveLabs/injective-core/injective-chain/stream/types"
 )
 

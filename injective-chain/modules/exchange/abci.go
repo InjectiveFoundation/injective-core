@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/InjectiveLabs/metrics"
+	"github.com/cosmos/cosmos-sdk/baseapp"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
@@ -59,49 +60,8 @@ func (h *BlockHandler) EndBlocker(ctx sdk.Context) {
 
 	// Process Conditional Market orders first
 	triggeredMarketsAndOrders, marketCache := h.k.GetAllTriggeredConditionalOrders(ctx)
-	// cancel conditional orders first on ctx so we can trigger them on separate cacheCtx
-	for _, triggeredMarket := range triggeredMarketsAndOrders {
-		if triggeredMarket == nil {
-			continue
-		}
-
-		for i, marketOrder := range triggeredMarket.MarketOrders {
-			if err := h.k.CancelConditionalDerivativeMarketOrder(ctx, triggeredMarket.Market, marketOrder.OrderInfo.SubaccountID(), nil, marketOrder.Hash()); err != nil {
-				// should never happen
-				// remove the order from the array of orders to trigger since we couldn't cancel it
-				triggeredMarket.MarketOrders[i] = nil
-				ctx.Logger().Debug("Cancelling of conditional market order failed: ", err.Error())
-			}
-		}
-	}
-
-	triggerMarketOrders := func(ctx sdk.Context, useIndividualCacheCtx bool) (isPanicked bool) {
-		defer RecoverEndBlocker(ctx, &isPanicked)
-
-		for _, triggeredMarket := range triggeredMarketsAndOrders {
-			if triggeredMarket == nil {
-				continue
-			}
-
-			triggerMarketOrdersForMarket(ctx, h.k, triggeredMarket, useIndividualCacheCtx)
-
-			if triggeredMarket.HasLimitBuyOrders {
-				h.k.SetTransientDerivativeLimitOrderIndicator(ctx, triggeredMarket.Market.MarketID(), true)
-			}
-			if triggeredMarket.HasLimitSellOrders {
-				h.k.SetTransientDerivativeLimitOrderIndicator(ctx, triggeredMarket.Market.MarketID(), false)
-			}
-		}
-		return false // will be overwritten by deferred call
-	}
-	// try with one big cacheCtx first for performance reasons, fall back on individual cacheCtx if panicked so we do not skip later order triggers
-	cacheCtx, writeCache := ctx.CacheContext()
-
-	if isPanicked := triggerMarketOrders(cacheCtx, false); !isPanicked {
-		writeCache()
-	} else {
-		triggerMarketOrders(ctx, true)
-	}
+	h.handleConditionalMarketOrderCancels(ctx, triggeredMarketsAndOrders)
+	h.handleTriggeringConditionalMarketOrders(ctx, triggeredMarketsAndOrders)
 
 	stakingInfo := h.k.InitialFetchAndUpdateActiveAccountFeeDiscountStakingInfo(ctx)
 	spotVwapData := keeper.NewSpotVwapInfo()
@@ -174,42 +134,9 @@ func (h *BlockHandler) EndBlocker(ctx sdk.Context) {
 	// Persist Spot market order execution data
 	tradingRewards := h.k.PersistSpotMarketOrderExecution(ctx, batchSpotExecutionData, spotVwapData)
 
-	// Trigger Conditional Limit Orders (after market orders matching is done, so we won't hit the limitation of one market order per block)
-	for _, triggeredMarket := range triggeredMarketsAndOrders {
-		if triggeredMarket == nil {
-			continue
-		}
-
-		for i, limitOrder := range triggeredMarket.LimitOrders {
-			if err := h.k.CancelConditionalDerivativeLimitOrder(ctx, triggeredMarket.Market, limitOrder.OrderInfo.SubaccountID(), nil, limitOrder.Hash()); err != nil {
-				// should never happen
-				// remove the order from the array of orders to trigger since we couldn't cancel it
-				triggeredMarket.LimitOrders[i] = nil
-				ctx.Logger().Debug("Cancelling of conditional limit order failed: ", err.Error())
-			}
-		}
-	}
-
-	triggerLimitOrders := func(ctx sdk.Context, useIndividualCacheCtx bool) (isPanicked bool) {
-		defer RecoverEndBlocker(ctx, &isPanicked)
-
-		for _, triggeredMarket := range triggeredMarketsAndOrders {
-			if triggeredMarket == nil {
-				continue
-			}
-
-			triggerLimitOrdersForMarket(ctx, h.k, triggeredMarket, useIndividualCacheCtx)
-		}
-		return false // will be overwritten by deferred call
-	}
-	// first try to trigger all orders in one big cacheCtx and in case of a panic abandon all changes and start again executing
-	// each order in it's own separate cacheCtx so only bad orders won't be triggered
-	cacheCtx, writeCache = ctx.CacheContext()
-	if isPanicked := triggerLimitOrders(cacheCtx, false); !isPanicked {
-		writeCache()
-	} else {
-		triggerLimitOrders(ctx, true)
-	}
+	// Process triggering conditional limit orders
+	h.handleConditionalLimitOrderCancels(ctx, triggeredMarketsAndOrders)
+	h.handleTriggeringConditionalLimitOrders(ctx, triggeredMarketsAndOrders)
 
 	// Initialize derivative market funding info
 	derivativeVwapData := keeper.NewDerivativeVwapInfo()
@@ -311,6 +238,59 @@ func (h *BlockHandler) EndBlocker(ctx sdk.Context) {
 	h.k.IncrementSequenceAndEmitAllTransientOrderbookUpdates(ctx)
 }
 
+func (h *BlockHandler) handleConditionalMarketOrderCancels(ctx sdk.Context, triggeredMarketsAndOrders []*types.TriggeredOrdersInMarket) {
+	// cancel conditional orders first on ctx so we can trigger them on separate cacheCtx
+	for _, triggeredMarket := range triggeredMarketsAndOrders {
+		if triggeredMarket == nil {
+			continue
+		}
+
+		for i, marketOrder := range triggeredMarket.MarketOrders {
+			if err := h.k.CancelConditionalDerivativeMarketOrder(ctx, triggeredMarket.Market, marketOrder.OrderInfo.SubaccountID(), nil, marketOrder.Hash()); err != nil {
+				// should never happen
+				// remove the order from the array of orders to trigger since we couldn't cancel it
+				triggeredMarket.MarketOrders[i] = nil
+				ctx.Logger().Debug("Cancelling of conditional market order failed: ", err.Error())
+			}
+		}
+	}
+}
+
+func (h *BlockHandler) handleTriggeringConditionalMarketOrders(ctx sdk.Context, triggeredMarketsAndOrders []*types.TriggeredOrdersInMarket) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, h.svcTags)
+	defer doneFn()
+
+	triggerMarketOrders := func(ctx sdk.Context, useIndividualCacheCtx bool) (isPanicked bool) {
+		defer RecoverEndBlocker(ctx, &isPanicked)
+
+		for _, triggeredMarket := range triggeredMarketsAndOrders {
+			if triggeredMarket == nil {
+				continue
+			}
+
+			triggerMarketOrdersForMarket(ctx, h.k, triggeredMarket, useIndividualCacheCtx)
+
+			if triggeredMarket.HasLimitBuyOrders {
+				h.k.SetTransientDerivativeLimitOrderIndicator(ctx, triggeredMarket.Market.MarketID(), true)
+			}
+			if triggeredMarket.HasLimitSellOrders {
+				h.k.SetTransientDerivativeLimitOrderIndicator(ctx, triggeredMarket.Market.MarketID(), false)
+			}
+		}
+		return false // will be overwritten by deferred call
+	}
+	// try with one big cacheCtx first for performance reasons, fall back on individual cacheCtx if panicked so we do not skip later order triggers
+	cacheCtx, writeCache := ctx.CacheContext()
+	// bank charge should fail if the account no longer has permissions to send the tokens
+	cacheCtx = cacheCtx.WithValue(baseapp.DoNotFailFastSendContextKey, nil)
+
+	if isPanicked := triggerMarketOrders(cacheCtx, false); !isPanicked {
+		writeCache()
+	} else {
+		triggerMarketOrders(ctx, true)
+	}
+}
+
 func triggerMarketOrdersForMarket(ctx sdk.Context, k keeper.Keeper, triggeredMarket *types.TriggeredOrdersInMarket, useIndividualCacheCtx bool) {
 	var unused bool
 
@@ -323,6 +303,9 @@ func triggerMarketOrdersForMarket(ctx sdk.Context, k keeper.Keeper, triggeredMar
 			func() {
 				defer RecoverEndBlocker(ctx, &unused)
 				cacheCtx, writeCache := ctx.CacheContext()
+				// bank charge should fail if the account no longer has permissions to send the tokens
+				cacheCtx = cacheCtx.WithValue(baseapp.DoNotFailFastSendContextKey, nil)
+
 				if err := k.TriggerConditionalDerivativeMarketOrder(cacheCtx, triggeredMarket.Market, triggeredMarket.MarkPrice, marketOrder, true); err != nil {
 					ctx.Logger().Debug("Trigger of market order failed: ", err.Error())
 				}
@@ -334,6 +317,49 @@ func triggerMarketOrdersForMarket(ctx sdk.Context, k keeper.Keeper, triggeredMar
 		if err := k.TriggerConditionalDerivativeMarketOrder(ctx, triggeredMarket.Market, triggeredMarket.MarkPrice, marketOrder, true); err != nil {
 			ctx.Logger().Debug("Trigger of market order failed: ", err.Error())
 		}
+	}
+}
+
+func (h *BlockHandler) handleConditionalLimitOrderCancels(ctx sdk.Context, triggeredMarketsAndOrders []*types.TriggeredOrdersInMarket) {
+	// Trigger Conditional Limit Orders (after market orders matching is done, so we won't hit the limitation of one market order per block)
+	for _, triggeredMarket := range triggeredMarketsAndOrders {
+		if triggeredMarket == nil {
+			continue
+		}
+
+		for i, limitOrder := range triggeredMarket.LimitOrders {
+			if err := h.k.CancelConditionalDerivativeLimitOrder(ctx, triggeredMarket.Market, limitOrder.OrderInfo.SubaccountID(), nil, limitOrder.Hash()); err != nil {
+				// should never happen
+				// remove the order from the array of orders to trigger since we couldn't cancel it
+				triggeredMarket.LimitOrders[i] = nil
+				ctx.Logger().Debug("Cancelling of conditional limit order failed: ", err.Error())
+			}
+		}
+	}
+}
+func (h *BlockHandler) handleTriggeringConditionalLimitOrders(ctx sdk.Context, triggeredMarketsAndOrders []*types.TriggeredOrdersInMarket) {
+	triggerLimitOrders := func(ctx sdk.Context, useIndividualCacheCtx bool) (isPanicked bool) {
+		defer RecoverEndBlocker(ctx, &isPanicked)
+
+		for _, triggeredMarket := range triggeredMarketsAndOrders {
+			if triggeredMarket == nil {
+				continue
+			}
+
+			triggerLimitOrdersForMarket(ctx, h.k, triggeredMarket, useIndividualCacheCtx)
+		}
+		return false // will be overwritten by deferred call
+	}
+	// first try to trigger all orders in one big cacheCtx and in case of a panic abandon all changes and start again executing
+	// each order in it's own separate cacheCtx so only bad orders won't be triggered
+	cacheCtx, writeCache := ctx.CacheContext()
+	// bank charge should fail if the account no longer has permissions to send the tokens
+	cacheCtx = cacheCtx.WithValue(baseapp.DoNotFailFastSendContextKey, nil)
+
+	if isPanicked := triggerLimitOrders(cacheCtx, false); !isPanicked {
+		writeCache()
+	} else {
+		triggerLimitOrders(ctx, true)
 	}
 }
 
@@ -349,6 +375,9 @@ func triggerLimitOrdersForMarket(ctx sdk.Context, k keeper.Keeper, triggeredMark
 			func() {
 				defer RecoverEndBlocker(ctx, &unused)
 				cacheCtx, writeCache := ctx.CacheContext()
+				// bank charge should fail if the account no longer has permissions to send the tokens
+				cacheCtx = cacheCtx.WithValue(baseapp.DoNotFailFastSendContextKey, nil)
+
 				if err := k.TriggerConditionalDerivativeLimitOrder(cacheCtx, triggeredMarket.Market, triggeredMarket.MarkPrice, limitOrder, true); err != nil {
 					ctx.Logger().Debug("Trigger of limit order failed: ", err.Error())
 				}

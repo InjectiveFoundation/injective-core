@@ -61,9 +61,11 @@ func (am AppModule) EndBlocker(ctx sdk.Context) {
 				}
 			}
 
-			if err := am.bankKeeper.SendCoinsFromModuleToAccount(ctx, auctiontypes.ModuleName, lastBidder, sdk.NewCoins(coin)); err != nil {
-				metrics.ReportFuncError(am.svcTags)
-				am.keeper.Logger(ctx).Error("Transferring coins to winner failed")
+			if coin.Amount.IsPositive() {
+				if err := am.bankKeeper.SendCoinsFromModuleToAccount(ctx, auctiontypes.ModuleName, lastBidder, sdk.NewCoins(coin)); err != nil {
+					metrics.ReportFuncError(am.svcTags)
+					am.keeper.Logger(ctx).Error("Transferring coins to winner failed")
+				}
 			}
 		}
 

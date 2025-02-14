@@ -16,6 +16,32 @@ import (
 
 var _ types.QueryServer = &Keeper{}
 
+func (k *Keeper) L3DerivativeOrderBook(c context.Context, req *types.QueryFullDerivativeOrderbookRequest) (*types.QueryFullDerivativeOrderbookResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
+	ctx := sdk.UnwrapSDKContext(c)
+
+	marketId := common.HexToHash(req.MarketId)
+	res := &types.QueryFullDerivativeOrderbookResponse{
+		Bids: k.GetAllStandardizedDerivativeLimitOrdersByMarketDirection(ctx, marketId, true),
+		Asks: k.GetAllStandardizedDerivativeLimitOrdersByMarketDirection(ctx, marketId, false),
+	}
+	return res, nil
+}
+
+func (k *Keeper) L3SpotOrderBook(c context.Context, req *types.QueryFullSpotOrderbookRequest) (*types.QueryFullSpotOrderbookResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
+	ctx := sdk.UnwrapSDKContext(c)
+
+	marketId := common.HexToHash(req.MarketId)
+	res := &types.QueryFullSpotOrderbookResponse{
+		Bids: k.GetAllStandardizedSpotLimitOrdersByMarketDirection(ctx, marketId, true),
+		Asks: k.GetAllStandardizedSpotLimitOrdersByMarketDirection(ctx, marketId, false),
+	}
+	return res, nil
+}
+
 func (k *Keeper) QueryExchangeParams(c context.Context, _ *types.QueryExchangeParamsRequest) (*types.QueryExchangeParamsResponse, error) {
 	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
 	defer doneFn()
@@ -1280,62 +1306,6 @@ func (k *Keeper) FeeDiscountTierStatistics(c context.Context, req *types.QueryFe
 	return res, nil
 }
 
-// TODO add back in? @markus
-// func (k *Keeper) MitoVaultInfo(c context.Context, req *types.MitoVaultInfosRequest) (*types.MitoVaultInfosResponse, error) {
-// 	masterWasmContract, err := sdk.AccAddressFromBech32(req.ContractAddress)
-// 	if err != nil {
-// 		metrics.ReportFuncError(k.svcTags)
-// 		return nil, err
-// 	}
-
-// 	totalLPTokenSupply, err := k.QueryTotalSupply(ctx, masterWasmContract, poolSubaccountId)
-// 	if err != nil {
-// 		metrics.ReportFuncError(k.svcTags)
-// 		return nil, err
-// 	}
-
-// 	var vaultPosition *types.Position
-// 	var vaultQuoteDeposits, vaultBaseDeposits *types.Deposit
-// 	var lpTokenQuoteValue, lpTokenBaseValue math.LegacyDec
-
-// 	derivativeMarket, markPrice := k.GetDerivativeMarketWithMarkPrice(ctx, marketId, true)
-
-// 	if derivativeMarket == nil {
-// 		spotMarket := k.GetSpotMarketByID(ctx, marketId)
-
-// 		if spotMarket == nil {
-// 			metrics.ReportFuncError(k.svcTags)
-// 			return nil, sdkerrors.Wrap(types.ErrMarketInvalid, marketId.String())
-// 		}
-
-// 		vaultQuoteDeposits = k.GetDeposit(ctx, vaultSubaccountId, spotMarket.QuoteDenom)
-// 		poolBaseDeposits = k.GetDeposit(ctx, vaultSubaccountId, spotMarket.BaseDenom)
-// 		lpTokenQuoteValue = vaultQuoteDeposits.TotalBalance.Quo(totalLPTokenSupply.ToLegacyDec())
-// 	} else {
-// 		vaultQuoteDeposits = k.GetDeposit(ctx, vaultSubaccountId, derivativeMarket.QuoteDenom)
-
-// 		marketFunding := k.GetPerpetualMarketFunding(ctx, marketId)
-// 		poolPosition = k.GetPosition(ctx, marketId, vaultSubaccountId)
-
-// 		if vaultPosition != nil {
-// 			ApplyFundingAndGetUpdatedPositionState(poolPosition, marketFunding)
-// 			poolPNL := vaultPosition.GetPayoutFromPnl(markPrice, vaultPosition.Quantity)
-// 			lpTokenQuoteValue = vaultPosition.Margin.Add(poolPNL).Add(vaultQuoteDeposits.TotalBalance).Quo(totalLPTokenSupply.ToLegacyDec())
-// 		} else {
-// 			lpTokenQuoteValue = vaultQuoteDeposits.TotalBalance.Quo(totalLPTokenSupply.ToLegacyDec())
-// 		}
-// 	}
-// res := &types.MitoVaultInfosResponse{
-// 	PoolPosition:       vaultPosition,
-// 	LpTokenTotalSupply: totalLPTokenSupply,
-// 	LpTokenQuoteValue:  lpTokenQuoteValue,
-// 	LpTokenBaseValue:   lpTokenBaseValue,
-// 	VaultQuoteDeposits: *vaultQuoteDeposits,
-// 	PoolBaseDeposits:   vaultBaseDeposits,
-// }
-// return res, nil
-// }
-
 func (k *Keeper) MitoVaultInfos(c context.Context, req *types.MitoVaultInfosRequest) (*types.MitoVaultInfosResponse, error) {
 	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
 	defer doneFn()
@@ -1549,6 +1519,62 @@ func (k *Keeper) GrantAuthorizations(c context.Context, req *types.QueryGrantAut
 	res := &types.QueryGrantAuthorizationsResponse{
 		TotalGrantAmount: k.GetTotalGrantAmount(ctx, granter),
 		Grants:           k.GetAllGranterAuthorizations(ctx, granter),
+	}
+
+	return res, nil
+}
+
+func (k *Keeper) MarketBalance(c context.Context, req *types.QueryMarketBalanceRequest) (*types.QueryMarketBalanceResponse, error) {
+	metrics.ReportFuncCall(k.svcTags)
+	defer metrics.ReportFuncTiming(k.svcTags)()
+
+	ctx := sdk.UnwrapSDKContext(c)
+	marketID := common.HexToHash(req.MarketId)
+
+	res := &types.QueryMarketBalanceResponse{
+		Balance: k.GetMarketBalance(ctx, marketID),
+	}
+
+	return res, nil
+}
+
+func (k *Keeper) MarketBalances(c context.Context, _ *types.QueryMarketBalancesRequest) (*types.QueryMarketBalancesResponse, error) {
+	metrics.ReportFuncCall(k.svcTags)
+	defer metrics.ReportFuncTiming(k.svcTags)()
+
+	ctx := sdk.UnwrapSDKContext(c)
+
+	res := &types.QueryMarketBalancesResponse{
+		Balances: k.GetAllMarketBalances(ctx),
+	}
+	return res, nil
+}
+
+func (k *Keeper) DenomMinNotional(c context.Context, req *types.QueryDenomMinNotionalRequest) (*types.QueryDenomMinNotionalResponse, error) {
+	metrics.ReportFuncCall(k.svcTags)
+	defer metrics.ReportFuncTiming(k.svcTags)()
+
+	ctx := sdk.UnwrapSDKContext(c)
+
+	if req.Denom == "" {
+		return nil, errors.New("denom is required")
+	}
+
+	res := &types.QueryDenomMinNotionalResponse{
+		Amount: k.GetMinNotionalForDenom(ctx, req.Denom),
+	}
+
+	return res, nil
+}
+
+func (k *Keeper) DenomMinNotionals(c context.Context, _ *types.QueryDenomMinNotionalsRequest) (*types.QueryDenomMinNotionalsResponse, error) {
+	metrics.ReportFuncCall(k.svcTags)
+	defer metrics.ReportFuncTiming(k.svcTags)()
+
+	ctx := sdk.UnwrapSDKContext(c)
+
+	res := &types.QueryDenomMinNotionalsResponse{
+		DenomMinNotionals: k.GetAllDenomMinNotionals(ctx),
 	}
 
 	return res, nil

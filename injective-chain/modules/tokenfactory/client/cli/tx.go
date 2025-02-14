@@ -12,9 +12,14 @@ import (
 	"github.com/cosmos/cosmos-sdk/client/tx"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
+	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
+
 	// "github.com/cosmos/cosmos-sdk/client/flags"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/tokenfactory/types"
-	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
+)
+
+const (
+	FlagAllowAdminBurn = "allow-admin-burn"
 )
 
 // GetTxCmd returns the transaction commands for this module
@@ -62,18 +67,23 @@ func NewCreateDenomCmd() *cobra.Command {
 				return fmt.Errorf("error parsing denom decimals %v: %w", args[3], err)
 			}
 
+			allowAdminBurn, err := cmd.Flags().GetBool(FlagAllowAdminBurn)
+			if err != nil {
+				allowAdminBurn = false
+			}
 			msg := types.NewMsgCreateDenom(
 				clientCtx.GetFromAddress().String(),
 				args[0],
 				args[1],
 				args[2],
 				uint32(decimals),
+				allowAdminBurn,
 			)
-
 			return tx.GenerateOrBroadcastTxWithFactory(clientCtx, txf, msg)
 		},
 	}
 
+	cmd.Flags().Bool(FlagAllowAdminBurn, false, "True if the token should allow admin burning")
 	flags.AddTxFlagsToCmd(cmd)
 	return cmd
 }
@@ -104,6 +114,7 @@ func NewMintCmd() *cobra.Command {
 			msg := types.NewMsgMint(
 				clientCtx.GetFromAddress().String(),
 				amount,
+				"",
 			)
 
 			return tx.GenerateOrBroadcastTxWithFactory(clientCtx, txf, msg)
@@ -117,9 +128,9 @@ func NewMintCmd() *cobra.Command {
 // NewBurnCmd broadcast MsgBurn
 func NewBurnCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "burn [amount] [flags]",
-		Short: "Burn tokens from an address. Must have admin authority to do so.",
-		Args:  cobra.ExactArgs(1),
+		Use:   "burn [amount] [burn_from] [flags]",
+		Short: "Burn tokens from an address. Must have admin authority to do so if not burning from own account.",
+		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clientCtx, err := client.GetClientTxContext(cmd)
 			if err != nil {
@@ -137,9 +148,12 @@ func NewBurnCmd() *cobra.Command {
 				return err
 			}
 
+			burnFrom := args[1]
+
 			msg := types.NewMsgBurn(
 				clientCtx.GetFromAddress().String(),
 				amount,
+				burnFrom,
 			)
 
 			return tx.GenerateOrBroadcastTxWithFactory(clientCtx, txf, msg)
@@ -218,9 +232,9 @@ func NewChangeAdminCmd() *cobra.Command {
 
 func NewSetDenomMetadataCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "set-denom-metadata [description] [base] [display] [name] [symbol] [uri] [uri-hash] [denom-unit (json)] [decimals]",
+		Use:   "set-denom-metadata [description] [base] [display] [name] [symbol] [uri] [uri-hash] [denom-unit (json)] [decimals] [shouldDisableAdminBurn]",
 		Short: "Changes created denom's metadata. Must have admin authority to do so.",
-		Args:  cobra.ExactArgs(8),
+		Args:  cobra.ExactArgs(10),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clientCtx, err := client.GetClientTxContext(cmd)
 			if err != nil {
@@ -245,6 +259,7 @@ func NewSetDenomMetadataCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("error parsing denom decimals %v: %w", args[8], err)
 			}
+			shouldDisableAdminBurn := args[9]
 
 			var denomUnits []*banktypes.DenomUnit
 			err = json.Unmarshal([]byte(denomUnitsJSON), &denomUnits)
@@ -264,6 +279,9 @@ func NewSetDenomMetadataCmd() *cobra.Command {
 					URI:         uri,
 					URIHash:     uriHash,
 					Decimals:    uint32(decimals),
+				},
+				&types.MsgSetDenomMetadata_AdminBurnDisabled{
+					ShouldDisable: shouldDisableAdminBurn == "true",
 				},
 			)
 

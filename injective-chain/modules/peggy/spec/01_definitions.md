@@ -3,30 +3,34 @@ sidebar_position: 1
 title: Definitions
 ---
 
+# Intro
 
-# Definitions
+This doc aims to provide an overview of `Peggy` (Injective's Ethereum bridge) from a technical perspective and dive deep into its operational logic.
+Peggy is the name of the custom Cosmos SDK module built on Injective as well as the Ethereum contract (Peggy.sol) which make up both sides of the bridge. 
+Connected via a middle-man process called `Peggo` users can securely move token assets between networks. 
 
-Words matter and we seek clarity in the terminology, so we can have clarity in our thinking and communication.
-Key concepts that we mention below are defined here:
+To suggest improvements, please open a GitHub issue.
 
-- `Operator` - This is a person (or people) who control an Injective Chain validator node. This is also called `valoper` or "Validator Operator" in the Cosmos SDK staking module. 
-- `Validator` - This is an Injective Chain validating node (signs blocks)
-- `Orchestrator` - This is the off-chain `peggo` service which performs the following roles for the `Operator`:
-  - `Eth Signer` -  Signs transactions used to move tokens between the two chains using Ethereum private keys. 
-  - `Oracle` - Signs `Claims` using Injective Chain account private keys which are submitted to the Peggy module where they are then aggregated into `Attestations`.
-  - `Relayer` - Submits Valset updates and Batch transactions to the Peggy contract on Ethereum. It earns fees from the transactions in a batch.
-- `Validator Set` - The set of Injective Chain validators, along with their respective voting power as determined by their stake weight, also referred to as a Valset. These are ed25519 public keys (prefixed by`injvalcons`) used to sign Tendermint blocks.
-- `Claim` - an Ethereum event signed and submitted to Injective by a single `Orchestrator`
-- `Attestation` - an aggregation of claims that eventually becomes `observed` by all orchestrators.
-- `Peggy Contract` - The Ethereum contract that holds all of the ERC-20 tokens. It also maintains a compressed checkpointed representation of the Injective Chain validator set using `Delegate Keys` and normalized powers. For example if a validator has 5% of the Injective Chain validator power, their delegate key will have 5% of the voting power in the `Peggy Contract`. These values are regularly updated on the contract to keep the Valset checkpoint in sync with the real Injective Chain validator set. 
-- `Peggy Tx pool` - a transaction pool that exists in the store of Injective -> Ethereum transactions waiting to be placed into a transaction batch.
-- `Transaction batch` - A transaction batch is a set of Ethereum transactions (i.e. withdrawals) to be sent from the Peggy Ethereum contract at the same time. Batching the transactions reduces the individual costs of processing the withdrawals on Ethereum. Batches have a maximum size (currently around 100 transactions) and are only involved in the Injective -> Ethereum flow. 
-- `Peggy Batch pool` - A transaction pool like structure that exists in the Injective Chain store, separate from the `Peggy Tx pool`.  It stores transactions that have been placed in batches that are in the process of being signed or being submitted by the `Orchestrator Set`.
-- `EthBlockConfirmationDelay` - An agreed upon number of Ethereum blocks confirmations that all oracle attestations are delayed by. No `Orchestrator` will attest to have seen an event occur on Ethereum until this number of blocks has elapsed as denoted by their trusted Ethereum full node. This prevents short forks/chain reorganizations from causing disagreements on the Injective Chain. The current value used is 12 block confirmations.
-- `Observed` - Events on Ethereum are considered `Observed` when the `Eth Signers` of 66% of the active Injective validator set during a given block has submitted an oracle message attesting to seeing the event.
-- `Validator set delta` - This is a term for the difference between the validator set currently in the Peggy Ethereum contract and the actual validator set on the Injective Chain. Since the validator set may change every single block there is essentially guaranteed to be some nonzero `Validator set delta` at any given time.
-- `Peggy ID` - This is a random 32 byte value required to be included in all Peggy signatures for a particular contract instance. It is passed into the contract constructor on Ethereum and used to prevent signature reuse when contracts may share a validator set or subsets of a validator set. 
-- `Peggy contract code hash` - This is the code hash of a known good version of the Peggy contract solidity code. It will be used to verify exactly which version of the bridge will be deployed.
-- `Voucher` - Represents a bridged ETH token on the Injective Chain side. Their denom is has a `peggy` prefix and a hash that is build from contract address and contract token. The denom is considered unique within the system.
-- `Counterpart` - to a `Voucher` is the locked ETH token in the contract
-- `Delegate keys` - when an `Operator` sets up the `Eth Signer` and `Oracle` they assign `Delegate Keys` by sending a message containing these keys using their `Validator` address. There is one delegate Ethereum key, used for signing messages on Ethereum and representing this `Validator` on Ethereum and one delegate Injective Chain account key that is used to submit `Oracle` messages.
+### Key definitions
+
+Words matter and we seek clarity in the terminology so we can have clarity in our thinking and communication.
+To help better understand, some key definitions are:
+
+- `Operator` - this is a person (or people) who control and operate `Validator` and `Orchestrator` processes 
+- `Validator` - this is an Injective Chain validating node (eg. `injectived` process)
+- `Validator Set` - the (active) set of Injective Chain `Validators` (Valset) along with their respective voting power as determined by their stake weight. Each validator is associated with an Ethereum address to be represented on the Ethereum network
+- `Orchestrator (Peggo)` - the off-chain process (`peggo`) that plays the middleman role between Injective and Ethereum. Orchestrators are responsible for keeping the bridge online and require active endpoints to fully synced Injective (Ethereum) nodes
+- `Peggy module` - the counterparty Cosmos module for `Peggy contract`. Besides providing services to bridge token assets, it automatically reflects on the active `Validator Set` as it changes over time. The update is later applied on Ethereum via `Peggo`  
+- `Peggy Contract` - The Ethereum contract that holds all the ERC-20 tokens. It also maintains a compressed checkpointed representation of the Injective Chain `Validator Set` using `Delegate Keys` and normalized powers
+- `Delegate Keys` - when an `Operator` sets up their `Orchestrator` for the first time they register (on Injective) their `Validator`'s address with an Ethereum address. The corresponding key is used to sign messages and represent that validator on Ethereum. 
+  Optionally, one delegate Injective Chain account key can be provided to sign Injective messages (eg `Claims`) on behalf of the `Validator`
+- `Peggy Tx pool (withdrawals)` - when a user wishes to move their asset from Injective to Ethereum their individual tx gets pooled with others with the same asset
+- `Peggy Batch pool` - pooled withdrawals are batched together (by an `Orchestrator`) to be signed off and eventually relayed to Ethereum. These batches are kept within this pool
+- `Claim` - a signed proof (by an `Orchestrator`) that an event occurred in the `Peggy contract`
+- `Attestation` - an aggregate of claims for a particular event nonce emitted from `Peggy contract`. After a majority of `Orchestrators` attests to a claim, the event is acknowledged and executed on Injective
+- `Majority` - the majority of Injective network, 2/3 + 1 validators
+- `Deposit` - an asset transfer initiated from Ethereum to Injective
+- `Withdrawal` - an asset transfer initiated from Injective to Ethereum (present in `Peggy Tx pool`)
+- `Batch` - a batch of withdrawals with the same token type (present in `Peggy Batch pool`)
+
+

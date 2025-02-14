@@ -207,12 +207,19 @@ func (k *Keeper) SetDeposit(
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
+	k.SetTransientDeposit(ctx, subaccountID, denom, deposit)
+
 	store := k.getStore(ctx)
 	key := types.GetDepositKey(subaccountID, denom)
+
+	// prune from store if deposit is empty
+	if deposit == nil || deposit.IsEmpty() {
+		store.Delete(key)
+		return
+	}
+
 	bz := k.cdc.MustMarshal(deposit)
 	store.Set(key, bz)
-
-	k.SetTransientDeposit(ctx, subaccountID, denom, deposit)
 }
 
 // HasSufficientFunds returns true if the bank balances ≥ ceil(amount) for default subaccounts or if the availableBalance ≥ amount
@@ -232,7 +239,8 @@ func (k *Keeper) HasSufficientFunds(
 	}
 
 	deposit := k.GetDeposit(ctx, subaccountID, denom)
-	return deposit.AvailableBalance.GTE(amount)
+	// usually available balance check is sufficient, but in case of a bug, we check total balance as well
+	return deposit.AvailableBalance.GTE(amount) && deposit.TotalBalance.GTE(amount)
 }
 
 // SetDepositOrSendToBank sets the deposit for a given subaccount and denom. If the subaccount is a default subaccount,
@@ -255,6 +263,10 @@ func (k *Keeper) SetDepositOrSendToBank(
 	shouldSendFundsToBank := amountToSendToBank.IsPositive() && types.IsDefaultSubaccountID(subaccountID)
 
 	if shouldSendFundsToBank {
+		// NOTE: AvailableBalance should never be GT TotalBalance, but since in some tests the scenario happened
+		// we are adding a check to prevent sending more funds to the bank than the total balance
+		truncatedTotalBalance := math.MaxInt(deposit.TotalBalance.TruncateInt(), math.NewInt(0))
+		amountToSendToBank := math.MinInt(amountToSendToBank, truncatedTotalBalance)
 		_ = k.bankKeeper.SendCoinsFromModuleToAccount(
 			ctx,
 			types.ModuleName, // exchange module

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"testing"
 	"time"
 
 	coreheader "cosmossdk.io/core/header"
@@ -18,6 +19,7 @@ import (
 	simtestutil "github.com/cosmos/cosmos-sdk/testutil/sims"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
+	"github.com/stretchr/testify/require"
 )
 
 // DefaultConsensusParams defines the default Tendermint consensus params used in
@@ -152,4 +154,16 @@ func NextBlock(app *InjectiveApp, ctx sdk.Context, jumpTime time.Duration) (sdk.
 func Cleanup(app *InjectiveApp) {
 	app.WasmKeeper.Cleanup()                // release cosmwasm instance cache lock
 	_ = os.RemoveAll(defaultHomeDirForTest) // remove default dir, if it was overridden during test Setup, it's a responsibility of the sender to remove the folder
+}
+
+// RequireTestWorkdir creates a temporary directory for testing and returns it and a function to clean it up.
+// This is a sane helper to create a mandatory workdir for a single test context.
+func RequireTestWorkdir(t *testing.T) (dir string, closeDirFn func(t *testing.T)) {
+	tempDir, err := os.MkdirTemp("", "testrun-workdir")
+	require.NoError(t, err)
+
+	return tempDir, func(t *testing.T) {
+		err := os.RemoveAll(tempDir)
+		require.NoError(t, err)
+	}
 }

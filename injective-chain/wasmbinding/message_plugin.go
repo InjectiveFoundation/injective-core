@@ -79,7 +79,7 @@ func (m *CustomMessenger) DispatchMsg(ctx sdk.Context, contractAddr sdk.AccAddre
 			return nil, nil, nil, err
 		}
 
-		sdkMsg = tokenfactorytypes.NewMsgMint(contractAddr.String(), mint.Amount)
+		sdkMsg = tokenfactorytypes.NewMsgMint(contractAddr.String(), mint.Amount, "")
 
 		events, data, responses, err := m.handleSdkMessageWithResults(ctx, contractAddr, sdkMsg)
 		if err != nil {

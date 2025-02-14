@@ -26,10 +26,11 @@ import (
 
 	gometrics "github.com/hashicorp/go-metrics"
 
-	injectivechain "github.com/InjectiveLabs/injective-core/injective-chain/app"
-	"github.com/InjectiveLabs/injective-core/version"
 	sdkversion "github.com/cosmos/cosmos-sdk/version"
 	"github.com/spf13/cast"
+
+	injectivechain "github.com/InjectiveLabs/injective-core/injective-chain/app"
+	"github.com/InjectiveLabs/injective-core/version"
 
 	cmttypes "github.com/cometbft/cometbft/types"
 	"github.com/improbable-eng/grpc-web/go/grpcweb"

@@ -35,6 +35,8 @@ const (
 
 	MaxOracleScaleFactor uint32 = 18
 
+	MaxDecimals uint32 = 18
+
 	MaxTickerLength int = 40
 
 	// MaxHistoricalTradeRecordAge is the maximum age of trade records to track.

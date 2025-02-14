@@ -49,6 +49,9 @@ func (m MsgServer) UpdateSpotMarket(c context.Context, msg *types.MsgUpdateSpotM
 	}
 
 	if msg.HasMinNotionalUpdate() {
+		if err := m.checkDenomMinNotional(ctx, sdk.AccAddress(msg.Admin), market.QuoteDenom, msg.NewMinNotional); err != nil {
+			return nil, err
+		}
 		market.MinNotional = msg.NewMinNotional
 	}
 
@@ -94,6 +97,9 @@ func (m MsgServer) UpdateDerivativeMarket(c context.Context, msg *types.MsgUpdat
 	}
 
 	if msg.HasMinNotionalUpdate() {
+		if err := m.checkDenomMinNotional(ctx, sdk.AccAddress(msg.Admin), market.QuoteDenom, msg.NewMinNotional); err != nil {
+			return nil, err
+		}
 		market.MinNotional = msg.NewMinNotional
 	}
 

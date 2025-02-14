@@ -10,8 +10,8 @@ It also includes helper methods for managing contracts, such as a batch code sto
 
 ## Contents
 
-1. **[Concepts](./01_concepts.md)**
-2. **[Data](./02_data.md)**
-3. **[State](./03_proposals.md)**
-4. **[Messages](./04_messages.md)**
-5. **[Params](./05_params.md)**
+1. [Concepts](./01_concepts.md)
+2. [Data](./02_data.md)
+3. [State](./03_proposals.md)
+4. [Messages](./04_messages.md)
+5. [Params](./05_params.md)

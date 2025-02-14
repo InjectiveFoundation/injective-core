@@ -261,6 +261,8 @@ func (b *DerivativeLimitOrderbook) advanceNewOrder(ctx sdk.Context) {
 
 		if err := position.CheckValidPositionToReduce(
 			b.market.GetMarketType(),
+			// NOTE: must be order price, not clearing price !!! due to security reasons related to margin adjustment case after increased trading fee
+			// see `adjustPositionMarginIfNecessary` for more details
 			currOrder.OrderInfo.Price,
 			b.isBuy,
 			tradeFeeRate,

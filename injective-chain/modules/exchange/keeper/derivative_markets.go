@@ -6,6 +6,7 @@ import (
 	"cosmossdk.io/errors"
 	"cosmossdk.io/math"
 	"cosmossdk.io/store/prefix"
+	"github.com/cosmos/cosmos-sdk/baseapp"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
@@ -534,7 +535,10 @@ func (k *Keeper) handleDerivativeFeeIncrease(ctx sdk.Context, orderbook []*types
 		hasSufficientFundsToPayExtraFee := k.HasSufficientFunds(ctx, subaccountID, denom, extraFee)
 
 		if hasSufficientFundsToPayExtraFee {
-			err := k.chargeAccount(ctx, subaccountID, denom, extraFee)
+			// bank charge should fail if the account no longer has permissions to send the tokens
+			chargeCtx := ctx.WithValue(baseapp.DoNotFailFastSendContextKey, nil)
+
+			err := k.chargeAccount(chargeCtx, subaccountID, denom, extraFee)
 
 			// defensive programming: continue to next order if charging the extra fee succeeds
 			// otherwise cancel the order
@@ -581,7 +585,10 @@ func (k *Keeper) handleDerivativeFeeIncreaseForConditionals(ctx sdk.Context, ord
 		hasSufficientFundsToPayExtraFee := k.HasSufficientFunds(ctx, subaccountID, denom, extraFee)
 
 		if hasSufficientFundsToPayExtraFee {
-			err := k.chargeAccount(ctx, subaccountID, denom, extraFee)
+			// bank charge should fail if the account no longer has permissions to send the tokens
+			chargeCtx := ctx.WithValue(baseapp.DoNotFailFastSendContextKey, nil)
+
+			err := k.chargeAccount(chargeCtx, subaccountID, denom, extraFee)
 			// defensive programming: continue to next order if charging the extra fee succeeds
 			// otherwise cancel the order
 			if err == nil {
@@ -686,6 +693,7 @@ func (k *Keeper) UpdateDerivativeMarketParam(
 	defer doneFn()
 
 	market := k.GetDerivativeMarketByID(ctx, marketID)
+	originalMarketStatus := market.Status
 
 	isActiveStatusChange := market.IsActive() && status != types.MarketStatus_Active || (market.IsInactive() && status == types.MarketStatus_Active)
 
@@ -762,6 +770,12 @@ func (k *Keeper) UpdateDerivativeMarketParam(
 		}
 	}
 
+	// reactivation of a market should only reset the market balance to zero if there are no positions
+	if originalMarketStatus != types.MarketStatus_Active && status == types.MarketStatus_Active {
+		if !k.HasPositionsInMarket(ctx, marketID) {
+			k.SetMarketBalance(ctx, marketID, math.LegacyZeroDec())
+		}
+	}
 	k.SetDerivativeMarketWithInfo(ctx, market, nil, perpetualMarketInfo, nil)
 	return nil
 }

@@ -1,6 +1,8 @@
 package keeper
 
 import (
+	"fmt"
+
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/tokenfactory/types"
@@ -22,11 +24,11 @@ func (k Keeper) InitGenesis(ctx sdk.Context, genState types.GenesisState) {
 			panic(err)
 		}
 
-		err = k.createDenomAfterValidation(ctx, creator, genDenom.GetDenom(), subdenom, genDenom.GetName(), genDenom.GetSymbol(), genDenom.GetDecimals())
+		err = k.createDenomAfterValidation(ctx, creator, genDenom.GetDenom(), subdenom, genDenom.GetName(), genDenom.GetSymbol(), genDenom.GetDecimals(), genDenom.GetAuthorityMetadata().AdminBurnAllowed)
 		if err != nil {
 			panic(err)
 		}
-		err = k.setAuthorityMetadata(ctx, genDenom.GetDenom(), genDenom.GetAuthorityMetadata())
+		err = k.SetAuthorityMetadata(ctx, genDenom.GetDenom(), genDenom.GetAuthorityMetadata())
 		if err != nil {
 			panic(err)
 		}
@@ -35,12 +37,15 @@ func (k Keeper) InitGenesis(ctx sdk.Context, genState types.GenesisState) {
 
 // ExportGenesis returns the tokenfactory module's exported genesis.
 func (k Keeper) ExportGenesis(ctx sdk.Context) *types.GenesisState {
-	genDenoms := []types.GenesisDenom{}
+	genDenoms := make([]types.GenesisDenom, 0)
 	iterator := k.GetAllDenomsIterator(ctx)
 	defer iterator.Close()
 	for ; iterator.Valid(); iterator.Next() {
 		denom := string(iterator.Value())
-		metadata, _ := k.bankKeeper.GetDenomMetaData(ctx, denom)
+		metadata, ok := k.bankKeeper.GetDenomMetaData(ctx, denom)
+		if !ok {
+			panic(fmt.Sprintf("denom metadata for %s not found", denom))
+		}
 		authorityMetadata, err := k.GetAuthorityMetadata(ctx, denom)
 		if err != nil {
 			panic(err)

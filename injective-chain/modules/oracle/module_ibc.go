@@ -153,6 +153,16 @@ func (am AppModule) OnRecvPacket(
 	packet channeltypes.Packet,
 	relayer sdk.AccAddress,
 ) ibcexported.Acknowledgement {
+	bandIBCParams := am.keeper.GetBandIBCParams(ctx)
+
+	if packet.SourceChannel != bandIBCParams.IbcSourceChannel {
+		return channeltypes.NewErrorAcknowledgement(fmt.Errorf("invalid source channel, got: %s, expected: %s", packet.SourceChannel, bandIBCParams.IbcSourceChannel))
+	}
+
+	if packet.DestinationPort != bandIBCParams.IbcPortId {
+		return channeltypes.NewErrorAcknowledgement(fmt.Errorf("invalid destination port, got %s, expected %s", packet.DestinationPort, bandIBCParams.IbcPortId))
+	}
+
 	var response bandPacket.OracleResponsePacketData
 	if err := types.ModuleCdc.UnmarshalJSON(packet.GetData(), &response); err != nil {
 		return channeltypes.NewErrorAcknowledgement(fmt.Errorf("cannot unmarshal Oracle response packet data: %w", err))

@@ -1,11 +1,11 @@
 package keeper
 
 import (
+	"cosmossdk.io/errors"
 	"cosmossdk.io/log"
 	storetypes "cosmossdk.io/store/types"
 	wasmkeeper "github.com/CosmWasm/wasmd/x/wasm/keeper"
 	"github.com/InjectiveLabs/metrics"
-	"github.com/cosmos/cosmos-sdk/baseapp"
 	"github.com/cosmos/cosmos-sdk/codec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authkeeper "github.com/cosmos/cosmos-sdk/x/auth/keeper"
@@ -22,7 +22,6 @@ type Keeper struct {
 	storeKey  storetypes.StoreKey
 	tStoreKey storetypes.StoreKey
 	cdc       codec.BinaryCodec
-	router    *baseapp.MsgServiceRouter
 
 	DistributionKeeper   distrkeeper.Keeper
 	StakingKeeper        types.StakingKeeper
@@ -49,14 +48,12 @@ func NewKeeper(
 	ik types.InsuranceKeeper,
 	dk distrkeeper.Keeper,
 	sk types.StakingKeeper,
-	router *baseapp.MsgServiceRouter,
 	authority string,
 ) Keeper {
 	return Keeper{
 		cdc:                cdc,
 		storeKey:           storeKey,
 		tStoreKey:          tstoreKey,
-		router:             router,
 		AccountKeeper:      ak,
 		OracleKeeper:       ok,
 		DistributionKeeper: dk,
@@ -108,4 +105,21 @@ func (k *Keeper) CreateModuleAccount(ctx sdk.Context) {
 	baseAcc := authtypes.NewEmptyModuleAccount(types.ModuleName, authtypes.Minter, authtypes.Burner)
 	moduleAcc := (k.AccountKeeper.NewAccount(ctx, baseAcc)).(sdk.ModuleAccountI) // set the account number
 	k.AccountKeeper.SetModuleAccount(ctx, moduleAcc)
+}
+
+func (k *Keeper) IsDenomDecimalsValid(ctx sdk.Context, tokenDenom string, tokenDecimals uint32) bool {
+	tokenMetadata, found := k.bankKeeper.GetDenomMetaData(ctx, tokenDenom)
+	return !found || tokenMetadata.Decimals == 0 || tokenMetadata.Decimals == tokenDecimals
+}
+
+func (k *Keeper) TokenDenomDecimals(ctx sdk.Context, tokenDenom string) (decimals uint32, err error) {
+	tokenMetadata, found := k.bankKeeper.GetDenomMetaData(ctx, tokenDenom)
+	if !found {
+		return 0, errors.Wrapf(types.ErrInvalidQuoteDenom, "denom %s does not have denom metadata", tokenDenom)
+	}
+	if tokenMetadata.Decimals == 0 {
+		return 0, errors.Wrapf(types.ErrInvalidQuoteDenom, "denom units for %s are not correctly configured", tokenDenom)
+	}
+
+	return tokenMetadata.Decimals, nil
 }

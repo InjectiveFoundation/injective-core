@@ -18,13 +18,15 @@ The tokenfactory module keeps state of the following primary objects:
 
 ```protobuf
 // DenomAuthorityMetadata specifies metadata for addresses that have specific
-// capabilities over a token factory denom. Right now there is only one Admin
-// permission, but is planned to be extended to the future.
+// capabilities over a token factory denom. 
 message DenomAuthorityMetadata {
   option (gogoproto.equal) = true;
 
   // Can be empty for no admin, or a valid injective address
   string admin = 1 [ (gogoproto.moretags) = "yaml:\"admin\"" ];
+
+  // true if the admin can burn tokens from other addresses
+  bool admin_burn_allowed = 2 [ (gogoproto.moretags) = "yaml:\"admin_burn_allowed\"" ];
 }
 ```
 

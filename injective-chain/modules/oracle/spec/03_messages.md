@@ -164,3 +164,27 @@ This message is expected to fail if:
 - the Relayer (`sender`) is not an authorized oracle publisher or if `assetId` is not unique amongst the provided asset pairs 
 - ECDSA signature verification fails for the `SignedPriceOfAssetPair`  
 - the difference between timestamps exceeds the `MaxStorkTimestampIntervalNano` (500 milliseconds).
+
+## MsgRelayProviderPrices
+
+Relayers of a particular Provider can send the price feed using `MsgRelayProviderPrices` message.
+
+```protobuf
+// MsgRelayProviderPrice defines a SDK message for setting a price through the provider oracle.
+message MsgRelayProviderPrices {
+  option (amino.name) = "oracle/MsgRelayProviderPrices";
+  option (gogoproto.equal) = false;
+  option (gogoproto.goproto_getters) = false;
+  option (cosmos.msg.v1.signer) = "sender";
+
+  string sender = 1;
+  string provider = 2;
+  repeated string symbols = 3;
+  repeated string prices = 4 [
+    (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
+    (gogoproto.nullable) = false
+  ];
+}
+```
+
+This message is expected to fail if the Relayer (`Sender`) is not an authorized pricefeed relayer for the given Base Quote pair or if the price is greater than 10000000.

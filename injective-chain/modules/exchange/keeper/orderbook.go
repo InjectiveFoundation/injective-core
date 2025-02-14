@@ -37,7 +37,7 @@ func (k *Keeper) GetOrderbookPriceLevelQuantity(
 	bz := tStore.Get(key)
 
 	if bz != nil {
-		return types.DecBytesToDec(bz)
+		return types.UnsignedDecBytesToDec(bz)
 	}
 
 	store := k.getStore(ctx)
@@ -47,7 +47,7 @@ func (k *Keeper) GetOrderbookPriceLevelQuantity(
 		return math.LegacyZeroDec()
 	}
 
-	return types.DecBytesToDec(bz)
+	return types.UnsignedDecBytesToDec(bz)
 }
 
 // SetOrderbookPriceLevelQuantity sets the orderbook price level.
@@ -68,7 +68,7 @@ func (k *Keeper) SetOrderbookPriceLevelQuantity(
 	} else {
 		key = types.GetDerivativeOrderbookLevelsForPriceKey(marketID, isBuy, price)
 	}
-	bz := types.DecToDecBytes(quantity)
+	bz := types.UnsignedDecToUnsignedDecBytes(quantity)
 
 	store := k.getStore(ctx)
 	if quantity.IsZero() {
@@ -184,7 +184,7 @@ func (k *Keeper) IterateTransientOrderbookPriceLevels(
 		marketID := common.BytesToHash(key[:common.HashLength])
 		isBuy := types.IsTrueByte(key[common.HashLength : common.HashLength+1])
 		price := types.GetPriceFromPaddedPrice(string(key[common.HashLength+1:]))
-		quantity := types.DecBytesToDec(iterator.Value())
+		quantity := types.UnsignedDecBytesToDec(iterator.Value())
 
 		if process(marketID, isBuy, types.NewLevel(price, quantity)) {
 			return
@@ -240,7 +240,7 @@ func (k *Keeper) GetOrderbookPriceLevels(
 
 		key := iterator.Key()
 		price := types.GetPriceFromPaddedPrice(string(key))
-		quantity := types.DecBytesToDec(iterator.Value())
+		quantity := types.UnsignedDecBytesToDec(iterator.Value())
 		levels = append(levels, types.NewLevel(price, quantity))
 		if limitCumulativeNotional != nil {
 			cumulativeNotional = cumulativeNotional.Add(quantity.Mul(price))

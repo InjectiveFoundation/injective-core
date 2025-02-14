@@ -5,7 +5,7 @@ title: BeginBlocker
 
 # BeginBlocker
 
-The exchange [BeginBlocker](https://docs.cosmos.network/master/building-modules/beginblock-endblock.html) runs at the start of every block in our defined order as the last module.
+The exchange BeginBlocker runs at the start of every block in our defined order as the last module.
 
 ### 1. Process Hourly Fundings
 

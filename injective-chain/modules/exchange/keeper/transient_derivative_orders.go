@@ -362,7 +362,7 @@ func (k *Keeper) CancelTransientDerivativeLimitOrdersForSubaccountUpToBalance(
 
 func (k *Keeper) CancelAllTransientDerivativeLimitOrders(
 	ctx sdk.Context,
-	market *types.DerivativeMarket,
+	market DerivativeMarketI,
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
@@ -654,7 +654,7 @@ func (k *Keeper) CancelMarketDerivativeOrdersForSubaccountUpToBalance(
 }
 
 // CancelAllDerivativeMarketOrders cancels all of the derivative market orders for a given marketID.
-func (k *Keeper) CancelAllDerivativeMarketOrders(ctx sdk.Context, market *types.DerivativeMarket) {
+func (k *Keeper) CancelAllDerivativeMarketOrders(ctx sdk.Context, market DerivativeMarketI) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
@@ -674,7 +674,7 @@ func (k *Keeper) CancelAllDerivativeMarketOrders(ctx sdk.Context, market *types.
 
 func (k *Keeper) CancelDerivativeMarketOrder(
 	ctx sdk.Context,
-	market *types.DerivativeMarket,
+	market DerivativeMarketI,
 	order *types.DerivativeMarketOrder,
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
@@ -684,7 +684,7 @@ func (k *Keeper) CancelDerivativeMarketOrder(
 	subaccountID := order.SubaccountID()
 	refundAmount := order.GetCancelRefundAmount()
 
-	k.incrementAvailableBalanceOrBank(ctx, subaccountID, market.QuoteDenom, refundAmount)
+	k.incrementAvailableBalanceOrBank(ctx, subaccountID, market.GetQuoteDenom(), refundAmount)
 	k.DeleteDerivativeMarketOrder(ctx, order, marketID)
 
 	// nolint:errcheck //ignored on purpose

@@ -5,7 +5,7 @@ COSMOS_VERSION_PKG = github.com/cosmos/cosmos-sdk/version
 COSMOS_VERSION_NAME = injective
 VERSION_PKG = github.com/InjectiveLabs/injective-core/version
 PACKAGES=$(shell go list ./... | grep -Ev 'vendor|importer|gen|api/design|rpc/tester')
-IMAGE_NAME := gcr.io/injective-core/core
+IMAGE_NAME := injectivelabs/injective-core
 LEDGER_ENABLED ?= true
 
 # process build tags
@@ -76,30 +76,63 @@ PKGS_TO_COVER := $(shell go list ./injective-chain/modules/exchange | paste -sd 
 deploy:
 	./deploy_contracts.sh
 
-fuzz: # use old clang linker on macOS https://github.com/golang/go/issues/65169
-	go test -fuzz FuzzTest ./injective-chain/modules/exchange/testexchange/fuzztesting -ldflags=-extldflags=-Wl,-ld_classic
+###############################################################################
+###                                   testing                               ###
+###############################################################################
+test: ictest-all test-unit
 
-test: export GOPROXY=direct
-test:
+test-unit: export GOPROXY=direct
+test-unit:
 	go install github.com/onsi/ginkgo/ginkgo@latest
 	ginkgo -r --race --randomizeSuites --randomizeAllSpecs --coverpkg=$(PKGS_TO_COVER) ./...
 
+test-fuzz: # use old clang linker on macOS https://github.com/golang/go/issues/65169
+	go test -fuzz FuzzTest ./injective-chain/modules/exchange/testexchange/fuzztesting -ldflags=-extldflags=-Wl,-ld_classic
+
 test-erc20bridge:
-	@go test -v ./injective-chain/modules/erc20bridge/...
+	go test -v ./injective-chain/modules/erc20bridge/...
+
 test-exchange:
-	@go test -v ./injective-chain/modules/exchange/...
-test-unit:
-	@go test -v ./... $(PACKAGES)
+	go test -v ./injective-chain/modules/exchange/...
 
 test-rpc:
 	MODE="rpc" go test -v ./tests/...
 
+cover:
+	go tool cover -html=tests/injective-chain/modules/exchange/exchange.coverprofile
+
+.PHONY: test test-unit test-fuzz test-erc20bridge test-exchange test-rpc
+
+# TODO: add runsim and benchmarking
+
+###############################################################################
+###                             e2e interchain test                         ###
+###############################################################################
+
+rm-testcache:
+	go clean -testcache
+
+ictest-all: export CONTAINER_LOG_TAIL=1000
+ictest-all: export SHOW_CONTAINER_LOGS=always
+ictest-all: rm-testcache
+	cd interchaintest && go test -v -run ./...
+
+# Executes basic chain test via interchaintest
+ictest-basic: rm-testcache
+	cd interchaintest && go test -race -v -run TestBasicInjectiveStart .
+
+ictest-upgrade: export CONTAINER_LOG_TAIL=1000
+ictest-upgrade: export SHOW_CONTAINER_LOGS=always
+ictest-upgrade: rm-testcache
+	cd interchaintest && go test -race -v -run TestInjectiveUpgradeHandler .
+
+.PHONY: rm-testcache ictest-all ictest-basic ictest-upgrade
+
+###############################################################################
+
 lint: export GOPROXY=direct
 lint:
 	golangci-lint run
-
-cover:
-	go tool cover -html=tests/injective-chain/modules/exchange/exchange.coverprofile
 
 build-release-%: export TARGET=$*
 build-release-%: export DOCKER_BUILDKIT=1
@@ -155,19 +188,12 @@ proto-lint:
 	@$(protoImage) buf lint --error-format=json ./proto
 
 proto-check-breaking:
-	@$(protoImage) buf breaking --against-input '.git#branch=main'
-
-proto-ts:
-	@$(protoImage) sh ./scripts/protoc-gen-ts.sh
-
-publish-ts:
-	@./client/proto-ts/scripts/gen-proto-ts-publish.sh
+	@$(protoImage) buf breaking --against '.git#branch=main'
 
 grpc-ui:
 	grpcui -plaintext -protoset ./injectived.protoset localhost:9900
 
 .PHONY: proto proto-gen proto-lint proto-check-breaking proto-update-deps
-
 
 ###############################################################################
 ###                              Documentation                              ###
@@ -181,4 +207,8 @@ update-swagger-docs:
     else \
     	echo "\033[92mSwagger docs are in sync\033[0m";\
     fi
+
+gen-modules-errors-pages:
+	@exec ./scripts/docs/generate_errors_docs.sh
+
 .PHONY: update-swagger-docs

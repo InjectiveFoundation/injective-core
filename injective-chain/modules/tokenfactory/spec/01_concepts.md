@@ -14,7 +14,7 @@ created denom. Once a denom is created, the original creator is given
 "admin" privileges over the asset. This allows them to:
 
 - Mint their denom to any account
-- Burn their denom from any account
+- Burn their denom from any account (if enabled)
 - Create a transfer of their denom between any two accounts
 - Change the admin. In the future, more admin capabilities may be added. Admins
   can choose to share admin privileges with other accounts using the authz

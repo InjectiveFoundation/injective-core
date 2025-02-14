@@ -31,6 +31,7 @@ func GetQueryCmd() *cobra.Command {
 		GetPythPriceFeed(),
 		GetStorkPriceStates(),
 		GetStorkPublishers(),
+		GetCoinbasePriceStates(),
 	)
 	return cmd
 }
@@ -184,6 +185,34 @@ func GetStorkPublishers() *cobra.Command {
 			var res proto.Message
 			req := &types.QueryStorkPublishersRequest{}
 			res, err = queryClient.StorkPublishers(context.Background(), req)
+			if err != nil {
+				return err
+			}
+			return clientCtx.PrintProto(res)
+		},
+	}
+
+	cliflags.AddQueryFlagsToCmd(cmd)
+	return cmd
+}
+
+// GetCoinbasePriceStates queries the state for all coinbase price states
+func GetCoinbasePriceStates() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "coinbase-price-states",
+		Short: "Gets Coinbase price states",
+		Long:  "Gets Coinbase price states",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clientCtx, err := client.GetClientQueryContext(cmd)
+			if err != nil {
+				return err
+			}
+			queryClient := types.NewQueryClient(clientCtx)
+
+			var res proto.Message
+			req := &types.QueryCoinbasePriceStatesRequest{}
+			res, err = queryClient.CoinbasePriceStates(context.Background(), req)
 			if err != nil {
 				return err
 			}

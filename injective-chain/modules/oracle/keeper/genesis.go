@@ -105,6 +105,13 @@ func (k *Keeper) InitGenesis(ctx sdk.Context, data types.GenesisState) {
 		k.SetStorkPriceState(ctx, storkPriceState)
 	}
 
+	if len(data.StorkPriceStates) > 0 {
+		// nolint:errcheck //ignored on purpose
+		ctx.EventManager().EmitTypedEvent(&types.EventSetStorkPrices{
+			Prices: data.StorkPriceStates,
+		})
+	}
+
 	for _, storkPublisher := range data.StorkPublishers {
 		k.SetStorkPublisher(ctx, storkPublisher)
 	}

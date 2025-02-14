@@ -42,6 +42,10 @@ func (k BinaryOptionsMsgServer) InstantBinaryOptionsMarketLaunch(goCtx context.C
 		return nil, err
 	}
 
+	if err := k.checkDenomMinNotional(ctx, senderAddr, msg.QuoteDenom, msg.MinNotional); err != nil {
+		return nil, err
+	}
+
 	// check if the market launch proposal already exists
 	marketID := types.NewBinaryOptionsMarketID(msg.Ticker, msg.QuoteDenom, msg.OracleSymbol, msg.OracleProvider, msg.OracleType)
 	if k.checkIfMarketLaunchProposalExist(ctx, types.ProposalTypeBinaryOptionsMarketLaunch, marketID) {

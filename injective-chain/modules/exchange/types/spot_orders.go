@@ -24,6 +24,14 @@ func (o *SpotOrder) ToSpotMarketOrder(sender sdk.AccAddress, balanceHold math.Le
 		TriggerPrice: o.TriggerPrice,
 	}
 }
+func (m *SpotLimitOrder) ToStandardized() *TrimmedLimitOrder {
+	return &TrimmedLimitOrder{
+		Price:        m.OrderInfo.Price,
+		Quantity:     m.OrderInfo.Quantity,
+		OrderHash:    common.BytesToHash(m.OrderHash).Hex(),
+		SubaccountId: m.OrderInfo.SubaccountId,
+	}
+}
 
 func (o *SpotOrder) GetNewSpotLimitOrder(sender sdk.AccAddress, orderHash common.Hash) *SpotLimitOrder {
 	if o.OrderInfo.FeeRecipient == "" {

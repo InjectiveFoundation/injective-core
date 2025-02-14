@@ -332,6 +332,10 @@ paths:
                       type: integer
                       format: int64
                       title: level of admin permissions
+                    quote_decimals:
+                      type: integer
+                      format: int64
+                      title: quote token decimals
                   description: >-
                     An object describing a binary options market in Injective
                     Protocol.
@@ -369,6 +373,157 @@ paths:
             enum.
           in: query
           required: false
+          type: string
+      tags:
+        - Query
+  /injective/exchange/v1beta1/denom_min_notional/{denom}:
+    get:
+      summary: Retrieves the min notional for a denom
+      operationId: DenomMinNotional
+      responses:
+        '200':
+          description: A successful response.
+          schema:
+            type: object
+            properties:
+              amount:
+                type: string
+        default:
+          description: An unexpected error response.
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              code:
+                type: integer
+                format: int32
+              message:
+                type: string
+              details:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    type_url:
+                      type: string
+                    value:
+                      type: string
+                      format: byte
+      parameters:
+        - name: denom
+          in: path
+          required: true
+          type: string
+      tags:
+        - Query
+  /injective/exchange/v1beta1/denom_min_notionals:
+    get:
+      summary: Retrieves the min notionals for all denoms
+      operationId: DenomMinNotionals
+      responses:
+        '200':
+          description: A successful response.
+          schema:
+            type: object
+            properties:
+              denom_min_notionals:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    denom:
+                      type: string
+                    min_notional:
+                      type: string
+        default:
+          description: An unexpected error response.
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              code:
+                type: integer
+                format: int32
+              message:
+                type: string
+              details:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    type_url:
+                      type: string
+                    value:
+                      type: string
+                      format: byte
+      tags:
+        - Query
+  /injective/exchange/v1beta1/derivative/L3OrderBook/{market_id}:
+    get:
+      operationId: L3DerivativeOrderBook
+      responses:
+        '200':
+          description: A successful response.
+          schema:
+            type: object
+            properties:
+              Bids:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    price:
+                      type: string
+                    quantity:
+                      type: string
+                      title: quantity of the order
+                    order_hash:
+                      type: string
+                    subaccount_id:
+                      type: string
+              Asks:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    price:
+                      type: string
+                    quantity:
+                      type: string
+                      title: quantity of the order
+                    order_hash:
+                      type: string
+                    subaccount_id:
+                      type: string
+        default:
+          description: An unexpected error response.
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              code:
+                type: integer
+                format: int32
+              message:
+                type: string
+              details:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    type_url:
+                      type: string
+                    value:
+                      type: string
+                      format: byte
+      parameters:
+        - name: market_id
+          description: market id
+          in: path
+          required: true
           type: string
       tags:
         - Query
@@ -556,6 +711,10 @@ paths:
                           type: integer
                           format: int64
                           title: level of admin permissions
+                        quote_decimals:
+                          type: integer
+                          format: int64
+                          title: quote token decimals
                       description: >-
                         An object describing a derivative market in the
                         Injective Futures Protocol.
@@ -852,6 +1011,10 @@ paths:
                         type: integer
                         format: int64
                         title: level of admin permissions
+                      quote_decimals:
+                        type: integer
+                        format: int64
+                        title: quote token decimals
                     description: >-
                       An object describing a derivative market in the Injective
                       Futures Protocol.
@@ -2886,6 +3049,48 @@ paths:
           type: string
       tags:
         - Query
+  /injective/exchange/v1beta1/market_balance/{market_id}:
+    get:
+      summary: Retrieves a derivative or binary options market's balance
+      operationId: MarketBalance
+      responses:
+        '200':
+          description: A successful response.
+          schema:
+            type: object
+            properties:
+              balance:
+                type: string
+        default:
+          description: An unexpected error response.
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              code:
+                type: integer
+                format: int32
+              message:
+                type: string
+              details:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    type_url:
+                      type: string
+                    value:
+                      type: string
+                      format: byte
+      parameters:
+        - name: market_id
+          description: market id
+          in: path
+          required: true
+          type: string
+      tags:
+        - Query
   /injective/exchange/v1beta1/market_volatility/{market_id}:
     get:
       summary: |-
@@ -3438,6 +3643,14 @@ paths:
                           type: integer
                           format: int64
                           title: level of admin permissions
+                        base_decimals:
+                          type: integer
+                          format: int64
+                          title: base token decimals
+                        quote_decimals:
+                          type: integer
+                          format: int64
+                          title: quote token decimals
                       description: An object describing trade pair of two assets.
                     title: >-
                       spot_markets is an array containing the genesis trade
@@ -3562,6 +3775,10 @@ paths:
                           type: integer
                           format: int64
                           title: level of admin permissions
+                        quote_decimals:
+                          type: integer
+                          format: int64
+                          title: quote token decimals
                       description: >-
                         An object describing a derivative market in the
                         Injective Futures Protocol.
@@ -4276,6 +4493,10 @@ paths:
                           type: integer
                           format: int64
                           title: level of admin permissions
+                        quote_decimals:
+                          type: integer
+                          format: int64
+                          title: quote token decimals
                       description: >-
                         An object describing a binary options market in
                         Injective Protocol.
@@ -4658,6 +4879,15 @@ paths:
                               type: string
                             amount:
                               type: string
+                  denom_min_notionals:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        denom:
+                          type: string
+                        min_notional:
+                          type: string
                 description: GenesisState defines the exchange module's genesis state.
             description: |-
               QueryModuleStateResponse is the response type for the
@@ -5270,6 +5500,73 @@ paths:
           type: string
       tags:
         - Query
+  /injective/exchange/v1beta1/spot/L3OrderBook/{market_id}:
+    get:
+      operationId: L3SpotOrderBook
+      responses:
+        '200':
+          description: A successful response.
+          schema:
+            type: object
+            properties:
+              Bids:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    price:
+                      type: string
+                    quantity:
+                      type: string
+                      title: quantity of the order
+                    order_hash:
+                      type: string
+                    subaccount_id:
+                      type: string
+              Asks:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    price:
+                      type: string
+                    quantity:
+                      type: string
+                      title: quantity of the order
+                    order_hash:
+                      type: string
+                    subaccount_id:
+                      type: string
+        default:
+          description: An unexpected error response.
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              code:
+                type: integer
+                format: int32
+              message:
+                type: string
+              details:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    type_url:
+                      type: string
+                    value:
+                      type: string
+                      format: byte
+      parameters:
+        - name: market_id
+          description: market id
+          in: path
+          required: true
+          type: string
+      tags:
+        - Query
   /injective/exchange/v1beta1/spot/full_market/{market_id}:
     get:
       summary: Retrieves a spot market with extra information.
@@ -5357,6 +5654,14 @@ paths:
                         type: integer
                         format: int64
                         title: level of admin permissions
+                      base_decimals:
+                        type: integer
+                        format: int64
+                        title: base token decimals
+                      quote_decimals:
+                        type: integer
+                        format: int64
+                        title: quote token decimals
                     description: An object describing trade pair of two assets.
                   mid_price_and_tob:
                     title: >-
@@ -5508,6 +5813,14 @@ paths:
                           type: integer
                           format: int64
                           title: level of admin permissions
+                        base_decimals:
+                          type: integer
+                          format: int64
+                          title: base token decimals
+                        quote_decimals:
+                          type: integer
+                          format: int64
+                          title: quote token decimals
                       description: An object describing trade pair of two assets.
                     mid_price_and_tob:
                       title: >-
@@ -5664,6 +5977,14 @@ paths:
                       type: integer
                       format: int64
                       title: level of admin permissions
+                    base_decimals:
+                      type: integer
+                      format: int64
+                      title: base token decimals
+                    quote_decimals:
+                      type: integer
+                      format: int64
+                      title: quote token decimals
                   description: An object describing trade pair of two assets.
             description: >-
               QuerySpotMarketsResponse is the response type for the
@@ -5794,6 +6115,14 @@ paths:
                     type: integer
                     format: int64
                     title: level of admin permissions
+                  base_decimals:
+                    type: integer
+                    format: int64
+                    title: base token decimals
+                  quote_decimals:
+                    type: integer
+                    format: int64
+                    title: quote token decimals
                 description: An object describing trade pair of two assets.
             description: >-
               QuerySpotMarketResponse is the response type for the
@@ -8182,7 +8511,20 @@ paths:
                     type: string
                     title: winner describes the address of the winner
                   amount:
-                    type: string
+                    type: object
+                    properties:
+                      denom:
+                        type: string
+                      amount:
+                        type: string
+                    description: >-
+                      Coin defines a token with a denomination and an amount.
+
+
+                      NOTE: The amount field is an Int which implements the
+                      custom method
+
+                      signatures required by gogoproto.
                     title: >-
                       amount describes the amount the winner get from the
                       auction
@@ -8242,6 +8584,13 @@ paths:
                         title: >-
                           min_next_bid_increment_rate defines the minimum
                           increment rate for new bids
+                      inj_basket_max_cap:
+                        type: string
+                        title: >-
+                          inj_basket_max_cap defines the maximum cap for INJ
+                          contained in an auction
+
+                          basket
                   auction_round:
                     type: string
                     format: uint64
@@ -8253,7 +8602,21 @@ paths:
                       bidder:
                         type: string
                       amount:
-                        type: string
+                        type: object
+                        properties:
+                          denom:
+                            type: string
+                          amount:
+                            type: string
+                        description: >-
+                          Coin defines a token with a denomination and an
+                          amount.
+
+
+                          NOTE: The amount field is an Int which implements the
+                          custom method
+
+                          signatures required by gogoproto.
                   auction_ending_timestamp:
                     type: string
                     format: int64
@@ -8265,7 +8628,21 @@ paths:
                         type: string
                         title: winner describes the address of the winner
                       amount:
-                        type: string
+                        type: object
+                        properties:
+                          denom:
+                            type: string
+                          amount:
+                            type: string
+                        description: >-
+                          Coin defines a token with a denomination and an
+                          amount.
+
+
+                          NOTE: The amount field is an Int which implements the
+                          custom method
+
+                          signatures required by gogoproto.
                         title: >-
                           amount describes the amount the winner get from the
                           auction
@@ -8326,6 +8703,13 @@ paths:
                     title: >-
                       min_next_bid_increment_rate defines the minimum increment
                       rate for new bids
+                  inj_basket_max_cap:
+                    type: string
+                    title: >-
+                      inj_basket_max_cap defines the maximum cap for INJ
+                      contained in an auction
+
+                      basket
             description: >-
               QueryAuctionParamsRequest is the response type for the
               Query/AuctionParams
@@ -12832,6 +13216,11 @@ paths:
                         type: array
                         items:
                           type: string
+                      segregated_wallet_address:
+                        type: string
+                        title: >-
+                          address for receiving Peggy Deposits from sanctioned
+                          Ethereum addresses
                   last_observed_nonce:
                     type: string
                     format: uint64
@@ -13959,6 +14348,11 @@ paths:
                     type: array
                     items:
                       type: string
+                  segregated_wallet_address:
+                    type: string
+                    title: >-
+                      address for receiving Peggy Deposits from sanctioned
+                      Ethereum addresses
         default:
           description: An unexpected error response.
           schema:
@@ -16399,6 +16793,9 @@ paths:
                   admin:
                     type: string
                     title: Can be empty for no admin, or a valid injective address
+                  admin_burn_allowed:
+                    type: boolean
+                    title: true if the admin can burn tokens from other addresses
                 description: >-
                   DenomAuthorityMetadata specifies metadata for addresses that
                   have specific
@@ -16545,6 +16942,11 @@ paths:
                               title: >-
                                 Can be empty for no admin, or a valid injective
                                 address
+                            admin_burn_allowed:
+                              type: boolean
+                              title: >-
+                                true if the admin can burn tokens from other
+                                addresses
                           description: >-
                             DenomAuthorityMetadata specifies metadata for
                             addresses that have specific
@@ -53353,49 +53755,6 @@ paths:
                         }
       tags:
         - Query
-  /ibc/apps/packetforward/v1/params:
-    get:
-      summary: Params queries all parameters of the packetforward module.
-      operationId: PacketForwardParams
-      responses:
-        '200':
-          description: A successful response.
-          schema:
-            type: object
-            properties:
-              params:
-                description: params defines the parameters of the module.
-                type: object
-                properties:
-                  fee_percentage:
-                    type: string
-            description: >-
-              QueryParamsResponse is the response type for the Query/Params RPC
-              method.
-        default:
-          description: An unexpected error response.
-          schema:
-            type: object
-            properties:
-              error:
-                type: string
-              code:
-                type: integer
-                format: int32
-              message:
-                type: string
-              details:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    type_url:
-                      type: string
-                    value:
-                      type: string
-                      format: byte
-      tags:
-        - Query
   /cosmwasm/wasm/v1/code:
     get:
       summary: Codes gets the metadata for all stored wasm codes
@@ -57428,6 +57787,10 @@ definitions:
         type: integer
         format: int64
         title: level of admin permissions
+      quote_decimals:
+        type: integer
+        format: int64
+        title: quote token decimals
     description: An object describing a binary options market in Injective Protocol.
   injective.exchange.v1beta1.CampaignRewardPool:
     type: object
@@ -57680,6 +58043,13 @@ definitions:
       decimals:
         type: string
         format: uint64
+  injective.exchange.v1beta1.DenomMinNotional:
+    type: object
+    properties:
+      denom:
+        type: string
+      min_notional:
+        type: string
   injective.exchange.v1beta1.Deposit:
     type: object
     properties:
@@ -57844,6 +58214,10 @@ definitions:
         type: integer
         format: int64
         title: level of admin permissions
+      quote_decimals:
+        type: integer
+        format: int64
+        title: quote token decimals
     description: >-
       An object describing a derivative market in the Injective Futures
       Protocol.
@@ -58292,6 +58666,10 @@ definitions:
             type: integer
             format: int64
             title: level of admin permissions
+          quote_decimals:
+            type: integer
+            format: int64
+            title: quote token decimals
         description: >-
           An object describing a derivative market in the Injective Futures
           Protocol.
@@ -58493,6 +58871,14 @@ definitions:
             type: integer
             format: int64
             title: level of admin permissions
+          base_decimals:
+            type: integer
+            format: int64
+            title: base token decimals
+          quote_decimals:
+            type: integer
+            format: int64
+            title: quote token decimals
         description: An object describing trade pair of two assets.
       mid_price_and_tob:
         title: >-
@@ -58824,6 +59210,14 @@ definitions:
               type: integer
               format: int64
               title: level of admin permissions
+            base_decimals:
+              type: integer
+              format: int64
+              title: base token decimals
+            quote_decimals:
+              type: integer
+              format: int64
+              title: quote token decimals
           description: An object describing trade pair of two assets.
         title: spot_markets is an array containing the genesis trade pairs
       derivative_markets:
@@ -58942,6 +59336,10 @@ definitions:
               type: integer
               format: int64
               title: level of admin permissions
+            quote_decimals:
+              type: integer
+              format: int64
+              title: quote token decimals
           description: >-
             An object describing a derivative market in the Injective Futures
             Protocol.
@@ -59630,6 +60028,10 @@ definitions:
               type: integer
               format: int64
               title: level of admin permissions
+            quote_decimals:
+              type: integer
+              format: int64
+              title: quote token decimals
           description: An object describing a binary options market in Injective Protocol.
         title: >-
           binary_options_markets is an array containing the genesis binary
@@ -59990,6 +60392,15 @@ definitions:
                   type: string
                 amount:
                   type: string
+      denom_min_notionals:
+        type: array
+        items:
+          type: object
+          properties:
+            denom:
+              type: string
+            min_notional:
+              type: string
     description: GenesisState defines the exchange module's genesis state.
   injective.exchange.v1beta1.GrantAuthorization:
     type: object
@@ -60805,6 +61216,10 @@ definitions:
               type: integer
               format: int64
               title: level of admin permissions
+            quote_decimals:
+              type: integer
+              format: int64
+              title: quote token decimals
           description: An object describing a binary options market in Injective Protocol.
     description: >-
       QueryBinaryMarketsResponse is the response type for the
@@ -60838,6 +61253,23 @@ definitions:
     description: |-
       QueryDenomDecimalsRequest is the response type for the Query/DenomDecimals
       RPC method.
+  injective.exchange.v1beta1.QueryDenomMinNotionalResponse:
+    type: object
+    properties:
+      amount:
+        type: string
+  injective.exchange.v1beta1.QueryDenomMinNotionalsResponse:
+    type: object
+    properties:
+      denom_min_notionals:
+        type: array
+        items:
+          type: object
+          properties:
+            denom:
+              type: string
+            min_notional:
+              type: string
   injective.exchange.v1beta1.QueryDerivativeMarketAddressResponse:
     type: object
     properties:
@@ -60974,6 +61406,10 @@ definitions:
                 type: integer
                 format: int64
                 title: level of admin permissions
+              quote_decimals:
+                type: integer
+                format: int64
+                title: quote token decimals
             description: >-
               An object describing a derivative market in the Injective Futures
               Protocol.
@@ -61214,6 +61650,10 @@ definitions:
                   type: integer
                   format: int64
                   title: level of admin permissions
+                quote_decimals:
+                  type: integer
+                  format: int64
+                  title: quote token decimals
               description: >-
                 An object describing a derivative market in the Injective
                 Futures Protocol.
@@ -61798,6 +62238,37 @@ definitions:
     description: |-
       QueryFeeDiscountTierStatisticsResponse is the response type for the
       Query/QueryFeeDiscountTierStatistics RPC method.
+  injective.exchange.v1beta1.QueryFullDerivativeOrderbookResponse:
+    type: object
+    properties:
+      Bids:
+        type: array
+        items:
+          type: object
+          properties:
+            price:
+              type: string
+            quantity:
+              type: string
+              title: quantity of the order
+            order_hash:
+              type: string
+            subaccount_id:
+              type: string
+      Asks:
+        type: array
+        items:
+          type: object
+          properties:
+            price:
+              type: string
+            quantity:
+              type: string
+              title: quantity of the order
+            order_hash:
+              type: string
+            subaccount_id:
+              type: string
   injective.exchange.v1beta1.QueryFullSpotMarketResponse:
     type: object
     properties:
@@ -61878,6 +62349,14 @@ definitions:
                 type: integer
                 format: int64
                 title: level of admin permissions
+              base_decimals:
+                type: integer
+                format: int64
+                title: base token decimals
+              quote_decimals:
+                type: integer
+                format: int64
+                title: quote token decimals
             description: An object describing trade pair of two assets.
           mid_price_and_tob:
             title: >-
@@ -61981,6 +62460,14 @@ definitions:
                   type: integer
                   format: int64
                   title: level of admin permissions
+                base_decimals:
+                  type: integer
+                  format: int64
+                  title: base token decimals
+                quote_decimals:
+                  type: integer
+                  format: int64
+                  title: quote token decimals
               description: An object describing trade pair of two assets.
             mid_price_and_tob:
               title: >-
@@ -62002,6 +62489,37 @@ definitions:
     description: |-
       QueryFullSpotMarketsResponse is the response type for the
       Query/FullSpotMarkets RPC method.
+  injective.exchange.v1beta1.QueryFullSpotOrderbookResponse:
+    type: object
+    properties:
+      Bids:
+        type: array
+        items:
+          type: object
+          properties:
+            price:
+              type: string
+            quantity:
+              type: string
+              title: quantity of the order
+            order_hash:
+              type: string
+            subaccount_id:
+              type: string
+      Asks:
+        type: array
+        items:
+          type: object
+          properties:
+            price:
+              type: string
+            quantity:
+              type: string
+              title: quantity of the order
+            order_hash:
+              type: string
+            subaccount_id:
+              type: string
   injective.exchange.v1beta1.QueryGrantAuthorizationResponse:
     type: object
     properties:
@@ -62055,6 +62573,11 @@ definitions:
     type: object
     properties:
       multiplier:
+        type: string
+  injective.exchange.v1beta1.QueryMarketBalanceResponse:
+    type: object
+    properties:
+      balance:
         type: string
   injective.exchange.v1beta1.QueryMarketIDFromVaultResponse:
     type: object
@@ -62460,6 +62983,14 @@ definitions:
                   type: integer
                   format: int64
                   title: level of admin permissions
+                base_decimals:
+                  type: integer
+                  format: int64
+                  title: base token decimals
+                quote_decimals:
+                  type: integer
+                  format: int64
+                  title: quote token decimals
               description: An object describing trade pair of two assets.
             title: spot_markets is an array containing the genesis trade pairs
           derivative_markets:
@@ -62582,6 +63113,10 @@ definitions:
                   type: integer
                   format: int64
                   title: level of admin permissions
+                quote_decimals:
+                  type: integer
+                  format: int64
+                  title: quote token decimals
               description: >-
                 An object describing a derivative market in the Injective
                 Futures Protocol.
@@ -63276,6 +63811,10 @@ definitions:
                   type: integer
                   format: int64
                   title: level of admin permissions
+                quote_decimals:
+                  type: integer
+                  format: int64
+                  title: quote token decimals
               description: >-
                 An object describing a binary options market in Injective
                 Protocol.
@@ -63638,6 +64177,15 @@ definitions:
                       type: string
                     amount:
                       type: string
+          denom_min_notionals:
+            type: array
+            items:
+              type: object
+              properties:
+                denom:
+                  type: string
+                min_notional:
+                  type: string
         description: GenesisState defines the exchange module's genesis state.
     description: |-
       QueryModuleStateResponse is the response type for the
@@ -63815,6 +64363,14 @@ definitions:
             type: integer
             format: int64
             title: level of admin permissions
+          base_decimals:
+            type: integer
+            format: int64
+            title: base token decimals
+          quote_decimals:
+            type: integer
+            format: int64
+            title: quote token decimals
         description: An object describing trade pair of two assets.
     description: |-
       QuerySpotMarketResponse is the response type for the Query/SpotMarket RPC
@@ -63898,6 +64454,14 @@ definitions:
               type: integer
               format: int64
               title: level of admin permissions
+            base_decimals:
+              type: integer
+              format: int64
+              title: base token decimals
+            quote_decimals:
+              type: integer
+              format: int64
+              title: quote token decimals
           description: An object describing trade pair of two assets.
     description: >-
       QuerySpotMarketsResponse is the response type for the Query/SpotMarkets
@@ -64504,6 +65068,14 @@ definitions:
         type: integer
         format: int64
         title: level of admin permissions
+      base_decimals:
+        type: integer
+        format: int64
+        title: base token decimals
+      quote_decimals:
+        type: integer
+        format: int64
+        title: quote token decimals
     description: An object describing trade pair of two assets.
   injective.exchange.v1beta1.SpotOrderBook:
     type: object
@@ -64892,6 +65464,18 @@ definitions:
       order_hash:
         type: string
       cid:
+        type: string
+  injective.exchange.v1beta1.TrimmedLimitOrder:
+    type: object
+    properties:
+      price:
+        type: string
+      quantity:
+        type: string
+        title: quantity of the order
+      order_hash:
+        type: string
+      subaccount_id:
         type: string
   injective.exchange.v1beta1.TrimmedSpotLimitOrder:
     type: object
@@ -66493,7 +67077,17 @@ definitions:
       bidder:
         type: string
       amount:
-        type: string
+        type: object
+        properties:
+          denom:
+            type: string
+          amount:
+            type: string
+        description: |-
+          Coin defines a token with a denomination and an amount.
+
+          NOTE: The amount field is an Int which implements the custom method
+          signatures required by gogoproto.
   injective.auction.v1beta1.GenesisState:
     type: object
     properties:
@@ -66510,6 +67104,13 @@ definitions:
             title: >-
               min_next_bid_increment_rate defines the minimum increment rate for
               new bids
+          inj_basket_max_cap:
+            type: string
+            title: >-
+              inj_basket_max_cap defines the maximum cap for INJ contained in an
+              auction
+
+              basket
       auction_round:
         type: string
         format: uint64
@@ -66521,7 +67122,20 @@ definitions:
           bidder:
             type: string
           amount:
-            type: string
+            type: object
+            properties:
+              denom:
+                type: string
+              amount:
+                type: string
+            description: >-
+              Coin defines a token with a denomination and an amount.
+
+
+              NOTE: The amount field is an Int which implements the custom
+              method
+
+              signatures required by gogoproto.
       auction_ending_timestamp:
         type: string
         format: int64
@@ -66533,7 +67147,20 @@ definitions:
             type: string
             title: winner describes the address of the winner
           amount:
-            type: string
+            type: object
+            properties:
+              denom:
+                type: string
+              amount:
+                type: string
+            description: >-
+              Coin defines a token with a denomination and an amount.
+
+
+              NOTE: The amount field is an Int which implements the custom
+              method
+
+              signatures required by gogoproto.
             title: amount describes the amount the winner get from the auction
           round:
             type: string
@@ -66548,7 +67175,17 @@ definitions:
         type: string
         title: winner describes the address of the winner
       amount:
-        type: string
+        type: object
+        properties:
+          denom:
+            type: string
+          amount:
+            type: string
+        description: |-
+          Coin defines a token with a denomination and an amount.
+
+          NOTE: The amount field is an Int which implements the custom method
+          signatures required by gogoproto.
         title: amount describes the amount the winner get from the auction
       round:
         type: string
@@ -66566,6 +67203,13 @@ definitions:
         title: >-
           min_next_bid_increment_rate defines the minimum increment rate for new
           bids
+      inj_basket_max_cap:
+        type: string
+        title: >-
+          inj_basket_max_cap defines the maximum cap for INJ contained in an
+          auction
+
+          basket
   injective.auction.v1beta1.QueryAuctionParamsResponse:
     type: object
     properties:
@@ -66581,6 +67225,13 @@ definitions:
             title: >-
               min_next_bid_increment_rate defines the minimum increment rate for
               new bids
+          inj_basket_max_cap:
+            type: string
+            title: >-
+              inj_basket_max_cap defines the maximum cap for INJ contained in an
+              auction
+
+              basket
     description: |-
       QueryAuctionParamsRequest is the response type for the Query/AuctionParams
       RPC method.
@@ -66629,7 +67280,20 @@ definitions:
             type: string
             title: winner describes the address of the winner
           amount:
-            type: string
+            type: object
+            properties:
+              denom:
+                type: string
+              amount:
+                type: string
+            description: >-
+              Coin defines a token with a denomination and an amount.
+
+
+              NOTE: The amount field is an Int which implements the custom
+              method
+
+              signatures required by gogoproto.
             title: amount describes the amount the winner get from the auction
           round:
             type: string
@@ -66654,6 +67318,13 @@ definitions:
                 title: >-
                   min_next_bid_increment_rate defines the minimum increment rate
                   for new bids
+              inj_basket_max_cap:
+                type: string
+                title: >-
+                  inj_basket_max_cap defines the maximum cap for INJ contained
+                  in an auction
+
+                  basket
           auction_round:
             type: string
             format: uint64
@@ -66665,7 +67336,20 @@ definitions:
               bidder:
                 type: string
               amount:
-                type: string
+                type: object
+                properties:
+                  denom:
+                    type: string
+                  amount:
+                    type: string
+                description: >-
+                  Coin defines a token with a denomination and an amount.
+
+
+                  NOTE: The amount field is an Int which implements the custom
+                  method
+
+                  signatures required by gogoproto.
           auction_ending_timestamp:
             type: string
             format: int64
@@ -66677,7 +67361,20 @@ definitions:
                 type: string
                 title: winner describes the address of the winner
               amount:
-                type: string
+                type: object
+                properties:
+                  denom:
+                    type: string
+                  amount:
+                    type: string
+                description: >-
+                  Coin defines a token with a denomination and an amount.
+
+
+                  NOTE: The amount field is an Int which implements the custom
+                  method
+
+                  signatures required by gogoproto.
                 title: amount describes the amount the winner get from the auction
               round:
                 type: string
@@ -69318,6 +70015,11 @@ definitions:
             type: array
             items:
               type: string
+          segregated_wallet_address:
+            type: string
+            title: >-
+              address for receiving Peggy Deposits from sanctioned Ethereum
+              addresses
       last_observed_nonce:
         type: string
         format: uint64
@@ -70217,6 +70919,11 @@ definitions:
         type: array
         items:
           type: string
+      segregated_wallet_address:
+        type: string
+        title: >-
+          address for receiving Peggy Deposits from sanctioned Ethereum
+          addresses
   injective.peggy.v1.QueryBatchConfirmsResponse:
     type: object
     properties:
@@ -70672,6 +71379,11 @@ definitions:
                 type: array
                 items:
                   type: string
+              segregated_wallet_address:
+                type: string
+                title: >-
+                  address for receiving Peggy Deposits from sanctioned Ethereum
+                  addresses
           last_observed_nonce:
             type: string
             format: uint64
@@ -71445,6 +72157,11 @@ definitions:
             type: array
             items:
               type: string
+          segregated_wallet_address:
+            type: string
+            title: >-
+              address for receiving Peggy Deposits from sanctioned Ethereum
+              addresses
   injective.peggy.v1.QueryPendingSendToEthResponse:
     type: object
     properties:
@@ -71741,6 +72458,9 @@ definitions:
       admin:
         type: string
         title: Can be empty for no admin, or a valid injective address
+      admin_burn_allowed:
+        type: boolean
+        title: true if the admin can burn tokens from other addresses
     description: |-
       DenomAuthorityMetadata specifies metadata for addresses that have specific
       capabilities over a token factory denom. Right now there is only one Admin
@@ -71756,6 +72476,9 @@ definitions:
           admin:
             type: string
             title: Can be empty for no admin, or a valid injective address
+          admin_burn_allowed:
+            type: boolean
+            title: true if the admin can burn tokens from other addresses
         description: >-
           DenomAuthorityMetadata specifies metadata for addresses that have
           specific
@@ -71812,6 +72535,9 @@ definitions:
                 admin:
                   type: string
                   title: Can be empty for no admin, or a valid injective address
+                admin_burn_allowed:
+                  type: boolean
+                  title: true if the admin can burn tokens from other addresses
               description: >-
                 DenomAuthorityMetadata specifies metadata for addresses that
                 have specific
@@ -71863,6 +72589,9 @@ definitions:
           admin:
             type: string
             title: Can be empty for no admin, or a valid injective address
+          admin_burn_allowed:
+            type: boolean
+            title: true if the admin can burn tokens from other addresses
         description: >-
           DenomAuthorityMetadata specifies metadata for addresses that have
           specific
@@ -71924,6 +72653,9 @@ definitions:
                     admin:
                       type: string
                       title: Can be empty for no admin, or a valid injective address
+                    admin_burn_allowed:
+                      type: boolean
+                      title: true if the admin can burn tokens from other addresses
                   description: >-
                     DenomAuthorityMetadata specifies metadata for addresses that
                     have specific
@@ -94187,22 +94919,6 @@ definitions:
     description: |-
       Version defines the versioning scheme used to negotiate the IBC verison in
       the connection handshake.
-  packetforward.v1.Params:
-    type: object
-    properties:
-      fee_percentage:
-        type: string
-    description: Params defines the set of packetforward parameters.
-  packetforward.v1.QueryParamsResponse:
-    type: object
-    properties:
-      params:
-        description: params defines the parameters of the module.
-        type: object
-        properties:
-          fee_percentage:
-            type: string
-    description: QueryParamsResponse is the response type for the Query/Params RPC method.
   cosmwasm.wasm.v1.AbsoluteTxPosition:
     type: object
     properties:

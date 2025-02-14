@@ -1,9 +1,9 @@
 #install packages for build layer
-FROM golang:1.22.4-bookworm as builder
+FROM golang:1.22.11-bookworm as builder
 RUN apt install git gcc make libc-dev
 
-ADD https://github.com/CosmWasm/wasmvm/releases/download/v2.1.2/libwasmvm.x86_64.so /lib/libwasmvm.x86_64.so
-ADD https://github.com/CosmWasm/wasmvm/releases/download/v2.1.2/libwasmvm.aarch64.so /lib/libwasmvm.aarch64.so
+ADD https://github.com/CosmWasm/wasmvm/releases/download/v2.1.5/libwasmvm.x86_64.so /lib/libwasmvm.x86_64.so
+ADD https://github.com/CosmWasm/wasmvm/releases/download/v2.1.5/libwasmvm.aarch64.so /lib/libwasmvm.aarch64.so
 
 #build binary
 WORKDIR /src
@@ -28,8 +28,8 @@ RUN apt update && apt install -y curl lz4 wget procps
 
 RUN apt-get clean && apt-get autoclean && apt-get autoremove && rm -rf /var/lib/apt/lists/\* /tmp/\* /var/tmp/*
 
-ADD https://github.com/CosmWasm/wasmvm/releases/download/v2.1.2/libwasmvm.x86_64.so /lib/libwasmvm.x86_64.so
-ADD https://github.com/CosmWasm/wasmvm/releases/download/v2.1.2/libwasmvm.aarch64.so /lib/libwasmvm.aarch64.so
+ADD https://github.com/CosmWasm/wasmvm/releases/download/v2.1.5/libwasmvm.x86_64.so /lib/libwasmvm.x86_64.so
+ADD https://github.com/CosmWasm/wasmvm/releases/download/v2.1.5/libwasmvm.aarch64.so /lib/libwasmvm.aarch64.so
 
 #configure container
 VOLUME /apps/data

@@ -32,8 +32,9 @@ Cosmos SDK blockchains are able to interact with each other using IBC and Inject
 
 ## Contents
 
-1. **[State](./01_state.md)**
-2. **[Keeper](./02_keeper.md)**
-3. **[Messages](./03_messages.md)**
-4. **[Proposals](./04_proposals.md)**
-5. **[Events](./05_events.md)**
+1. [State](./01_state.md)
+2. [Keeper](./02_keeper.md)
+3. [Messages](./03_messages.md)
+4. [Proposals](./04_proposals.md)
+5. [Events](./05_events.md)
+6. [Improvements](./06_future_improvements.md)

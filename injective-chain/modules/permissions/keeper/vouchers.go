@@ -3,6 +3,8 @@ package keeper
 import (
 	"context"
 
+	"cosmossdk.io/store/prefix"
+
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/permissions/types"
 
 	"github.com/cosmos/cosmos-sdk/baseapp"
@@ -25,7 +27,7 @@ func (k Keeper) rerouteToVoucherOnFail(ctx context.Context, toAddr sdk.AccAddres
 		return toAddr, origErr
 	}
 
-	voucher, err := k.getVoucherForAddress(sdkCtx, toAddr, amount.Denom)
+	voucher, err := k.GetVoucherForAddress(sdkCtx, amount.Denom, toAddr)
 	if err != nil {
 		return toAddr, errors.Wrapf(err, "can't get existing voucher for address, tried to reroute token send after error: %s", origErr.Error())
 	}
@@ -40,9 +42,9 @@ func (k Keeper) rerouteToVoucherOnFail(ctx context.Context, toAddr sdk.AccAddres
 	return authtypes.NewModuleAddress(types.ModuleName), nil
 }
 
-func (k Keeper) getVoucherForAddress(ctx sdk.Context, addr sdk.AccAddress, denom string) (sdk.Coin, error) {
+func (k Keeper) GetVoucherForAddress(ctx sdk.Context, denom string, addr sdk.AccAddress) (sdk.Coin, error) {
 	store := k.getVouchersStore(ctx)
-	key := getVoucherKey(addr, denom)
+	key := getVoucherKey(denom, addr)
 	bz := store.Get(key)
 	if len(bz) == 0 {
 		return types.NewEmptyVoucher(denom), nil
@@ -61,7 +63,7 @@ func (k Keeper) setVoucher(ctx sdk.Context, addr sdk.AccAddress, voucher sdk.Coi
 		return err
 	}
 
-	key := getVoucherKey(addr, voucher.Denom)
+	key := getVoucherKey(voucher.Denom, addr)
 	store.Set(key, bz)
 
 	// nolint:errcheck //ignored on purpose
@@ -74,7 +76,7 @@ func (k Keeper) setVoucher(ctx sdk.Context, addr sdk.AccAddress, voucher sdk.Coi
 
 func (k Keeper) deleteVoucher(ctx sdk.Context, addr sdk.AccAddress, denom string) {
 	store := k.getVouchersStore(ctx)
-	key := getVoucherKey(addr, denom)
+	key := getVoucherKey(denom, addr)
 	store.Delete(key)
 
 	// nolint:errcheck //ignored on purpose
@@ -82,4 +84,52 @@ func (k Keeper) deleteVoucher(ctx sdk.Context, addr sdk.AccAddress, denom string
 		Addr:    addr.String(),
 		Voucher: types.NewEmptyVoucher(denom),
 	})
+}
+
+func (k Keeper) getAllVouchers(ctx sdk.Context) ([]*types.AddressVoucher, error) {
+	store := prefix.NewStore(ctx.KVStore(k.storeKey), vouchersKey)
+
+	iter := store.Iterator(nil, nil)
+	defer iter.Close()
+
+	addressLen := 20
+
+	vouchers := make([]*types.AddressVoucher, 0)
+	for ; iter.Valid(); iter.Next() {
+		var voucher sdk.Coin
+
+		if err := proto.Unmarshal(iter.Value(), &voucher); err != nil {
+			return nil, err
+		}
+
+		addrBz := iter.Key()[len(iter.Key())-addressLen:]
+		address := sdk.AccAddress(addrBz)
+		vouchers = append(vouchers, &types.AddressVoucher{
+			Address: address.String(),
+			Voucher: voucher,
+		})
+	}
+	return vouchers, nil
+}
+
+func (k Keeper) getVouchersForDenom(ctx sdk.Context, denom string) ([]*types.AddressVoucher, error) {
+	store := k.getVouchersStoreForDenom(ctx, denom)
+	iter := store.Iterator(nil, nil)
+	defer iter.Close()
+
+	vouchers := make([]*types.AddressVoucher, 0)
+	for ; iter.Valid(); iter.Next() {
+		var voucher sdk.Coin
+
+		if err := proto.Unmarshal(iter.Value(), &voucher); err != nil {
+			return nil, err
+		}
+
+		address := sdk.AccAddress(iter.Key())
+		vouchers = append(vouchers, &types.AddressVoucher{
+			Address: address.String(),
+			Voucher: voucher,
+		})
+	}
+	return vouchers, nil
 }

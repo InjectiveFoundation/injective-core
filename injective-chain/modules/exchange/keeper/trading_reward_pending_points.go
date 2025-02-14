@@ -34,7 +34,7 @@ func (k *Keeper) GetCampaignTradingRewardPendingPoints(ctx sdk.Context, account 
 	if bz == nil {
 		return math.LegacyZeroDec()
 	}
-	return types.DecBytesToDec(bz)
+	return types.UnsignedDecBytesToDec(bz)
 }
 
 // DeleteAccountCampaignTradingRewardPendingPoints deletes the trading reward points for a given account.
@@ -73,7 +73,7 @@ func (k *Keeper) SetAccountCampaignTradingRewardPendingPoints(ctx sdk.Context, a
 	store := k.getStore(ctx)
 
 	key := types.GetTradingRewardAccountPendingPointsKey(account, pendingPoolStartTimestamp)
-	bz := types.DecToDecBytes(points)
+	bz := types.UnsignedDecToUnsignedDecBytes(points)
 	store.Set(key, bz)
 }
 
@@ -128,7 +128,7 @@ func (k *Keeper) IterateAccountCampaignTradingRewardPendingPoints(
 		pendingPoolStartTimestamp, account := types.ParseTradingRewardAccountPendingPointsKey(iterator.Key())
 
 		bz := iterator.Value()
-		points := types.DecBytesToDec(bz)
+		points := types.UnsignedDecBytesToDec(bz)
 
 		if process(pendingPoolStartTimestamp, account, points) {
 			return
@@ -170,7 +170,7 @@ func (k *Keeper) IterateAccountCampaignTradingRewardPendingPointsForPool(
 
 	for ; iterator.Valid(); iterator.Next() {
 		bz := iterator.Value()
-		points := types.DecBytesToDec(bz)
+		points := types.UnsignedDecBytesToDec(bz)
 		account := sdk.AccAddress(iterator.Key())
 
 		accountPoints := &types.TradingRewardCampaignAccountPoints{
@@ -235,7 +235,7 @@ func (k *Keeper) IterateAccountTradingRewardPendingPointsForPool(
 
 	for ; iterator.Valid(); iterator.Next() {
 		bz := iterator.Value()
-		points := types.DecBytesToDec(bz)
+		points := types.UnsignedDecBytesToDec(bz)
 		account := sdk.AccAddress(iterator.Key())
 
 		accountPoints := &types.TradingRewardAccountPoints{
@@ -261,7 +261,7 @@ func (k *Keeper) GetTotalTradingRewardPendingPoints(
 	if bz == nil {
 		return math.LegacyZeroDec()
 	}
-	return types.DecBytesToDec(bz)
+	return types.UnsignedDecBytesToDec(bz)
 }
 
 // IncrementTotalTradingRewardPendingPoints sets the total trading reward points
@@ -288,7 +288,7 @@ func (k *Keeper) SetTotalTradingRewardPendingPoints(
 	defer doneFn()
 
 	store := k.getStore(ctx)
-	bz := types.DecToDecBytes(points)
+	bz := types.UnsignedDecToUnsignedDecBytes(points)
 	store.Set(types.GetTradingRewardTotalPendingPointsKey(pendingPoolStartTimestamp), bz)
 }
 

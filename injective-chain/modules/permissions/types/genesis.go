@@ -4,16 +4,12 @@ import (
 	"cosmossdk.io/errors"
 )
 
-// this line is used by starport scaffolding # genesis/types/import
-
-// DefaultIndex is the default capability global index
-const DefaultIndex uint64 = 1
-
-// DefaultGenesis returns the default Capability genesis state
+// DefaultGenesis returns the default Permissions genesis state
 func DefaultGenesis() *GenesisState {
 	return &GenesisState{
 		Params:     DefaultParams(),
 		Namespaces: []Namespace{},
+		Vouchers:   []*AddressVoucher{},
 	}
 }
 
@@ -27,7 +23,8 @@ func (gs GenesisState) Validate() error {
 
 	seenDenoms := map[string]struct{}{}
 
-	for _, ns := range gs.GetNamespaces() {
+	for i := range gs.GetNamespaces() {
+		ns := gs.GetNamespaces()[i]
 		if _, ok := seenDenoms[ns.GetDenom()]; ok {
 			return errors.Wrapf(ErrInvalidGenesis, "duplicate denom: %s", ns.GetDenom())
 		}

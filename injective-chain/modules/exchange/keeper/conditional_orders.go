@@ -386,7 +386,7 @@ func (k *Keeper) GetConditionalDerivativeLimitOrderBySubaccountIDAndHash(
 	}
 
 	// Fetch LimitOrder from ordersStore
-	triggerPrice := types.DecBytesToDec(triggerPriceKey)
+	triggerPrice := types.UnsignedDecBytesToDec(triggerPriceKey)
 
 	orderBz := ordersStore.Get(types.GetOrderByStringPriceKeyPrefix(marketID, direction, triggerPrice.String(), orderHash))
 	if orderBz == nil {
@@ -420,7 +420,7 @@ func (k *Keeper) GetConditionalDerivativeMarketOrderBySubaccountIDAndHash(
 	}
 
 	// Fetch LimitOrder from ordersStore
-	triggerPrice := types.DecBytesToDec(triggerPriceKey)
+	triggerPrice := types.UnsignedDecBytesToDec(triggerPriceKey)
 
 	orderBz := ordersStore.Get(types.GetOrderByStringPriceKeyPrefix(marketID, direction, triggerPrice.String(), orderHash))
 	if orderBz == nil {

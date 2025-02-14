@@ -23,9 +23,9 @@ func (k *Keeper) handlePrivilegedAction(
 
 	switch t := action.(type) {
 	case *types.SyntheticTradeAction:
-		return k.handleSyntheticTradeAction(ctx, contractAddress, origin, t)
+		return k.HandleSyntheticTradeAction(ctx, contractAddress, origin, t)
 	case *types.PositionTransfer:
-		return k.handlePositionTransferAction(ctx, contractAddress, origin, t)
+		return k.HandlePositionTransferAction(ctx, contractAddress, origin, t)
 	default:
 		return types.ErrUnsupportedAction
 	}
@@ -79,7 +79,7 @@ func (k *Keeper) ensurePositionAboveInitialMarginRatio(
 	return nil
 }
 
-func (k *Keeper) handleSyntheticTradeAction(
+func (k *Keeper) HandleSyntheticTradeAction(
 	ctx sdk.Context,
 	contractAddress sdk.AccAddress,
 	origin sdk.AccAddress,
@@ -163,7 +163,7 @@ func (k *Keeper) handleSyntheticTradeAction(
 			}
 		}
 
-		payout, closeExecutionMargin, _, _ := position.ApplyPositionDelta(trade.ToPositionDelta(), math.LegacyZeroDec())
+		payout, closeExecutionMargin, collateralizationMargin, _ := position.ApplyPositionDelta(trade.ToPositionDelta(), math.LegacyZeroDec())
 
 		// Enforce that a position cannot have a negative quantity
 		if position.Quantity.IsNegative() {
@@ -173,6 +173,16 @@ func (k *Keeper) handleSyntheticTradeAction(
 		if err := k.ensurePositionAboveInitialMarginRatio(position, market, markPrice); err != nil {
 			return err
 		}
+
+		marketBalanceDelta := GetMarketBalanceDelta(payout, collateralizationMargin, tradingFee, trade.Margin.IsZero())
+		availableMarketFunds := k.GetAvailableMarketFunds(ctx, trade.MarketID)
+
+		isMarketSolvent := IsMarketSolvent(availableMarketFunds, marketBalanceDelta)
+		if !isMarketSolvent {
+			return types.ErrInsufficientMarketBalance
+		}
+
+		k.ApplyMarketBalanceDelta(ctx, trade.MarketID, marketBalanceDelta)
 
 		finalPositions.SetPosition(trade.MarketID, trade.SubaccountID, position)
 		k.SetPosition(ctx, trade.MarketID, trade.SubaccountID, position)
@@ -242,7 +252,7 @@ func (k *Keeper) resolveSyntheticTradeROConflictsForMarket(
 	}
 }
 
-func (k *Keeper) handlePositionTransferAction(
+func (k *Keeper) HandlePositionTransferAction(
 	ctx sdk.Context,
 	contractAddress sdk.AccAddress,
 	origin sdk.AccAddress,
@@ -268,10 +278,10 @@ func (k *Keeper) handlePositionTransferAction(
 
 	// TODO consider also allowing position transfer from user to contract address
 	if !contractAddress.Equals(sourceAddress) {
-		return errors.Wrapf(types.ErrBadSubaccountID, "Source subaccountID address %s does not match origin address %s", sourceAddress.String(), origin.String())
+		return errors.Wrapf(types.ErrBadSubaccountID, "Source subaccountID address %s must match contract address %s", sourceAddress.String(), contractAddress.String())
 	}
 	if !origin.Equals(destinationAddress) {
-		return errors.Wrapf(types.ErrBadSubaccountID, "Destination subaccountID address %s does not match contract address %s", destinationAddress.String(), contractAddress.String())
+		return errors.Wrapf(types.ErrBadSubaccountID, "Destination subaccountID address %s does not match origin address %s", destinationAddress.String(), origin.String())
 	}
 
 	sourcePosition := k.GetPosition(ctx, action.MarketID, action.SourceSubaccountID)
@@ -313,6 +323,7 @@ func (k *Keeper) handlePositionTransferAction(
 	sourceMarginBefore := sourcePosition.Margin
 	isSourceLongBefore, isDestinationLongBefore := sourcePosition.IsLong, destinationPosition.IsLong
 
+	// Ignore payouts when applying position delta in source position, because margin + PNL is accounted for in destination position
 	sourcePosition.ApplyPositionDelta(
 		&types.PositionDelta{
 			IsLong:            !sourcePosition.IsLong,
@@ -322,7 +333,6 @@ func (k *Keeper) handlePositionTransferAction(
 		},
 		math.LegacyZeroDec(),
 	)
-
 	executionMargin := sourceMarginBefore.Sub(sourcePosition.Margin)
 	payout, closeExecutionMargin, _, _ := destinationPosition.ApplyPositionDelta(
 		&types.PositionDelta{
@@ -334,6 +344,21 @@ func (k *Keeper) handlePositionTransferAction(
 		math.LegacyZeroDec(),
 	)
 	receiverTradingFee := markPrice.Mul(action.Quantity).Mul(market.TakerFeeRate)
+
+	// Special market balance handling for position transfers:
+	// - `collateralizationMargin` can be ignored because those funds came from the source position
+	// - `receiverTradingFee` can be ignored because its paid from user balances
+	// - `closeExecutionMargin` must be accounted for as those funds came from an existing position and are now leaving the market
+	marketBalanceDelta := payout.Add(closeExecutionMargin).Neg()
+
+	availableMarketFunds := k.GetAvailableMarketFunds(ctx, action.MarketID)
+	isMarketSolvent := IsMarketSolvent(availableMarketFunds, marketBalanceDelta)
+
+	if !isMarketSolvent {
+		return types.ErrInsufficientMarketBalance
+	}
+
+	k.ApplyMarketBalanceDelta(ctx, action.MarketID, marketBalanceDelta)
 
 	k.SetPosition(ctx, action.MarketID, action.SourceSubaccountID, sourcePosition)
 	k.SetPosition(ctx, action.MarketID, action.DestinationSubaccountID, destinationPosition)

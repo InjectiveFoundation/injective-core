@@ -123,6 +123,8 @@ func (b *DerivativeMarketOrderbook) Peek(ctx sdk.Context) *types.PriceLevel {
 		// do not execute a reduce-only market sell if there isn't a valid position to sell that meets the reduce-only conditions
 		if err := position.CheckValidPositionToReduce(
 			b.market.GetMarketType(),
+			// NOTE: must be order price, not clearing price !!! due to security reasons related to margin adjustment case after increased trading fee
+			// see `adjustPositionMarginIfNecessary` for more details
 			order.OrderInfo.Price,
 			order.IsBuy(),
 			takerFeeRate,

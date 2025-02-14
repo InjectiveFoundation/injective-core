@@ -24,7 +24,9 @@
       "marketType": "spot",
       "ticker": "custom/USDT0",
       "baseDenom": "$tf(0)",
-      "quoteDenom": "USDT0"
+      "quoteDenom": "USDT0",
+      "baseDecimals": 18,
+      "quoteDecimals": 6
     },
     {
       "actionType": "endblocker",

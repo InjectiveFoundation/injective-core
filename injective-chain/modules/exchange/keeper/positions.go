@@ -86,6 +86,23 @@ func (k *Keeper) DeletePosition(
 	positionStore.Delete(key)
 }
 
+// HasPositionsInMarket returns true if there are any positions in a given derivative market
+func (k *Keeper) HasPositionsInMarket(ctx sdk.Context, marketID common.Hash) bool {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
+	hasPositions := false
+
+	checkForPosition := func(p *types.Position, key []byte) (stop bool) {
+		hasPositions = true
+		return true
+	}
+
+	k.IteratePositionsByMarket(ctx, marketID, checkForPosition)
+
+	return hasPositions
+}
+
 // GetAllPositionsByMarket returns all positions in a given derivative market
 func (k *Keeper) GetAllPositionsByMarket(ctx sdk.Context, marketID common.Hash) []*types.DerivativePosition {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)

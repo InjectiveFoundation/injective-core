@@ -2,7 +2,6 @@ package keeper
 
 import (
 	"context"
-	"sort"
 
 	"cosmossdk.io/errors"
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -33,9 +32,9 @@ func (k msgServer) UpdateParams(c context.Context, msg *types.MsgUpdateParams) (
 	return &types.MsgUpdateParamsResponse{}, nil
 }
 
-func (k msgServer) checkSenderPermissions(sender, denomAdmin string) error {
-	if sender != k.authority && sender != denomAdmin {
-		return errors.Wrapf(types.ErrUnauthorized, "only denom admin can do this, sender: %s, admin: %s", sender, denomAdmin)
+func (k msgServer) checkSenderPermissions(sender, denomAdmin sdk.AccAddress) error {
+	if sender.String() != k.authority && !sender.Equals(denomAdmin) {
+		return errors.Wrapf(types.ErrUnauthorized, "only denom admin authorized, sender: %s, admin: %s", sender, denomAdmin)
 	}
 	return nil
 }
@@ -43,212 +42,158 @@ func (k msgServer) checkSenderPermissions(sender, denomAdmin string) error {
 func (k msgServer) CreateNamespace(c context.Context, msg *types.MsgCreateNamespace) (*types.MsgCreateNamespaceResponse, error) {
 	ctx := sdk.UnwrapSDKContext(c)
 
+	sender := sdk.MustAccAddressFromBech32(msg.Sender)
+	namespace := msg.Namespace
+	denom := namespace.Denom
+
 	// validate that the namespace doesn't already exist
-	if ns, _ := k.GetNamespaceForDenom(ctx, msg.Namespace.Denom, false); ns != nil {
-		return nil, errors.Wrapf(types.ErrDenomNamespaceExists, "namespace for denom %s already exists", msg.Namespace.Denom)
+	if k.HasNamespace(ctx, denom) {
+		return nil, errors.Wrapf(types.ErrDenomNamespaceExists, "namespace for denom %s already exists", denom)
 	}
 
 	// validate denom admin authority permissions
-	denomAuthority, err := k.tfKeeper.GetAuthorityMetadata(ctx, msg.Namespace.Denom)
+	admin, err := k.tfKeeper.GetDenomAdmin(ctx, denom)
 	if err != nil {
-		return nil, errors.Wrapf(err, "can't get denom %s authority", msg.Namespace.Denom)
+		return nil, types.ErrUnauthorized.Wrapf("denom admin for %s doesn't exist", denom)
 	}
 
-	if err := k.checkSenderPermissions(msg.Sender, denomAuthority.Admin); err != nil {
+	if err := k.checkSenderPermissions(sender, admin); err != nil {
 		return nil, err
 	}
 
 	// existing wasm hook contract that satisfies the expected interface
-	if msg.Namespace.WasmHook != "" {
-		wasmContract := sdk.MustAccAddressFromBech32(msg.Namespace.WasmHook)
+	contractHook := namespace.ContractHook
+	if contractHook != "" {
+		wasmContract := sdk.MustAccAddressFromBech32(contractHook)
 		if err := k.validateWasmHook(c, wasmContract); err != nil {
 			return nil, err
 		}
 	}
 
-	if err := k.storeNamespace(ctx, msg.Namespace); err != nil {
+	// pre-populate the namespace with permissive default values in the event role managers, policy statuses and/or
+	// policy manager capabilities are unspecified
+	namespace.PopulateEmptyValuesWithDefaults(sender)
+
+	if err := k.createNamespace(ctx, namespace); err != nil {
 		return nil, errors.Wrap(err, "can't store namespace")
 	}
 
 	return &types.MsgCreateNamespaceResponse{}, nil
 }
 
-func (k msgServer) DeleteNamespace(c context.Context, msg *types.MsgDeleteNamespace) (*types.MsgDeleteNamespaceResponse, error) {
-	ctx := sdk.UnwrapSDKContext(c)
-
-	// existing namespace
-	if ns, _ := k.GetNamespaceForDenom(ctx, msg.NamespaceDenom, false); ns == nil {
-		return nil, errors.Wrapf(types.ErrUnknownDenom, "namespace for denom %s not found", msg.NamespaceDenom)
-	}
-
-	// have rights to delete?
-	denomAuthority, err := k.tfKeeper.GetAuthorityMetadata(ctx, msg.NamespaceDenom)
-	if err != nil {
-		return nil, errors.Wrapf(err, "can't get denom %s authority", msg.NamespaceDenom)
-	}
-
-	if err := k.checkSenderPermissions(msg.Sender, denomAuthority.Admin); err != nil {
-		return nil, err
-	}
-
-	k.deleteNamespace(ctx, msg.NamespaceDenom)
-	return &types.MsgDeleteNamespaceResponse{}, nil
-}
-
 func (k msgServer) UpdateNamespace(c context.Context, msg *types.MsgUpdateNamespace) (*types.MsgUpdateNamespaceResponse, error) {
 	ctx := sdk.UnwrapSDKContext(c)
-	// existing namespace
-	ns, _ := k.GetNamespaceForDenom(ctx, msg.NamespaceDenom, false)
-	if ns == nil {
-		return nil, errors.Wrapf(types.ErrUnknownDenom, "namespace for denom %s not found", msg.NamespaceDenom)
+
+	sender := sdk.MustAccAddressFromBech32(msg.Sender)
+	denom := msg.Denom
+
+	if !k.HasNamespace(ctx, denom) {
+		return nil, errors.Wrapf(types.ErrUnknownDenom, "namespace for %s does not exist", denom)
 	}
-	// have rights to update?
-	denomAuthority, err := k.tfKeeper.GetAuthorityMetadata(ctx, msg.NamespaceDenom)
-	if err != nil {
-		return nil, errors.Wrapf(err, "can't get denom %s authority", msg.NamespaceDenom)
-	}
-	if err := k.checkSenderPermissions(msg.Sender, denomAuthority.Admin); err != nil {
+
+	namespaceChanges := msg.GetNamespaceUpdates()
+
+	if err := k.Keeper.ValidateNamespaceUpdatePermissions(ctx, sender, denom, namespaceChanges); err != nil {
 		return nil, err
 	}
 
-	if msg.WasmHook != nil {
-		ns.WasmHook = msg.WasmHook.NewValue
-	}
-	if msg.MintsPaused != nil {
-		ns.MintsPaused = msg.MintsPaused.NewValue
-	}
-	if msg.SendsPaused != nil {
-		ns.SendsPaused = msg.SendsPaused.NewValue
-	}
-	if msg.BurnsPaused != nil {
-		ns.BurnsPaused = msg.BurnsPaused.NewValue
-	}
-
-	if err := ns.ValidateBasicParams(); err != nil {
-		return nil, err
-	}
-
-	// existing wasm hook contract
-	if ns.WasmHook != "" {
-		wasmContract := sdk.MustAccAddressFromBech32(ns.WasmHook)
+	if namespaceChanges.HasContractHookChange {
+		wasmContract := sdk.MustAccAddressFromBech32(msg.ContractHook.NewValue)
 		if err := k.validateWasmHook(c, wasmContract); err != nil {
 			return nil, err
 		}
+
+		namespace, err := k.GetNamespace(ctx, denom, false)
+		if err != nil {
+			return nil, err
+		}
+
+		namespace.ContractHook = wasmContract.String()
+		err = k.setNamespace(ctx, *namespace)
+		if err != nil {
+			return nil, errors.Wrap(err, "can't store updated namespace")
+		}
 	}
 
-	err = k.setNamespace(ctx, *ns)
-	if err != nil {
-		return nil, errors.Wrap(err, "can't store updated namespace")
+	if namespaceChanges.HasRolePermissionsChange {
+		for _, role := range msg.RolePermissions {
+			if err := k.updateRole(ctx, denom, role); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	if namespaceChanges.HasRoleManagersChange {
+		for _, roleManager := range msg.RoleManagers {
+			manager := sdk.MustAccAddressFromBech32(roleManager.Manager)
+			if err := k.updateManagerRoles(ctx, denom, manager, roleManager.Roles); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	if namespaceChanges.HasPolicyStatusesChange {
+		for _, policyStatus := range msg.PolicyStatuses {
+			if err := k.TryUpdatePolicyStatus(ctx, sender, denom, policyStatus); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	if namespaceChanges.HasPolicyManagersChange {
+		for _, policyManagerCapability := range msg.PolicyManagerCapabilities {
+			if err := k.updatePolicyManagerCapability(ctx, denom, policyManagerCapability); err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	return &types.MsgUpdateNamespaceResponse{}, nil
 }
 
-func (k msgServer) UpdateNamespaceRoles(c context.Context, msg *types.MsgUpdateNamespaceRoles) (*types.MsgUpdateNamespaceRolesResponse, error) {
+func (k msgServer) UpdateActorRoles(c context.Context, msg *types.MsgUpdateActorRoles) (*types.MsgUpdateActorRolesResponse, error) {
 	ctx := sdk.UnwrapSDKContext(c)
+	sender := sdk.MustAccAddressFromBech32(msg.Sender)
+	denom := msg.Denom
 
-	// have rights to update?
-	denomAuthority, err := k.tfKeeper.GetAuthorityMetadata(ctx, msg.NamespaceDenom)
+	if !k.HasNamespace(ctx, denom) {
+		return nil, errors.Wrapf(types.ErrUnknownDenom, "namespace for %s does not exist", denom)
+	}
+
+	roleIDs, err := k.verifySenderIsRoleManagerForAffectedRoles(ctx, denom, sender, msg.GetAffectedRoles())
 	if err != nil {
-		return nil, errors.Wrapf(err, "can't get denom %s authority", msg.NamespaceDenom)
-	}
-
-	if err := k.checkSenderPermissions(msg.Sender, denomAuthority.Admin); err != nil {
 		return nil, err
 	}
 
-	// existing namespace
-	ns, _ := k.GetNamespaceForDenom(ctx, msg.NamespaceDenom, false)
-	if ns == nil {
-		return nil, errors.Wrapf(types.ErrUnknownDenom, "namespace for denom %s not found", msg.NamespaceDenom)
-	}
+	actorRolesToAdd := types.RoleActorsToActorRoles(msg.RoleActorsToAdd)
 
-	ns.RolePermissions = msg.RolePermissions
-	ns.AddressRoles = msg.AddressRoles
+	for _, roleActors := range actorRolesToAdd {
+		actor := sdk.MustAccAddressFromBech32(roleActors.Actor)
+		actorRoleIDs := make([]uint32, 0, len(roleActors.Roles))
+		for _, role := range roleActors.Roles {
+			actorRoleIDs = append(actorRoleIDs, roleIDs[role])
+		}
 
-	if err := ns.ValidateRoles(true); err != nil {
-		return nil, err
-	}
-
-	for _, rolePermission := range msg.RolePermissions {
-		// store or overwrite role permissions
-		if err := k.storeRole(ctx, msg.NamespaceDenom, rolePermission.Role, rolePermission.Permissions); err != nil {
+		if err := k.addActorRoles(ctx, denom, actor, actorRoleIDs); err != nil {
 			return nil, err
 		}
 	}
 
-	for _, addressRoles := range msg.AddressRoles {
-		for _, role := range addressRoles.Roles {
-			if _, ok := k.GetRoleId(ctx, msg.NamespaceDenom, role); !ok {
-				return nil, errors.Wrapf(types.ErrUnknownRole, "role %s has no defined permissions", role)
-			}
+	actorRolesToRevoke := types.RoleActorsToActorRoles(msg.RoleActorsToRevoke)
+
+	for _, roleActors := range actorRolesToRevoke {
+		actor := sdk.MustAccAddressFromBech32(roleActors.Actor)
+		actorRoleIDs := make([]uint32, 0, len(roleActors.Roles))
+		for _, role := range roleActors.Roles {
+			actorRoleIDs = append(actorRoleIDs, roleIDs[role])
 		}
 
-		if err := k.storeAddressRoles(ctx, msg.NamespaceDenom, sdk.MustAccAddressFromBech32(addressRoles.Address), addressRoles.Roles); err != nil {
-			return nil, errors.Wrapf(err, "can't store new roles for address %s", addressRoles.Address)
-		}
-	}
-
-	return &types.MsgUpdateNamespaceRolesResponse{}, nil
-}
-
-func (k msgServer) RevokeNamespaceRoles(c context.Context, msg *types.MsgRevokeNamespaceRoles) (*types.MsgRevokeNamespaceRolesResponse, error) {
-	ctx := sdk.UnwrapSDKContext(c)
-
-	// existing namespace
-	ns, _ := k.GetNamespaceForDenom(ctx, msg.NamespaceDenom, false)
-	if ns == nil {
-		return nil, errors.Wrapf(types.ErrUnknownDenom, "namespace for denom %s not found", msg.NamespaceDenom)
-	}
-
-	// have rights to update?
-	denomAuthority, err := k.tfKeeper.GetAuthorityMetadata(ctx, msg.NamespaceDenom)
-	if err != nil {
-		return nil, errors.Wrapf(err, "can't get denom %s authority", msg.NamespaceDenom)
-	}
-
-	if err := k.checkSenderPermissions(msg.Sender, denomAuthority.Admin); err != nil {
-		return nil, err
-	}
-
-	for _, addressRoles := range msg.AddressRolesToRevoke {
-		addr := sdk.MustAccAddressFromBech32(addressRoles.Address)
-		currentRoles, err := k.GetAddressRoleNames(ctx, msg.NamespaceDenom, addr)
-		if err != nil {
+		if err := k.revokeActorRoles(ctx, denom, actor, actorRoleIDs); err != nil {
 			return nil, err
 		}
-
-		if len(currentRoles) == 1 && currentRoles[0] == types.EVERYONE { // skip address with no roles
-			continue
-		}
-
-		currentRolesMap := map[string]struct{}{}
-		for _, cRole := range currentRoles {
-			currentRolesMap[cRole] = struct{}{}
-		}
-
-		for _, role := range addressRoles.Roles {
-			delete(currentRolesMap, role)
-		}
-
-		if len(currentRolesMap) == 0 { // just remove address roles completely
-			k.deleteAddressRoles(ctx, msg.NamespaceDenom, addr)
-		} else { // overwrite existing roles with new ones
-			newRoles := make([]string, 0, len(currentRolesMap))
-
-			for newRole := range currentRolesMap {
-				newRoles = append(newRoles, newRole)
-			}
-
-			sort.Strings(newRoles) // we need to sort due to non-deterministic append during map iteration above
-
-			if err := k.storeAddressRoles(ctx, msg.NamespaceDenom, addr, newRoles); err != nil {
-				return nil, errors.Wrapf(err, "can't overwrite address %s roles", addressRoles.Address)
-			}
-		}
 	}
 
-	return &types.MsgRevokeNamespaceRolesResponse{}, nil
+	return &types.MsgUpdateActorRolesResponse{}, nil
 }
 
 func (k msgServer) ClaimVoucher(c context.Context, msg *types.MsgClaimVoucher) (*types.MsgClaimVoucherResponse, error) {
@@ -256,7 +201,7 @@ func (k msgServer) ClaimVoucher(c context.Context, msg *types.MsgClaimVoucher) (
 
 	receiver := sdk.MustAccAddressFromBech32(msg.Sender)
 
-	voucher, err := k.getVoucherForAddress(ctx, receiver, msg.Denom)
+	voucher, err := k.GetVoucherForAddress(ctx, msg.Denom, receiver)
 	if err != nil {
 		return nil, err
 	}

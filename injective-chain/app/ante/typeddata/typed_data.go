@@ -838,6 +838,15 @@ func GetEIP712TypedDataForMsg(signDocBytes []byte) (TypedData, error) {
 		return TypedData{}, errors.Wrap(err, "failed to unmarshal msg")
 	}
 
+	// For some reason this type cast does not work during UnmarshalJSON above
+	// If the underlying msg does implement the UnpackInterfacesMessage interface (MsgGrant, MsgExec...),
+	// we explicitly call the method here to ensure potential Any fields within the message are correctly parsed
+	if unpacker, ok := msg.(codectypes.UnpackInterfacesMessage); ok {
+		if err := unpacker.UnpackInterfaces(codectypes.AminoJSONUnpacker{Cdc: LegacyAminoCodec.Amino}); err != nil {
+			return TypedData{}, errors.Wrap(err, "failed to unpack msg")
+		}
+	}
+
 	msgTypes, err := ExtractMsgTypes(ProtoCodec, "MsgValue", msg)
 	if err != nil {
 		return TypedData{}, errors.Wrap(err, "failed to extract msg types")
