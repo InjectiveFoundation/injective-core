@@ -170,6 +170,7 @@ import (
 	wasmxtypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/types"
 	"github.com/InjectiveLabs/injective-core/injective-chain/stream"
 	chaintypes "github.com/InjectiveLabs/injective-core/injective-chain/types"
+
 	// unnamed import of statik for swagger UI support
 	_ "github.com/InjectiveLabs/injective-core/client/docs/statik"
 )
@@ -989,7 +990,6 @@ func (app *InjectiveApp) initKeepers(authority string, appOpts servertypes.AppOp
 		app.keys[packetforwardtypes.StoreKey],
 		app.TransferKeeper, // Will be zero-value here. Reference is set later on with SetTransferKeeper.
 		app.IBCKeeper.ChannelKeeper,
-		app.DistrKeeper,
 		app.BankKeeper,
 		hooksICS4Wrapper,
 		authority,
@@ -1088,16 +1088,19 @@ func (app *InjectiveApp) initKeepers(authority string, appOpts servertypes.AppOp
 	app.ICAHostKeeper.WithQueryRouter(app.GRPCQueryRouter())
 
 	// Create Transfer Stack
+	//
+	// * RecvPacket -> IBC core -> Fee -> PFM -> Hooks -> Transfer (AddRoute)
+	// * SendPacket -> Transfer -> Hooks -> PFM -> Fee -> IBC core (ICS4Wrapper)
+
 	var transferStack porttypes.IBCModule
 	transferStack = ibctransfer.NewIBCModule(app.TransferKeeper)
-	transferStack = ibcfee.NewIBCMiddleware(transferStack, app.IBCFeeKeeper)
 	transferStack = ibchooks.NewIBCMiddleware(transferStack, &hooksICS4Wrapper)
 	transferStack = packetforward.NewIBCMiddleware(transferStack,
 		app.PacketForwardKeeper,
 		0,
 		packetforwardkeeper.DefaultForwardTransferPacketTimeoutTimestamp,
-		packetforwardkeeper.DefaultRefundTransferPacketTimeoutTimestamp,
 	)
+	transferStack = ibcfee.NewIBCMiddleware(transferStack, app.IBCFeeKeeper)
 
 	// Create Interchain Accounts Stack
 	// SendPacket, since it is originating from the application to core IBC:
@@ -1258,8 +1261,8 @@ func initParamsKeeper(
 	paramsKeeper.Subspace(ibctransfertypes.ModuleName).WithKeyTable(ibctransfertypes.ParamKeyTable())
 	paramsKeeper.Subspace(icacontrollertypes.SubModuleName).WithKeyTable(icacontrollertypes.ParamKeyTable())
 	paramsKeeper.Subspace(icahosttypes.SubModuleName).WithKeyTable(icahosttypes.ParamKeyTable())
+	paramsKeeper.Subspace(packetforwardtypes.ModuleName)
 
-	paramsKeeper.Subspace(packetforwardtypes.ModuleName).WithKeyTable(packetforwardtypes.ParamKeyTable())
 	// wasm subspace
 	paramsKeeper.Subspace(wasmtypes.ModuleName)
 	// injective subspaces

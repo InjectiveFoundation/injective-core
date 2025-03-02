@@ -34,46 +34,48 @@ Ref: https://keepachangelog.com/en/1.1.0/
 
 # Changelog
 
+## [v1.14.1](https://github.com/InjectiveFoundation/injective-core/releases/tag/v1.14.1) - 2025-02-28
+
 ## [v1.14.0](https://github.com/InjectiveFoundation/injective-core/releases/tag/v1.14.0) - 2025-02-14
 
 ### Features
 
-* (api)  Add Stork support in chain stream.
-* (exchange)  Introduce support for spot market decimals.
-* (exchange)  Introduce support for derivative market decimals.
-* (oracle)  Add coinbase-price-states to CLI oracle query.
-* (permissions)  Add permissions module asset freezing and token factory admin burn.
-* (wasmx)  Support Authz grants for wasmx/MsgExecuteContractCompat.
+* (api) [#1924](https://github.com/InjectiveLabs/injective-core/pull/1924) Add Stork support in chain stream.
+* (exchange) [#1830](https://github.com/InjectiveLabs/injective-core/pull/1830) Introduce support for spot market decimals.
+* (exchange) [#1847](https://github.com/InjectiveLabs/injective-core/pull/1847) Introduce support for derivative market decimals.
+* (oracle) [#1948](https://github.com/InjectiveLabs/injective-core/pull/1948) Add coinbase-price-states to CLI oracle query.
+* (permissions) [#1965](https://github.com/InjectiveLabs/injective-core/pull/1965) Add permissions module asset freezing and token factory admin burn.
+* (wasmx) [#2059](https://github.com/InjectiveLabs/injective-core/pull/2059) Support Authz grants for wasmx/MsgExecuteContractCompat.
 
 ### Improvements
 
-* (docs)  Improve Peggy documentation.
-* (docs)  Update oracle governance proposals info.
-* (docs)  Generate module errors documentation.
-* (docs)  Correct hyperlinks in BeginBlocker and EndBlocker documentation.
-* (exchange)  Add subaccount balance check in invariants validation.
-* (exchange)  Add market funds isolation for old markets.
-* (exchange)  Enforce min notional for quote denoms on instant launch.
-* (infra)  Update Docker image to match Go toolchain, remove old Dockerfile.release.
-* (wasm)  Bump wasmd to v0.53.2-inj-1.
+* (docs) [#1815](https://github.com/InjectiveLabs/injective-core/pull/1815) Improve Peggy documentation.
+* (docs) [#1994](https://github.com/InjectiveLabs/injective-core/pull/1994) Update oracle governance proposals info.
+* (docs) [#2025](https://github.com/InjectiveLabs/injective-core/pull/2025) Generate module errors documentation.
+* (docs) [#2031](https://github.com/InjectiveLabs/injective-core/pull/2031) Correct hyperlinks in BeginBlocker and EndBlocker documentation.
+* (exchange) [#1949](https://github.com/InjectiveLabs/injective-core/pull/1949) Add subaccount balance check in invariants validation.
+* (exchange) [#2034](https://github.com/InjectiveLabs/injective-core/pull/2034) Add market funds isolation for old markets.
+* (exchange) [#2049](https://github.com/InjectiveLabs/injective-core/pull/2049) Enforce min notional for quote denoms on instant launch.
+* (infra) [#1957](https://github.com/InjectiveLabs/injective-core/pull/1957) Update Docker image to match Go toolchain, remove old Dockerfile.release.
+* (wasm) [#2042](https://github.com/InjectiveLabs/injective-core/pull/2042) Bump wasmd to v0.53.2-inj-1.
 
 ### Bug Fixes
 
-* (api)  Remove reference to packet forward query in Swagger.
-* (api)  Fix chain stream event parsing.
-* (docs)  Fix duplicate documentation directory issue.
-* (exchange)  Fix proposal handler trading rewards test.
-* (exchange)  Market funds isolation fixes.
-* (exchange)  Use existing decimals if spot update params proposal lacks decimals.
-* (exchange)  Add MsgReclaimLockedFunds back into codec.
-* (exchange)  Prevent admins from bypassing whitelisted min notional.
-* (exchange)  Remove quote denoms min notional.
-* (infra)  Fix release process for MacOS.
-* (ledger)  Properly generate Ledger sign bytes.
+* (api) [#1912](https://github.com/InjectiveLabs/injective-core/pull/1912) Remove reference to packet forward query in Swagger.
+* (api) [#2008](https://github.com/InjectiveLabs/injective-core/pull/2008) Fix chain stream event parsing.
+* (docs) [#1913](https://github.com/InjectiveLabs/injective-core/pull/1913) Fix duplicate documentation directory issue.
+* (exchange) [#2028](https://github.com/InjectiveLabs/injective-core/pull/2028) Fix proposal handler trading rewards test.
+* (exchange) [#2035](https://github.com/InjectiveLabs/injective-core/pull/2035) Market funds isolation fixes.
+* (exchange) [#2053](https://github.com/InjectiveLabs/injective-core/pull/2053) Use existing decimals if spot update params proposal lacks decimals.
+* (exchange) [#2055](https://github.com/InjectiveLabs/injective-core/pull/2055) Add MsgReclaimLockedFunds back into codec.
+* (exchange) [#2057](https://github.com/InjectiveLabs/injective-core/pull/2057) Prevent admins from bypassing whitelisted min notional.
+* (exchange) [#2065](https://github.com/InjectiveLabs/injective-core/pull/2065) Remove quote denoms min notional.
+* (infra) [#1904](https://github.com/InjectiveLabs/injective-core/pull/1904) Fix release process for MacOS.
+* (ledger) [#1908](https://github.com/InjectiveLabs/injective-core/pull/1908) Properly generate Ledger sign bytes.
 
 ### CLI Breaking Changes
 
-* (cli)  Fix arguments in set-denom-metadata command.
+* (cli) [#1918](https://github.com/InjectiveLabs/injective-core/pull/1918) Fix arguments in set-denom-metadata command.
 
 ## Previous Releases
 

@@ -126,7 +126,10 @@ ictest-upgrade: export SHOW_CONTAINER_LOGS=always
 ictest-upgrade: rm-testcache
 	cd interchaintest && go test -race -v -run TestInjectiveUpgradeHandler .
 
-.PHONY: rm-testcache ictest-all ictest-basic ictest-upgrade
+ictest-pfm: rm-testcache
+	cd interchaintest && go test -race -v -run TestPacketForwardMiddleware .
+
+.PHONY: rm-testcache ictest-all ictest-basic ictest-upgrade ictest-pfm
 
 ###############################################################################
 

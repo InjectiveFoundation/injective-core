@@ -27,7 +27,8 @@ import (
 
 // nolint:all
 const (
-	upgradeName = "v1.14.0"
+	upgradeNameV1140 = "v1.14.0"
+	upgradeNameV1141 = "v1.14.1"
 )
 
 // This is a list of all the upgrade functions for the v1.14.0 upgrade
@@ -58,7 +59,8 @@ var (
 )
 
 func (app *InjectiveApp) registerUpgradeHandlers() {
-	app.UpgradeKeeper.SetUpgradeHandler(upgradeName, upgradeHandlerV114(app))
+	app.UpgradeKeeper.SetUpgradeHandler(upgradeNameV1140, upgradeHandlerV114(app))
+	app.UpgradeKeeper.SetUpgradeHandler(upgradeNameV1141, upgradeHandlerV1141(app))
 
 	upgradeInfo, err := app.UpgradeKeeper.ReadUpgradeInfoFromDisk()
 	if err != nil {
@@ -66,7 +68,9 @@ func (app *InjectiveApp) registerUpgradeHandlers() {
 	}
 
 	// nolint:all
-	if upgradeInfo.Name == upgradeName && !app.UpgradeKeeper.IsSkipHeight(upgradeInfo.Height) {
+	if (upgradeInfo.Name == upgradeNameV1140 ||
+		upgradeInfo.Name == upgradeNameV1141) &&
+		!app.UpgradeKeeper.IsSkipHeight(upgradeInfo.Height) {
 		// add any store upgrades here
 		storeUpgrades := storetypes.StoreUpgrades{
 			Added:   nil,
@@ -79,7 +83,30 @@ func (app *InjectiveApp) registerUpgradeHandlers() {
 	}
 }
 
-// upgradeHandlerV114 is the upgrade handler for the v1.14.0 upgrade
+// upgradeHandlerV1141 is the upgrade handler for the v1.14.1 upgrade
+// DUMMY UPGRADE HANDLER
+func upgradeHandlerV1141(app *InjectiveApp) upgradetypes.UpgradeHandler {
+	return func(ctx context.Context, upgradeInfo upgradetypes.Plan, fromVM module.VersionMap) (module.VersionMap, error) {
+		sdkCtx := sdk.UnwrapSDKContext(ctx)
+		logger := app.Logger().With("handler", "upgrade_handler")
+
+		// top level panic recovery
+		var handlerErr error
+		defer recoverUpgradeHandler(ctx, logger, &handlerErr)
+
+		// DO NOT REMOVE
+		// We always need to configure the PostOnlyModeHeightThreshold config for every chain upgrade
+		// Do not remove the following lines when updating the upgrade handler in future versions
+		exchangeParams := app.ExchangeKeeper.GetParams(sdkCtx)
+		exchangeParams.PostOnlyModeHeightThreshold = upgradeInfo.Height + 2000
+		app.ExchangeKeeper.SetParams(sdkCtx, exchangeParams)
+		logger.Info("[EXCHANGE PARAM MIGRATION] new post only mode height threshold", "height", upgradeInfo.Height+2000)
+
+		return app.mm.RunMigrations(ctx, app.configurator, fromVM)
+	}
+}
+
+// upgradeHandlerV1141 is the upgrade handler for the v1.14.1 upgrade
 func upgradeHandlerV114(app *InjectiveApp) upgradetypes.UpgradeHandler {
 	return func(ctx context.Context, upgradeInfo upgradetypes.Plan, fromVM module.VersionMap) (module.VersionMap, error) {
 		sdkCtx := sdk.UnwrapSDKContext(ctx)
