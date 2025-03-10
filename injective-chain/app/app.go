@@ -170,6 +170,7 @@ import (
 	wasmxtypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/types"
 	"github.com/InjectiveLabs/injective-core/injective-chain/stream"
 	chaintypes "github.com/InjectiveLabs/injective-core/injective-chain/types"
+	injwebsocket "github.com/InjectiveLabs/injective-core/injective-chain/websocket"
 
 	// unnamed import of statik for swagger UI support
 	_ "github.com/InjectiveLabs/injective-core/client/docs/statik"
@@ -340,6 +341,7 @@ type InjectiveApp struct {
 	// stream server
 	ChainStreamServer *stream.StreamServer
 	EventPublisher    *stream.Publisher
+	WebsocketServer   *injwebsocket.WebsocketServer
 }
 
 // NewInjectiveApp returns a reference to a new initialized Injective application.
@@ -419,6 +421,7 @@ func NewInjectiveApp(
 	bus := pubsub.NewServer()
 	app.EventPublisher = stream.NewPublisher(app.StreamEvents, bus)
 	app.ChainStreamServer = stream.NewChainStreamServer(bus, appOpts)
+	app.WebsocketServer = injwebsocket.NewWebsocketServer(app.ChainStreamServer)
 
 	authzcdc.GlobalCdc = codec.NewProtoCodec(app.interfaceRegistry)
 	ante.GlobalCdc = codec.NewProtoCodec(app.interfaceRegistry)

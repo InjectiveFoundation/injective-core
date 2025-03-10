@@ -60,6 +60,7 @@ import (
 
 	"github.com/InjectiveLabs/injective-core/cmd/injectived/config"
 
+	injwebsocket "github.com/InjectiveLabs/injective-core/injective-chain/websocket"
 	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
 )
 
@@ -266,6 +267,9 @@ func addStartNodeFlags(cmd *cobra.Command, opts server.StartCmdOptions) {
 	cmd.Flags().Uint64(stream.FlagStreamMaxConnectionIdle, 180, "Amount of time in seconds a connection is allowed to stay idle before forcing the disconnection")
 	cmd.Flags().Uint64(stream.FlagStreamServerPingInterval, 60, "Amount of time in seconds after which the server will send a keepalive ping to the client on an idle connection")
 	cmd.Flags().Uint64(stream.FlagStreamServerPingResponseTimeout, 40, "Amount of time in seconds the server waits for the client to respond to a ping message before forcing a disconnection")
+
+	// add websocket server flag
+	cmd.Flags().String(injwebsocket.FlagWebsocketServer, "", "Configure websocket server listen addr")
 
 	// add store commit sync flag
 	cmd.Flags().Bool(FlagMultiStoreCommitSync, false, "Define if commit multistore should use sync mode (false|true)")
@@ -584,15 +588,36 @@ func startInProcess(svrCtx *server.Context, svrCfg serverconfig.Config, clientCt
 		if pubBuffCap == 0 {
 			return fmt.Errorf("invalid publisher buffer capacity %d. Please set a positive value greater than 0", pubBuffCap)
 		}
+
+		eventPublisherStarted := false
 		injApp.EventPublisher.WithBufferCapacity(pubBuffCap)
 		if chainStreamServeAddr != "" {
 			// events are forwarded to StreamEvents channel in cosmos-sdk
 			injApp.EnableStreamer = true
 			if err = injApp.EventPublisher.Run(context.Background()); err != nil {
 				svrCtx.Logger.Error("failed to start event publisher", "error", err)
+			} else {
+				eventPublisherStarted = true
 			}
 			if err = injApp.ChainStreamServer.Serve(chainStreamServeAddr); err != nil {
 				svrCtx.Logger.Error("failed to start chainstream server", "error", err)
+			}
+		}
+
+		websocketServerAddr := cast.ToString(svrCtx.Viper.Get(injwebsocket.FlagWebsocketServer))
+		if websocketServerAddr != "" {
+			// don't start streamer server but still need part of its implement for websocket streams
+			injApp.EnableStreamer = true
+			if !eventPublisherStarted {
+				if err = injApp.EventPublisher.Run(context.Background()); err != nil {
+					svrCtx.Logger.Error("failed to start event publisher", "error", err)
+				} else {
+					eventPublisherStarted = true
+				}
+			}
+
+			if err := injApp.WebsocketServer.Serve(websocketServerAddr); err != nil {
+				svrCtx.Logger.Error("failed to start websocket server", "error", err)
 			}
 		}
 	}
