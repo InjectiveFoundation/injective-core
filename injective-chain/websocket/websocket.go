@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"sync"
 
+	"cosmossdk.io/log"
+
 	"github.com/InjectiveLabs/injective-core/injective-chain/stream"
 	"github.com/InjectiveLabs/injective-core/injective-chain/stream/types"
 	rpcserver "github.com/cometbft/cometbft/rpc/jsonrpc/server"
@@ -26,6 +28,7 @@ type WebsocketServer struct {
 	manager       *rpcserver.WebsocketManager
 	subscriptions map[string]map[string]*WsStream
 	mux           *sync.RWMutex
+	logger        log.Logger
 }
 
 type WsStream struct {
@@ -36,11 +39,12 @@ type WsStream struct {
 	grpc.ServerStream
 }
 
-func NewWebsocketServer(streamSvr *stream.StreamServer) *WebsocketServer {
+func NewWebsocketServer(streamSvr *stream.StreamServer, logger log.Logger) *WebsocketServer {
 	s := &WebsocketServer{
 		streamSvr:     streamSvr,
 		subscriptions: map[string]map[string]*WsStream{},
 		mux:           new(sync.RWMutex),
+		logger:        logger,
 	}
 	fnMap := map[string]*rpcserver.RPCFunc{
 		"subscribe":   rpcserver.NewWSRPCFunc(s.subscribe, "q"),
@@ -188,6 +192,7 @@ func (s *WebsocketServer) onDisconnect(subscriber string) {
 func (s *WebsocketServer) Serve(addr string) error {
 	http.HandleFunc("/ws", s.manager.WebsocketHandler)
 	go func() {
+		s.logger.Info("Websocket server started at " + addr)
 		if err := http.ListenAndServe(addr, nil); err != nil {
 			panic(err)
 		}

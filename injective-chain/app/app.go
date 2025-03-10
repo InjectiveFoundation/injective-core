@@ -421,7 +421,7 @@ func NewInjectiveApp(
 	bus := pubsub.NewServer()
 	app.EventPublisher = stream.NewPublisher(app.StreamEvents, bus)
 	app.ChainStreamServer = stream.NewChainStreamServer(bus, appOpts)
-	app.WebsocketServer = injwebsocket.NewWebsocketServer(app.ChainStreamServer)
+	app.WebsocketServer = injwebsocket.NewWebsocketServer(app.ChainStreamServer, logger)
 
 	authzcdc.GlobalCdc = codec.NewProtoCodec(app.interfaceRegistry)
 	ante.GlobalCdc = codec.NewProtoCodec(app.interfaceRegistry)
