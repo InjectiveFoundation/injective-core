@@ -21,7 +21,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/client/cli"
-	exchangekeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/keeper"
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/keeper"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 
 	"github.com/InjectiveLabs/metrics"
@@ -93,7 +93,7 @@ type AppModule struct {
 	AppModuleBasic
 
 	svcTags        metrics.Tags
-	keeper         exchangekeeper.Keeper
+	keeper         *keeper.Keeper
 	accountKeeper  authkeeper.AccountKeeper
 	bankKeeper     bankkeeper.Keeper
 	blockHandler   *BlockHandler
@@ -110,17 +110,17 @@ func (am AppModule) ConsensusVersion() uint64 {
 
 // NewAppModule creates a new AppModule Object
 func NewAppModule(
-	keeper exchangekeeper.Keeper,
+	k *keeper.Keeper,
 	accountKeeper authkeeper.AccountKeeper,
 	bankKeeper bankkeeper.Keeper,
 	legacySubspace exported.Subspace,
 ) AppModule {
 	return AppModule{
 		AppModuleBasic: AppModuleBasic{},
-		keeper:         keeper,
+		keeper:         k,
 		accountKeeper:  accountKeeper,
 		bankKeeper:     bankKeeper,
-		blockHandler:   NewBlockHandler(keeper),
+		blockHandler:   NewBlockHandler(k),
 		legacySubspace: legacySubspace,
 		svcTags: metrics.Tags{
 			"svc": "exchange_m",
@@ -140,10 +140,10 @@ func (am AppModule) QuerierRoute() string {
 
 // RegisterServices registers module services.
 func (am AppModule) RegisterServices(cfg module.Configurator) {
-	types.RegisterMsgServer(cfg.MsgServer(), exchangekeeper.NewMsgServerImpl(am.keeper))
-	types.RegisterQueryServer(cfg.QueryServer(), &am.keeper)
+	types.RegisterMsgServer(cfg.MsgServer(), keeper.NewMsgServerImpl(am.keeper))
+	types.RegisterQueryServer(cfg.QueryServer(), am.keeper)
 
-	migrator := exchangekeeper.NewMigrator(am.keeper, am.legacySubspace)
+	migrator := keeper.NewMigrator(*am.keeper, am.legacySubspace)
 	if err := cfg.RegisterMigration(types.ModuleName, 1, migrator.Migrate1to2); err != nil {
 		panic(fmt.Sprintf("failed to migrate exchange from version 1 to 2: %v", err))
 	}

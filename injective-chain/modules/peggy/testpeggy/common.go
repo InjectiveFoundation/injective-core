@@ -564,7 +564,7 @@ func CreateTestEnv(t *testing.T) TestInput {
 		authority,
 	)
 
-	*exchangeKeeper = exchangekeeper.NewKeeper(
+	exchangeKeeper = exchangekeeper.NewKeeper(
 		marshaler,
 		keyExchange,
 		tkeyExchange,

@@ -4,28 +4,29 @@ import (
 	"context"
 
 	"cosmossdk.io/errors"
-	"github.com/InjectiveLabs/metrics"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	"github.com/InjectiveLabs/metrics"
 )
 
 var _ types.MsgServer = MsgServer{}
 
 type MsgServer struct {
+	*Keeper
+
 	SpotMsgServer
 	DerivativesMsgServer
 	BinaryOptionsMsgServer
 	AccountsMsgServer
 	WasmMsgServer
-	Keeper
 	svcTags metrics.Tags
 }
 
 // NewMsgServerImpl returns an implementation of the exchange MsgServer interface
 // for the provided Keeper.
-func NewMsgServerImpl(keeper Keeper) types.MsgServer {
+func NewMsgServerImpl(keeper *Keeper) types.MsgServer {
 	return &MsgServer{
 		SpotMsgServer:          NewSpotMsgServerImpl(keeper),
 		DerivativesMsgServer:   NewDerivativesMsgServerImpl(keeper),

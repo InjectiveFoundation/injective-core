@@ -12,14 +12,14 @@ import (
 // cometAttributeValue returns an event attribute value given the eventType and attribute key tuple.
 // In the event of duplicate types and keys, returns the first attribute value found.
 // If not found, returns empty string and false.
-func cometAttributeValue(events []abcitypes.Event, eventType, attrKey string) (string, bool) {
+func cometAttributeValue(events []abcitypes.Event, eventType, attrKey string) string {
 	for _, event := range events {
 		if event.Type != eventType {
 			continue
 		}
 		for _, attr := range event.Attributes {
 			if attr.Key == attrKey {
-				return attr.Value, true
+				return attr.Value
 			}
 
 			// tendermint < v0.37-alpha returns base64 encoded strings in events.
@@ -32,9 +32,9 @@ func cometAttributeValue(events []abcitypes.Event, eventType, attrKey string) (s
 				if err != nil {
 					continue
 				}
-				return string(value), true
+				return string(value)
 			}
 		}
 	}
-	return "", false
+	return ""
 }

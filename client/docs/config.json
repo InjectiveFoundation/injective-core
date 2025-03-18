@@ -71,6 +71,18 @@
       }
     },
     {
+      "url": "./tmp-swagger-gen/injective/txfees/v1beta1/query.swagger.json",
+      "operationIds": {
+        "rename": {
+          "Params": "TxfeesParams",
+          "GetEipBaseFee": "InjectiveGetEipBaseFee"
+        }
+      }
+    },
+    {
+      "url": "./tmp-swagger-gen/osmosis/txfees/v1beta1/query.swagger.json"
+    },
+    {
       "url": "./tmp-swagger-gen/cosmos/auth/v1beta1/query.swagger.json",
       "operationIds": {
         "rename": {

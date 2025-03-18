@@ -34,7 +34,7 @@ func InjectiveCryptoCodec() *codec.ProtoCodec {
 
 func NewPrivKeyFromMnemonic(mnemonic string) (ethPrivKey cryptotypes.PrivKey, err error) {
 	if !bip39.IsMnemonicValid(mnemonic) {
-		err := errors.New("provided memnemonic is not a valid BIP39 mnemonic")
+		err := errors.New("provided mnemonic is not a valid BIP39 mnemonic")
 		return nil, err
 	}
 

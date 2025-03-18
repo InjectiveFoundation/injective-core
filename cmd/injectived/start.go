@@ -86,6 +86,8 @@ const (
 	FlagMinRetainBlocks      = "min-retain-blocks"
 	FlagMultiStoreCommitSync = "multistore-commit-sync"
 	FlagIAVLCacheSize        = "iavl-cache-size"
+
+	FlagOptimisticExecutionEnabled = "optimistic-execution-enabled"
 )
 
 // GRPC-related flags.
@@ -272,6 +274,9 @@ func addStartNodeFlags(cmd *cobra.Command, opts server.StartCmdOptions) {
 
 	// add iavl flag
 	cmd.Flags().Int(FlagIAVLCacheSize, 500000, "Configure IAVL cache size for app")
+
+	// add optimistic execution flag
+	cmd.Flags().Bool(FlagOptimisticExecutionEnabled, false, "Enable optimistic execution")
 
 	// support old flags name for backwards compatibility
 	cmd.Flags().SetNormalizeFunc(func(f *pflag.FlagSet, name string) pflag.NormalizedName {

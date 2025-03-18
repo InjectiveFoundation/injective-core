@@ -5,20 +5,21 @@ import (
 
 	"cosmossdk.io/errors"
 	"cosmossdk.io/math"
-	"github.com/InjectiveLabs/metrics"
+	storetypes "cosmossdk.io/store/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	"github.com/InjectiveLabs/metrics"
 )
 
 type BinaryOptionsMsgServer struct {
-	Keeper
+	*Keeper
 	svcTags metrics.Tags
 }
 
 // NewBinaryOptionsMsgServerImpl returns an implementation of the exchange MsgServer interface for the provided Keeper for binary options market functions.
-func NewBinaryOptionsMsgServerImpl(keeper Keeper) BinaryOptionsMsgServer {
+func NewBinaryOptionsMsgServerImpl(keeper *Keeper) BinaryOptionsMsgServer {
 	return BinaryOptionsMsgServer{
 		Keeper: keeper,
 		svcTags: metrics.Tags{
@@ -85,6 +86,23 @@ func (k BinaryOptionsMsgServer) CreateBinaryOptionsLimitOrder(goCtx context.Cont
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
+	if k.IsFixedGasEnabled() {
+		gasConsumedBefore := ctx.GasMeter().GasConsumed()
+		ctx.GasMeter().ConsumeGas(DetermineGas(msg), "MsgCreateBinaryOptionsLimitOrder")
+		totalGas := ctx.GasMeter().GasConsumed()
+
+		// todo: remove after QA
+		defer func() {
+			k.Logger(ctx).Info("CreateBinaryOptionsLimitOrder",
+				"gas_ante", gasConsumedBefore,
+				"gas_msg", totalGas-gasConsumedBefore,
+				"gas_total", totalGas,
+				"sender", msg.Sender,
+			)
+		}()
+
+		ctx = ctx.WithGasMeter(storetypes.NewInfiniteGasMeter())
+	}
 
 	account, _ := sdk.AccAddressFromBech32(msg.Sender)
 
@@ -119,6 +137,23 @@ func (k BinaryOptionsMsgServer) CreateBinaryOptionsMarketOrder(goCtx context.Con
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
+	if k.IsFixedGasEnabled() {
+		gasConsumedBefore := ctx.GasMeter().GasConsumed()
+		ctx.GasMeter().ConsumeGas(DetermineGas(msg), "MsgCreateBinaryOptionsMarketOrder")
+		totalGas := ctx.GasMeter().GasConsumed()
+
+		// todo: remove after QA
+		defer func() {
+			k.Logger(ctx).Info("CreateBinaryOptionsMarketOrder",
+				"gas_ante", gasConsumedBefore,
+				"gas_msg", totalGas-gasConsumedBefore,
+				"gas_total", totalGas,
+				"sender", msg.Sender,
+			)
+		}()
+
+		ctx = ctx.WithGasMeter(storetypes.NewInfiniteGasMeter())
+	}
 
 	account, _ := sdk.AccAddressFromBech32(msg.Sender)
 
@@ -157,6 +192,23 @@ func (k BinaryOptionsMsgServer) CancelBinaryOptionsOrder(goCtx context.Context, 
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
+	if k.IsFixedGasEnabled() {
+		gasConsumedBefore := ctx.GasMeter().GasConsumed()
+		ctx.GasMeter().ConsumeGas(DetermineGas(msg), "MsgCancelBinaryOptionsOrder")
+		totalGas := ctx.GasMeter().GasConsumed()
+
+		// todo: remove after QA
+		defer func() {
+			k.Logger(ctx).Info("CancelBinaryOptionsOrder",
+				"gas_ante", gasConsumedBefore,
+				"gas_msg", totalGas-gasConsumedBefore,
+				"gas_total", totalGas,
+				"sender", msg.Sender,
+			)
+		}()
+
+		ctx = ctx.WithGasMeter(storetypes.NewInfiniteGasMeter())
+	}
 
 	var (
 		sender       = sdk.MustAccAddressFromBech32(msg.Sender)
@@ -252,6 +304,21 @@ func (k BinaryOptionsMsgServer) AdminUpdateBinaryOptionsMarket(goCtx context.Con
 func (k BinaryOptionsMsgServer) BatchCancelBinaryOptionsOrders(goCtx context.Context, msg *types.MsgBatchCancelBinaryOptionsOrders) (*types.MsgBatchCancelBinaryOptionsOrdersResponse, error) {
 	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
 	defer doneFn()
+
+	ctx := sdk.UnwrapSDKContext(goCtx)
+	gasConsumedBefore := ctx.GasMeter().GasConsumed()
+
+	// todo: remove after QA
+	defer func() {
+		// no need to do anything here with gas meter, since it's handled per CancelBinaryOptionsOrder call
+		totalGas := ctx.GasMeter().GasConsumed()
+		k.Logger(ctx).Info("BatchCancelBinaryOptionsOrders",
+			"gas_ante", gasConsumedBefore,
+			"gas_msg", totalGas-gasConsumedBefore,
+			"gas_total", totalGas,
+			"sender", msg.Sender,
+		)
+	}()
 
 	successes := make([]bool, len(msg.Data))
 	for idx := range msg.Data {

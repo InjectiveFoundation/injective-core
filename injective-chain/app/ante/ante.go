@@ -3,11 +3,11 @@ package ante
 import (
 	"fmt"
 
-	storetypes "cosmossdk.io/store/types"
-	ibckeeper "github.com/cosmos/ibc-go/v8/modules/core/keeper"
-
 	corestoretypes "cosmossdk.io/core/store"
 	"cosmossdk.io/errors"
+	storetypes "cosmossdk.io/store/types"
+	wasmkeeper "github.com/CosmWasm/wasmd/x/wasm/keeper"
+	wasmtypes "github.com/CosmWasm/wasmd/x/wasm/types"
 	"github.com/cosmos/cosmos-sdk/crypto/keys/ed25519"
 	"github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	"github.com/cosmos/cosmos-sdk/crypto/types/multisig"
@@ -17,11 +17,10 @@ import (
 	authante "github.com/cosmos/cosmos-sdk/x/auth/ante"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	ibcante "github.com/cosmos/ibc-go/v8/modules/core/ante"
-
-	wasmkeeper "github.com/CosmWasm/wasmd/x/wasm/keeper"
-	wasmTypes "github.com/CosmWasm/wasmd/x/wasm/types"
+	ibckeeper "github.com/cosmos/ibc-go/v8/modules/core/keeper"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/crypto/ethsecp256k1"
+	txfeeskeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/txfees/keeper"
 )
 
 const (
@@ -48,9 +47,10 @@ type HandlerOptions struct {
 	authante.HandlerOptions
 
 	IBCKeeper             *ibckeeper.Keeper
-	WasmConfig            *wasmTypes.WasmConfig
+	WasmConfig            *wasmtypes.WasmConfig
 	WasmKeeper            *wasmkeeper.Keeper
 	TXCounterStoreService corestoretypes.KVStoreService
+	TxFeesKeeper          *txfeeskeeper.Keeper
 }
 
 // NewAnteHandler returns an ante handler responsible for attempting to route an
@@ -64,7 +64,7 @@ func NewAnteHandler(
 	// feegrantKeeper FeegrantKeeper,
 	// signModeHandler authsigning.SignModeHandler,
 	// txCounterStoreKey storetypes.StoreKey,
-	// wasmConfig wasmTypes.WasmConfig,
+	// wasmConfig wasmtypes.WasmConfig,
 	// ibcKeeper *ibckeeper.Keeper,
 ) sdk.AnteHandler {
 	return func(
@@ -96,7 +96,8 @@ func NewAnteHandler(
 							authante.NewConsumeGasForTxSizeDecorator(ak),
 							authante.NewSetPubKeyDecorator(ak), // SetPubKeyDecorator must be called before all signature verification decorators
 							authante.NewValidateSigCountDecorator(ak),
-							NewDeductFeeDecorator(ak, options.BankKeeper), // overidden for fee delegation
+							txfeeskeeper.NewMempoolFeeDecorator(options.TxFeesKeeper),
+							NewDeductFeeDecorator(ak, options.BankKeeper, options.TxFeeChecker), // overidden for fee delegation
 							authante.NewSigGasConsumeDecorator(ak, DefaultSigVerificationGasConsumer),
 							NewEip712SigVerificationDecorator(ak),      // overidden for EIP712 Tx signatures
 							authante.NewIncrementSequenceDecorator(ak), // innermost AnteDecorator
@@ -126,8 +127,9 @@ func NewAnteHandler(
 				authante.NewValidateBasicDecorator(),
 				authante.NewTxTimeoutHeightDecorator(),
 				authante.NewValidateMemoDecorator(ak),
+				txfeeskeeper.NewMempoolFeeDecorator(options.TxFeesKeeper),
 				authante.NewConsumeGasForTxSizeDecorator(ak),
-				authante.NewDeductFeeDecorator(ak, options.BankKeeper, options.FeegrantKeeper, nil),
+				authante.NewDeductFeeDecorator(ak, options.BankKeeper, options.FeegrantKeeper, options.TxFeeChecker),
 				authante.NewSetPubKeyDecorator(ak), // SetPubKeyDecorator must be called before all signature verification decorators
 				authante.NewValidateSigCountDecorator(ak),
 				authante.NewSigGasConsumeDecorator(ak, DefaultSigVerificationGasConsumer),

@@ -33,7 +33,7 @@ func QueryProposalTally(t *testing.T, ctx context.Context, chainNode *cosmos.Cha
 	debugOutput(t, string(stdout))
 
 	var tally Tally
-	err = json.Unmarshal([]byte(stdout), &tally)
+	err = json.Unmarshal(stdout, &tally)
 	require.NoError(t, err)
 
 	return tally
@@ -47,6 +47,7 @@ func LegacyTextProposal(ctx context.Context, keyName string, chainNode *cosmos.C
 		"--title", prop.Title,
 		"--description", prop.Description,
 		"--deposit", prop.Deposit,
+		"--gas", "auto",
 	}
 	if prop.Expedited {
 		command = append(command, "--is-expedited=true")
@@ -72,11 +73,11 @@ func QueryProposalTx(ctx context.Context, chainNode *cosmos.ChainNode, txHash st
 	tx.GasSpent = txResp.GasWanted
 	events := txResp.Events
 
-	tx.DepositAmount, _ = cometAttributeValue(events, "proposal_deposit", "amount")
+	tx.DepositAmount = cometAttributeValue(events, "proposal_deposit", "amount")
 
 	evtSubmitProp := "submit_proposal"
-	tx.ProposalID, _ = cometAttributeValue(events, evtSubmitProp, "proposal_id")
-	tx.ProposalType, _ = cometAttributeValue(events, evtSubmitProp, "proposal_type")
+	tx.ProposalID = cometAttributeValue(events, evtSubmitProp, "proposal_id")
+	tx.ProposalType = cometAttributeValue(events, evtSubmitProp, "proposal_type")
 
 	return tx, nil
 }

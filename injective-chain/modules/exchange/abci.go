@@ -15,15 +15,14 @@ import (
 )
 
 type BlockHandler struct {
-	k keeper.Keeper
+	k *keeper.Keeper
 
 	svcTags metrics.Tags
 }
 
-func NewBlockHandler(k keeper.Keeper) *BlockHandler {
+func NewBlockHandler(k *keeper.Keeper) *BlockHandler {
 	return &BlockHandler{
 		k: k,
-
 		svcTags: metrics.Tags{
 			"svc": "exchange_b",
 		},
@@ -45,6 +44,12 @@ func (h *BlockHandler) BeginBlocker(ctx sdk.Context) {
 
 	if ctx.BlockHeight()%100000 == 0 {
 		h.k.CleanupHistoricalTradeRecords(ctx)
+	}
+
+	// update cached fixed_gas enabled flag based on params (gov proposal might have changed it)
+	params := h.k.GetParams(ctx)
+	if params.FixedGasEnabled != h.k.IsFixedGasEnabled() {
+		h.k.SetFixedGasEnabled(params.FixedGasEnabled)
 	}
 }
 
@@ -291,7 +296,13 @@ func (h *BlockHandler) handleTriggeringConditionalMarketOrders(ctx sdk.Context, 
 	}
 }
 
-func triggerMarketOrdersForMarket(ctx sdk.Context, k keeper.Keeper, triggeredMarket *types.TriggeredOrdersInMarket, useIndividualCacheCtx bool) {
+//nolint:revive // this is fine
+func triggerMarketOrdersForMarket(
+	ctx sdk.Context,
+	k *keeper.Keeper,
+	triggeredMarket *types.TriggeredOrdersInMarket,
+	useIndividualCacheCtx bool,
+) {
 	var unused bool
 
 	for _, marketOrder := range triggeredMarket.MarketOrders {
@@ -363,7 +374,13 @@ func (h *BlockHandler) handleTriggeringConditionalLimitOrders(ctx sdk.Context, t
 	}
 }
 
-func triggerLimitOrdersForMarket(ctx sdk.Context, k keeper.Keeper, triggeredMarket *types.TriggeredOrdersInMarket, useIndividualCacheCtx bool) {
+//nolint:revive // this is fine
+func triggerLimitOrdersForMarket(
+	ctx sdk.Context,
+	k *keeper.Keeper,
+	triggeredMarket *types.TriggeredOrdersInMarket,
+	useIndividualCacheCtx bool,
+) {
 	var unused bool
 
 	for _, limitOrder := range triggeredMarket.LimitOrders {

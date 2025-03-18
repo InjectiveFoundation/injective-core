@@ -65,7 +65,7 @@ func NewKeeper(
 	authority string,
 	accountKeeper keeper.AccountKeeper,
 ) Keeper {
-	exchangeMsgServer := exchangekeeper.NewMsgServerImpl(exchangeKeeper)
+	exchangeMsgServer := exchangekeeper.NewMsgServerImpl(&exchangeKeeper)
 
 	k := Keeper{
 		cdc:               cdc,

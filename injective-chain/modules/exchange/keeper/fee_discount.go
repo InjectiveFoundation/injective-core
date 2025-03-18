@@ -205,7 +205,7 @@ func (k *Keeper) GetAccountFeeDiscountRates(
 	effectiveStakedAmount := math.ZeroInt()
 
 	effectiveGrant = k.GetValidatedEffectiveGrant(ctx, account)
-	
+
 	// no need to calculate staked amount if volume is less than tier one volume
 	if !hasTierZeroTradingVolume {
 		personalStake := k.CalculateStakedAmountWithCache(ctx, account, config)

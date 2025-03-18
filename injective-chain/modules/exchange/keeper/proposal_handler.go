@@ -12,7 +12,7 @@ import (
 )
 
 // NewExchangeProposalHandler creates a governance handler to manage new exchange proposal types.
-func NewExchangeProposalHandler(k Keeper) v1beta1.Handler {
+func NewExchangeProposalHandler(k *Keeper) v1beta1.Handler { //nolint:revive // this is fine
 	return func(ctx sdk.Context, content v1beta1.Content) error {
 		switch c := content.(type) {
 		case *types.ExchangeEnableProposal:

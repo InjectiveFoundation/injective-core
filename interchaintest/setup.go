@@ -3,18 +3,30 @@ package interchaintest
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 
+	wasmtypes "github.com/CosmWasm/wasmd/x/wasm/types"
 	cosmtestutil "github.com/cosmos/cosmos-sdk/types/module/testutil"
+	authztypes "github.com/cosmos/cosmos-sdk/x/authz"
 	interchaintest "github.com/strangelove-ventures/interchaintest/v8"
 	"github.com/strangelove-ventures/interchaintest/v8/chain/cosmos"
 	"github.com/strangelove-ventures/interchaintest/v8/ibc"
 	"github.com/strangelove-ventures/interchaintest/v8/testreporter"
+	"github.com/strangelove-ventures/interchaintest/v8/testutil"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 
-	"github.com/InjectiveLabs/injective-core/interchaintest/helpers"
 	chaincodec "github.com/InjectiveLabs/sdk-go/chain/codec"
+	exchangetypes "github.com/InjectiveLabs/sdk-go/chain/exchange/types"
+	insurancetypes "github.com/InjectiveLabs/sdk-go/chain/insurance/types"
+	oracletypes "github.com/InjectiveLabs/sdk-go/chain/oracle/types"
+	peggytypes "github.com/InjectiveLabs/sdk-go/chain/peggy/types"
+	permissionstypes "github.com/InjectiveLabs/sdk-go/chain/permissions/types"
+	tokenfactorytypes "github.com/InjectiveLabs/sdk-go/chain/tokenfactory/types"
+	wasmxtypes "github.com/InjectiveLabs/sdk-go/chain/wasmx/types"
+
+	"github.com/InjectiveLabs/injective-core/interchaintest/helpers"
 )
 
 var (
@@ -53,17 +65,44 @@ func injectiveEncoding() *cosmtestutil.TestEncodingConfig {
 	cfg := cosmos.DefaultEncoding()
 
 	chaincodec.RegisterInterfaces(cfg.InterfaceRegistry)
+	exchangetypes.RegisterInterfaces(cfg.InterfaceRegistry)
+	permissionstypes.RegisterInterfaces(cfg.InterfaceRegistry)
+	wasmtypes.RegisterInterfaces(cfg.InterfaceRegistry)
+	insurancetypes.RegisterInterfaces(cfg.InterfaceRegistry)
+	oracletypes.RegisterInterfaces(cfg.InterfaceRegistry)
+	peggytypes.RegisterInterfaces(cfg.InterfaceRegistry)
+	tokenfactorytypes.RegisterInterfaces(cfg.InterfaceRegistry)
+	wasmxtypes.RegisterInterfaces(cfg.InterfaceRegistry)
+	authztypes.RegisterInterfaces(cfg.InterfaceRegistry)
 
 	return &cfg
 }
 
 // injectiveChainConfig returns dynamic config for injective chains, allowing to inject genesis overrides
-func injectiveChainConfig(
+func InjectiveChainConfig(
 	genesisOverrides ...cosmos.GenesisKV,
 ) ibc.ChainConfig {
 	if len(genesisOverrides) == 0 {
 		genesisOverrides = defaultGenesisOverridesKV
 	}
+
+	consensusOverrides := make(testutil.Toml)
+	consensusOverrides["timeout_propose"] = "1s"
+	consensusOverrides["timeout_propose_delta"] = "100ms"
+	consensusOverrides["timeout_prevote"] = "250ms"
+	consensusOverrides["timeout_prevote_delta"] = "100ms"
+	consensusOverrides["timeout_precommit"] = "250ms"
+	consensusOverrides["timeout_precommit_delta"] = "100ms"
+	consensusOverrides["timeout_commit"] = "500ms"
+	consensusOverrides["double_sign_check_height"] = 0
+	consensusOverrides["skip_timeout_commit"] = false
+	consensusOverrides["create_empty_blocks"] = true
+	consensusOverrides["create_empty_blocks_interval"] = "0s"
+	consensusOverrides["peer_gossip_sleep_duration"] = "10ms"
+	consensusOverrides["peer_query_maj23_sleep_duration"] = "2s"
+
+	cometbftTomlOverrides := make(testutil.Toml)
+	cometbftTomlOverrides["consensus"] = consensusOverrides
 
 	config := ibc.ChainConfig{
 		Type: "cosmos",
@@ -77,7 +116,7 @@ func injectiveChainConfig(
 		SigningAlgorithm:    helpers.InjectiveSigningAlgorithm,
 		CoinDecimals:        &helpers.InjectiveCoinDecimals,
 		CoinType:            fmt.Sprintf("%d", helpers.InjectiveCoinType),
-		GasPrices:           fmt.Sprintf("0%s", helpers.InjectiveBondDenom),
+		GasPrices:           fmt.Sprintf("1%s", helpers.InjectiveBondDenom),
 		GasAdjustment:       1.5,
 		TrustingPeriod:      "112h",
 		UsingChainIDFlagCLI: true,
@@ -85,8 +124,15 @@ func injectiveChainConfig(
 		CryptoCodec:         helpers.InjectiveCryptoCodec(),
 		KeyringOptions:      helpers.InjectiveKeyringOptions,
 		ModifyGenesis:       cosmos.ModifyGenesis(genesisOverrides),
-		Bin:                 "injectived",
-		NoHostMount:         false,
+		ConfigFileOverrides: map[string]any{
+			"config/config.toml": cometbftTomlOverrides,
+		},
+		Bin:         "injectived",
+		NoHostMount: false,
+	}
+
+	if os.Getenv("DO_COVERAGE") == "true" || os.Getenv("DO_COVERAGE") == "yes" {
+		config.Env = append(config.Env, "GOCOVERDIR=/apps/data/coverage")
 	}
 
 	return config
@@ -96,6 +142,7 @@ func CreateChain(
 	t *testing.T,
 	ctx context.Context,
 	numVals, numFull int,
+	chainPreStartNodes func(*cosmos.CosmosChain),
 	genesisOverrides ...cosmos.GenesisKV,
 ) (*interchaintest.Interchain, *cosmos.CosmosChain) {
 	falseBool := false
@@ -106,7 +153,7 @@ func CreateChain(
 				Name:          "injective",
 				ChainName:     "injective",
 				Version:       InjectiveCoreImage.Version,
-				ChainConfig:   injectiveChainConfig(genesisOverrides...),
+				ChainConfig:   InjectiveChainConfig(genesisOverrides...),
 				NumValidators: &numVals,
 				NumFullNodes:  &numFull,
 				NoHostMount:   &falseBool,
@@ -116,7 +163,12 @@ func CreateChain(
 	chains, err := cf.Chains(t.Name())
 	require.NoError(t, err)
 
-	ic := interchaintest.NewInterchain().AddChain(chains[0])
+	chain := chains[0].(*cosmos.CosmosChain)
+	if chainPreStartNodes != nil {
+		chain.WithPreStartNodes(chainPreStartNodes)
+	}
+
+	ic := interchaintest.NewInterchain().AddChain(chain)
 	client, network := interchaintest.DockerSetup(t)
 
 	err = ic.Build(
@@ -131,13 +183,5 @@ func CreateChain(
 	)
 	require.NoError(t, err)
 
-	return ic, chains[0].(*cosmos.CosmosChain)
-}
-
-func firstUserName(prefix string) string {
-	return prefix + "-user1"
-}
-
-func secondUserName(prefix string) string {
-	return prefix + "-user2"
+	return ic, chain
 }

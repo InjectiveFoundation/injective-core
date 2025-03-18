@@ -12,12 +12,12 @@ import (
 )
 
 type WasmMsgServer struct {
-	Keeper
+	*Keeper
 	svcTags metrics.Tags
 }
 
 // NewWasmMsgServerImpl returns an implementation of the exchange MsgServer interface for the provided Keeper for exchange wasm functions.
-func NewWasmMsgServerImpl(keeper Keeper) WasmMsgServer {
+func NewWasmMsgServerImpl(keeper *Keeper) WasmMsgServer {
 	return WasmMsgServer{
 		Keeper: keeper,
 		svcTags: metrics.Tags{

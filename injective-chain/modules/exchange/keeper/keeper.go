@@ -35,6 +35,9 @@ type Keeper struct {
 
 	svcTags   metrics.Tags
 	authority string
+
+	// cached value from params (false by default)
+	fixedGas bool
 }
 
 // NewKeeper creates new instances of the exchange Keeper
@@ -49,8 +52,8 @@ func NewKeeper(
 	dk distrkeeper.Keeper,
 	sk types.StakingKeeper,
 	authority string,
-) Keeper {
-	return Keeper{
+) *Keeper {
+	return &Keeper{
 		cdc:                cdc,
 		storeKey:           storeKey,
 		tStoreKey:          tstoreKey,
@@ -64,6 +67,7 @@ func NewKeeper(
 		svcTags: metrics.Tags{
 			"svc": "exchange_k",
 		},
+		fixedGas: false,
 	}
 }
 
@@ -91,7 +95,7 @@ func (k *Keeper) getTransientStore(ctx sdk.Context) storetypes.KVStore {
 	return ctx.TransientStore(k.tStoreKey)
 }
 
-func (k *Keeper) isAdmin(ctx sdk.Context, addr string) bool {
+func (k *Keeper) IsAdmin(ctx sdk.Context, addr string) bool {
 	for _, adminAddress := range k.GetParams(ctx).ExchangeAdmins {
 		if adminAddress == addr {
 			return true
@@ -122,4 +126,12 @@ func (k *Keeper) TokenDenomDecimals(ctx sdk.Context, tokenDenom string) (decimal
 	}
 
 	return tokenMetadata.Decimals, nil
+}
+
+func (k *Keeper) IsFixedGasEnabled() bool {
+	return k.fixedGas
+}
+
+func (k *Keeper) SetFixedGasEnabled(enabled bool) {
+	k.fixedGas = enabled
 }

@@ -2,6 +2,7 @@ package keeper
 
 import (
 	"context"
+	storetypes "cosmossdk.io/store/types"
 	"errors"
 	"fmt"
 
@@ -14,12 +15,12 @@ import (
 )
 
 type SpotMsgServer struct {
-	Keeper
+	*Keeper
 	svcTags metrics.Tags
 }
 
 // NewSpotMsgServerImpl returns an implementation of the bank MsgServer interface for the provided Keeper for spot market functions.
-func NewSpotMsgServerImpl(keeper Keeper) SpotMsgServer {
+func NewSpotMsgServerImpl(keeper *Keeper) SpotMsgServer {
 	return SpotMsgServer{
 		Keeper: keeper,
 		svcTags: metrics.Tags{
@@ -81,9 +82,26 @@ func (k SpotMsgServer) CreateSpotLimitOrder(goCtx context.Context, msg *types.Ms
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
+	if k.IsFixedGasEnabled() {
+		gasConsumedBefore := ctx.GasMeter().GasConsumed()
+		ctx.GasMeter().ConsumeGas(DetermineGas(msg), "MsgCreateSpotLimitOrder")
+		totalGas := ctx.GasMeter().GasConsumed()
+
+		// todo: remove after QA
+		defer func() {
+			k.Logger(ctx).Info("CreateSpotLimitOrder",
+				"gas_ante", gasConsumedBefore,
+				"gas_msg", totalGas-gasConsumedBefore,
+				"gas_total", totalGas,
+				"sender", msg.Sender,
+				"cid", msg.Order.Cid(),
+			)
+		}()
+
+		ctx = ctx.WithGasMeter(storetypes.NewInfiniteGasMeter())
+	}
 
 	account, _ := sdk.AccAddressFromBech32(msg.Sender)
-
 	orderHash, err := k.createSpotLimitOrder(ctx, account, &msg.Order, nil)
 	if err != nil {
 		return nil, err
@@ -209,6 +227,24 @@ func (k SpotMsgServer) CreateSpotMarketOrder(goCtx context.Context, msg *types.M
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
+	if k.IsFixedGasEnabled() {
+		gasConsumedBefore := ctx.GasMeter().GasConsumed()
+		ctx.GasMeter().ConsumeGas(DetermineGas(msg), "MsgCreateSpotMarketOrder")
+		totalGas := ctx.GasMeter().GasConsumed()
+
+		// todo: remove after QA
+		defer func() {
+			k.Logger(ctx).Info("CreateSpotMarketOrder",
+				"gas_ante", gasConsumedBefore,
+				"gas_msg", totalGas-gasConsumedBefore,
+				"gas_total", totalGas,
+				"sender", msg.Sender,
+				"cid", msg.Order.Cid(),
+			)
+		}()
+
+		ctx = ctx.WithGasMeter(storetypes.NewInfiniteGasMeter())
+	}
 
 	if k.IsPostOnlyMode(ctx) {
 		return nil, types.ErrPostOnlyMode.Wrapf("cannot create market orders in post only mode until height %d", k.GetParams(ctx).PostOnlyModeHeightThreshold)
@@ -315,6 +351,25 @@ func (k SpotMsgServer) BatchCreateSpotLimitOrders(goCtx context.Context, msg *ty
 	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
 	defer doneFn()
 
+	ctx := sdk.UnwrapSDKContext(goCtx)
+	if k.IsFixedGasEnabled() {
+		gasConsumedBefore := ctx.GasMeter().GasConsumed()
+		ctx.GasMeter().ConsumeGas(DetermineGas(msg), "MsgBatchCreateSpotLimitOrders")
+		totalGas := ctx.GasMeter().GasConsumed()
+
+		// todo: remove after QA
+		defer func() {
+			k.Logger(ctx).Info("BatchCreateSpotLimitOrders",
+				"gas_ante", gasConsumedBefore,
+				"gas_msg", totalGas-gasConsumedBefore,
+				"gas_total", totalGas,
+				"sender", msg.Sender,
+			)
+		}()
+
+		ctx = ctx.WithGasMeter(storetypes.NewInfiniteGasMeter())
+	}
+
 	// Naive, unoptimized implementation
 	orderHashes := make([]string, len(msg.Orders))
 	createdOrdersCids := make([]string, 0)
@@ -327,8 +382,6 @@ func (k SpotMsgServer) BatchCreateSpotLimitOrders(goCtx context.Context, msg *ty
 		Flags:   make([]uint32, 0),
 		Cids:    make([]string, 0),
 	}
-
-	ctx := sdk.UnwrapSDKContext(goCtx)
 
 	for idx := range msg.Orders {
 		order := msg.Orders[idx]
@@ -362,6 +415,24 @@ func (k SpotMsgServer) CancelSpotOrder(goCtx context.Context, msg *types.MsgCanc
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
+	if k.IsFixedGasEnabled() {
+		gasConsumedBefore := ctx.GasMeter().GasConsumed()
+		ctx.GasMeter().ConsumeGas(DetermineGas(msg), "MsgCancelSpotOrder")
+		totalGas := ctx.GasMeter().GasConsumed()
+
+		// todo: remove after QA
+		defer func() {
+			k.Logger(ctx).Info("CancelSpotOrder",
+				"gas_ante", gasConsumedBefore,
+				"gas_msg", totalGas-gasConsumedBefore,
+				"gas_total", totalGas,
+				"sender", msg.Sender,
+				"cid", msg.Cid,
+			)
+		}()
+
+		ctx = ctx.WithGasMeter(storetypes.NewInfiniteGasMeter())
+	}
 
 	var (
 		sender       = sdk.MustAccAddressFromBech32(msg.Sender)
@@ -438,6 +509,21 @@ func (k SpotMsgServer) BatchCancelSpotOrders(goCtx context.Context, msg *types.M
 	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
 	defer doneFn()
 
+	ctx := sdk.UnwrapSDKContext(goCtx)
+	gasConsumedBefore := ctx.GasMeter().GasConsumed()
+
+	// todo: remove after QA
+	defer func() {
+		// no need to do anything here with gas meter, since it's handled per MsgCancelSpotOrder call
+		totalGas := ctx.GasMeter().GasConsumed()
+		k.Logger(ctx).Info("MsgBatchCancelSpotOrders",
+			"gas_ante", gasConsumedBefore,
+			"gas_msg", totalGas-gasConsumedBefore,
+			"gas_total", totalGas,
+			"sender", msg.Sender,
+		)
+	}()
+
 	// Naive, unoptimized implementation
 	successes := make([]bool, len(msg.Data))
 	for idx := range msg.Data {
@@ -454,7 +540,5 @@ func (k SpotMsgServer) BatchCancelSpotOrders(goCtx context.Context, msg *types.M
 		}
 	}
 
-	return &types.MsgBatchCancelSpotOrdersResponse{
-		Success: successes,
-	}, nil
+	return &types.MsgBatchCancelSpotOrdersResponse{Success: successes}, nil
 }

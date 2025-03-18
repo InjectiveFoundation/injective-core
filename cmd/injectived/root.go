@@ -100,6 +100,7 @@ func NewRootCmd() *cobra.Command {
 		Use:           "injectived",
 		Short:         "Injective Daemon",
 		SilenceErrors: true,
+		SilenceUsage:  true,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 			// set the default command outputs
 			cmd.SetOut(cmd.OutOrStdout())
@@ -169,6 +170,7 @@ func Execute(rootCmd *cobra.Command) error {
 
 	rootCmd.PersistentFlags().String("log-level", zerolog.InfoLevel.String(), "The logging level (trace|debug|info|warn|error|fatal|panic)")
 	rootCmd.PersistentFlags().String("log-format", tmcfg.LogFormatPlain, "The logging format (json|plain)")
+	rootCmd.PersistentFlags().Bool("log-color", true, "Enable log output coloring")
 
 	executor := tmcli.PrepareBaseCmd(rootCmd, "", app.DefaultNodeHome)
 	return executor.ExecuteContext(ctx)
@@ -181,7 +183,7 @@ func initRootCmd(
 	ec injcodectypes.EncodingConfig,
 ) {
 	sdk.DefaultPowerReduction = math.NewIntFromBigInt(new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil))
-	
+
 	cfg := sdk.GetConfig()
 	cfg.Seal()
 
@@ -369,9 +371,7 @@ func newApp(logger log.Logger, db dbm.DB, traceStore io.Writer, appOpts serverty
 		chainID = appGenesis.ChainID
 	}
 
-	return app.NewInjectiveApp(
-		logger, db, traceStore, true,
-		appOpts,
+	baseAppOptions := []func(*baseapp.BaseApp){
 		baseapp.SetPruning(pruningOpts),
 		baseapp.SetMinGasPrices(cast.ToString(appOpts.Get(sdkserver.FlagMinGasPrices))),
 		baseapp.SetHaltHeight(cast.ToUint64(appOpts.Get(sdkserver.FlagHaltHeight))),
@@ -385,6 +385,21 @@ func newApp(logger log.Logger, db dbm.DB, traceStore io.Writer, appOpts serverty
 		baseapp.SetIAVLCacheSize(cast.ToInt(appOpts.Get(FlagIAVLCacheSize))),
 		baseapp.SetIAVLDisableFastNode(cast.ToBool(appOpts.Get(sdkserver.FlagDisableIAVLFastNode))),
 		baseapp.SetChainID(chainID),
+	}
+
+	if option := appOpts.Get(FlagOptimisticExecutionEnabled); option != nil {
+		if isEnabled, err := cast.ToBoolE(option); err == nil && isEnabled {
+			logger.Info("Optimistic execution enabled", isEnabled)
+			baseAppOptions = append(baseAppOptions, baseapp.SetOptimisticExecution())
+		} else {
+			logger.Info("Optimistic execution disabled")
+		}
+	}
+
+	return app.NewInjectiveApp(
+		logger, db, traceStore, true,
+		appOpts,
+		baseAppOptions...,
 	)
 }
 

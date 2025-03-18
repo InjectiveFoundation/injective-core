@@ -14,7 +14,7 @@ func (k *Keeper) checkDenomMinNotional(ctx sdk.Context, sender sdk.AccAddress, d
 		return nil
 	}
 
-	if k.isAdmin(ctx, sender.String()) {
+	if k.IsAdmin(ctx, sender.String()) {
 		return nil
 	}
 

@@ -2550,6 +2550,13 @@ paths:
                     title: >-
                       inj_auction_max_cap defines the maximum cap for INJ sent
                       to auction
+                  fixed_gas_enabled:
+                    type: boolean
+                    title: >-
+                      fixed_gas_enabled indicates if msg server will consume
+                      fixed gas amount for
+
+                      certain msg types
             description: >-
               QueryExchangeParamsRequest is the response type for the
               Query/ExchangeParams
@@ -3091,6 +3098,49 @@ paths:
           type: string
       tags:
         - Query
+  /injective/exchange/v1beta1/market_balances:
+    get:
+      summary: Retrieves all derivative or binary options market balances
+      operationId: MarketBalances
+      responses:
+        '200':
+          description: A successful response.
+          schema:
+            type: object
+            properties:
+              balances:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    market_id:
+                      type: string
+                    balance:
+                      type: string
+        default:
+          description: An unexpected error response.
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              code:
+                type: integer
+                format: int32
+              message:
+                type: string
+              details:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    type_url:
+                      type: string
+                    value:
+                      type: string
+                      format: byte
+      tags:
+        - Query
   /injective/exchange/v1beta1/market_volatility/{market_id}:
     get:
       summary: |-
@@ -3566,6 +3616,13 @@ paths:
                         title: >-
                           inj_auction_max_cap defines the maximum cap for INJ
                           sent to auction
+                      fixed_gas_enabled:
+                        type: boolean
+                        title: >-
+                          fixed_gas_enabled indicates if msg server will consume
+                          fixed gas amount for
+
+                          certain msg types
                     description: params defines all the parameters of related to exchange.
                   spot_markets:
                     type: array
@@ -17037,6 +17094,152 @@ paths:
             description: >-
               QueryParamsResponse is the response type for the Query/Params RPC
               method.
+        default:
+          description: An unexpected error response.
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              code:
+                type: integer
+                format: int32
+              message:
+                type: string
+              details:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    type_url:
+                      type: string
+                    value:
+                      type: string
+                      format: byte
+      tags:
+        - Query
+  /injective/txfees/v1beta1/cur_eip_base_fee:
+    get:
+      summary: Returns the current fee market EIP fee.
+      operationId: InjectiveGetEipBaseFee
+      responses:
+        '200':
+          description: A successful response.
+          schema:
+            type: object
+            properties:
+              base_fee:
+                type: string
+        default:
+          description: An unexpected error response.
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              code:
+                type: integer
+                format: int32
+              message:
+                type: string
+              details:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    type_url:
+                      type: string
+                    value:
+                      type: string
+                      format: byte
+      tags:
+        - Query
+  /injective/txfees/v1beta1/params:
+    get:
+      summary: >-
+        Params defines a gRPC query method that returns the tokenfactory
+        module's
+
+        parameters.
+      operationId: TxfeesParams
+      responses:
+        '200':
+          description: A successful response.
+          schema:
+            type: object
+            properties:
+              params:
+                description: params defines the parameters of the module.
+                type: object
+                properties:
+                  max_gas_wanted_per_tx:
+                    type: string
+                    format: uint64
+                  high_gas_tx_threshold:
+                    type: string
+                    format: uint64
+                  min_gas_price_for_high_gas_tx:
+                    type: string
+                  mempool1559_enabled:
+                    type: boolean
+                  min_gas_price:
+                    type: string
+                  default_base_fee_multiplier:
+                    type: string
+                  max_base_fee_multiplier:
+                    type: string
+                  reset_interval:
+                    type: string
+                    format: int64
+                  max_block_change_rate:
+                    type: string
+                  target_block_space_percent_rate:
+                    type: string
+                  recheck_fee_low_base_fee:
+                    type: string
+                  recheck_fee_high_base_fee:
+                    type: string
+                  recheck_fee_base_fee_threshold_multiplier:
+                    type: string
+            description: >-
+              QueryParamsResponse is the response type for the Query/Params RPC
+              method.
+        default:
+          description: An unexpected error response.
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              code:
+                type: integer
+                format: int32
+              message:
+                type: string
+              details:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    type_url:
+                      type: string
+                    value:
+                      type: string
+                      format: byte
+      tags:
+        - Query
+  /osmosis/txfees/v1beta1/cur_eip_base_fee:
+    get:
+      summary: Returns the current fee market EIP fee.
+      operationId: GetEipBaseFee
+      responses:
+        '200':
+          description: A successful response.
+          schema:
+            type: object
+            properties:
+              base_fee:
+                type: string
         default:
           description: An unexpected error response.
           schema:
@@ -59133,6 +59336,13 @@ definitions:
             title: >-
               inj_auction_max_cap defines the maximum cap for INJ sent to
               auction
+          fixed_gas_enabled:
+            type: boolean
+            title: >-
+              fixed_gas_enabled indicates if msg server will consume fixed gas
+              amount for
+
+              certain msg types
         description: params defines all the parameters of related to exchange.
       spot_markets:
         type: array
@@ -60418,6 +60628,13 @@ definitions:
       q:
         type: string
         title: quantity
+  injective.exchange.v1beta1.MarketBalance:
+    type: object
+    properties:
+      market_id:
+        type: string
+      balance:
+        type: string
   injective.exchange.v1beta1.MarketFeeMultiplier:
     type: object
     properties:
@@ -60740,6 +60957,13 @@ definitions:
       inj_auction_max_cap:
         type: string
         title: inj_auction_max_cap defines the maximum cap for INJ sent to auction
+      fixed_gas_enabled:
+        type: boolean
+        title: >-
+          fixed_gas_enabled indicates if msg server will consume fixed gas
+          amount for
+
+          certain msg types
   injective.exchange.v1beta1.PerpetualMarketFunding:
     type: object
     properties:
@@ -62100,6 +62324,13 @@ definitions:
             title: >-
               inj_auction_max_cap defines the maximum cap for INJ sent to
               auction
+          fixed_gas_enabled:
+            type: boolean
+            title: >-
+              fixed_gas_enabled indicates if msg server will consume fixed gas
+              amount for
+
+              certain msg types
     description: >-
       QueryExchangeParamsRequest is the response type for the
       Query/ExchangeParams
@@ -62579,6 +62810,18 @@ definitions:
     properties:
       balance:
         type: string
+  injective.exchange.v1beta1.QueryMarketBalancesResponse:
+    type: object
+    properties:
+      balances:
+        type: array
+        items:
+          type: object
+          properties:
+            market_id:
+              type: string
+            balance:
+              type: string
   injective.exchange.v1beta1.QueryMarketIDFromVaultResponse:
     type: object
     properties:
@@ -62906,6 +63149,13 @@ definitions:
                 title: >-
                   inj_auction_max_cap defines the maximum cap for INJ sent to
                   auction
+              fixed_gas_enabled:
+                type: boolean
+                title: >-
+                  fixed_gas_enabled indicates if msg server will consume fixed
+                  gas amount for
+
+                  certain msg types
             description: params defines all the parameters of related to exchange.
           spot_markets:
             type: array
@@ -72708,6 +72958,85 @@ definitions:
 
                 signatures required by gogoproto.
     description: QueryParamsResponse is the response type for the Query/Params RPC method.
+  injective.txfees.v1beta1.Params:
+    type: object
+    properties:
+      max_gas_wanted_per_tx:
+        type: string
+        format: uint64
+      high_gas_tx_threshold:
+        type: string
+        format: uint64
+      min_gas_price_for_high_gas_tx:
+        type: string
+      mempool1559_enabled:
+        type: boolean
+      min_gas_price:
+        type: string
+      default_base_fee_multiplier:
+        type: string
+      max_base_fee_multiplier:
+        type: string
+      reset_interval:
+        type: string
+        format: int64
+      max_block_change_rate:
+        type: string
+      target_block_space_percent_rate:
+        type: string
+      recheck_fee_low_base_fee:
+        type: string
+      recheck_fee_high_base_fee:
+        type: string
+      recheck_fee_base_fee_threshold_multiplier:
+        type: string
+  injective.txfees.v1beta1.QueryEipBaseFeeResponse:
+    type: object
+    properties:
+      base_fee:
+        type: string
+  injective.txfees.v1beta1.QueryParamsResponse:
+    type: object
+    properties:
+      params:
+        description: params defines the parameters of the module.
+        type: object
+        properties:
+          max_gas_wanted_per_tx:
+            type: string
+            format: uint64
+          high_gas_tx_threshold:
+            type: string
+            format: uint64
+          min_gas_price_for_high_gas_tx:
+            type: string
+          mempool1559_enabled:
+            type: boolean
+          min_gas_price:
+            type: string
+          default_base_fee_multiplier:
+            type: string
+          max_base_fee_multiplier:
+            type: string
+          reset_interval:
+            type: string
+            format: int64
+          max_block_change_rate:
+            type: string
+          target_block_space_percent_rate:
+            type: string
+          recheck_fee_low_base_fee:
+            type: string
+          recheck_fee_high_base_fee:
+            type: string
+          recheck_fee_base_fee_threshold_multiplier:
+            type: string
+    description: QueryParamsResponse is the response type for the Query/Params RPC method.
+  osmosis.txfees.v1beta1.QueryEipBaseFeeResponse:
+    type: object
+    properties:
+      base_fee:
+        type: string
   cosmos.auth.v1beta1.AddressBytesToStringResponse:
     type: object
     properties:

@@ -46,7 +46,7 @@ func SetAccountPrefixes(accountAddressPrefix string) {
 }
 
 func debugOutput(t *testing.T, stdout string) {
-	if len(stdout) == 0 {
+	if stdout == "" {
 		return
 	}
 

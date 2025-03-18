@@ -4,9 +4,16 @@ BUILD_DATE = $(shell date -u "+%Y%m%d-%H%M")
 COSMOS_VERSION_PKG = github.com/cosmos/cosmos-sdk/version
 COSMOS_VERSION_NAME = injective
 VERSION_PKG = github.com/InjectiveLabs/injective-core/version
-PACKAGES=$(shell go list ./... | grep -Ev 'vendor|importer|gen|api/design|rpc/tester')
 IMAGE_NAME := injectivelabs/injective-core
 LEDGER_ENABLED ?= true
+
+ifeq ($(DO_COVERAGE),true)
+coverage_flags = -coverpkg=`cat pkgs.txt`
+else ifeq ($(DO_COVERAGE),yes)
+coverage_flags = -coverpkg=`cat pkgs.txt`
+else
+coverage_flags =
+endif
 
 # process build tags
 build_tags = netgo
@@ -45,8 +52,11 @@ build_tags_comma_sep := $(subst $(empty),$(comma),$(build_tags))
 
 all:
 
+init:
+	@git config core.hooksPath .github/hooks
+
 image:
-	docker build --build-arg GIT_COMMIT=$(GIT_COMMIT) -t $(IMAGE_NAME):local -f Dockerfile .
+	docker build --build-arg DO_COVERAGE=$(DO_COVERAGE) --build-arg GIT_COMMIT=$(GIT_COMMIT) -t $(IMAGE_NAME):local -f Dockerfile .
 	docker tag $(IMAGE_NAME):local $(IMAGE_NAME):$(GIT_COMMIT)
 	docker tag $(IMAGE_NAME):local $(IMAGE_NAME):latest
 
@@ -54,17 +64,27 @@ push:
 	docker push $(IMAGE_NAME):$(GIT_COMMIT)
 	docker push $(IMAGE_NAME):latest
 
+pkgs.txt:
+	go list \
+		-f '{{if not .Standard}}{{.ImportPath}}{{end}}' \
+		-deps ./cmd/... | \
+	grep -E '^(cosmossdk\.io/|github\.com/bandprotocol/|github\.com/cometbft/|github\.com/cosmos/|github\.com/CosmWasm/|github\.com/ethereum/|github\.com/InjectiveLabs/)' | \
+	paste -d "," -s - > pkgs.txt
+
+install: init
 install: export GOPROXY=direct
 install: export VERSION_FLAGS="-X $(VERSION_PKG).AppVersion=$(APP_VERSION) -X $(VERSION_PKG).GitCommit=$(GIT_COMMIT)  -X $(VERSION_PKG).BuildDate=$(BUILD_DATE) -X $(COSMOS_VERSION_PKG).Version=$(APP_VERSION) -X $(COSMOS_VERSION_PKG).Name=$(COSMOS_VERSION_NAME) -X $(COSMOS_VERSION_PKG).AppName=injectived -X $(COSMOS_VERSION_PKG).Commit=$(GIT_COMMIT)"
 install:
-	cd cmd/injectived/ && go install -tags $(build_tags_comma_sep) $(BUILD_FLAGS) -ldflags $(VERSION_FLAGS)
+	go install -tags $(build_tags_comma_sep) $(BUILD_FLAGS) -ldflags $(VERSION_FLAGS) ./cmd/...
 
-install-ci: export GOPROXY=https://goproxy.injective.dev,direct
+install-ci: pkgs.txt
+install-ci: export GOPROXY=https://goproxy.injective.dev,direct 
 install-ci: export VERSION_FLAGS="-X $(VERSION_PKG).AppVersion=$(APP_VERSION) -X $(VERSION_PKG).GitCommit=$(GIT_COMMIT)  -X $(VERSION_PKG).BuildDate=$(BUILD_DATE) -X $(COSMOS_VERSION_PKG).Version=$(APP_VERSION) -X $(COSMOS_VERSION_PKG).Name=$(COSMOS_VERSION_NAME) -X $(COSMOS_VERSION_PKG).AppName=injectived -X $(COSMOS_VERSION_PKG).Commit=$(GIT_COMMIT)"
 install-ci:
-	cd cmd/injectived/ && go install -tags $(build_tags_comma_sep) $(BUILD_FLAGS) -ldflags $(VERSION_FLAGS)
+	go install -tags $(build_tags_comma_sep) $(BUILD_FLAGS) -ldflags $(VERSION_FLAGS) $(coverage_flags) ./cmd/...
+	rm pkgs.txt
 
-.PHONY: install image push gen lint test mock cover
+.PHONY: init install image push gen lint lint-last-commit test mock cover
 
 mock: export GOPROXY=direct
 mock: tests/mocks.go
@@ -112,30 +132,70 @@ cover:
 rm-testcache:
 	go clean -testcache
 
-ictest-all: export CONTAINER_LOG_TAIL=1000
-ictest-all: export SHOW_CONTAINER_LOGS=always
-ictest-all: rm-testcache
+rm-ic-coverage:
+	rm -rf interchaintest/coverage
+
+ictest-all: rm-testcache rm-ic-coverage
 	cd interchaintest && go test -v -run ./...
 
-# Executes basic chain test via interchaintest
 ictest-basic: rm-testcache
+	rm -rf interchaintest/coverage/TestBasicInjectiveStart
 	cd interchaintest && go test -race -v -run TestBasicInjectiveStart .
+	./scripts/coverage-html.sh interchaintest/coverage/TestBasicInjectiveStart
 
-ictest-upgrade: export CONTAINER_LOG_TAIL=1000
-ictest-upgrade: export SHOW_CONTAINER_LOGS=always
 ictest-upgrade: rm-testcache
+	rm -rf interchaintest/coverage/TestInjectiveUpgradeHandler
 	cd interchaintest && go test -race -v -run TestInjectiveUpgradeHandler .
+	./scripts/coverage-html.sh interchaintest/coverage/TestInjectiveUpgradeHandler
+
+ictest-dynamic-fee: rm-testcache
+	rm -rf interchaintest/coverage/TestDynamicFee
+	cd interchaintest && go test -race -v -run Test_DynamicFee_FeeIncreases .
+	./scripts/coverage-html.sh interchaintest/coverage/TestDynamicFee
+
+ictest-ibchooks: rm-testcache
+	rm -rf interchaintest/coverage/TestInjectiveIBCHooks
+	cd interchaintest && go test -race -v -run TestInjectiveIBCHooks .
+	./scripts/coverage-html.sh interchaintest/coverage/TestInjectiveIBCHooks
+
+ictest-permissions-wasm-hook: rm-testcache
+	rm -rf interchaintest/coverage/TestPermissionedDenomWasmHookCall
+	cd interchaintest && go test -race -v -run TestPermissionedDenomWasmHookCall .
+	./scripts/coverage-html.sh interchaintest/coverage/TestPermissionedDenomWasmHookCall
 
 ictest-pfm: rm-testcache
+	rm -rf interchaintest/coverage/TestPacketForwardMiddleware
 	cd interchaintest && go test -race -v -run TestPacketForwardMiddleware .
+	./scripts/coverage-html.sh interchaintest/coverage/TestPacketForwardMiddleware
 
-.PHONY: rm-testcache ictest-all ictest-basic ictest-upgrade ictest-pfm
+ictest-lanes: rm-testcache
+	rm -rf interchaintest/coverage/TestLanes
+	cd interchaintest && go test -race -v -run MempoolLanes .
+	./scripts/coverage-html.sh interchaintest/coverage/TestLanes
+
+ictest-fixed-gas: rm-testcache
+	rm -rf interchaintest/coverage/Test_FixedGas_HappyPath
+	cd interchaintest && go test -race -v -run Test_FixedGas_HappyPath .
+	./scripts/coverage-html.sh interchaintest/coverage/Test_FixedGas_HappyPath
+
+ictest-fixed-gas-regression: rm-testcache
+	rm -rf interchaintest/coverage/Test_FixedGas_Regression
+	cd interchaintest && go test -race -v -run Test_FixedGas_Regression .
+	./scripts/coverage-html.sh interchaintest/coverage/Test_FixedGas_Regression
+
+.PHONY: rm-testcache rm-ic-coverage
+.PHONY: ictest-all ictest-basic ictest-upgrade ictest-ibchooks ictest-permissions-wasm-hook ictest-pfm ictest-lanes
+.PHONY: ictest-fixed-gas ictest-fixed-gas-regression
 
 ###############################################################################
 
 lint: export GOPROXY=direct
 lint:
-	golangci-lint run
+	golangci-lint run --timeout=15m -v --new-from-rev=master
+
+lint-last-commit: export GOPROXY=direct
+lint-last-commit:
+	golangci-lint run --timeout=15m -v --new-from-rev=HEAD~
 
 build-release-%: export TARGET=$*
 build-release-%: export DOCKER_BUILDKIT=1

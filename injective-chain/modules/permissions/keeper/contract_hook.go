@@ -88,7 +88,9 @@ func (k Keeper) executeWasmHook(sdkCtx sdk.Context, namespace *types.Namespace, 
 		if errors.IsOf(err, wasmtypes.ErrQueryFailed) { // if query returns error -> means permissions check failed
 			return errors.Wrap(types.ErrRestrictedAction, err.Error())
 		}
-		return errors.Wrap(types.ErrWasmHookError, err.Error())
+		// in any other case (query technical error like out-of-gas, stack-too-deep) we pretend that the wasm hook is
+		// invalid and treat it like it doesn't exist at all
+		return nil
 	}
 
 	return nil

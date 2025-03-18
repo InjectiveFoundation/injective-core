@@ -42,8 +42,11 @@ tests-solidity/**/cache
 /injective-chain/modules/old_exchange/
 **/ginkgo.report
 injective-chain/modules/exchange/testexchange/test.properties
+interchaintest/coverage/
+interchaintest/security/coverage
 
 # Go
 *.coverprofile
 
 vendor/
+pkgs.txt

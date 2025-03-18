@@ -16,6 +16,7 @@ printf "version: v1\ndirectories:\n  - proto\n  - third_party" > buf.work.yaml
 printf "version: v1\nname: buf.build/InjectiveLabs/injective-core\n" > proto/buf.yaml
 cp ../proto/buf.gen.swagger.yaml proto/buf.gen.swagger.yaml
 cp -r ../proto/injective proto/
+cp -r ../proto/osmosis proto/
 
 # download third_party API definitions
 git clone https://github.com/InjectiveLabs/cosmos-sdk.git -b $COSMOS_SDK_VERSION_TAG --depth 1 --single-branch

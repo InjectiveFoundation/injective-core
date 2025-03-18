@@ -5,67 +5,6 @@ title: Governance Proposals
 
 # Governance Proposals
 
-## GrantProviderPrivilegeProposal
-
-Oracle provider privileges can be granted to your account through a `GrantBandOraclePrivilegeProposal`. After the governance proposal is passed, you will be able to relay price feeds using your provider.
-
-
-```protobuf
-// Grant Privileges
-message GrantProviderPrivilegeProposal {
-  option (amino.name) = "oracle/GrantProviderPrivilegeProposal";
-  option (gogoproto.equal) = false;
-  option (gogoproto.goproto_getters) = false;
-
-  option (cosmos_proto.implements_interface) = "cosmos.gov.v1beta1.Content";
-
-  string title = 1;
-  string description = 2;
-  string provider = 3;
-  repeated string relayers = 4;
-}
-```
-
-You can submit your proposal according to the example: 
-
-```bash
-injectived tx oracle grant-provider-privilege-proposal YOUR_PROVIDER \
-  YOUR_ADDRESS_HERE \
-  --title="TITLE OF THE PROPOSAL" \
-  --description="Registering PROVIDER as an oracle provider" \
-  --chain-id=injective-888 \
-  --from=local_key \
-  --node=https://testnet.sentry.tm.injective.network:443 \
-  --gas-prices=160000000inj \
-  --gas=20000000 \
-  --deposit="40000000000000000000inj"
-```
-
-
-To successfully pass the proposal for **testnet**, `YOUR_DEPOSIT` should be slightly less than `min_deposit` 
-value (for example, `40000000000000000000inj`). After that you should contact the Injective dev team. Dev team will 
-top up your deposit to `min_deposit` and vote for your proposal.
-
-## RevokeProviderPrivilegeProposal
-
-Oracle provider privileges can be revoked from your account through a `RevokeProviderPrivilegeProposal`. 
-
-```protobuf
-// Revoke Privileges
-message RevokeProviderPrivilegeProposal {
-  option (amino.name) = "oracle/RevokeProviderPrivilegeProposal";
-  option (gogoproto.equal) = false;
-  option (gogoproto.goproto_getters) = false;
-
-  option (cosmos_proto.implements_interface) = "cosmos.gov.v1beta1.Content";
-
-  string title = 1;
-  string description = 2;
-  string provider = 3;
-  repeated string relayers = 5;
-}
-```
-
 ## GrantBandOraclePrivilegeProposal
 
 Band Oracle privileges can be granted to Relayer accounts of Band provider through a `GrantBandOraclePrivilegeProposal`.

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"cosmossdk.io/errors"
+	"github.com/cosmos/cosmos-sdk/baseapp"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/permissions/types"
@@ -21,12 +22,24 @@ import (
 func (k Keeper) SendRestrictionFn(ctx context.Context, fromAddr, toAddr sdk.AccAddress, amount sdk.Coin) (newToAddr sdk.AccAddress, err error) {
 	sdkCtx := sdk.UnwrapSDKContext(ctx)
 
-	// this is a hot-patch to not break contracts defined in exchange and insurance / etc modules that do not expect bank transfer to fail
-	// only reroute in case of restricted error or wasm query error (should also be the case only for permissions check failure)
+	// this is a hot-patch to not break contracts defined in exchange and insurance / distribution / etc modules that
+	// do not expect bank transfer to fail. Only reroute in case of restricted error or wasm query error (should also
+	// be the case only for permissions check failure)
 	defer func() {
-		if errors.IsOf(err, types.ErrRestrictedAction) {
-			newToAddr, err = k.rerouteToVoucherOnFail(ctx, newToAddr, amount, err) // should replace address with permissions module address and error with nil
+		switch {
+		case errors.IsOf(err, types.ErrRestrictedAction):
+			// should replace address with permissions module address and error with nil
+			newToAddr, err = k.rerouteToVoucherOnFail(ctx, newToAddr, amount, err)
+
+		// defensive programming: this should not be possible since we never return such error from executeWasmHook,
+		// wasm hook misbehaving (out-of-gas, max-query-stack-depth, etc.)
+		case errors.IsOf(err, types.ErrWasmHookError):
+			// if we can't fail, just proceed with the send as if it was successful
+			if doNotFailFast := ctx.Value(baseapp.DoNotFailFastSendContextKey); doNotFailFast != nil {
+				newToAddr, err = toAddr, nil
+			}
 		}
+
 	}()
 
 	// module to module sends should not be restricted

@@ -59,7 +59,7 @@ func InterceptConfigsPreRunHandler(cmd *cobra.Command) error {
 	if err != nil {
 		return err
 	}
-	
+
 	// return value is a tendermint configuration object
 	serverCtx.Config = interceptedConfig
 	bindFlags(basename, cmd, serverCtx.Viper)
@@ -80,7 +80,11 @@ func InterceptConfigsPreRunHandler(cmd *cobra.Command) error {
 	if useJSON {
 		logOpts = append(logOpts, log.OutputJSONOption())
 	}
-	logOpts = append(logOpts, log.TraceOption(serverCtx.Viper.GetBool(server.FlagTrace)))
+
+	logOpts = append(logOpts,
+		log.TraceOption(serverCtx.Viper.GetBool(server.FlagTrace)),
+		log.ColorOption(serverCtx.Viper.GetBool("log-color")),
+	)
 
 	logger := log.NewLogger(os.Stderr, logOpts...)
 

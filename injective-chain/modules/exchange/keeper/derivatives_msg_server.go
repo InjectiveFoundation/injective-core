@@ -5,20 +5,20 @@ import (
 	"errors"
 	"fmt"
 
-	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
-
 	cosmoserrors "cosmossdk.io/errors"
 	"cosmossdk.io/math"
-	"github.com/InjectiveLabs/metrics"
+	storetypes "cosmossdk.io/store/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 	oracletypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/types"
+	"github.com/InjectiveLabs/metrics"
 )
 
 type DerivativesMsgServer struct {
-	Keeper
+	*Keeper
 	svcTags metrics.Tags
 }
 
@@ -36,7 +36,7 @@ var enabledOracleTypes = map[oracletypes.OracleType]struct{}{
 }
 
 // NewDerivativesMsgServerImpl returns an implementation of the exchange MsgServer interface for the provided Keeper for derivatives market functions.
-func NewDerivativesMsgServerImpl(keeper Keeper) DerivativesMsgServer {
+func NewDerivativesMsgServerImpl(keeper *Keeper) DerivativesMsgServer {
 	return DerivativesMsgServer{
 		Keeper: keeper,
 		svcTags: metrics.Tags{
@@ -51,7 +51,7 @@ func (k DerivativesMsgServer) InstantPerpetualMarketLaunch(goCtx context.Context
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
-	isRegistrationAllowed := k.isAdmin(ctx, msg.Sender)
+	isRegistrationAllowed := k.IsAdmin(ctx, msg.Sender)
 
 	if !k.GetIsInstantDerivativeMarketLaunchEnabled(ctx) {
 		return nil, types.ErrFeatureDisabled
@@ -103,7 +103,7 @@ func (k DerivativesMsgServer) InstantExpiryFuturesMarketLaunch(goCtx context.Con
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
-	isRegistrationAllowed := k.isAdmin(ctx, msg.Sender)
+	isRegistrationAllowed := k.IsAdmin(ctx, msg.Sender)
 
 	if !k.GetIsInstantDerivativeMarketLaunchEnabled(ctx) {
 		return nil, types.ErrFeatureDisabled
@@ -154,6 +154,24 @@ func (k DerivativesMsgServer) CreateDerivativeLimitOrder(goCtx context.Context, 
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
+	if k.IsFixedGasEnabled() {
+		gasConsumedBefore := ctx.GasMeter().GasConsumed()
+		ctx.GasMeter().ConsumeGas(DetermineGas(msg), "MsgCreateDerivativeLimitOrder")
+		totalGas := ctx.GasMeter().GasConsumed()
+
+		// todo: remove after QA
+		defer func() {
+			k.Logger(ctx).Info("CreateDerivativeLimitOrder",
+				"gas_ante", gasConsumedBefore,
+				"gas_msg", totalGas-gasConsumedBefore,
+				"gas_total", totalGas,
+				"sender", msg.Sender,
+				"cid", msg.Order.Cid(),
+			)
+		}()
+
+		ctx = ctx.WithGasMeter(storetypes.NewInfiniteGasMeter())
+	}
 
 	account, _ := sdk.AccAddressFromBech32(msg.Sender)
 
@@ -229,6 +247,24 @@ func (k DerivativesMsgServer) BatchCreateDerivativeLimitOrders(goCtx context.Con
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
+	if k.IsFixedGasEnabled() {
+		gasConsumedBefore := ctx.GasMeter().GasConsumed()
+		ctx.GasMeter().ConsumeGas(DetermineGas(msg), "MsgBatchCreateDerivativeLimitOrders")
+		totalGas := ctx.GasMeter().GasConsumed()
+
+		// todo: remove after QA
+		defer func() {
+			k.Logger(ctx).Info("BatchCreateDerivativeLimitOrders",
+				"gas_ante", gasConsumedBefore,
+				"gas_msg", totalGas-gasConsumedBefore,
+				"gas_total", totalGas,
+				"sender", msg.Sender,
+			)
+		}()
+
+		ctx = ctx.WithGasMeter(storetypes.NewInfiniteGasMeter())
+	}
+
 	sender := sdk.MustAccAddressFromBech32(msg.Sender)
 
 	orderFailEvent := types.EventOrderFail{
@@ -358,6 +394,24 @@ func (k DerivativesMsgServer) CreateDerivativeMarketOrder(goCtx context.Context,
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
+	if k.IsFixedGasEnabled() {
+		gasConsumedBefore := ctx.GasMeter().GasConsumed()
+		ctx.GasMeter().ConsumeGas(DetermineGas(msg), "MsgCreateDerivativeMarketOrder")
+		totalGas := ctx.GasMeter().GasConsumed()
+
+		// todo: remove after QA
+		defer func() {
+			k.Logger(ctx).Info("CreateDerivativeMarketOrder",
+				"gas_ante", gasConsumedBefore,
+				"gas_msg", totalGas-gasConsumedBefore,
+				"gas_total", totalGas,
+				"sender", msg.Sender,
+				"cid", msg.Order.Cid(),
+			)
+		}()
+
+		ctx = ctx.WithGasMeter(storetypes.NewInfiniteGasMeter())
+	}
 
 	account, _ := sdk.AccAddressFromBech32(msg.Sender)
 
@@ -389,6 +443,24 @@ func (k DerivativesMsgServer) CancelDerivativeOrder(goCtx context.Context, msg *
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
+	if k.IsFixedGasEnabled() {
+		gasConsumedBefore := ctx.GasMeter().GasConsumed()
+		ctx.GasMeter().ConsumeGas(DetermineGas(msg), "MsgCancelDerivativeOrder")
+		totalGas := ctx.GasMeter().GasConsumed()
+
+		// todo: remove after QA
+		defer func() {
+			k.Logger(ctx).Info("CancelDerivativeOrder",
+				"gas_ante", gasConsumedBefore,
+				"gas_msg", totalGas-gasConsumedBefore,
+				"gas_total", totalGas,
+				"sender", msg.Sender,
+				"cid", msg.Cid,
+			)
+		}()
+
+		ctx = ctx.WithGasMeter(storetypes.NewInfiniteGasMeter())
+	}
 
 	var (
 		marketID     = common.HexToHash(msg.MarketId)
@@ -536,6 +608,21 @@ func (k DerivativesMsgServer) BatchCancelDerivativeOrders(goCtx context.Context,
 	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
 	defer doneFn()
 
+	ctx := sdk.UnwrapSDKContext(goCtx)
+	gasConsumedBefore := ctx.GasMeter().GasConsumed()
+
+	// todo: remove after QA
+	defer func() {
+		// no need to do anything here with gas meter, since it's handled per MsgCancelDerivativeOrder call
+		totalGas := ctx.GasMeter().GasConsumed()
+		k.Logger(ctx).Info("MsgBatchCancelDerivativeOrders",
+			"gas_ante", gasConsumedBefore,
+			"gas_msg", totalGas-gasConsumedBefore,
+			"gas_total", totalGas,
+			"sender", msg.Sender,
+		)
+	}()
+
 	successes := make([]bool, len(msg.Data))
 	for idx := range msg.Data {
 		if _, err := k.CancelDerivativeOrder(goCtx, &types.MsgCancelDerivativeOrder{
@@ -562,6 +649,23 @@ func (k DerivativesMsgServer) IncreasePositionMargin(goCtx context.Context, msg 
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
+	if k.IsFixedGasEnabled() {
+		gasConsumedBefore := ctx.GasMeter().GasConsumed()
+		ctx.GasMeter().ConsumeGas(DetermineGas(msg), "MsgIncreasePositionMargin")
+		totalGas := ctx.GasMeter().GasConsumed()
+
+		// todo: remove after QA
+		defer func() {
+			k.Logger(ctx).Info("IncreasePositionMargin",
+				"gas_ante", gasConsumedBefore,
+				"gas_msg", totalGas-gasConsumedBefore,
+				"gas_total", totalGas,
+				"sender", msg.Sender,
+			)
+		}()
+
+		ctx = ctx.WithGasMeter(storetypes.NewInfiniteGasMeter())
+	}
 
 	var (
 		sender                  = sdk.MustAccAddressFromBech32(msg.Sender)
@@ -600,6 +704,23 @@ func (k DerivativesMsgServer) DecreasePositionMargin(goCtx context.Context, msg 
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
+	if k.IsFixedGasEnabled() {
+		gasConsumedBefore := ctx.GasMeter().GasConsumed()
+		ctx.GasMeter().ConsumeGas(DetermineGas(msg), "MsgDecreasePositionMargin")
+		totalGas := ctx.GasMeter().GasConsumed()
+
+		// todo: remove after QA
+		defer func() {
+			k.Logger(ctx).Info("DecreasePositionMargin",
+				"gas_ante", gasConsumedBefore,
+				"gas_msg", totalGas-gasConsumedBefore,
+				"gas_total", totalGas,
+				"sender", msg.Sender,
+			)
+		}()
+
+		ctx = ctx.WithGasMeter(storetypes.NewInfiniteGasMeter())
+	}
 
 	var (
 		sender                  = sdk.MustAccAddressFromBech32(msg.Sender)
