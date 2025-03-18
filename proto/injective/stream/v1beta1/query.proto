@@ -24,6 +24,7 @@ message StreamRequest {
       [ (gogoproto.nullable) = true ];
   PositionsFilter positions_filter = 9 [ (gogoproto.nullable) = true ];
   OraclePriceFilter oracle_price_filter = 10 [ (gogoproto.nullable) = true ];
+  bool omit_empty_response = 11;
 }
 
 message StreamResponse {

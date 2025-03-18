@@ -182,9 +182,11 @@ func (s *StreamServer) Stream(req *types.StreamRequest, server types.Stream_Stre
 					return status.Error(codes.Internal, err.Error())
 				}
 			}
-			err = server.Send(outResp)
-			if err != nil {
-				return status.Error(codes.Internal, err.Error())
+			if !req.OmitEmptyResponse || !isEmptyResponse(outResp) {
+				err = server.Send(outResp)
+				if err != nil {
+					return status.Error(codes.Internal, err.Error())
+				}
 			}
 			height += 1
 		case <-server.Context().Done():
@@ -202,4 +204,17 @@ func (s *StreamServer) GetCurrentServerPort() int {
 		return 0
 	}
 	return s.listener.Addr().(*net.TCPAddr).Port
+}
+
+func isEmptyResponse(sr *types.StreamResponse) bool {
+	return len(sr.BankBalances) == 0 &&
+		len(sr.SubaccountDeposits) == 0 &&
+		len(sr.SpotTrades) == 0 &&
+		len(sr.DerivativeTrades) == 0 &&
+		len(sr.SpotOrders) == 0 &&
+		len(sr.DerivativeOrders) == 0 &&
+		len(sr.SpotOrderbookUpdates) == 0 &&
+		len(sr.DerivativeOrderbookUpdates) == 0 &&
+		len(sr.Positions) == 0 &&
+		len(sr.OraclePrices) == 0
 }
