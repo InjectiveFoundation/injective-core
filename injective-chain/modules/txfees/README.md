@@ -137,7 +137,7 @@ Example of updating multiple parameters:
       "@type": "/injective.txfees.v1beta1.MsgUpdateParams",
       "authority": "inj10d07y265gmmuvt4z0w9aw880jnsr700jvss730",  // gov module account
       "params": {
-        "max_gas_wanted_per_tx": "40000000",              // Increase max gas per tx to 40M
+        "max_gas_wanted_per_tx": "100000000",             // Increase max gas per tx to 100M
         "min_gas_price": "200000000",                     // Increase min gas price to 200M INJ
         "default_base_fee_multiplier": "2.0",             // Increase default multiplier to 2.0
         "max_block_change_rate": "0.15",                  // Increase max change rate to 15%
@@ -191,6 +191,10 @@ message QueryEipBaseFeeRequest {
 
 // Response
 message QueryEipBaseFeeResponse {
+  EipBaseFee base_fee = 1;
+}
+
+message EipBaseFee {
   string base_fee = 1 [(gogoproto.customtype) = "cosmossdk.io/math.LegacyDec", (gogoproto.nullable) = false];
 }
 ```
@@ -198,7 +202,12 @@ message QueryEipBaseFeeResponse {
 Example using `grpcurl`:
 ```bash
 grpcurl -plaintext localhost:9090 injective.txfees.v1beta1.Query/GetEipBaseFee
+
+# Osmosis-like path for compatibility with IBC relayers and wallets
+grpcurl -plaintext localhost:9090 osmosis.txfees.v1beta1.Query/GetEipBaseFee
 ```
+
+
 
 Service Definition:
 ```protobuf
@@ -219,7 +228,9 @@ curl -X GET "http://localhost:1317/injective/txfees/v1beta1/cur_eip_base_fee"
 The response will contain the current base fee in INJ units. Example:
 ```json
 {
-  "base_fee": "160000000"
+  "base_fee": {
+    "base_fee": "160000000"
+  }
 }
 ```
 

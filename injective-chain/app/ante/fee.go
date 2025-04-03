@@ -19,19 +19,16 @@ import (
 // Call next AnteHandler if fees successfully deducted
 // CONTRACT: Tx must implement FeeTx interface to use DeductFeeDecorator
 type DeductFeeDecorator struct {
-	ak                authante.AccountKeeper
-	bankKeeper        types.BankKeeper
-	txFeeChecker      authante.TxFeeChecker
-	txFeeDenomChecker authante.TxFeeChecker
+	ak           authante.AccountKeeper
+	bankKeeper   types.BankKeeper
+	txFeeChecker authante.TxFeeChecker
 }
 
-func NewDeductFeeDecorator(ak authante.AccountKeeper, bk types.BankKeeper, txFeeDenomChecker authante.TxFeeChecker) DeductFeeDecorator {
-
+func NewDeductFeeDecorator(ak authante.AccountKeeper, bk types.BankKeeper) DeductFeeDecorator {
 	return DeductFeeDecorator{
-		ak:                ak,
-		bankKeeper:        bk,
-		txFeeChecker:      authante.CheckTxFeeWithValidatorMinGasPrices,
-		txFeeDenomChecker: txFeeDenomChecker,
+		ak:           ak,
+		bankKeeper:   bk,
+		txFeeChecker: authante.CheckTxFeeWithValidatorMinGasPrices,
 	}
 }
 
@@ -85,10 +82,6 @@ func (dfd DeductFeeDecorator) AnteHandle(ctx sdk.Context, tx sdk.Tx, simulate bo
 
 	fee := feeTx.GetFee()
 	if !simulate {
-		if _, _, err := dfd.txFeeDenomChecker(ctx, tx); err != nil {
-			return ctx, err
-		}
-
 		fee, priority, err = dfd.txFeeChecker(ctx, tx)
 		if err != nil {
 			return ctx, err

@@ -32,13 +32,10 @@ func NewMempoolFeeDecorator(txFeesKeeper *Keeper) MempoolFeeDecorator {
 func (mfd MempoolFeeDecorator) AnteHandle(ctx sdk.Context, tx sdk.Tx, simulate bool, next sdk.AnteHandler) (newCtx sdk.Context, err error) {
 	txfeesParams := mfd.TxFeesKeeper.GetParams(ctx)
 
-	if simulate || !txfeesParams.Mempool1559Enabled {
-		return next(ctx, tx, simulate)
-	}
+	if simulate || ctx.BlockHeight() == 0 {
+		// If this is genesis height, don't check the fee.
+		// This is needed so that gentx's can be created without having to pay a fee (chicken/egg problem).
 
-	// If this is genesis height, don't check the fee.
-	// This is needed so that gentx's can be created without having to pay a fee (chicken/egg problem).
-	if ctx.BlockHeight() == 0 {
 		return next(ctx, tx, simulate)
 	}
 
@@ -48,6 +45,11 @@ func (mfd MempoolFeeDecorator) AnteHandle(ctx sdk.Context, tx sdk.Tx, simulate b
 	} else if feeTx == nil {
 		// no fee provided
 		return ctx, errorsmod.Wrapf(sdkerrors.ErrInsufficientFee, "no fee provided in tx")
+	}
+
+	// The rest of the logic is only needed for the 1559 mempool
+	if !txfeesParams.Mempool1559Enabled {
+		return next(ctx, tx, simulate)
 	}
 
 	// TODO: Is there a better way to do this?
@@ -104,7 +106,7 @@ func (MempoolFeeDecorator) getValidatedFeeTx(ctx sdk.Context, tx sdk.Tx, txfeesP
 	if ctx.IsCheckTx() {
 		if feeTx.GetGas() > txfeesParams.MaxGasWantedPerTx {
 			msg := "Too much gas wanted: %d, maximum is %d"
-			return nil, errorsmod.Wrapf(sdkerrors.ErrOutOfGas, msg, feeTx.GetGas(), txfeesParams.MaxGasWantedPerTx)
+			return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidGasLimit, msg, feeTx.GetGas(), txfeesParams.MaxGasWantedPerTx)
 		}
 	}
 
@@ -117,8 +119,8 @@ func (MempoolFeeDecorator) getValidatedFeeTx(ctx sdk.Context, tx sdk.Tx, txfeesP
 	}
 
 	// If there is a fee attached to the tx, make sure the fee denom is a denom accepted by the chain
-	if feeDenom := feeCoins.GetDenomByIndex(0); feeDenom != chaintypes.InjectiveCoin {
-		return nil, errorsmod.Wrapf(types.ErrInvalidFeeToken, "fee denom is not a valid denom (%s): %s",
+	if feeDenom := feeCoins.GetDenomByIndex(0); feeDenom != chaintypes.InjectiveCoin && feeDenom != "stake" {
+		return nil, errorsmod.Wrapf(types.ErrInvalidFeeToken, "fee denom is not a valid denom (%s or stake): %s",
 			chaintypes.InjectiveCoin,
 			feeDenom,
 		)

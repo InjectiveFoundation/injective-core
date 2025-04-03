@@ -22,6 +22,14 @@ service Query {
   }
 }
 
+message EipBaseFee {
+  string base_fee = 1 [
+    (gogoproto.moretags) = "yaml:\"base_fee\"",
+    (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
+    (gogoproto.nullable) = false
+  ];
+}
+
 // QueryParamsRequest is the request type for the Query/Params RPC method.
 message QueryParamsRequest {}
 // QueryParamsResponse is the response type for the Query/Params RPC method.
@@ -31,11 +39,4 @@ message QueryParamsResponse {
 }
 
 message QueryEipBaseFeeRequest {}
-message QueryEipBaseFeeResponse {
-  string base_fee = 1 [
-    (gogoproto.moretags) = "yaml:\"base_fee\"",
-
-    (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
-    (gogoproto.nullable) = false
-  ];
-}
+message QueryEipBaseFeeResponse { EipBaseFee base_fee = 1; }

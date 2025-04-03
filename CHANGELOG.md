@@ -36,12 +36,17 @@ Ref: https://keepachangelog.com/en/1.1.0/
 
 ## [Unreleased]
 
+### Bug Fixes
+
+* (wasmx) [#2136](https://github.com/InjectiveLabs/injective-core/pull/2136) Fixed wasmx authz ExecuteCompat authorization to work properly when MaxCalls > 1 filter is applied.
+
 ### Features
 
 - (txfees) [#4266](https://github.com/InjectiveLabs/injective-core/pull/4266) Dynamic transaction fees with EIP-1559 style fee market. The implementation is based on the [Osmosis implementation](https://github.com/osmosis-labs/osmosis/tree/main/x/txfees).
 - (cmd) [#2124](https://github.com/InjectiveLabs/injective-core/pull/2124) Add `--log-color` bool flag support to disable coloring of log lines, disable usage print on errors.
 - (exchange) [#2096](https://github.com/InjectiveLabs/injective-core/pull/2096) Introduce fixed-gas consumption for certain exchange Msg types.
 - (abci/block-sdk) [#2106](https://github.com/InjectiveLabs/injective-core/pull/2106) Added app-level mempool prioritization.
+- (exchange) [#2160](https://github.com/InjectiveLabs/injective-core/pull/2160) CLI command for MsgWithdraw, MsgExternalTransfer
 
 ### Security
 

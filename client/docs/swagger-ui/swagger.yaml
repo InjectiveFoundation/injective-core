@@ -3067,7 +3067,12 @@ paths:
             type: object
             properties:
               balance:
-                type: string
+                type: object
+                properties:
+                  market_id:
+                    type: string
+                  balance:
+                    type: string
         default:
           description: An unexpected error response.
           schema:
@@ -17129,7 +17134,10 @@ paths:
             type: object
             properties:
               base_fee:
-                type: string
+                type: object
+                properties:
+                  base_fee:
+                    type: string
         default:
           description: An unexpected error response.
           schema:
@@ -62809,7 +62817,12 @@ definitions:
     type: object
     properties:
       balance:
-        type: string
+        type: object
+        properties:
+          market_id:
+            type: string
+          balance:
+            type: string
   injective.exchange.v1beta1.QueryMarketBalancesResponse:
     type: object
     properties:
@@ -72958,6 +72971,11 @@ definitions:
 
                 signatures required by gogoproto.
     description: QueryParamsResponse is the response type for the Query/Params RPC method.
+  injective.txfees.v1beta1.EipBaseFee:
+    type: object
+    properties:
+      base_fee:
+        type: string
   injective.txfees.v1beta1.Params:
     type: object
     properties:
@@ -72994,7 +73012,10 @@ definitions:
     type: object
     properties:
       base_fee:
-        type: string
+        type: object
+        properties:
+          base_fee:
+            type: string
   injective.txfees.v1beta1.QueryParamsResponse:
     type: object
     properties:

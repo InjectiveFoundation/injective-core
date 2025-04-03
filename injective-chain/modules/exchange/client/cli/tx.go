@@ -2807,13 +2807,16 @@ func NewDepositTxCmd() *cobra.Command {
 
 func NewWithdrawTxCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "withdraw [amount] [flags]",
-		Args:  cobra.ExactArgs(1),
-		Short: "Submit message to withdraw coins from the default subaccount's deposits to the user's bank balance.",
-		Long: `Submit message to withdraw coins from the default subaccount's deposits to the user's bank balance.
+		Use:   "withdraw [amount] [subaccount_id] [flags]",
+		Args:  cobra.ExactArgs(2),
+		Short: "Submit message to withdraw coins from the provided subaccount's deposits to the user's bank balance.",
+		Long: `Submit message to withdraw coins from the provided subaccount's deposits to the user's bank balance.
 
 		Example:
-		$ %s tx exchange withdraw 10000inj --from=genesis --keyring-backend=file --yes
+		$ %s tx exchange withdraw 10000inj 0xc6fe5d33615a1c52c08018c47e8bc53646a0e101000000000000000000000001 \
+			--from=genesis \
+			--keyring-backend=file \
+			--yes
 		`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clientCtx, err := client.GetClientTxContext(cmd)
@@ -2828,11 +2831,11 @@ func NewWithdrawTxCmd() *cobra.Command {
 				return err
 			}
 
-			subaccountID := types.SdkAddressToSubaccountID(from)
+			subaccountID := args[1]
 
 			msg := &types.MsgWithdraw{
 				Sender:       from.String(),
-				SubaccountId: subaccountID.Hex(),
+				SubaccountId: subaccountID,
 				Amount:       amount,
 			}
 
@@ -2850,13 +2853,16 @@ func NewWithdrawTxCmd() *cobra.Command {
 
 func NewExternalTransferTxCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "external-transfer [dest_subaccount_id] [amount] [flags]",
-		Args:  cobra.ExactArgs(2),
-		Short: "Submit message to send coins from the sender's default subaccount to another external subaccount.",
-		Long: `Submit message to send coins from the sender's default subaccount to another external subaccount",
+		Use:   "external-transfer [source_subaccount_id] [dest_subaccount_id] [amount] [flags]",
+		Args:  cobra.ExactArgs(3),
+		Short: "Submit message to send coins from the sender's provided subaccount to another external subaccount.",
+		Long: `Submit message to send coins from the sender's provided subaccount to another external subaccount.
 
 		Example:
-		$ %s tx exchange external-transfer 0x90f8bf6a479f320ead074411a4b0e7944ea8c9c1000000000000000000000001 10000inj --from=genesis --keyring-backend=file --yes
+		$ %s tx exchange external-transfer [from] [to] 10000inj \
+			--from=genesis \
+			--keyring-backend=file \
+			--yes
 		`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clientCtx, err := client.GetClientTxContext(cmd)
@@ -2866,16 +2872,18 @@ func NewExternalTransferTxCmd() *cobra.Command {
 
 			from := clientCtx.GetFromAddress()
 
-			amount, err := sdk.ParseCoinNormalized(args[1])
+			sourceSubaccountID := args[0]
+			destinationSubaccountID := args[1]
+
+			amount, err := sdk.ParseCoinNormalized(args[2])
 			if err != nil {
 				return err
 			}
-			subaccountID := types.SdkAddressToSubaccountID(from)
 
 			msg := &types.MsgExternalTransfer{
 				Sender:                  from.String(),
-				SourceSubaccountId:      subaccountID.Hex(),
-				DestinationSubaccountId: args[0],
+				SourceSubaccountId:      sourceSubaccountID,
+				DestinationSubaccountId: destinationSubaccountID,
 				Amount:                  amount,
 			}
 
@@ -2886,10 +2894,6 @@ func NewExternalTransferTxCmd() *cobra.Command {
 			return tx.GenerateOrBroadcastTxCLI(clientCtx, cmd.Flags(), msg)
 		},
 	}
-
-	cmd.Flags().String(govcli.FlagTitle, "", "title of proposal")
-	cmd.Flags().String(govcli.FlagDescription, "", "description of proposal")
-	cmd.Flags().String(govcli.FlagDeposit, "", "deposit of proposal")
 
 	cliflags.AddTxFlagsToCmd(cmd)
 	return cmd
@@ -3286,9 +3290,9 @@ func NewMsgLiquidatePositionTxCmd() *cobra.Command {
 
 			// build msg
 			msg := &types.MsgLiquidatePosition{
-				Sender: clientCtx.GetFromAddress().String(),
+				Sender:       clientCtx.GetFromAddress().String(),
 				SubaccountId: args[0],
-				MarketId: args[1],
+				MarketId:     args[1],
 			}
 
 			if err := msg.ValidateBasic(); err != nil {

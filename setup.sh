@@ -5,7 +5,19 @@ set -e
 make install
 
 killall injectived &>/dev/null || true
-rm -rf ~/.injectived
+
+# Default INJHOME to current directory if not set
+if [ -z "$INJHOME" ]; then
+  INJHOME="$(pwd)/.injectived"
+  echo "INJHOME not set, defaulting to current directory: $INJHOME"
+fi
+
+if [ ! -d "$INJHOME" ]; then
+  mkdir -p $INJHOME
+else
+  echo "Directory $INJHOME already exists - remove first"
+  exit 1
+fi
 
 CHAINID="injective-1"
 MONIKER="injective"
@@ -13,21 +25,21 @@ PASSPHRASE="12345678"
 FEEDADMIN="inj1k2z3chspuk9wsufle69svmtmnlc07rvw9djya7"
 
 # Set moniker and chain-id for Ethermint (Moniker can be anything, chain-id must be an integer)
-injectived init $MONIKER --chain-id $CHAINID
-perl -i -pe 's/^timeout_commit = ".*?"/timeout_commit = "2500ms"/' ~/.injectived/config/config.toml
-perl -i -pe 's/^minimum-gas-prices = ".*?"/minimum-gas-prices = "500000000inj"/' ~/.injectived/config/app.toml
+injectived init $MONIKER --chain-id $CHAINID --home $INJHOME
+perl -i -pe 's/^timeout_commit = ".*?"/timeout_commit = "2500ms"/' $INJHOME/config/config.toml
+perl -i -pe 's/^minimum-gas-prices = ".*?"/minimum-gas-prices = "1inj"/' $INJHOME/config/app.toml
 
-cat $HOME/.injectived/config/genesis.json | jq '.app_state["staking"]["params"]["bond_denom"]="inj"' > $HOME/.injectived/config/tmp_genesis.json && mv $HOME/.injectived/config/tmp_genesis.json $HOME/.injectived/config/genesis.json
-cat $HOME/.injectived/config/genesis.json | jq '.app_state["crisis"]["constant_fee"]["denom"]="inj"' > $HOME/.injectived/config/tmp_genesis.json && mv $HOME/.injectived/config/tmp_genesis.json $HOME/.injectived/config/genesis.json
-cat $HOME/.injectived/config/genesis.json | jq '.app_state["gov"]["params"]["min_deposit"][0]["denom"]="inj"' > $HOME/.injectived/config/tmp_genesis.json && mv $HOME/.injectived/config/tmp_genesis.json $HOME/.injectived/config/genesis.json
-cat $HOME/.injectived/config/genesis.json | jq '.app_state["gov"]["params"]["min_initial_deposit_ratio"]="0.100000000000000000"' > $HOME/.injectived/config/tmp_genesis.json && mv $HOME/.injectived/config/tmp_genesis.json $HOME/.injectived/config/genesis.json
+cat $INJHOME/config/genesis.json | jq '.app_state["staking"]["params"]["bond_denom"]="inj"' > $INJHOME/config/tmp_genesis.json && mv $INJHOME/config/tmp_genesis.json $INJHOME/config/genesis.json
+cat $INJHOME/config/genesis.json | jq '.app_state["crisis"]["constant_fee"]["denom"]="inj"' > $INJHOME/config/tmp_genesis.json && mv $INJHOME/config/tmp_genesis.json $INJHOME/config/genesis.json
+cat $INJHOME/config/genesis.json | jq '.app_state["gov"]["params"]["min_deposit"][0]["denom"]="inj"' > $INJHOME/config/tmp_genesis.json && mv $INJHOME/config/tmp_genesis.json $INJHOME/config/genesis.json
+cat $INJHOME/config/genesis.json | jq '.app_state["gov"]["params"]["min_initial_deposit_ratio"]="0.100000000000000000"' > $INJHOME/config/tmp_genesis.json && mv $INJHOME/config/tmp_genesis.json $INJHOME/config/genesis.json
 echo "NOTE: Setting Governance Voting Period to 10 seconds for easy testing"
-cat $HOME/.injectived/config/genesis.json | jq '.app_state["gov"]["params"]["voting_period"]="10s"' > $HOME/.injectived/config/tmp_genesis.json && mv $HOME/.injectived/config/tmp_genesis.json $HOME/.injectived/config/genesis.json
-cat $HOME/.injectived/config/genesis.json | jq '.app_state["gov"]["params"]["expedited_voting_period"]="5s"' > $HOME/.injectived/config/tmp_genesis.json && mv $HOME/.injectived/config/tmp_genesis.json $HOME/.injectived/config/genesis.json
-cat $HOME/.injectived/config/genesis.json | jq '.app_state["mint"]["params"]["mint_denom"]="inj"' > $HOME/.injectived/config/tmp_genesis.json && mv $HOME/.injectived/config/tmp_genesis.json $HOME/.injectived/config/genesis.json
-cat $HOME/.injectived/config/genesis.json | jq '.app_state["auction"]["params"]["auction_period"]="10"' > $HOME/.injectived/config/tmp_genesis.json && mv $HOME/.injectived/config/tmp_genesis.json $HOME/.injectived/config/genesis.json
-cat $HOME/.injectived/config/genesis.json | jq '.app_state["ocr"]["params"]["module_admin"]="'$FEEDADMIN'"' > $HOME/.injectived/config/tmp_genesis.json && mv $HOME/.injectived/config/tmp_genesis.json $HOME/.injectived/config/genesis.json
-cat $HOME/.injectived/config/genesis.json | jq '.app_state["ocr"]["params"]["payout_block_interval"]="5"' > $HOME/.injectived/config/tmp_genesis.json && mv $HOME/.injectived/config/tmp_genesis.json $HOME/.injectived/config/genesis.json
+cat $INJHOME/config/genesis.json | jq '.app_state["gov"]["params"]["voting_period"]="10s"' > $INJHOME/config/tmp_genesis.json && mv $INJHOME/config/tmp_genesis.json $INJHOME/config/genesis.json
+cat $INJHOME/config/genesis.json | jq '.app_state["gov"]["params"]["expedited_voting_period"]="5s"' > $INJHOME/config/tmp_genesis.json && mv $INJHOME/config/tmp_genesis.json $INJHOME/config/genesis.json
+cat $INJHOME/config/genesis.json | jq '.app_state["mint"]["params"]["mint_denom"]="inj"' > $INJHOME/config/tmp_genesis.json && mv $INJHOME/config/tmp_genesis.json $INJHOME/config/genesis.json
+cat $INJHOME/config/genesis.json | jq '.app_state["auction"]["params"]["auction_period"]="10"' > $INJHOME/config/tmp_genesis.json && mv $INJHOME/config/tmp_genesis.json $INJHOME/config/genesis.json
+cat $INJHOME/config/genesis.json | jq '.app_state["ocr"]["params"]["module_admin"]="'$FEEDADMIN'"' > $INJHOME/config/tmp_genesis.json && mv $INJHOME/config/tmp_genesis.json $INJHOME/config/genesis.json
+cat $INJHOME/config/genesis.json | jq '.app_state["ocr"]["params"]["payout_block_interval"]="5"' > $INJHOME/config/tmp_genesis.json && mv $INJHOME/config/tmp_genesis.json $INJHOME/config/genesis.json
 
 INJ='{"denom":"inj","decimals":18}'
 
@@ -89,12 +101,12 @@ PEGGY_DENOM_DECIMALS="${USDT},${USDC},${ONEINCH},${AXS},${BAT},${BNB},${WBTC},${
 IBC_DENOM_DECIMALS="${ATOM},${USTC},${AXL},${XPRT},${SCRT},${OSMO},${LUNC},${HUAHUA},${EVMOS},${DOT}"
 DENOM_DECIMALS='['${INJ},${PEGGY_DENOM_DECIMALS},${IBC_DENOM_DECIMALS}']'
 
-cat $HOME/.injectived/config/genesis.json | jq '.app_state["exchange"]["denom_decimals"]='${DENOM_DECIMALS} > $HOME/.injectived/config/tmp_genesis.json && mv $HOME/.injectived/config/tmp_genesis.json $HOME/.injectived/config/genesis.json
+cat $INJHOME/config/genesis.json | jq '.app_state["exchange"]["denom_decimals"]='${DENOM_DECIMALS} > $INJHOME/config/tmp_genesis.json && mv $INJHOME/config/tmp_genesis.json $INJHOME/config/genesis.json
 
-yes $PASSPHRASE | injectived keys add genesis
-yes $PASSPHRASE | injectived add-genesis-account --chain-id $CHAINID $(yes $PASSPHRASE | injectived keys show genesis -a) 1000000000000000000000000inj,1000000000000000000000000atom,100000000000000000000000000peggy0xdAC17F958D2ee523a2206206994597C13D831ec7,100000000000000000000000000peggy0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599
+yes $PASSPHRASE | injectived keys add genesis --home $INJHOME
+yes $PASSPHRASE | injectived add-genesis-account --chain-id $CHAINID --home $INJHOME $(yes $PASSPHRASE | injectived keys show genesis -a --home $INJHOME) 1000000000000000000000000inj,1000000000000000000000000atom,100000000000000000000000000peggy0xdAC17F958D2ee523a2206206994597C13D831ec7,100000000000000000000000000peggy0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599
 # zero address account
-yes $PASSPHRASE | injectived add-genesis-account --chain-id $CHAINID inj1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqe2hm49 1inj
+yes $PASSPHRASE | injectived add-genesis-account --chain-id $CHAINID --home $INJHOME inj1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqe2hm49 1inj
 
 WASM_KEY="wasm"
 WASM_MNEMONIC="juice dog over thing anger search film document sight fork enrich jungle vacuum grab more sunset winner diesel flock smooth route impulse cheap toward"
@@ -135,43 +147,43 @@ USER10_MNEMONIC="apart acid night more advance december weather expect pause tax
 NEWLINE=$'\n'
 
 # Import keys from mnemonics
-yes "$WASM_MNEMONIC$NEWLINE$PASSPHRASE" | injectived keys add $WASM_KEY --recover
-yes "$VAL_MNEMONIC$NEWLINE$PASSPHRASE" | injectived keys add $VAL_KEY --recover
-yes "$USER1_MNEMONIC$NEWLINE$PASSPHRASE" | injectived keys add $USER1_KEY --recover
-yes "$USER2_MNEMONIC$NEWLINE$PASSPHRASE" | injectived keys add $USER2_KEY --recover
-yes "$USER3_MNEMONIC$NEWLINE$PASSPHRASE" | injectived keys add $USER3_KEY --recover
-yes "$USER4_MNEMONIC$NEWLINE$PASSPHRASE" | injectived keys add $USER4_KEY --recover
-yes "$USER5_MNEMONIC$NEWLINE$PASSPHRASE" | injectived keys add $USER5_KEY --recover
-yes "$USER6_MNEMONIC$NEWLINE$PASSPHRASE" | injectived keys add $USER6_KEY --recover
-yes "$USER7_MNEMONIC$NEWLINE$PASSPHRASE" | injectived keys add $USER7_KEY --recover
-yes "$USER8_MNEMONIC$NEWLINE$PASSPHRASE" | injectived keys add $USER8_KEY --recover
-yes "$USER9_MNEMONIC$NEWLINE$PASSPHRASE" | injectived keys add $USER9_KEY --recover
-yes "$USER10_MNEMONIC$NEWLINE$PASSPHRASE" | injectived keys add $USER10_KEY --recover
+yes "$WASM_MNEMONIC$NEWLINE$PASSPHRASE" | injectived keys add $WASM_KEY --recover --home $INJHOME
+yes "$VAL_MNEMONIC$NEWLINE$PASSPHRASE" | injectived keys add $VAL_KEY --recover --home $INJHOME
+yes "$USER1_MNEMONIC$NEWLINE$PASSPHRASE" | injectived keys add $USER1_KEY --recover --home $INJHOME
+yes "$USER2_MNEMONIC$NEWLINE$PASSPHRASE" | injectived keys add $USER2_KEY --recover --home $INJHOME
+yes "$USER3_MNEMONIC$NEWLINE$PASSPHRASE" | injectived keys add $USER3_KEY --recover --home $INJHOME
+yes "$USER4_MNEMONIC$NEWLINE$PASSPHRASE" | injectived keys add $USER4_KEY --recover --home $INJHOME
+yes "$USER5_MNEMONIC$NEWLINE$PASSPHRASE" | injectived keys add $USER5_KEY --recover --home $INJHOME
+yes "$USER6_MNEMONIC$NEWLINE$PASSPHRASE" | injectived keys add $USER6_KEY --recover --home $INJHOME
+yes "$USER7_MNEMONIC$NEWLINE$PASSPHRASE" | injectived keys add $USER7_KEY --recover --home $INJHOME
+yes "$USER8_MNEMONIC$NEWLINE$PASSPHRASE" | injectived keys add $USER8_KEY --recover --home $INJHOME
+yes "$USER9_MNEMONIC$NEWLINE$PASSPHRASE" | injectived keys add $USER9_KEY --recover --home $INJHOME
+yes "$USER10_MNEMONIC$NEWLINE$PASSPHRASE" | injectived keys add $USER10_KEY --recover --home $INJHOME
 
 # Allocate genesis accounts (cosmos formatted addresses)
-yes $PASSPHRASE | injectived add-genesis-account --chain-id $CHAINID $(injectived keys show $WASM_KEY -a) 1000000000000000000000inj
-yes $PASSPHRASE | injectived add-genesis-account --chain-id $CHAINID $(injectived keys show $VAL_KEY -a) 1000000000000000000000inj
-yes $PASSPHRASE | injectived add-genesis-account --chain-id $CHAINID $(injectived keys show $USER1_KEY -a) 1000000000000000000000inj,1000000000000000000000atom,100000000000000000000000000peggy0xdAC17F958D2ee523a2206206994597C13D831ec7,100000000000000000000000000peggy0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599
-yes $PASSPHRASE | injectived add-genesis-account --chain-id $CHAINID $(injectived keys show $USER2_KEY -a) 1000000000000000000000inj,100000000000000000000000000peggy0xdAC17F958D2ee523a2206206994597C13D831ec7,100000000000000000000000000peggy0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599
-yes $PASSPHRASE | injectived add-genesis-account --chain-id $CHAINID $(injectived keys show $USER3_KEY -a) 1000000000000000000000inj
-yes $PASSPHRASE | injectived add-genesis-account --chain-id $CHAINID $(injectived keys show $USER4_KEY -a) 1000000000000000000000inj
-yes $PASSPHRASE | injectived add-genesis-account --chain-id $CHAINID $(injectived keys show $USER5_KEY -a) 100000000000000000000000000inj
-yes $PASSPHRASE | injectived add-genesis-account --chain-id $CHAINID $(injectived keys show $USER6_KEY -a) 100000000000000000000000000inj
-yes $PASSPHRASE | injectived add-genesis-account --chain-id $CHAINID $(injectived keys show $USER7_KEY -a) 100000000000000000000000000inj
-yes $PASSPHRASE | injectived add-genesis-account --chain-id $CHAINID $(injectived keys show $USER8_KEY -a) 100000000000000000000000000inj
-yes $PASSPHRASE | injectived add-genesis-account --chain-id $CHAINID $(injectived keys show $USER9_KEY -a) 100000000000000000000000000inj
-yes $PASSPHRASE | injectived add-genesis-account --chain-id $CHAINID $(injectived keys show $USER10_KEY -a) 100000000000000000000000000inj
+yes $PASSPHRASE | injectived add-genesis-account --chain-id $CHAINID --home $INJHOME $(injectived keys show $WASM_KEY -a --home $INJHOME) 1000000000000000000000inj
+yes $PASSPHRASE | injectived add-genesis-account --chain-id $CHAINID --home $INJHOME $(injectived keys show $VAL_KEY -a --home $INJHOME) 1000000000000000000000inj
+yes $PASSPHRASE | injectived add-genesis-account --chain-id $CHAINID --home $INJHOME $(injectived keys show $USER1_KEY -a --home $INJHOME) 1000000000000000000000inj,1000000000000000000000atom,100000000000000000000000000peggy0xdAC17F958D2ee523a2206206994597C13D831ec7,100000000000000000000000000peggy0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599
+yes $PASSPHRASE | injectived add-genesis-account --chain-id $CHAINID --home $INJHOME $(injectived keys show $USER2_KEY -a --home $INJHOME) 1000000000000000000000inj,100000000000000000000000000peggy0xdAC17F958D2ee523a2206206994597C13D831ec7,100000000000000000000000000peggy0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599
+yes $PASSPHRASE | injectived add-genesis-account --chain-id $CHAINID --home $INJHOME $(injectived keys show $USER3_KEY -a --home $INJHOME) 1000000000000000000000inj
+yes $PASSPHRASE | injectived add-genesis-account --chain-id $CHAINID --home $INJHOME $(injectived keys show $USER4_KEY -a --home $INJHOME) 1000000000000000000000inj
+yes $PASSPHRASE | injectived add-genesis-account --chain-id $CHAINID --home $INJHOME $(injectived keys show $USER5_KEY -a --home $INJHOME) 100000000000000000000000000inj
+yes $PASSPHRASE | injectived add-genesis-account --chain-id $CHAINID --home $INJHOME $(injectived keys show $USER6_KEY -a --home $INJHOME) 100000000000000000000000000inj
+yes $PASSPHRASE | injectived add-genesis-account --chain-id $CHAINID --home $INJHOME $(injectived keys show $USER7_KEY -a --home $INJHOME) 100000000000000000000000000inj
+yes $PASSPHRASE | injectived add-genesis-account --chain-id $CHAINID --home $INJHOME $(injectived keys show $USER8_KEY -a --home $INJHOME) 100000000000000000000000000inj
+yes $PASSPHRASE | injectived add-genesis-account --chain-id $CHAINID --home $INJHOME $(injectived keys show $USER9_KEY -a --home $INJHOME) 100000000000000000000000000inj
+yes $PASSPHRASE | injectived add-genesis-account --chain-id $CHAINID --home $INJHOME $(injectived keys show $USER10_KEY -a --home $INJHOME) 100000000000000000000000000inj
 
 echo "Signing genesis transaction"
 # Sign genesis transaction
-yes $PASSPHRASE | injectived genesis gentx genesis 1000000000000000000000inj --chain-id $CHAINID
+yes $PASSPHRASE | injectived genesis gentx genesis 1000000000000000000000inj --chain-id $CHAINID --home $INJHOME
 
 echo "Collecting genesis transaction"
 # Collect genesis tx
-yes $PASSPHRASE | injectived genesis collect-gentxs
+yes $PASSPHRASE | injectived genesis collect-gentxs --home $INJHOME
 
 echo "Validating genesis"
 # Run this to ensure everything worked and that the genesis file is setup correctly
-injectived genesis validate
+injectived genesis validate --home $INJHOME
 
 echo "Setup done!"

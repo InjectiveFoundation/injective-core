@@ -83,3 +83,48 @@ func MustSucceedProposal(t *testing.T, chain *cosmos.CosmosChain, ctx context.Co
 	_, err = cosmos.PollForProposalStatus(ctx, chain, height, height+20, proposalID, govv1beta1.StatusPassed)
 	require.NoError(t, err, "proposal status did not change to passed in expected number of blocks", proposalName)
 }
+
+func MustSucceedProposalFromContent(
+	t *testing.T,
+	chain *cosmos.CosmosChain,
+	ctx context.Context,
+	user ibc.Wallet,
+	proposalContent govv1beta1.Content,
+	proposalName string,
+) {
+	broadcaster := cosmos.NewBroadcaster(t, chain)
+	broadcaster.ConfigureFactoryOptions(func(factory tx.Factory) tx.Factory {
+		return factory.WithGas(300000)
+	})
+
+	p := &govv1beta1.MsgSubmitProposal{
+		InitialDeposit: []types.Coin{types.NewCoin(
+			chain.Config().Denom,
+			math.NewIntWithDecimal(1000, 18),
+		)},
+		Proposer: user.FormattedAddress(),
+	}
+	require.NoError(t, p.SetContent(proposalContent))
+
+	txResp, err := cosmos.BroadcastTx(
+		ctx,
+		broadcaster,
+		user,
+		p,
+	)
+	require.NoError(t, err, "error submitting proposal tx", proposalName)
+
+	minNotionalTx, err := QueryProposalTx(context.Background(), chain.Nodes()[0], txResp.TxHash)
+	require.NoError(t, err, "error checking proposal tx", proposalName)
+	proposalID, err := strconv.ParseUint(minNotionalTx.ProposalID, 10, 64)
+	require.NoError(t, err, "error parsing proposal ID", proposalName)
+
+	err = chain.VoteOnProposalAllValidators(ctx, proposalID, cosmos.ProposalVoteYes)
+	require.NoError(t, err, "failed to submit proposal votes", proposalName)
+
+	height, err := chain.Height(ctx)
+	require.NoError(t, err, "error fetching height before submit proposal", proposalName)
+
+	_, err = cosmos.PollForProposalStatus(ctx, chain, height, height+40, proposalID, govv1beta1.StatusPassed)
+	require.NoError(t, err, "proposal status did not change to passed in expected number of blocks", proposalName)
+}

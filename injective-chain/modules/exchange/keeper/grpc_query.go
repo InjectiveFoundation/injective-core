@@ -1532,7 +1532,10 @@ func (k *Keeper) MarketBalance(c context.Context, req *types.QueryMarketBalanceR
 	marketID := common.HexToHash(req.MarketId)
 
 	res := &types.QueryMarketBalanceResponse{
-		Balance: k.GetMarketBalance(ctx, marketID),
+		Balance: &types.MarketBalance{
+			MarketId: req.MarketId,
+			Balance:  k.GetMarketBalance(ctx, marketID),
+		},
 	}
 
 	return res, nil

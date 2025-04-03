@@ -1,7 +1,6 @@
 package app
 
 import (
-	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
@@ -9,8 +8,6 @@ import (
 	"path/filepath"
 	"strconv"
 
-	errorsmod "cosmossdk.io/errors"
-	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	icahost "github.com/cosmos/ibc-go/v8/modules/apps/27-interchain-accounts/host"
 	porttypes "github.com/cosmos/ibc-go/v8/modules/core/05-port/types"
 
@@ -22,9 +19,11 @@ import (
 	"github.com/gorilla/mux"
 
 	skipabci "github.com/skip-mev/block-sdk/v2/abci"
+	skipchecktx "github.com/skip-mev/block-sdk/v2/abci/checktx"
 	signerextraction "github.com/skip-mev/block-sdk/v2/adapters/signer_extraction_adapter"
 	skipblock "github.com/skip-mev/block-sdk/v2/block"
 	skipbase "github.com/skip-mev/block-sdk/v2/block/base"
+	skiputils "github.com/skip-mev/block-sdk/v2/block/utils"
 	skipdefaultlane "github.com/skip-mev/block-sdk/v2/lanes/base"
 
 	"github.com/spf13/cast"
@@ -154,6 +153,7 @@ import (
 	injcodectypes "github.com/InjectiveLabs/injective-core/injective-chain/codec/types"
 	exchangelane "github.com/InjectiveLabs/injective-core/injective-chain/lanes/exchange"
 	governancelane "github.com/InjectiveLabs/injective-core/injective-chain/lanes/governance"
+	oraclelane "github.com/InjectiveLabs/injective-core/injective-chain/lanes/oracle"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/auction"
 	auctionkeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/auction/keeper"
 	auctiontypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/auction/types"
@@ -357,6 +357,9 @@ type InjectiveApp struct {
 	// stream server
 	ChainStreamServer *stream.StreamServer
 	EventPublisher    *stream.Publisher
+
+	// custom checkTx wrapper to ensure mempool parity between app and cometbft
+	checkTxHandler skipchecktx.CheckTx
 }
 
 // NewInjectiveApp returns a reference to a new initialized Injective application.
@@ -380,11 +383,16 @@ func NewInjectiveApp(
 	app.initManagers(oracleModule)
 	app.registerUpgradeHandlers()
 
-	defaultLane, exchangeLane, governanceLane := app.initLanes()
+	lanes := app.initLanes()
+	oracleLane := lanes.oracleLane
+	governanceLane := lanes.governanceLane
+	exchangeLane := lanes.exchangeLane
+	defaultLane := lanes.defaultLane
 
 	mempool, err := skipblock.NewLanedMempool(
 		app.Logger(),
 		[]skipblock.Lane{
+			oracleLane,
 			governanceLane,
 			exchangeLane,
 			defaultLane,
@@ -431,19 +439,21 @@ func NewInjectiveApp(
 				FeegrantKeeper:         app.FeeGrantKeeper,
 				SignModeHandler:        app.txConfig.SignModeHandler(),
 				SigGasConsumer:         ante.DefaultSigVerificationGasConsumer,
-				TxFeeChecker:           txFeeDenomChecker,
 			},
 			IBCKeeper:             app.IBCKeeper,
 			WasmConfig:            &wasmConfig,
 			WasmKeeper:            &app.WasmKeeper,
 			TXCounterStoreService: runtime.NewKVStoreService(app.keys[wasmtypes.StoreKey]),
-      TxFeesKeeper:          &app.TxFeesKeeper,
+			TxFeesKeeper:          &app.TxFeesKeeper,
 		})
 		app.SetAnteHandler(anteHandler)
 		// Set the ante handler on the lanes.
 		opt := []skipbase.LaneOption{
 			skipbase.WithAnteHandler(app.AnteHandler()),
 		}
+		oracleLane.WithOptions(
+			opt...,
+		)
 		governanceLane.WithOptions(
 			opt...,
 		)
@@ -463,6 +473,21 @@ func NewInjectiveApp(
 	)
 	app.SetPrepareProposal(proposalHandler.PrepareProposalHandler())
 	app.SetProcessProposal(proposalHandler.ProcessProposalHandler())
+
+	cacheDecoder, err := skiputils.NewDefaultCacheTxDecoder(app.txConfig.TxDecoder())
+	if err != nil {
+		panic(err)
+	}
+
+	checkTxHandler := skipchecktx.NewMempoolParityCheckTx(
+		app.Logger(),
+		mempool,
+		cacheDecoder.TxDecoder(),
+		app.BaseApp.CheckTx, // wrap the default checkTx handler
+		app.BaseApp,
+	)
+
+	app.SetCheckTx(checkTxHandler.CheckTx())
 
 	if loadLatest {
 		if err := app.LoadLatestVersion(); err != nil {
@@ -564,30 +589,47 @@ type HasValidateBasic interface {
 	ValidateBasic() error
 }
 
-func (app *InjectiveApp) initLanes() (defaultLane, exchangeLane, governanceLane *skipbase.BaseLane) {
-	governanceLane = governancelane.NewGovernanceLane(
-		app.ExchangeKeeper,
+type initLanesResult struct {
+	oracleLane     *skipbase.BaseLane
+	governanceLane *skipbase.BaseLane
+	exchangeLane   *skipbase.BaseLane
+	defaultLane    *skipbase.BaseLane
+}
+
+func (app *InjectiveApp) initLanes() (lanes initLanesResult) {
+	oracleLane := oraclelane.NewOracleLane(
 		skipbase.LaneConfig{
 			Logger:          app.Logger(),
 			TxEncoder:       app.txConfig.TxEncoder(),
 			TxDecoder:       app.txConfig.TxDecoder(),
 			SignerExtractor: signerextraction.NewDefaultAdapter(),
-			MaxBlockSpace:   math.LegacyMustNewDecFromStr("0.01"),
+			MaxBlockSpace:   math.LegacyMustNewDecFromStr("0.05"),
 			MaxTxs:          10,
 		},
 	)
-	exchangeLane = exchangelane.NewExchangeLane(
+	governanceLane := governancelane.NewGovernanceLane(
 		app.ExchangeKeeper,
 		skipbase.LaneConfig{
 			Logger:          app.Logger(),
 			TxEncoder:       app.txConfig.TxEncoder(),
 			TxDecoder:       app.txConfig.TxDecoder(),
 			SignerExtractor: signerextraction.NewDefaultAdapter(),
-			MaxBlockSpace:   math.LegacyMustNewDecFromStr("0.99"),
+			MaxBlockSpace:   math.LegacyMustNewDecFromStr("0.10"),
+			MaxTxs:          10,
+		},
+	)
+	exchangeLane := exchangelane.NewExchangeLane(
+		app.ExchangeKeeper,
+		skipbase.LaneConfig{
+			Logger:          app.Logger(),
+			TxEncoder:       app.txConfig.TxEncoder(),
+			TxDecoder:       app.txConfig.TxDecoder(),
+			SignerExtractor: signerextraction.NewDefaultAdapter(),
+			MaxBlockSpace:   math.LegacyMustNewDecFromStr("0.85"),
 			MaxTxs:          0,
 		},
 	)
-	defaultLane = skipdefaultlane.NewDefaultLane(
+	defaultLane := skipdefaultlane.NewDefaultLane(
 		skipbase.LaneConfig{
 			Logger:          app.Logger(),
 			TxEncoder:       app.txConfig.TxEncoder(),
@@ -599,7 +641,23 @@ func (app *InjectiveApp) initLanes() (defaultLane, exchangeLane, governanceLane 
 		skipbase.DefaultMatchHandler(),
 	)
 
-	return defaultLane, exchangeLane, governanceLane
+	return initLanesResult{
+		defaultLane:    defaultLane,
+		exchangeLane:   exchangeLane,
+		governanceLane: governanceLane,
+		oracleLane:     oracleLane,
+	}
+}
+
+// CheckTx calls a custom checkTx wrapper to ensure mempool parity between app and cometbft.
+// This overrides  BaseApp default checkTx handler.
+func (app *InjectiveApp) CheckTx(req *abci.RequestCheckTx) (*abci.ResponseCheckTx, error) {
+	return app.checkTxHandler(req)
+}
+
+// SetCheckTx sets the checkTxHandler for the app.
+func (app *InjectiveApp) SetCheckTx(handler skipchecktx.CheckTx) {
+	app.checkTxHandler = handler
 }
 
 func (app *InjectiveApp) GetBaseApp() *baseapp.BaseApp { return app.BaseApp }
@@ -1529,31 +1587,6 @@ func endBlockerOrder() []string {
 		txfeestypes.ModuleName,
 		banktypes.ModuleName,
 	}
-}
-
-// txFeeDenomChecker checks that the tx fee is set in INJ and only INJ
-func txFeeDenomChecker(ctx sdk.Context, transaction sdk.Tx) (sdk.Coins, int64, error) {
-	feeTx, ok := transaction.(sdk.FeeTx)
-	if !ok {
-		return nil, 0, errorsmod.Wrap(sdkerrors.ErrTxDecode, "Tx must be a FeeTx")
-	}
-
-	// To keep the gentxs with zero fees, we need to skip the validation in the first block
-	if ctx.BlockHeight() == 0 {
-		return feeTx.GetFee(), 0, nil
-	}
-
-	feeCoins := feeTx.GetFee()
-	if len(feeCoins) != 1 {
-		return nil, 0, fmt.Errorf(
-			"expected exactly one fee coin; got %s", feeCoins.String())
-	}
-
-	if feeCoins[0].Denom != chaintypes.InjectiveCoin {
-		return nil, 0, fmt.Errorf("expected INJ as fee denom, got %s", feeCoins[0].Denom)
-	}
-
-	return feeTx.GetFee(), 0, nil
 }
 
 func GetModuleAccAddresses() map[string]bool {

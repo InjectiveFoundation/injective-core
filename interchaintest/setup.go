@@ -100,7 +100,6 @@ func InjectiveChainConfig(
 	consensusOverrides["create_empty_blocks_interval"] = "0s"
 	consensusOverrides["peer_gossip_sleep_duration"] = "10ms"
 	consensusOverrides["peer_query_maj23_sleep_duration"] = "2s"
-
 	cometbftTomlOverrides := make(testutil.Toml)
 	cometbftTomlOverrides["consensus"] = consensusOverrides
 

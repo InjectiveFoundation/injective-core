@@ -674,9 +674,17 @@ $ %s tx grant contract <grantee_addr> execution <contract_addr> --allow-all-mess
 				return err
 			}
 
-			rawMsgs, err := cmd.Flags().GetStringSlice(flagAllowedRawMsgs)
+			filename, err := cmd.Flags().GetString(flagAllowedRawMsgs)
 			if err != nil {
 				return err
+			}
+
+			var rawMsgs []string
+			if filename != "" {
+				rawMsgs, err = readRawMsgsFromFile(filename)
+				if err != nil {
+					return err
+				}
 			}
 
 			maxFundsStr, err := cmd.Flags().GetString(flagMaxFunds)
@@ -772,7 +780,7 @@ $ %s tx grant contract <grantee_addr> execution <contract_addr> --allow-all-mess
 	}
 	cliflags.AddTxFlagsToCmd(cmd)
 	cmd.Flags().StringSlice(flagAllowedMsgKeys, []string{}, "Allowed msg keys")
-	cmd.Flags().StringSlice(flagAllowedRawMsgs, []string{}, "Allowed raw msgs")
+	cmd.Flags().String(flagAllowedRawMsgs, "", "path to file containing allowed raw msgs")
 	cmd.Flags().Uint64(flagMaxCalls, 0, "Maximal number of calls to the contract")
 	cmd.Flags().String(flagMaxFunds, "", "Maximal amount of tokens transferable to the contract.")
 	cmd.Flags().Int64(flagExpiration, 0, "The Unix timestamp.")
@@ -875,4 +883,26 @@ func getWasmFile(contractSrc string) ([]byte, error) {
 		return nil, fmt.Errorf("invalid input file. Use wasm binary or gzip")
 	}
 	return wasm, nil
+}
+
+func readRawMsgsFromFile(filename string) (rawMsgs []string, err error) {
+	// Read the file content
+	fileContent, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file %s: %w", filename, err)
+	}
+
+	// Parse the JSON array
+	var messages []json.RawMessage
+	if err := json.Unmarshal(fileContent, &messages); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal messages: %w", err)
+	}
+
+	// Convert each message to a string
+	rawMsgs = make([]string, len(messages))
+	for i, msg := range messages {
+		rawMsgs[i] = string(msg)
+	}
+
+	return rawMsgs, nil
 }

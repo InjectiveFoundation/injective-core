@@ -191,7 +191,7 @@ ictest-fixed-gas-regression: rm-testcache
 
 lint: export GOPROXY=direct
 lint:
-	golangci-lint run --timeout=15m -v --new-from-rev=master
+	golangci-lint run --timeout=15m --new-from-rev=master
 
 lint-last-commit: export GOPROXY=direct
 lint-last-commit:

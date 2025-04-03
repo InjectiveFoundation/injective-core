@@ -97,7 +97,7 @@ func NewAnteHandler(
 							authante.NewSetPubKeyDecorator(ak), // SetPubKeyDecorator must be called before all signature verification decorators
 							authante.NewValidateSigCountDecorator(ak),
 							txfeeskeeper.NewMempoolFeeDecorator(options.TxFeesKeeper),
-							NewDeductFeeDecorator(ak, options.BankKeeper, options.TxFeeChecker), // overidden for fee delegation
+							NewDeductFeeDecorator(ak, options.BankKeeper), // overidden for fee delegation
 							authante.NewSigGasConsumeDecorator(ak, DefaultSigVerificationGasConsumer),
 							NewEip712SigVerificationDecorator(ak),      // overidden for EIP712 Tx signatures
 							authante.NewIncrementSequenceDecorator(ak), // innermost AnteDecorator
@@ -129,7 +129,7 @@ func NewAnteHandler(
 				authante.NewValidateMemoDecorator(ak),
 				txfeeskeeper.NewMempoolFeeDecorator(options.TxFeesKeeper),
 				authante.NewConsumeGasForTxSizeDecorator(ak),
-				authante.NewDeductFeeDecorator(ak, options.BankKeeper, options.FeegrantKeeper, options.TxFeeChecker),
+				authante.NewDeductFeeDecorator(ak, options.BankKeeper, options.FeegrantKeeper, nil),
 				authante.NewSetPubKeyDecorator(ak), // SetPubKeyDecorator must be called before all signature verification decorators
 				authante.NewValidateSigCountDecorator(ak),
 				authante.NewSigGasConsumeDecorator(ak, DefaultSigVerificationGasConsumer),

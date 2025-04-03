@@ -46,8 +46,8 @@ func (q queryServer) GetEipBaseFee(c context.Context, _ *types.QueryEipBaseFeeRe
 	_, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
 	defer doneFn()
 
-	response := q.k.CurFeeState.GetCurBaseFee()
-	return &types.QueryEipBaseFeeResponse{BaseFee: response}, nil
+	baseFee := q.k.CurFeeState.GetCurBaseFee()
+	return &types.QueryEipBaseFeeResponse{BaseFee: &types.EipBaseFee{BaseFee: baseFee}}, nil
 }
 
 var _ osmosistypes.QueryServer = osmosisQueryServer{}

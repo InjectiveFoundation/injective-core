@@ -12,12 +12,17 @@ func ConvertMsgsIntoTx(
 	feePayer sdk.AccAddress,
 	privateKeys []cryptotypes.PrivKey,
 	msg []sdk.Msg,
+	opts ...func(txBuilder client.TxBuilder),
 ) (sdk.Tx, error) {
 	txBuilder := txConfig.NewTxBuilder()
-	err := txBuilder.SetMsgs(msg...)
 
+	err := txBuilder.SetMsgs(msg...)
 	if err != nil {
 		return nil, err
+	}
+
+	for _, opt := range opts {
+		opt(txBuilder)
 	}
 
 	sigV2s := make([]signing.SignatureV2, len(privateKeys))

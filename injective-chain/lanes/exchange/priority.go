@@ -42,14 +42,13 @@ func (p *ExchangeTxPriority) getLiquidationPriority(ctx context.Context) uint64 
 }
 
 func (p *ExchangeTxPriority) getHighestAccountTier(ctx context.Context, tx sdk.Tx) uint64 {
-	sdkCtxDebug := sdk.UnwrapSDKContext(ctx) // TODO remove me
+	sdkCtx := sdk.UnwrapSDKContext(ctx)
 	signersData, err := p.SignerExtractor.GetSigners(tx)
 	if err != nil {
-		sdkCtxDebug.Logger().Error("Error getting signers", "error", err)
+		sdkCtx.Logger().Error("Error getting signers", "error", err)
 		return 0
 	}
 
-	sdkCtx := sdk.UnwrapSDKContext(ctx)
 	highestAccountTier := uint64(0)
 	currBucketStartTimestamp := p.ExchangeKeeper.GetFeeDiscountCurrentBucketStartTimestamp(sdkCtx)
 	maxTTLTimestamp := currBucketStartTimestamp
@@ -58,7 +57,7 @@ func (p *ExchangeTxPriority) getHighestAccountTier(ctx context.Context, tx sdk.T
 	hasMultipleSigners := len(signersData) > 1
 
 	for i, signerData := range signersData {
-		if isFeeTx && hasMultipleSigners && shouldSkipSigner(feeTx, signerData, sdkCtxDebug) {
+		if isFeeTx && hasMultipleSigners && shouldSkipSigner(feeTx, signerData) {
 			continue
 		}
 
@@ -67,7 +66,7 @@ func (p *ExchangeTxPriority) getHighestAccountTier(ctx context.Context, tx sdk.T
 			break
 		}
 
-		highestAccountTier = p.processSigner(signerData, sdkCtx, sdkCtxDebug, highestAccountTier, maxTTLTimestamp)
+		highestAccountTier = p.processSigner(signerData, sdkCtx, highestAccountTier, maxTTLTimestamp)
 	}
 
 	return highestAccountTier
@@ -76,11 +75,9 @@ func (p *ExchangeTxPriority) getHighestAccountTier(ctx context.Context, tx sdk.T
 func shouldSkipSigner(
 	feeTx sdk.FeeTx,
 	signerData signerextraction.SignerData,
-	sdkCtxDebug sdk.Context,
 ) bool {
 	// dont account for fee payer's tier if there are multiple signers which can be EIP-712 relayer
 	if bytes.Equal(feeTx.FeePayer(), signerData.Signer) {
-		sdkCtxDebug.Logger().Debug("SKIP FEE PAYER", "signer", signerData.Signer)
 		return true
 	}
 
@@ -90,12 +87,10 @@ func shouldSkipSigner(
 func (p *ExchangeTxPriority) processSigner(
 	signerData signerextraction.SignerData,
 	sdkCtx sdk.Context,
-	sdkCtxDebug sdk.Context,
 	currentHighest uint64,
 	maxTTLTimestamp int64,
 ) uint64 {
 	signerAcc := helpers.NewAccAddress(signerData.Signer)
-	sdkCtxDebug.Logger().Debug("Debug log sender", "signerAcc", signerAcc.String())
 	accountTierInfo := p.ExchangeKeeper.GetFeeDiscountAccountTierInfo(sdkCtx, signerAcc)
 
 	isTTLExpired := accountTierInfo == nil || accountTierInfo.TtlTimestamp < maxTTLTimestamp
@@ -107,26 +102,18 @@ func (p *ExchangeTxPriority) processSigner(
 }
 
 func (p *ExchangeTxPriority) getTxPriority(ctx context.Context, tx sdk.Tx) uint64 {
-	sdkCtxDebug := sdk.UnwrapSDKContext(ctx)
-	sdkCtxDebug.Logger().Debug("\nEXCHANGE LANE PRIORITY START\n")
-
 	if len(tx.GetMsgs()) == 0 {
 		return 0
 	}
 
 	hasOnlyLiquidationMessages := hasOnlyLiquidationMessages(tx)
-	sdkCtxDebug.Logger().Debug("Debug log", "hasOnlyLiquidationMessages", hasOnlyLiquidationMessages)
 
 	if hasOnlyLiquidationMessages {
 		priority := p.getLiquidationPriority(ctx)
-		sdkCtxDebug.Logger().Debug("Debug log", "highestTier", priority-1)
-		sdkCtxDebug.Logger().Debug("\nEXCHANGE LANE PRIORITY EARLY END\n")
 		return priority
 	}
 
 	priority := p.getHighestAccountTier(ctx, tx)
-	sdkCtxDebug.Logger().Debug("Debug log tier", "highestAccountTier", priority)
-	sdkCtxDebug.Logger().Debug("\nEXCHANGE LANE PRIORITY END\n")
 	return priority
 }
 

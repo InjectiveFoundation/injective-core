@@ -1,54 +1,69 @@
+version: "2"
+run:
+  tests: false
 linters:
-  fast: false
   enable:
+    - errorlint
+    - gocritic
     - misspell
     - prealloc
     - revive
     - unconvert
     - unparam
-    - errorlint
-    - gocritic
-    # - gosec
-linters-settings:
-  revive:
-    enable-all-rules: true
+  settings:
+    gocritic:
+      disabled-checks:
+        - singleCaseSwitch
+        - deferInLoop
+        - hugeParam
+        - unnamedResult
+      enabled-tags:
+        - performance
+        - diagnostic
+        - style
+        - opinionated
+        - experimental
+    revive:
+      enable-all-rules: true
+      rules:
+        - name: var-naming
+          arguments:
+            - - ID
+        - name: add-constant
+          disabled: true
+        - name: line-length-limit
+          arguments:
+            - 140
+        - name: cognitive-complexity
+          arguments:
+            - 20
+          disabled: false
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
     rules:
-      - name: var-naming
-        arguments:
-          - ["ID"]
-      - name: add-constant
-        disabled: true
-      - name: line-length-limit
-        arguments:
-          - 140
-      - name: cognitive-complexity
-        disabled: false
-        arguments: [20]
-  gocritic:
-    enabled-tags:
-      - performance
-      - diagnostic
-      - style
-      - opinionated
-      - experimental
-    disabled-checks:
-      - singleCaseSwitch
-      - deferInLoop
-      - hugeParam
-      - unnamedResult
+      - linters:
+          - revive
+        text: ALL_CAPS
+    paths:
+      - scripts/align_deps.go
+      - injective-chain/modules/peggy/testpeggy
+      - injective-chain/modules/exchange/testexchange
+      - injective-chain/modules/exchange/client/testutil
+      - injective-chain/stream/test
+      - third_party$
+      - builtin$
+      - examples$
 issues:
-  exclude-rules:
-    - linters:
-        - revive
-      text: ALL_CAPS
-  exclude-dirs:
-    - injective-chain/modules/peggy/testpeggy
-    - injective-chain/modules/exchange/testexchange
-    - injective-chain/modules/exchange/client/testutil
-    - injective-chain/stream/test
-  exclude-files:
-    - scripts/align_deps.go
   max-issues-per-linter: 0
-
-run:
-  tests: false
+formatters:
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

@@ -125,7 +125,20 @@ func (k *Keeper) getRedemptionAmountFromShare(ctx sdk.Context, marketID common.H
 		return sdk.NewCoin(fund.DepositDenom, math.ZeroInt())
 	}
 
-	redemptionAmount := shareAmount.Mul(fundBalance.TruncateInt()).Quo(fund.TotalShare)
+	// defensive programming, should never happen
+	if fund.TotalShare.IsZero() {
+		metrics.ReportFuncError(k.svcTags)
+		return sdk.NewCoin(fund.DepositDenom, math.ZeroInt())
+	}
+
+	// defensive programming, should never happen
+	product, err := shareAmount.SafeMul(fundBalance.TruncateInt())
+	if err != nil {
+		metrics.ReportFuncError(k.svcTags)
+		return sdk.NewCoin(fund.DepositDenom, math.ZeroInt())
+	}
+
+	redemptionAmount := product.Quo(fund.TotalShare)
 	return sdk.NewCoin(fund.DepositDenom, redemptionAmount)
 }
 
