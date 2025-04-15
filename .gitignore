@@ -50,3 +50,6 @@ interchaintest/security/coverage
 
 vendor/
 pkgs.txt
+
+# Test state from setup.sh
+.injectived

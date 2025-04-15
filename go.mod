@@ -293,6 +293,8 @@ replace (
 
 	github.com/CosmWasm/wasmd => github.com/InjectiveLabs/wasmd v0.53.2-inj.2
 	github.com/bandprotocol/bandchain-packet => github.com/InjectiveLabs/bandchain-packet v0.0.4-inj-1
+
+	github.com/coinbase/rosetta-sdk-go/types => github.com/coinbase/mesh-sdk-go/types v1.0.0
 	github.com/cometbft/cometbft => github.com/InjectiveLabs/cometbft v0.38.17-inj.3
 	github.com/cosmos/cosmos-sdk => github.com/InjectiveLabs/cosmos-sdk v0.50.9-inj.5
 	github.com/cosmos/ibc-apps/middleware/packet-forward-middleware/v8 => github.com/InjectiveLabs/ibc-apps/middleware/packet-forward-middleware/v8 v8.2.0-inj
@@ -303,7 +305,7 @@ replace (
 
 	github.com/miguelmota/go-ethereum-hdwallet => github.com/InjectiveLabs/go-ethereum-hdwallet v0.1.2
 
-	github.com/skip-mev/block-sdk/v2 => github.com/InjectiveLabs/block-sdk/v2 v2.5.1-inj.5
+	github.com/skip-mev/block-sdk/v2 => github.com/InjectiveLabs/block-sdk/v2 v2.5.1-inj.6
 
 	github.com/syndtr/goleveldb => github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 )

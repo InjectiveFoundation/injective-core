@@ -2,8 +2,9 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"runtime/debug"
-	"time"
+	"sort"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/module"
@@ -11,12 +12,18 @@ import (
 	"cosmossdk.io/log"
 	storetypes "cosmossdk.io/store/types"
 	upgradetypes "cosmossdk.io/x/upgrade/types"
+	authkeeper "github.com/cosmos/cosmos-sdk/x/auth/keeper"
+	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	"github.com/pkg/errors"
+
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/txfees"
+	txfeestypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/txfees/types"
+	chaintypes "github.com/InjectiveLabs/injective-core/injective-chain/types"
 )
 
 // nolint:all
 const (
-	upgradeName = "v1.15.0-beta.2"
+	upgradeName = "v1.15.0"
 )
 
 func (app *InjectiveApp) registerUpgradeHandlers() {
@@ -29,28 +36,25 @@ func (app *InjectiveApp) registerUpgradeHandlers() {
 			var handlerErr error
 			defer recoverUpgradeHandler(ctx, logger, &handlerErr)
 
+			// Skip automatic InitGenesis for txfees (we set params below)
+			fromVM[txfeestypes.StoreKey] = txfees.AppModule{}.ConsensusVersion()
+
 			// Migrate txfees parameters
 			if err := migrateTxfeesParams(sdkCtx, app, logger); err != nil {
 				logger.Error("[TXFEES MIGRATION] failed to migrate txfees parameters", "error", err)
+				logger.Error("[TXFEES MIGRATION] re-enabling InitGenesis for txfees, make additional proposals to set params properly", "error", err)
+				delete(fromVM, txfeestypes.StoreKey)
 				// not critical, skip upon error
 			} else {
 				logger.Info("[TXFEES MIGRATION] successfully migrated txfees parameters")
 			}
 
-			// Migrate gov parameters
-			if err := migrateGovParams(sdkCtx, app, logger); err != nil {
-				logger.Error("[GOV MIGRATION] failed to migrate gov parameters", "error", err)
+			// Migrate module accounts
+			if err := migrateModuleAccounts(sdkCtx, app, logger); err != nil {
+				logger.Error("[MODULE ACCOUNTS MIGRATION] failed to migrate some module accounts", "error", err)
 				// not critical, skip upon error
 			} else {
-				logger.Info("[GOV MIGRATION] successfully migrated gov parameters")
-			}
-
-			// Migrate consensus parameters
-			if err := migrateConsensusParams(sdkCtx, app, logger); err != nil {
-				logger.Error("[CONSENSUS MIGRATION] failed to migrate consensus parameters", "error", err)
-				// not critical, skip upon error
-			} else {
-				logger.Info("[CONSENSUS MIGRATION] successfully migrated consensus parameters")
+				logger.Info("[MODULE ACCOUNTS MIGRATION] successfully migrated module accounts")
 			}
 
 			// DO NOT REMOVE
@@ -74,7 +78,7 @@ func (app *InjectiveApp) registerUpgradeHandlers() {
 	if upgradeInfo.Name == upgradeName && !app.UpgradeKeeper.IsSkipHeight(upgradeInfo.Height) {
 		// add any store upgrades here
 		storeUpgrades := storetypes.StoreUpgrades{
-			Added:   nil,
+			Added:   []string{txfeestypes.StoreKey},
 			Renamed: nil,
 			Deleted: nil,
 		}
@@ -87,7 +91,7 @@ func (app *InjectiveApp) registerUpgradeHandlers() {
 func migrateTxfeesParams(ctx sdk.Context, app *InjectiveApp, logger log.Logger) (err error) {
 	defer recoverUpgradeHandler(ctx, logger, &err)
 
-	txfeesParams := app.TxFeesKeeper.GetParams(ctx)
+	txfeesParams := txfeestypes.DefaultParams()
 	txfeesParams.MaxGasWantedPerTx = uint64(70_000_000)
 	txfeesParams.HighGasTxThreshold = uint64(25_000_000)
 	txfeesParams.ResetInterval = 72_000
@@ -96,50 +100,105 @@ func migrateTxfeesParams(ctx sdk.Context, app *InjectiveApp, logger log.Logger) 
 	return nil
 }
 
-func migrateGovParams(ctx sdk.Context, app *InjectiveApp, logger log.Logger) error {
-	var err error
+func migrateModuleAccounts(ctx sdk.Context, app *InjectiveApp, logger log.Logger) (err error) {
 	defer recoverUpgradeHandler(ctx, logger, &err)
 
-	govParams, err := app.GovKeeper.Params.Get(ctx)
-	if err != nil {
-		return errors.Wrap(err, "failed to get gov params")
+	maccPerms := app.AccountKeeper.GetModulePermissions()
+
+	sortedPermAddrs := make([]string, 0, len(maccPerms))
+	for moduleName := range maccPerms {
+		sortedPermAddrs = append(sortedPermAddrs, moduleName)
 	}
+	sort.Strings(sortedPermAddrs)
 
-	// Update voting period to 20 minutes
-	votingPeriod := time.Minute * 20
-	govParams.VotingPeriod = &votingPeriod
-
-	// Update expedited voting period to 5 minutes
-	expeditedVotingPeriod := time.Minute * 5
-	govParams.ExpeditedVotingPeriod = &expeditedVotingPeriod
-
-	if err := app.GovKeeper.Params.Set(ctx, govParams); err != nil {
-		return errors.Wrap(err, "failed to set gov params")
-	}
+	// migrate module accounts, converting from BaseAccount or EthAccount into ModuleAccount
+	initializeModuleAccs(ctx, app.AccountKeeper, sortedPermAddrs)
 
 	return nil
 }
 
-func migrateConsensusParams(ctx sdk.Context, app *InjectiveApp, logger log.Logger) error {
-	var err error
-	defer recoverUpgradeHandler(ctx, logger, &err)
+// Copied from https://github.com/dydxprotocol/v4-chain/blob/d2d65905a844ed607aef7850168c23844533d8ee/protocol/app/upgrades/v3.0.0/upgrade.go#L77
+// With modifications to use Injective's account types and also skip initializing module accounts that don't exist.
+func initializeModuleAccs(ctx sdk.Context, ak authkeeper.AccountKeeper, accs []string) {
+	for _, modAccName := range accs {
+		// Get module account and relevant permissions from the accountKeeper.
+		//
+		// Note: GetModuleAccountAndPermissions will panic if the target account is not a module account.
+		addr, perms := ak.GetModuleAddressAndPermissions(modAccName)
+		if addr == nil {
+			panic(fmt.Sprintf(
+				"Did not find %v in `ak.GetModuleAddressAndPermissions`. This is not expected. Skipping.",
+				modAccName,
+			))
+		}
 
-	// Get current consensus params
-	consensusParams, err := app.ConsensusParamsKeeper.ParamsStore.Get(ctx)
-	if err != nil {
-		return errors.Wrap(err, "failed to get consensus params")
+		// Try to get the account in state.
+		acc := ak.GetAccount(ctx, addr)
+		if acc != nil {
+			// Account has been initialized.
+			macc, isModuleAccount := acc.(sdk.ModuleAccountI)
+			if isModuleAccount {
+				// Module account was correctly initialized. Skipping
+				ctx.Logger().Info(fmt.Sprintf(
+					"module account %+v was correctly initialized. No-op",
+					macc,
+				))
+
+				continue
+			}
+
+			// Module account has been initialized as a BaseAccount. Change to module account.
+			// Note: We need to get the base account to retrieve its account number, and convert it
+			// in place into a module account.
+			baseAccount, ok := acc.(*authtypes.BaseAccount)
+			if !ok {
+				ctx.Logger().Info((fmt.Sprintf(
+					"cannot cast %v into a BaseAccount, acc = %+v; trying to cast into chaintypes.EthAccount",
+					modAccName,
+					acc,
+				)))
+
+				ethAccount, ok := acc.(*chaintypes.EthAccount)
+				if !ok {
+					ctx.Logger().Info((fmt.Sprintf(
+						"cannot cast %v into a chaintypes.EthAccount, acc = %+v; skipping",
+						modAccName,
+						acc,
+					)))
+
+					continue
+				}
+
+				// unwrap base account from eth account
+				baseAccount = ethAccount.BaseAccount
+			}
+
+			newModuleAccount := authtypes.NewModuleAccount(
+				baseAccount,
+				modAccName,
+				perms...,
+			)
+			ak.SetModuleAccount(ctx, newModuleAccount)
+			ctx.Logger().Info(fmt.Sprintf(
+				"Successfully converted %v to module account in state: %+v",
+				modAccName,
+				newModuleAccount,
+			))
+
+			continue
+		}
+
+		// Account has not been initialized at all. Initialize it as module.
+		// Implementation taken from
+		// https://github.com/dydxprotocol/cosmos-sdk/blob/bdf96fdd/x/auth/keeper/keeper.go#L213
+		newModuleAccount := authtypes.NewEmptyModuleAccount(modAccName, perms...)
+		maccI := (ak.NewAccount(ctx, newModuleAccount)).(sdk.ModuleAccountI) // this set the account number
+		ak.SetModuleAccount(ctx, maccI)
+		ctx.Logger().Info(fmt.Sprintf(
+			"Successfully initialized module account in state: %+v",
+			newModuleAccount,
+		))
 	}
-
-	// Update max gas to 150M
-	consensusParams.Block.MaxGas = 150_000_000
-
-	// Set the updated consensus params
-	if err := app.ConsensusParamsKeeper.ParamsStore.Set(ctx, consensusParams); err != nil {
-		return errors.Wrap(err, "failed to set consensus params")
-	}
-
-	logger.Info("[CONSENSUS MIGRATION] updated max gas to 150M")
-	return nil
 }
 
 // nolint:gocritic // coz must use *error

@@ -14,7 +14,7 @@ The txfees module's parameters control both transaction acceptance rules and the
 
 These parameters define the basic transaction validation rules that are always enforced, regardless of whether the EIP-1559 fee market is enabled (`Mempool1559Enabled`). They provide the first line of defense against network spam by setting hard limits on transaction characteristics and implementing a two-tiered fee system for high-gas transactions.
 
-When `Mempool1559Enabled` is false, these are the only parameters used for transaction validation. When true, these checks are performed before the EIP-1559 fee market rules are applied.
+When `Mempool1559Enabled` is false, i.e. dynamic EIP-1559 fee market is disabled, only `MaxGasWantedPerTx` is used for transaction validation. When true, these checks are performed before the EIP-1559 fee market rules are applied.
 
 #### MaxGasWantedPerTx
 - Type: `uint64`
@@ -35,9 +35,11 @@ When `Mempool1559Enabled` is false, these are the only parameters used for trans
 
 These parameters control the dynamic EIP-1559 fee market behavior and are only active when `Mempool1559Enabled` is true. They determine how the base fee adjusts in response to network congestion, set the bounds for fee adjustments, and define the target block utilization.
 
-When `Mempool1559Enabled` is false, these parameters (except `MinGasPrice`) are not used, and transactions only need to meet the basic transaction control requirements. When true, transactions must additionally satisfy the EIP-1559 fee market rules, including providing a gas price ≥ current base fee.
+When `Mempool1559Enabled` is false, these parameters are not used, and transactions only need to meet the basic transaction control requirements. When true, transactions must additionally satisfy the EIP-1559 fee market rules, including providing a gas price ≥ current base fee.
 
-Note: `MinGasPrice` is always enforced as the minimum gas price, regardless of whether EIP-1559 is enabled.
+Note: A minimum gas price is always enforced, but the source depends on whether `mempool1559_enabled` is true or false.
+* When dynamic EIP-1559 fee market enabled: the `min_gas_price` from the txfees module is enforced (new behaviour).
+* When dynamic EIP-1559 fee market disabled: the `minimum-gas-prices` value from each validator's local `app.toml` is enforced instead (old behaviour).
 
 #### Mempool1559Enabled
 - Type: `bool`

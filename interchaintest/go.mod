@@ -97,7 +97,6 @@ require (
 	github.com/cosmos/iavl v1.2.0 // indirect
 	github.com/cosmos/ibc-go/modules/capability v1.0.1 // indirect
 	github.com/cosmos/ics23/go v0.11.0 // indirect
-	github.com/cosmos/interchain-security/v5 v5.1.1 // indirect
 	github.com/cosmos/ledger-cosmos-go v0.13.3 // indirect
 	github.com/crate-crypto/go-kzg-4844 v1.0.0 // indirect
 	github.com/danieljoos/wincred v1.1.2 // indirect
@@ -257,9 +256,6 @@ require (
 	github.com/syndtr/goleveldb v1.0.1-0.20220721030215-126854af5e6v0d // indirect
 	github.com/tendermint/go-amino v0.16.0 // indirect
 	github.com/tidwall/btree v1.7.0 // indirect
-	github.com/tidwall/gjson v1.17.1 // indirect
-	github.com/tidwall/match v1.1.1 // indirect
-	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tinylib/msgp v1.1.8 // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
@@ -328,6 +324,7 @@ replace (
 	github.com/CosmWasm/wasmd => github.com/InjectiveLabs/wasmd v0.53.2-inj.2
 	github.com/bandprotocol/bandchain-packet => github.com/InjectiveLabs/bandchain-packet v0.0.4-inj-1
 	github.com/btcsuite/btcd/btcec/v2 => github.com/btcsuite/btcd/btcec/v2 v2.3.3
+	github.com/coinbase/rosetta-sdk-go/types => github.com/coinbase/mesh-sdk-go/types v1.0.0
 
 	github.com/cometbft/cometbft => github.com/InjectiveLabs/cometbft v0.38.17-inj.3
 	github.com/cosmos/cosmos-sdk => github.com/InjectiveLabs/cosmos-sdk v0.50.9-inj.5
@@ -339,10 +336,10 @@ replace (
 	github.com/gogo/protobuf => github.com/regen-network/protobuf v1.3.3-alpha.regen.1
 	github.com/miguelmota/go-ethereum-hdwallet => github.com/InjectiveLabs/go-ethereum-hdwallet v0.1.2
 
-	github.com/skip-mev/block-sdk/v2 => github.com/InjectiveLabs/block-sdk/v2 v2.5.1-inj.5
+	github.com/skip-mev/block-sdk/v2 => github.com/InjectiveLabs/block-sdk/v2 v2.5.1-inj.6
 
 	// For interchaintest
-	github.com/strangelove-ventures/interchaintest/v8 => github.com/InjectiveLabs/interchaintest/v8 v8.0.0-20250318002252-f1e0cdd3ee1b
+	github.com/strangelove-ventures/interchaintest/v8 => github.com/InjectiveLabs/interchaintest/v8 v8.0.1-inj
 
 	github.com/syndtr/goleveldb => github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	github.com/vedhavyas/go-subkey => github.com/strangelove-ventures/go-subkey v1.0.7
