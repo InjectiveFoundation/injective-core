@@ -33,3 +33,4 @@ The exchange module contains the following parameters:
 | BinaryOptionsAtomicMarketOrderFeeMultiplier | math.LegacyDec  | 2x                 |
 | MinimalProtocolFeeRate                      | math.LegacyDec  | 0.00001%           |
 | IsInstantDerivativeMarketLaunchEnabled      | bool     | false              |
+| PostOnlyModeHeightThreshold                 | int64          | 1000              |

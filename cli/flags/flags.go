@@ -3,7 +3,7 @@ package flags
 import (
 	"fmt"
 
-	tmcli "github.com/cometbft/cometbft/libs/cli"
+	cmcli "github.com/cometbft/cometbft/libs/cli"
 	"github.com/cosmos/cosmos-sdk/client/flags"
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
 	govcli "github.com/cosmos/cosmos-sdk/x/gov/client/cli"
@@ -14,7 +14,7 @@ import (
 func AddQueryFlagsToCmd(cmd *cobra.Command) {
 	cmd.Flags().String(flags.FlagNode, "tcp://localhost:26657", "<host>:<port> to Tendermint RPC interface for this chain")
 	cmd.Flags().Int64(flags.FlagHeight, 0, "Use a specific height to query state at (this can error if the node is pruning state)")
-	cmd.Flags().StringP(tmcli.OutputFlag, "o", "text", "Output format (text|json)")
+	cmd.Flags().StringP(cmcli.OutputFlag, "o", "text", "Output format (text|json)")
 	cmd.Flags().String(flags.FlagChainID, "", "chain-id")
 	err := cmd.MarkFlagRequired(flags.FlagChainID)
 	if err != nil {

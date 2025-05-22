@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 )
 
 // GetOrderbookPriceLevelQuantity gets the aggregate quantity of the orders for a given market at a given price
@@ -130,15 +131,15 @@ func (k *Keeper) DecrementOrderbookPriceLevelQuantity(
 func (k *Keeper) GetAllTransientOrderbookUpdates(
 	ctx sdk.Context,
 	isSpot bool,
-) []*types.Orderbook {
+) []*v2.Orderbook {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	orderbookMap := make(map[common.Hash]*types.Orderbook)
+	orderbookMap := make(map[common.Hash]*v2.Orderbook)
 
-	appendPriceLevel := func(marketID common.Hash, isBuy bool, priceLevel *types.Level) (stop bool) {
+	appendPriceLevel := func(marketID common.Hash, isBuy bool, priceLevel *v2.Level) (stop bool) {
 		if _, ok := orderbookMap[marketID]; !ok {
-			orderbookMap[marketID] = types.NewOrderbook(marketID)
+			orderbookMap[marketID] = v2.NewOrderbook(marketID)
 		}
 
 		orderbookMap[marketID].AppendLevel(isBuy, priceLevel)
@@ -147,7 +148,7 @@ func (k *Keeper) GetAllTransientOrderbookUpdates(
 
 	k.IterateTransientOrderbookPriceLevels(ctx, isSpot, appendPriceLevel)
 
-	orderbooks := make([]*types.Orderbook, 0, len(orderbookMap))
+	orderbooks := make([]*v2.Orderbook, 0, len(orderbookMap))
 
 	for _, orderbook := range orderbookMap {
 		orderbooks = append(orderbooks, orderbook)
@@ -163,7 +164,7 @@ func (k *Keeper) GetAllTransientOrderbookUpdates(
 func (k *Keeper) IterateTransientOrderbookPriceLevels(
 	ctx sdk.Context,
 	isSpot bool,
-	process func(marketID common.Hash, isBuy bool, priceLevel *types.Level) (stop bool),
+	process func(marketID common.Hash, isBuy bool, priceLevel *v2.Level) (stop bool),
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
@@ -177,16 +178,21 @@ func (k *Keeper) IterateTransientOrderbookPriceLevels(
 	}
 
 	iterator := priceLevelStore.Iterator(nil, nil)
-	defer iterator.Close()
-
+	keys := [][]byte{}
+	values := [][]byte{}
 	for ; iterator.Valid(); iterator.Next() {
-		key := iterator.Key()
+		keys = append(keys, iterator.Key())
+		values = append(values, iterator.Value())
+	}
+	iterator.Close()
+
+	for idx, key := range keys {
 		marketID := common.BytesToHash(key[:common.HashLength])
 		isBuy := types.IsTrueByte(key[common.HashLength : common.HashLength+1])
 		price := types.GetPriceFromPaddedPrice(string(key[common.HashLength+1:]))
-		quantity := types.UnsignedDecBytesToDec(iterator.Value())
+		quantity := types.UnsignedDecBytesToDec(values[idx])
 
-		if process(marketID, isBuy, types.NewLevel(price, quantity)) {
+		if process(marketID, isBuy, v2.NewLevel(price, quantity)) {
 			return
 		}
 	}
@@ -201,7 +207,7 @@ func (k *Keeper) GetOrderbookPriceLevels(
 	limit *uint64,
 	limitCumulativeNotional *math.LegacyDec, // optionally retrieve only top positions up to this cumulative notional value (useful when calc. worst price for BUY)
 	limitCumulativeQuantity *math.LegacyDec, // optionally retrieve only top positions up to this cumulative quantity value (useful when calc. worst price for SELL)
-) []*types.Level {
+) []*v2.Level {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
@@ -214,20 +220,23 @@ func (k *Keeper) GetOrderbookPriceLevels(
 
 	store := k.getStore(ctx)
 	priceLevelStore := prefix.NewStore(store, storeKey)
-	var iterator storetypes.Iterator
+	var iter storetypes.Iterator
 
 	if isBuy {
-		iterator = priceLevelStore.ReverseIterator(nil, nil)
+		iter = priceLevelStore.ReverseIterator(nil, nil)
 	} else {
-		iterator = priceLevelStore.Iterator(nil, nil)
+		iter = priceLevelStore.Iterator(nil, nil)
 	}
 
-	defer iterator.Close()
+	defer iter.Close()
 
-	levels := make([]*types.Level, 0)
-	cumulativeNotional := math.LegacyZeroDec()
-	cumulativeQuantity := math.LegacyZeroDec()
-	for ; iterator.Valid(); iterator.Next() {
+	var (
+		levels             = make([]*v2.Level, 0)
+		cumulativeNotional = math.LegacyZeroDec()
+		cumulativeQuantity = math.LegacyZeroDec()
+	)
+
+	for ; iter.Valid(); iter.Next() {
 		if limit != nil && uint64(len(levels)) == *limit {
 			break
 		}
@@ -238,10 +247,10 @@ func (k *Keeper) GetOrderbookPriceLevels(
 			break
 		}
 
-		key := iterator.Key()
+		key := iter.Key()
 		price := types.GetPriceFromPaddedPrice(string(key))
-		quantity := types.UnsignedDecBytesToDec(iterator.Value())
-		levels = append(levels, types.NewLevel(price, quantity))
+		quantity := types.UnsignedDecBytesToDec(iter.Value())
+		levels = append(levels, v2.NewLevel(price, quantity))
 		if limitCumulativeNotional != nil {
 			cumulativeNotional = cumulativeNotional.Add(quantity.Mul(price))
 		}
@@ -249,6 +258,7 @@ func (k *Keeper) GetOrderbookPriceLevels(
 			cumulativeQuantity = cumulativeQuantity.Add(quantity)
 		}
 	}
+
 	return levels
 }
 
@@ -268,27 +278,27 @@ func (k *Keeper) GetOrderbookSequence(ctx sdk.Context, marketID common.Hash) uin
 }
 
 // GetAllOrderbookSequences gets all the orderbook sequences.
-func (k *Keeper) GetAllOrderbookSequences(ctx sdk.Context) []*types.OrderbookSequence {
+func (k *Keeper) GetAllOrderbookSequences(ctx sdk.Context) []*v2.OrderbookSequence {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	store := k.getStore(ctx)
 	sequenceStore := prefix.NewStore(store, types.OrderbookSequencePrefix)
 
-	orderbookSequences := make([]*types.OrderbookSequence, 0)
+	iter := sequenceStore.Iterator(nil, nil)
+	defer iter.Close()
 
-	iterator := sequenceStore.Iterator(nil, nil)
-	defer iterator.Close()
+	orderbookSequences := make([]*v2.OrderbookSequence, 0)
+	for ; iter.Valid(); iter.Next() {
+		marketID := common.BytesToHash(iter.Key())
+		sequence := sdk.BigEndianToUint64(iter.Value())
 
-	for ; iterator.Valid(); iterator.Next() {
-		marketID := common.BytesToHash(iterator.Key())
-		sequence := sdk.BigEndianToUint64(iterator.Value())
-
-		orderbookSequences = append(orderbookSequences, &types.OrderbookSequence{
+		orderbookSequences = append(orderbookSequences, &v2.OrderbookSequence{
 			Sequence: sequence,
 			MarketId: marketID.Hex(),
 		})
 	}
+
 	return orderbookSequences
 }
 
@@ -331,12 +341,12 @@ func (k *Keeper) IncrementSequenceAndEmitAllTransientOrderbookUpdates(
 		return
 	}
 
-	spotUpdates := make([]*types.OrderbookUpdate, 0, len(spotOrderbooks))
-	derivativeUpdates := make([]*types.OrderbookUpdate, 0, len(derivativeOrderbooks))
+	spotUpdates := make([]*v2.OrderbookUpdate, 0, len(spotOrderbooks))
+	derivativeUpdates := make([]*v2.OrderbookUpdate, 0, len(derivativeOrderbooks))
 
 	for _, orderbook := range spotOrderbooks {
 		sequence := k.IncrementOrderbookSequence(ctx, common.BytesToHash(orderbook.MarketId))
-		spotUpdates = append(spotUpdates, &types.OrderbookUpdate{
+		spotUpdates = append(spotUpdates, &v2.OrderbookUpdate{
 			Seq:       sequence,
 			Orderbook: orderbook,
 		})
@@ -344,16 +354,107 @@ func (k *Keeper) IncrementSequenceAndEmitAllTransientOrderbookUpdates(
 
 	for _, orderbook := range derivativeOrderbooks {
 		sequence := k.IncrementOrderbookSequence(ctx, common.BytesToHash(orderbook.MarketId))
-		derivativeUpdates = append(derivativeUpdates, &types.OrderbookUpdate{
+		derivativeUpdates = append(derivativeUpdates, &v2.OrderbookUpdate{
 			Seq:       sequence,
 			Orderbook: orderbook,
 		})
 	}
 
-	event := &types.EventOrderbookUpdate{
+	event := &v2.EventOrderbookUpdate{
 		SpotUpdates:       spotUpdates,
 		DerivativeUpdates: derivativeUpdates,
 	}
-	// nolint:errcheck // ignored on purpose
-	ctx.EventManager().EmitTypedEvent(event)
+	k.EmitEvent(ctx, event)
+}
+
+func (k *Keeper) GetAllBalancesWithBalanceHolds(ctx sdk.Context) []*v2.BalanceWithMarginHold {
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+
+	var (
+		balanceHolds            = make(map[string]map[string]math.LegacyDec)
+		balances                = k.GetAllExchangeBalances(ctx)
+		restingSpotOrders       = k.GetAllSpotLimitOrderbook(ctx)
+		restingDerivativeOrders = k.GetAllDerivativeAndBinaryOptionsLimitOrderbook(ctx)
+	)
+
+	var safeUpdateBalanceHolds = func(subaccountId, denom string, amount math.LegacyDec) {
+		if _, ok := balanceHolds[subaccountId]; !ok {
+			balanceHolds[subaccountId] = make(map[string]math.LegacyDec)
+		}
+
+		if balanceHolds[subaccountId][denom].IsNil() {
+			balanceHolds[subaccountId][denom] = math.LegacyZeroDec()
+		}
+
+		balanceHolds[subaccountId][denom] = balanceHolds[subaccountId][denom].Add(amount)
+	}
+
+	processSpotOrders(ctx, k, restingSpotOrders, safeUpdateBalanceHolds)
+	processDerivativeOrders(ctx, k, restingDerivativeOrders, safeUpdateBalanceHolds)
+
+	return createBalanceWithMarginHolds(balances, balanceHolds)
+}
+
+func processSpotOrders(
+	ctx sdk.Context,
+	k *Keeper,
+	restingSpotOrders []v2.SpotOrderBook,
+	safeUpdateBalanceHolds func(subaccountId, denom string, amount math.LegacyDec),
+) {
+	for _, orderbook := range restingSpotOrders {
+		market := k.GetSpotMarketByID(ctx, common.HexToHash(orderbook.MarketId))
+
+		for _, order := range orderbook.Orders {
+			var chainFormatBalanceHold math.LegacyDec
+			balanceHold, denom := order.GetUnfilledMarginHoldAndMarginDenom(market, false)
+			if denom == market.BaseDenom {
+				chainFormatBalanceHold = market.QuantityToChainFormat(balanceHold)
+			} else {
+				chainFormatBalanceHold = market.NotionalToChainFormat(balanceHold)
+			}
+			safeUpdateBalanceHolds(order.SubaccountID().Hex(), denom, chainFormatBalanceHold)
+		}
+	}
+}
+
+func processDerivativeOrders(
+	ctx sdk.Context,
+	k *Keeper,
+	restingDerivativeOrders []v2.DerivativeOrderBook,
+	safeUpdateBalanceHolds func(subaccountId, denom string, amount math.LegacyDec),
+) {
+	for _, orderbook := range restingDerivativeOrders {
+		market := k.GetDerivativeOrBinaryOptionsMarket(ctx, common.HexToHash(orderbook.MarketId), nil)
+
+		for _, order := range orderbook.Orders {
+			balanceHold := order.GetCancelDepositDelta(market.GetMakerFeeRate()).AvailableBalanceDelta
+			chainFormatBalanceHold := market.NotionalToChainFormat(balanceHold)
+			safeUpdateBalanceHolds(order.SubaccountID().Hex(), market.GetQuoteDenom(), chainFormatBalanceHold)
+		}
+	}
+}
+
+func createBalanceWithMarginHolds(
+	balances []v2.Balance,
+	balanceHolds map[string]map[string]math.LegacyDec,
+) []*v2.BalanceWithMarginHold {
+	balanceWithBalanceHolds := make([]*v2.BalanceWithMarginHold, 0, len(balances))
+
+	for _, balance := range balances {
+		balanceHold := balanceHolds[balance.SubaccountId][balance.Denom]
+
+		if balanceHold.IsNil() {
+			balanceHold = math.LegacyZeroDec()
+		}
+
+		balanceWithBalanceHolds = append(balanceWithBalanceHolds, &v2.BalanceWithMarginHold{
+			SubaccountId: balance.SubaccountId,
+			Denom:        balance.Denom,
+			Available:    balance.Deposits.AvailableBalance,
+			Total:        balance.Deposits.TotalBalance,
+			BalanceHold:  balanceHold,
+		})
+	}
+
+	return balanceWithBalanceHolds
 }

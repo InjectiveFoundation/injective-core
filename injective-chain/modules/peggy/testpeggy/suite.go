@@ -1,18 +1,19 @@
 package testpeggy
 
 import (
+	"testing"
+	"time"
+
 	simapp "github.com/InjectiveLabs/injective-core/injective-chain/app"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/peggy"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/peggy/keeper"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/peggy/types"
-	tmproto "github.com/cometbft/cometbft/proto/tendermint/types"
+	cmtproto "github.com/cometbft/cometbft/api/cometbft/types/v1"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	minttypes "github.com/cosmos/cosmos-sdk/x/mint/types"
 	stakingkeeper "github.com/cosmos/cosmos-sdk/x/staking/keeper"
 	"github.com/stretchr/testify/require"
-	"testing"
-	"time"
 )
 
 type TestSuite struct {
@@ -30,7 +31,7 @@ func NewTestSuite(t *testing.T) *TestSuite {
 	s := &TestSuite{}
 
 	s.App = simapp.Setup(false)
-	s.Ctx = s.App.BaseApp.NewContextLegacy(false, tmproto.Header{
+	s.Ctx = s.App.BaseApp.NewContextLegacy(false, cmtproto.Header{
 		Height: 1234567,
 		Time:   time.Date(2020, time.April, 22, 12, 0, 0, 0, time.UTC),
 	})

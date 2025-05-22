@@ -283,7 +283,7 @@ func printCreate(cmd *cobra.Command, k *keyring.Record, showMnemonic bool, mnemo
 
 func validateMultisigThreshold(k, nKeys int) error {
 	if k <= 0 {
-		return fmt.Errorf("threshold must be a positive integer")
+		return errors.New("threshold must be a positive integer")
 	}
 	if nKeys < k {
 		return fmt.Errorf(

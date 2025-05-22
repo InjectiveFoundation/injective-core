@@ -6,10 +6,11 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 	"github.com/InjectiveLabs/metrics"
 )
 
-func (k *Keeper) SetTradingRewardsMarketQualificationForAllQualifyingMarkets(ctx sdk.Context, campaignInfo *types.TradingRewardCampaignInfo) {
+func (k *Keeper) SetTradingRewardsMarketQualificationForAllQualifyingMarkets(ctx sdk.Context, campaignInfo *v2.TradingRewardCampaignInfo) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 

@@ -2,10 +2,9 @@ package keeper
 
 import (
 	"cosmossdk.io/math"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
-
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 )
 
 // processSpotMarketOrderStateExpansions processes the spot market order state expansions.
@@ -14,11 +13,11 @@ func (k *Keeper) processSpotMarketOrderStateExpansions(
 	ctx sdk.Context,
 	marketID common.Hash,
 	isMarketBuy bool,
-	marketOrders []*types.SpotMarketOrder,
+	marketOrders []*v2.SpotMarketOrder,
 	marketFillQuantities []math.LegacyDec,
 	clearingPrice math.LegacyDec,
 	tradeFeeRate, relayerFeeShareRate math.LegacyDec,
-	pointsMultiplier types.PointsMultiplier,
+	pointsMultiplier v2.PointsMultiplier,
 	feeDiscountConfig *FeeDiscountConfig,
 ) []*spotOrderStateExpansion {
 	stateExpansions := make([]*spotOrderStateExpansion, len(marketOrders))
@@ -43,11 +42,11 @@ func (k *Keeper) processSpotMarketOrderStateExpansions(
 func (k *Keeper) getSpotMarketOrderStateExpansion(
 	ctx sdk.Context,
 	marketID common.Hash,
-	order *types.SpotMarketOrder,
+	order *v2.SpotMarketOrder,
 	isMarketBuy bool,
 	fillQuantity, clearingPrice math.LegacyDec,
 	takerFeeRate, relayerFeeShareRate math.LegacyDec,
-	pointsMultiplier types.PointsMultiplier,
+	pointsMultiplier v2.PointsMultiplier,
 	feeDiscountConfig *FeeDiscountConfig,
 ) *spotOrderStateExpansion {
 	var baseChangeAmount, quoteChangeAmount math.LegacyDec

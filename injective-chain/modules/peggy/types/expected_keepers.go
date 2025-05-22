@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
+	corestore "cosmossdk.io/core/store"
 	"cosmossdk.io/math"
-	storetypes "cosmossdk.io/store/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	bank "github.com/cosmos/cosmos-sdk/x/bank/types"
 	"github.com/cosmos/cosmos-sdk/x/distribution/types"
@@ -19,7 +19,7 @@ type StakingKeeper interface {
 	GetLastValidatorPower(ctx context.Context, operator sdk.ValAddress) (int64, error)
 	GetLastTotalPower(ctx context.Context) (power math.Int, err error)
 	IterateValidators(context.Context, func(index int64, validator stakingtypes.ValidatorI) (stop bool)) error
-	ValidatorQueueIterator(ctx context.Context, endTime time.Time, endHeight int64) (storetypes.Iterator, error)
+	ValidatorQueueIterator(ctx context.Context, endTime time.Time, endHeight int64) (corestore.Iterator, error)
 	GetParams(ctx context.Context) (stakingtypes.Params, error)
 	GetValidator(ctx context.Context, addr sdk.ValAddress) (validator stakingtypes.Validator, err error)
 	IterateBondedValidatorsByPower(context.Context, func(index int64, validator stakingtypes.ValidatorI) (stop bool)) error

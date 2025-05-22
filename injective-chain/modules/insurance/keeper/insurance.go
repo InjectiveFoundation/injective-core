@@ -16,6 +16,7 @@ import (
 	"github.com/InjectiveLabs/metrics"
 
 	exchangetypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	exchangev2types "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/insurance/types"
 	oracletypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/types"
 )
@@ -717,6 +718,6 @@ func (k *Keeper) isMarketDemolishedOrExpired(ctx sdk.Context, marketID common.Ha
 	return false
 }
 
-func isDemolishedOrExpiredMarketStatus(status exchangetypes.MarketStatus) bool {
-	return status == exchangetypes.MarketStatus_Demolished || status == exchangetypes.MarketStatus_Expired
+func isDemolishedOrExpiredMarketStatus(status exchangev2types.MarketStatus) bool {
+	return status == exchangev2types.MarketStatus_Demolished || status == exchangev2types.MarketStatus_Expired
 }

@@ -3,11 +3,11 @@ package types
 import (
 	"fmt"
 	"math/big"
+	"math/rand"
 	"regexp"
 	"strings"
 
 	"cosmossdk.io/errors"
-	tmrand "github.com/cometbft/cometbft/libs/rand"
 )
 
 var (
@@ -50,5 +50,5 @@ func ParseChainID(chainID string) (*big.Int, error) {
 
 // GenerateRandomChainID returns a random chain-id in the valid format.
 func GenerateRandomChainID() string {
-	return fmt.Sprintf("injective-%d", 10+tmrand.Intn(10000))
+	return fmt.Sprintf("injective-%d", 10+rand.Intn(10000))
 }

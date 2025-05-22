@@ -9,18 +9,24 @@ import (
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/keeper/ordermatching"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 )
 
+type SpotLimitOrderDelta struct {
+	Order        *v2.SpotLimitOrder
+	FillQuantity math.LegacyDec
+}
+
 type SpotBatchExecutionData struct {
-	Market                         *types.SpotMarket
+	Market                         *v2.SpotMarket
 	BaseDenomDepositDeltas         types.DepositDeltas
 	QuoteDenomDepositDeltas        types.DepositDeltas
 	BaseDenomDepositSubaccountIDs  []common.Hash
 	QuoteDenomDepositSubaccountIDs []common.Hash
-	LimitOrderFilledDeltas         []*types.SpotLimitOrderDelta
-	MarketOrderExecutionEvent      *types.EventBatchSpotExecution
-	LimitOrderExecutionEvent       []*types.EventBatchSpotExecution
-	NewOrdersEvent                 *types.EventNewSpotOrders
+	LimitOrderFilledDeltas         []*SpotLimitOrderDelta
+	MarketOrderExecutionEvent      *v2.EventBatchSpotExecution
+	LimitOrderExecutionEvent       []*v2.EventBatchSpotExecution
+	NewOrdersEvent                 *v2.EventNewSpotOrders
 	TradingRewardPoints            types.TradingRewardPoints
 	VwapData                       *SpotVwapData
 }
@@ -36,9 +42,9 @@ type spotOrderStateExpansion struct {
 	AuctionFeeReward        math.LegacyDec
 	TraderFeeReward         math.LegacyDec
 	TradingRewardPoints     math.LegacyDec
-	LimitOrder              *types.SpotLimitOrder
+	LimitOrder              *v2.SpotLimitOrder
 	LimitOrderFillQuantity  math.LegacyDec
-	MarketOrder             *types.SpotMarketOrder
+	MarketOrder             *v2.SpotMarketOrder
 	MarketOrderFillQuantity math.LegacyDec
 	OrderHash               common.Hash
 	OrderPrice              math.LegacyDec
@@ -48,27 +54,24 @@ type spotOrderStateExpansion struct {
 }
 
 func (e *spotOrderStateExpansion) UpdateFromDepositDeltas(
-	baseDenomDepositDeltas types.DepositDeltas,
-	quoteDenomDepositDeltas types.DepositDeltas,
+	market *v2.SpotMarket, baseDenomDepositDeltas, quoteDenomDepositDeltas types.DepositDeltas,
 ) {
 	traderBaseDepositDelta := &types.DepositDelta{
-		AvailableBalanceDelta: e.BaseRefundAmount,
-		TotalBalanceDelta:     e.BaseChangeAmount,
+		AvailableBalanceDelta: market.QuantityToChainFormat(e.BaseRefundAmount),
+		TotalBalanceDelta:     market.QuantityToChainFormat(e.BaseChangeAmount),
 	}
 
 	traderQuoteDepositDelta := &types.DepositDelta{
-		AvailableBalanceDelta: e.QuoteRefundAmount,
-		TotalBalanceDelta:     e.QuoteChangeAmount,
+		AvailableBalanceDelta: market.NotionalToChainFormat(e.QuoteRefundAmount),
+		TotalBalanceDelta:     market.NotionalToChainFormat(e.QuoteChangeAmount),
 	}
 
-	// increment availableBalanceDelta in tandem with TotalBalanceDelta if positive
 	if e.BaseChangeAmount.IsPositive() {
-		traderBaseDepositDelta.AddAvailableBalance(e.BaseChangeAmount)
+		traderBaseDepositDelta.AddAvailableBalance(market.QuantityToChainFormat(e.BaseChangeAmount))
 	}
 
-	// increment availableBalanceDelta in tandem with TotalBalanceDelta if positive
 	if e.QuoteChangeAmount.IsPositive() {
-		traderQuoteDepositDelta.AddAvailableBalance(e.QuoteChangeAmount)
+		traderQuoteDepositDelta.AddAvailableBalance(market.NotionalToChainFormat(e.QuoteChangeAmount))
 	}
 
 	feeRecipientSubaccount := types.EthAddressToSubaccountID(e.FeeRecipient)
@@ -76,15 +79,11 @@ func (e *spotOrderStateExpansion) UpdateFromDepositDeltas(
 		feeRecipientSubaccount = types.AuctionSubaccountID
 	}
 
-	// update trader's base and quote balances
 	baseDenomDepositDeltas.ApplyDepositDelta(e.SubaccountID, traderBaseDepositDelta)
 	quoteDenomDepositDeltas.ApplyDepositDelta(e.SubaccountID, traderQuoteDepositDelta)
 
-	// increment fee recipient's balances
-	quoteDenomDepositDeltas.ApplyUniformDelta(feeRecipientSubaccount, e.FeeRecipientReward)
-
-	// increment auction fee balance
-	quoteDenomDepositDeltas.ApplyUniformDelta(types.AuctionSubaccountID, e.AuctionFeeReward)
+	quoteDenomDepositDeltas.ApplyUniformDelta(feeRecipientSubaccount, market.NotionalToChainFormat(e.FeeRecipientReward))
+	quoteDenomDepositDeltas.ApplyUniformDelta(types.AuctionSubaccountID, market.NotionalToChainFormat(e.AuctionFeeReward))
 }
 
 func (k *Keeper) processRestingSpotLimitOrderExpansions(
@@ -94,7 +93,7 @@ func (k *Keeper) processRestingSpotLimitOrderExpansions(
 	isLimitBuy bool,
 	clearingPrice math.LegacyDec,
 	makerFeeRate, relayerFeeShareRate math.LegacyDec,
-	pointsMultiplier types.PointsMultiplier,
+	pointsMultiplier v2.PointsMultiplier,
 	feeDiscountConfig *FeeDiscountConfig,
 ) []*spotOrderStateExpansion {
 	stateExpansions := make([]*spotOrderStateExpansion, len(fills.Orders))
@@ -138,10 +137,10 @@ func (k *Keeper) processRestingSpotLimitOrderExpansions(
 func (k *Keeper) getSpotLimitSellStateExpansion(
 	ctx sdk.Context,
 	marketID common.Hash,
-	order *types.SpotLimitOrder,
+	order *v2.SpotLimitOrder,
 	isMaker bool,
 	fillQuantity, fillPrice, tradeFeeRate, relayerFeeShareRate math.LegacyDec,
-	pointsMultiplier types.PointsMultiplier,
+	pointsMultiplier v2.PointsMultiplier,
 	feeDiscountConfig *FeeDiscountConfig,
 ) *spotOrderStateExpansion {
 	orderNotional := fillQuantity.Mul(fillPrice)
@@ -196,10 +195,10 @@ func (k *Keeper) getSpotLimitSellStateExpansion(
 func (k *Keeper) getRestingSpotLimitBuyStateExpansion(
 	ctx sdk.Context,
 	marketID common.Hash,
-	order *types.SpotLimitOrder,
+	order *v2.SpotLimitOrder,
 	orderHash common.Hash,
 	fillQuantity, fillPrice, makerFeeRate, relayerFeeShareRate math.LegacyDec,
-	pointsMultiplier types.PointsMultiplier,
+	pointsMultiplier v2.PointsMultiplier,
 	feeDiscountConfig *FeeDiscountConfig,
 ) *spotOrderStateExpansion {
 	var baseChangeAmount, quoteChangeAmount math.LegacyDec
@@ -285,11 +284,11 @@ func (k *Keeper) getRestingSpotLimitBuyStateExpansion(
 func (k *Keeper) getTransientSpotLimitBuyStateExpansion(
 	ctx sdk.Context,
 	marketID common.Hash,
-	order *types.SpotLimitOrder,
+	order *v2.SpotLimitOrder,
 	orderHash common.Hash,
 	clearingPrice, fillQuantity,
 	makerFeeRate, takerFeeRate, relayerFeeShareRate math.LegacyDec,
-	pointsMultiplier types.PointsMultiplier,
+	pointsMultiplier v2.PointsMultiplier,
 	feeDiscountConfig *FeeDiscountConfig,
 ) *spotOrderStateExpansion {
 	orderNotional, clearingChargeOrRefund, matchedFeeRefund := math.LegacyZeroDec(), math.LegacyZeroDec(), math.LegacyZeroDec()
@@ -360,26 +359,27 @@ func (k *Keeper) getTransientSpotLimitBuyStateExpansion(
 
 func GetBatchExecutionEventsFromSpotLimitOrderStateExpansions(
 	isBuy bool,
-	marketID common.Hash,
-	executionType types.ExecutionType,
+	market *v2.SpotMarket,
+	executionType v2.ExecutionType,
 	spotLimitOrderStateExpansions []*spotOrderStateExpansion,
-	baseDenomDepositDeltas types.DepositDeltas, quoteDenomDepositDeltas types.DepositDeltas,
-) (*types.EventBatchSpotExecution, []*types.SpotLimitOrderDelta, types.TradingRewardPoints) {
-	limitOrderBatchEvent := &types.EventBatchSpotExecution{
-		MarketId:      marketID.Hex(),
+	baseDenomDepositDeltas,
+	quoteDenomDepositDeltas types.DepositDeltas,
+) (*v2.EventBatchSpotExecution, []*SpotLimitOrderDelta, types.TradingRewardPoints) {
+	limitOrderBatchEvent := &v2.EventBatchSpotExecution{
+		MarketId:      market.MarketID().Hex(),
 		IsBuy:         isBuy,
 		ExecutionType: executionType,
 	}
 
-	trades := make([]*types.TradeLog, 0, len(spotLimitOrderStateExpansions))
+	trades := make([]*v2.TradeLog, 0, len(spotLimitOrderStateExpansions))
 
 	// array of (SubaccountIndexKey, fillableAmount) to update/delete
-	filledDeltas := make([]*types.SpotLimitOrderDelta, 0, len(spotLimitOrderStateExpansions))
+	filledDeltas := make([]*SpotLimitOrderDelta, 0, len(spotLimitOrderStateExpansions))
 	tradingRewardPoints := types.NewTradingRewardPoints()
 
 	for idx := range spotLimitOrderStateExpansions {
 		expansion := spotLimitOrderStateExpansions[idx]
-		expansion.UpdateFromDepositDeltas(baseDenomDepositDeltas, quoteDenomDepositDeltas)
+		expansion.UpdateFromDepositDeltas(market, baseDenomDepositDeltas, quoteDenomDepositDeltas)
 
 		// skip adding trade data if there was no trade (unfilled new order)
 		fillQuantity := spotLimitOrderStateExpansions[idx].BaseChangeAmount
@@ -387,7 +387,7 @@ func GetBatchExecutionEventsFromSpotLimitOrderStateExpansions(
 			continue
 		}
 
-		filledDeltas = append(filledDeltas, &types.SpotLimitOrderDelta{
+		filledDeltas = append(filledDeltas, &SpotLimitOrderDelta{
 			Order:        expansion.LimitOrder,
 			FillQuantity: expansion.LimitOrderFillQuantity,
 		})
@@ -405,7 +405,7 @@ func GetBatchExecutionEventsFromSpotLimitOrderStateExpansions(
 
 		tradingRewardPoints.AddPointsForAddress(expansion.TraderAddress, expansion.TradingRewardPoints)
 
-		trades = append(trades, &types.TradeLog{
+		trades = append(trades, &v2.TradeLog{
 			Quantity:            expansion.BaseChangeAmount.Abs(),
 			Price:               expansion.TradePrice,
 			SubaccountId:        expansion.SubaccountID.Bytes(),

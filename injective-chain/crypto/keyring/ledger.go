@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+
 	"github.com/InjectiveLabs/injective-core/injective-chain/app/ante/typeddata"
 	"github.com/InjectiveLabs/injective-core/injective-chain/crypto/ledger"
 	"github.com/InjectiveLabs/injective-core/injective-chain/crypto/ledger/hub"
@@ -95,7 +96,7 @@ func (l ledgerSECP256K1) GetPublicKeySECP256K1(hdPath []uint32) ([]byte, error) 
 	return crypto.FromECDSAPub(account.PubKey), nil
 }
 
-// GetAddressPubKeySECP256K1 takes in the HD path as well as a "Human Readable Prefix" (HRP, e.g. "evmos")
+// GetAddressPubKeySECP256K1 takes in the HD path as well as a "Human Readable Prefix" (HRP, e.g. "inj")
 // to return the public key bytes in secp256k1 format as well as the account address
 func (l ledgerSECP256K1) GetAddressPubKeySECP256K1(hdPath []uint32, hrp string) ([]byte, string, error) {
 	if err := l.openWallet(); err != nil {

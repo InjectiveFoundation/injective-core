@@ -6,6 +6,7 @@ import (
 	"github.com/InjectiveLabs/metrics"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 )
 
 // GetCurrentCampaignEndTimestamp fetches the end timestamp of the current TradingRewardCampaign.
@@ -42,7 +43,7 @@ func (k *Keeper) SetCurrentCampaignEndTimestamp(ctx sdk.Context, endTimestamp in
 }
 
 // GetCampaignInfo fetches the TradingRewardCampaignInfo.
-func (k *Keeper) GetCampaignInfo(ctx sdk.Context) *types.TradingRewardCampaignInfo {
+func (k *Keeper) GetCampaignInfo(ctx sdk.Context) *v2.TradingRewardCampaignInfo {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
@@ -52,8 +53,9 @@ func (k *Keeper) GetCampaignInfo(ctx sdk.Context) *types.TradingRewardCampaignIn
 		return nil
 	}
 
-	var campaignInfo types.TradingRewardCampaignInfo
+	var campaignInfo v2.TradingRewardCampaignInfo
 	k.cdc.MustUnmarshal(bz, &campaignInfo)
+
 	return &campaignInfo
 }
 
@@ -67,7 +69,7 @@ func (k *Keeper) DeleteCampaignInfo(ctx sdk.Context) {
 }
 
 // SetCampaignInfo sets the TradingRewardCampaignInfo.
-func (k *Keeper) SetCampaignInfo(ctx sdk.Context, campaignInfo *types.TradingRewardCampaignInfo) {
+func (k *Keeper) SetCampaignInfo(ctx sdk.Context, campaignInfo *v2.TradingRewardCampaignInfo) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 

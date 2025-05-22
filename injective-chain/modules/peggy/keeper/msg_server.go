@@ -517,15 +517,24 @@ func (k msgServer) UpdateParams(c context.Context, msg *types.MsgUpdateParams) (
 		return nil, err
 	}
 
-	// defensive programming: ValidateBasic above can pass even though
-	// the SegregatedWalletAddress field was not provided (by accident). If this param update
-	// were to pass (via gov proposal) then in case of a bad Peggy deposit we would not be able
-	// to send it to this wallet and the funds would be lost
-	if _, err := sdk.AccAddressFromBech32(msg.Params.SegregatedWalletAddress); err != nil {
-		return nil, err
+	ctx := sdk.UnwrapSDKContext(c)
+
+	oldParams := k.GetParams(ctx)
+	if isPeggyContractRedeployed := oldParams.BridgeEthereumAddress != msg.Params.BridgeEthereumAddress; isPeggyContractRedeployed {
+		allNewEthValues := oldParams.BridgeContractStartHeight != msg.Params.BridgeContractStartHeight &&
+			oldParams.BridgeEthereumAddress != msg.Params.BridgeEthereumAddress &&
+			oldParams.CosmosCoinErc20Contract != msg.Params.CosmosCoinErc20Contract
+
+		// make sure this is not accidental
+		if !allNewEthValues {
+			return nil, errors.Wrap(sdkerrors.ErrInvalidRequest, "not all Eth values are new in param update")
+		}
+
+		if err := k.ResetPeggyModuleState(ctx, &msg.Params); err != nil {
+			return nil, err
+		}
 	}
 
-	ctx := sdk.UnwrapSDKContext(c)
 	k.SetParams(ctx, &msg.Params)
 
 	return &types.MsgUpdateParamsResponse{}, nil

@@ -1,0 +1,25 @@
+{
+  "resting-buys": [],
+  "transient-buys": [
+    {
+      "price": 100,
+      "quantity": 2,
+      "subaccountNonce": 2,
+      "expectedQuantityFilledViaMatching": 2,
+      "expectedQuantityFilledViaMarketOrders": 0
+    }
+  ],
+  "resting-sells": [
+    {
+      "price": 100,
+      "quantity": 2,
+      "subaccountNonce": 1,
+      "expectedQuantityFilledViaMatching": 2,
+      "expectedQuantityFilledViaMarketOrders": 0
+    }
+  ],
+  "transient-sells": [],
+  "expected-clearing-price-matching": 100,
+  "expected-clearing-price-market-sells": 0,
+  "expected-clearing-price-market-buys": 0
+}

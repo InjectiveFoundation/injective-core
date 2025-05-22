@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 )
 
 // SetTransientDeposit sets a subaccount's deposit in the transient store for a given denom.
@@ -14,7 +15,7 @@ func (k *Keeper) SetTransientDeposit(
 	ctx sdk.Context,
 	subaccountID common.Hash,
 	denom string,
-	deposit *types.Deposit,
+	deposit *v2.Deposit,
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
@@ -38,44 +39,44 @@ func (k *Keeper) EmitAllTransientDepositUpdates(
 	iterator := depositStore.Iterator(nil, nil)
 	defer iterator.Close()
 
-	subaccountDeposits := make(map[string][]*types.SubaccountDeposit)
+	subaccountDeposits := make(map[string][]*v2.SubaccountDeposit)
 
 	denoms := make([]string, 0)
 
 	for ; iterator.Valid(); iterator.Next() {
-		var deposit types.Deposit
+		var deposit v2.Deposit
 		bz := iterator.Value()
 		k.cdc.MustUnmarshal(bz, &deposit)
 
 		subaccountID, denom := types.ParseDepositStoreKey(iterator.Key())
 
-		subaccountDeposit := &types.SubaccountDeposit{
+		subaccountDeposit := &v2.SubaccountDeposit{
 			SubaccountId: subaccountID.Bytes(),
 			Deposit:      &deposit,
 		}
 		if _, ok := subaccountDeposits[denom]; ok {
 			subaccountDeposits[denom] = append(subaccountDeposits[denom], subaccountDeposit)
 		} else {
-			subaccountDeposits[denom] = []*types.SubaccountDeposit{subaccountDeposit}
+			subaccountDeposits[denom] = []*v2.SubaccountDeposit{subaccountDeposit}
 			denoms = append(denoms, denom)
 		}
 	}
+	iterator.Close()
 
 	if len(denoms) > 0 {
-		depositUpdates := make([]*types.DepositUpdate, len(denoms))
+		depositUpdates := make([]*v2.DepositUpdate, len(denoms))
 
 		for idx, denom := range denoms {
-			depositUpdates[idx] = &types.DepositUpdate{
+			depositUpdates[idx] = &v2.DepositUpdate{
 				Denom:    denom,
 				Deposits: subaccountDeposits[denom],
 			}
 		}
 
-		depositBatchUpdateEvent := types.EventBatchDepositUpdate{
+		depositBatchUpdateEvent := v2.EventBatchDepositUpdate{
 			DepositUpdates: depositUpdates,
 		}
 
-		// nolint:errcheck //ignored on purpose
-		ctx.EventManager().EmitTypedEvent(&depositBatchUpdateEvent)
+		k.EmitEvent(ctx, &depositBatchUpdateEvent)
 	}
 }

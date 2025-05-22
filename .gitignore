@@ -42,14 +42,16 @@ tests-solidity/**/cache
 /injective-chain/modules/old_exchange/
 **/ginkgo.report
 injective-chain/modules/exchange/testexchange/test.properties
+injective-chain/modules/evm/precompiles/bindings/src
 interchaintest/coverage/
 interchaintest/security/coverage
 
-# Go
-*.coverprofile
-
 vendor/
-pkgs.txt
 
-# Test state from setup.sh
+# Development folder with various files to start up injectived
+devel/
 .injectived
+
+# coverage related
+pkgs.txt
+*.coverprofile

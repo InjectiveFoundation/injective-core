@@ -1,5 +1,5 @@
 #install packages for build layer
-FROM golang:1.24.1-bookworm AS builder
+FROM golang:1.23.9-bookworm AS builder
 RUN apt install git gcc make libc-dev
 
 ARG DO_COVERAGE=false
@@ -36,7 +36,7 @@ VOLUME /apps/data
 WORKDIR /apps/data
 RUN mkdir -p /apps/data/coverage
 
-EXPOSE 26657 26656 10337 9900 9091 9999
+EXPOSE 26657 26656 10337 9900 9091 9999 8545 8546
 
 #default command
 CMD ["sh", "/injectived.sh"]

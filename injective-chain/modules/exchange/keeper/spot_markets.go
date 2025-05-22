@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 )
 
 // IsSpotExchangeEnabled returns true if Spot Exchange is enabled
@@ -41,38 +42,40 @@ func (k *Keeper) HasSpotMarket(ctx sdk.Context, marketID common.Hash, isEnabled 
 }
 
 // GetSpotMarket returns Spot Market from marketID.
-func (k *Keeper) GetSpotMarket(ctx sdk.Context, marketID common.Hash, isEnabled bool) *types.SpotMarket {
+func (k *Keeper) GetSpotMarket(ctx sdk.Context, marketID common.Hash, isEnabled bool) *v2.SpotMarket {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	store := k.getStore(ctx)
-
 	marketStore := prefix.NewStore(store, types.GetSpotMarketKey(isEnabled))
+
 	bz := marketStore.Get(marketID.Bytes())
 	if bz == nil {
 		return nil
 	}
 
-	var market types.SpotMarket
+	var market v2.SpotMarket
 	k.cdc.MustUnmarshal(bz, &market)
+
 	return &market
 }
 
 // SpotMarketFilter can be used to filter out markets from a list by returning false
-type SpotMarketFilter func(*types.SpotMarket) bool
+type SpotMarketFilter func(*v2.SpotMarket) bool
 
 // AllSpotMarketFilter allows all markets
-func AllSpotMarketFilter(market *types.SpotMarket) bool {
+func AllSpotMarketFilter(*v2.SpotMarket) bool {
 	return true
 }
 
 // StatusSpotMarketFilter filters the markets by their status
-func StatusSpotMarketFilter(status ...types.MarketStatus) SpotMarketFilter {
-	m := make(map[types.MarketStatus]struct{}, len(status))
+func StatusSpotMarketFilter(status ...v2.MarketStatus) SpotMarketFilter {
+	m := make(map[v2.MarketStatus]struct{}, len(status))
 	for _, s := range status {
 		m[s] = struct{}{}
 	}
-	return func(market *types.SpotMarket) bool {
+
+	return func(market *v2.SpotMarket) bool {
 		_, found := m[market.Status]
 		return found
 	}
@@ -84,7 +87,7 @@ func MarketIDSpotMarketFilter(marketIDs ...string) SpotMarketFilter {
 	for _, id := range marketIDs {
 		m[common.HexToHash(id)] = struct{}{}
 	}
-	return func(market *types.SpotMarket) bool {
+	return func(market *v2.SpotMarket) bool {
 		_, found := m[common.HexToHash(market.MarketId)]
 		return found
 	}
@@ -92,7 +95,7 @@ func MarketIDSpotMarketFilter(marketIDs ...string) SpotMarketFilter {
 
 // ChainSpotMarketFilter can be used to chain multiple spot market filters
 func ChainSpotMarketFilter(filters ...SpotMarketFilter) SpotMarketFilter {
-	return func(market *types.SpotMarket) bool {
+	return func(market *v2.SpotMarket) bool {
 		// allow the market only if all the filters pass
 		for _, f := range filters {
 			if !f(market) {
@@ -104,13 +107,13 @@ func ChainSpotMarketFilter(filters ...SpotMarketFilter) SpotMarketFilter {
 }
 
 // FullSpotMarketFiller function that adds data to a full spot market
-type FullSpotMarketFiller func(sdk.Context, *types.FullSpotMarket)
+type FullSpotMarketFiller func(sdk.Context, *v2.FullSpotMarket)
 
 // FullSpotMarketWithMidPriceToB adds mid-price and ToB to a full spot market
-func FullSpotMarketWithMidPriceToB(k *Keeper) func(sdk.Context, *types.FullSpotMarket) {
-	return func(ctx sdk.Context, market *types.FullSpotMarket) {
+func FullSpotMarketWithMidPriceToB(k *Keeper) func(sdk.Context, *v2.FullSpotMarket) {
+	return func(ctx sdk.Context, market *v2.FullSpotMarket) {
 		midPrice, bestBuy, bestSell := k.GetSpotMidPriceAndTOB(ctx, market.GetMarket().MarketID())
-		market.MidPriceAndTob = &types.MidPriceAndTOB{
+		market.MidPriceAndTob = &v2.MidPriceAndTOB{
 			MidPrice:      midPrice,
 			BestBuyPrice:  bestBuy,
 			BestSellPrice: bestSell,
@@ -119,57 +122,55 @@ func FullSpotMarketWithMidPriceToB(k *Keeper) func(sdk.Context, *types.FullSpotM
 }
 
 // FindSpotMarkets returns a filtered list of SpotMarkets.
-func (k *Keeper) FindSpotMarkets(ctx sdk.Context, filter SpotMarketFilter) []*types.SpotMarket {
+func (k *Keeper) FindSpotMarkets(ctx sdk.Context, filter SpotMarketFilter) []*v2.SpotMarket {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	spotMarkets := make([]*types.SpotMarket, 0)
-	appendPair := func(m *types.SpotMarket) (stop bool) {
+	spotMarkets := make([]*v2.SpotMarket, 0)
+	k.IterateSpotMarkets(ctx, nil, func(m *v2.SpotMarket) (stop bool) {
 		if !filter(m) {
 			return false
 		}
 
 		spotMarkets = append(spotMarkets, m)
 		return false
-	}
+	})
 
-	k.IterateSpotMarkets(ctx, nil, appendPair)
 	return spotMarkets
 }
 
 // FindFullSpotMarkets returns a filtered list of FullSpotMarkets.
-func (k *Keeper) FindFullSpotMarkets(ctx sdk.Context, filter SpotMarketFilter, fillers ...FullSpotMarketFiller) []*types.FullSpotMarket {
+func (k *Keeper) FindFullSpotMarkets(ctx sdk.Context, filter SpotMarketFilter, fillers ...FullSpotMarketFiller) []*v2.FullSpotMarket {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	spotMarkets := make([]*types.FullSpotMarket, 0)
-	appendPair := func(m *types.SpotMarket) (stop bool) {
+	spotMarkets := make([]*v2.FullSpotMarket, 0)
+	k.IterateSpotMarkets(ctx, nil, func(m *v2.SpotMarket) (stop bool) {
 		if !filter(m) {
 			return false
 		}
 
-		fm := &types.FullSpotMarket{Market: m}
+		fm := &v2.FullSpotMarket{Market: m}
 		for _, filler := range fillers {
 			filler(ctx, fm)
 		}
 
 		spotMarkets = append(spotMarkets, fm)
 		return false
-	}
+	})
 
-	k.IterateSpotMarkets(ctx, nil, appendPair)
 	return spotMarkets
 }
 
 // GetAllSpotMarkets returns all SpotMarkets.
-func (k *Keeper) GetAllSpotMarkets(ctx sdk.Context) []*types.SpotMarket {
+func (k *Keeper) GetAllSpotMarkets(ctx sdk.Context) []*v2.SpotMarket {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	return k.FindSpotMarkets(ctx, AllSpotMarketFilter)
 }
 
-func (k *Keeper) ScheduleSpotMarketParamUpdate(ctx sdk.Context, p *types.SpotMarketParamUpdateProposal) error {
+func (k *Keeper) ScheduleSpotMarketParamUpdate(ctx sdk.Context, p *v2.SpotMarketParamUpdateProposal) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
@@ -179,11 +180,10 @@ func (k *Keeper) ScheduleSpotMarketParamUpdate(ctx sdk.Context, p *types.SpotMar
 	paramUpdateStore := prefix.NewStore(store, types.SpotMarketParamUpdateScheduleKey)
 	bz := k.cdc.MustMarshal(p)
 	paramUpdateStore.Set(marketID.Bytes(), bz)
-	return nil
 }
 
 // IterateSpotMarketParamUpdates iterates over SpotMarketParamUpdates calling process on each pair.
-func (k *Keeper) IterateSpotMarketParamUpdates(ctx sdk.Context, process func(*types.SpotMarketParamUpdateProposal) (stop bool)) {
+func (k *Keeper) IterateSpotMarketParamUpdates(ctx sdk.Context, process func(*v2.SpotMarketParamUpdateProposal) (stop bool)) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
@@ -191,19 +191,26 @@ func (k *Keeper) IterateSpotMarketParamUpdates(ctx sdk.Context, process func(*ty
 	paramUpdateStore := prefix.NewStore(store, types.SpotMarketParamUpdateScheduleKey)
 
 	iterator := paramUpdateStore.Iterator(nil, nil)
-	defer iterator.Close()
-
+	proposals := []*v2.SpotMarketParamUpdateProposal{}
 	for ; iterator.Valid(); iterator.Next() {
-		var proposal types.SpotMarketParamUpdateProposal
+		var proposal v2.SpotMarketParamUpdateProposal
 		bz := iterator.Value()
 		k.cdc.MustUnmarshal(bz, &proposal)
-		if process(&proposal) {
+		proposals = append(proposals, &proposal)
+	}
+	iterator.Close()
+
+	for _, proposal := range proposals {
+		if process(proposal) {
 			return
 		}
 	}
 }
 
-func (k *Keeper) handleSpotMakerFeeDecrease(ctx sdk.Context, _ common.Hash, buyOrderbook []*types.SpotLimitOrder, prevMakerFeeRate, newMakerFeeRate math.LegacyDec, quoteDenom string) {
+func (k *Keeper) handleSpotMakerFeeDecrease(
+	ctx sdk.Context, _ common.Hash, buyOrderbook []*v2.SpotLimitOrder, newMakerFeeRate math.LegacyDec, prevMarket *v2.SpotMarket,
+) {
+	prevMakerFeeRate := prevMarket.MakerFeeRate
 	isFeeRefundRequired := prevMakerFeeRate.IsPositive()
 	if !isFeeRefundRequired {
 		return
@@ -216,13 +223,16 @@ func (k *Keeper) handleSpotMakerFeeDecrease(ctx sdk.Context, _ common.Hash, buyO
 		// FeeRefund = (PreviousMakerFeeRate - NewMakerFeeRate) * FillableQuantity * Price
 		// AvailableBalance += FeeRefund
 		feeRefund := feeRefundRate.Mul(order.Fillable).Mul(order.GetPrice())
+		chainFormattedFeeRefund := prevMarket.NotionalToChainFormat(feeRefund)
 		subaccountID := order.SubaccountID()
 
-		k.incrementAvailableBalanceOrBank(ctx, subaccountID, quoteDenom, feeRefund)
+		k.incrementAvailableBalanceOrBank(ctx, subaccountID, prevMarket.QuoteDenom, chainFormattedFeeRefund)
 	}
 }
 
-func (k *Keeper) handleSpotMakerFeeIncrease(ctx sdk.Context, buyOrderbook []*types.SpotLimitOrder, newMakerFeeRate math.LegacyDec, prevMarket *types.SpotMarket) {
+func (k *Keeper) handleSpotMakerFeeIncrease(
+	ctx sdk.Context, buyOrderbook []*v2.SpotLimitOrder, newMakerFeeRate math.LegacyDec, prevMarket *v2.SpotMarket,
+) {
 	isExtraFeeChargeRequired := newMakerFeeRate.IsPositive()
 	if !isExtraFeeChargeRequired {
 		return
@@ -239,15 +249,16 @@ func (k *Keeper) handleSpotMakerFeeIncrease(ctx sdk.Context, buyOrderbook []*typ
 		// AvailableBalance -= ExtraFee
 		// If AvailableBalance < ExtraFee, Cancel the order
 		extraFee := feeChargeRate.Mul(order.Fillable).Mul(order.OrderInfo.Price)
+		chainFormatExtraFee := prevMarket.NotionalToChainFormat(extraFee)
 		subaccountID := order.SubaccountID()
 
-		hasSufficientFundsToPayExtraFee := k.HasSufficientFunds(ctx, subaccountID, denom, extraFee)
+		hasSufficientFundsToPayExtraFee := k.HasSufficientFunds(ctx, subaccountID, denom, chainFormatExtraFee)
 
 		if hasSufficientFundsToPayExtraFee {
 			// bank charge should fail if the account no longer has permissions to send the tokens
 			chargeCtx := ctx.WithValue(baseapp.DoNotFailFastSendContextKey, nil)
 
-			err := k.chargeAccount(chargeCtx, subaccountID, denom, extraFee)
+			err := k.chargeAccount(chargeCtx, subaccountID, denom, chainFormatExtraFee)
 
 			// defensive programming: continue to next order if charging the extra fee succeeds
 			// otherwise cancel the order
@@ -260,7 +271,7 @@ func (k *Keeper) handleSpotMakerFeeIncrease(ctx sdk.Context, buyOrderbook []*typ
 	}
 }
 
-func (k *Keeper) ExecuteSpotMarketParamUpdateProposal(ctx sdk.Context, p *types.SpotMarketParamUpdateProposal) error {
+func (k *Keeper) ExecuteSpotMarketParamUpdateProposal(ctx sdk.Context, p *v2.SpotMarketParamUpdateProposal) error {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 	marketID := common.HexToHash(p.MarketId)
@@ -270,7 +281,7 @@ func (k *Keeper) ExecuteSpotMarketParamUpdateProposal(ctx sdk.Context, p *types.
 		return errors.Wrapf(types.ErrMarketInvalid, "market is not available, market_id %s", p.MarketId)
 	}
 
-	if p.Status == types.MarketStatus_Demolished {
+	if p.Status == v2.MarketStatus_Demolished {
 		k.CancelAllRestingLimitOrdersFromSpotMarket(ctx, prevMarket, prevMarket.MarketID())
 	}
 
@@ -286,7 +297,7 @@ func (k *Keeper) ExecuteSpotMarketParamUpdateProposal(ctx sdk.Context, p *types.
 	// we cancel only buy orders, as sell order pay their fee from obtained funds in quote currency upon matching
 	buyOrderbook := k.GetAllSpotLimitOrdersByMarketDirection(ctx, marketID, true)
 	if p.MakerFeeRate.LT(prevMarket.MakerFeeRate) {
-		k.handleSpotMakerFeeDecrease(ctx, marketID, buyOrderbook, prevMarket.MakerFeeRate, *p.MakerFeeRate, prevMarket.QuoteDenom)
+		k.handleSpotMakerFeeDecrease(ctx, marketID, buyOrderbook, *p.MakerFeeRate, prevMarket)
 	} else if p.MakerFeeRate.GT(prevMarket.MakerFeeRate) {
 		k.handleSpotMakerFeeIncrease(ctx, buyOrderbook, *p.MakerFeeRate, prevMarket)
 	}
@@ -310,7 +321,7 @@ func (k *Keeper) ExecuteSpotMarketParamUpdateProposal(ctx sdk.Context, p *types.
 	return nil
 }
 
-func (k *Keeper) GetSpotMarketByID(ctx sdk.Context, marketID common.Hash) *types.SpotMarket {
+func (k *Keeper) GetSpotMarketByID(ctx sdk.Context, marketID common.Hash) *v2.SpotMarket {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
@@ -326,20 +337,20 @@ func (k *Keeper) UpdateSpotMarketParam(
 	ctx sdk.Context,
 	marketID common.Hash,
 	makerFeeRate, takerFeeRate, relayerFeeShareRate, minPriceTickSize, minQuantityTickSize, minNotional *math.LegacyDec,
-	status types.MarketStatus,
+	status v2.MarketStatus,
 	ticker string,
-	adminInfo *types.AdminInfo,
+	adminInfo *v2.AdminInfo,
 	baseDecimals, quoteDecimals uint32,
-) *types.SpotMarket {
+) *v2.SpotMarket {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	market := k.GetSpotMarketByID(ctx, marketID)
 
-	isActiveStatusChange := market.IsActive() && status != types.MarketStatus_Active || (market.IsInactive() && status == types.MarketStatus_Active)
+	isActiveStatusChange := market.IsActive() && status != v2.MarketStatus_Active || (market.IsInactive() && status == v2.MarketStatus_Active)
 	if isActiveStatusChange {
 		isEnabled := true
-		if market.Status != types.MarketStatus_Active {
+		if market.Status != v2.MarketStatus_Active {
 			isEnabled = false
 		}
 		k.DeleteSpotMarket(ctx, marketID, isEnabled)
@@ -370,17 +381,39 @@ func (k *Keeper) UpdateSpotMarketParam(
 	return market
 }
 
-func (k *Keeper) SpotMarketLaunch(ctx sdk.Context, ticker, baseDenom, quoteDenom string, minPriceTickSize, minQuantityTickSize, minNotional math.LegacyDec, baseDecimals, quoteDecimals uint32) (*types.SpotMarket, error) {
+func (k *Keeper) SpotMarketLaunch(
+	ctx sdk.Context,
+	ticker,
+	baseDenom,
+	quoteDenom string,
+	minPriceTickSize,
+	minQuantityTickSize,
+	minNotional math.LegacyDec,
+	baseDecimals,
+	quoteDecimals uint32,
+) (*v2.SpotMarket, error) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	exchangeParams := k.GetParams(ctx)
-
 	makerFeeRate := exchangeParams.DefaultSpotMakerFeeRate
 	takerFeeRate := exchangeParams.DefaultSpotTakerFeeRate
 	relayerFeeShareRate := exchangeParams.RelayerFeeShareRate
 
-	return k.SpotMarketLaunchWithCustomFees(ctx, ticker, baseDenom, quoteDenom, minPriceTickSize, minQuantityTickSize, minNotional, makerFeeRate, takerFeeRate, relayerFeeShareRate, types.EmptyAdminInfo(), baseDecimals, quoteDecimals)
+	return k.SpotMarketLaunchWithCustomFees(ctx,
+		ticker,
+		baseDenom,
+		quoteDenom,
+		minPriceTickSize,
+		minQuantityTickSize,
+		minNotional,
+		makerFeeRate,
+		takerFeeRate,
+		relayerFeeShareRate,
+		v2.EmptyAdminInfo(),
+		baseDecimals,
+		quoteDecimals,
+	)
 }
 
 func (k *Keeper) SpotMarketLaunchWithCustomFees(
@@ -388,16 +421,18 @@ func (k *Keeper) SpotMarketLaunchWithCustomFees(
 	ticker, baseDenom, quoteDenom string,
 	minPriceTickSize, minQuantityTickSize, minNotional math.LegacyDec,
 	makerFeeRate, takerFeeRate, relayerFeeShareRate math.LegacyDec,
-	adminInfo types.AdminInfo,
+	adminInfo v2.AdminInfo,
 	baseDecimals, quoteDecimals uint32,
-) (*types.SpotMarket, error) {
+) (*v2.SpotMarket, error) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	minimalProtocolFeeRate := k.GetMinimalProtocolFeeRate(ctx)
 	discountSchedule := k.GetFeeDiscountSchedule(ctx)
 
-	if err := types.ValidateMakerWithTakerFeeAndDiscounts(makerFeeRate, takerFeeRate, relayerFeeShareRate, minimalProtocolFeeRate, discountSchedule); err != nil {
+	if err := v2.ValidateMakerWithTakerFeeAndDiscounts(
+		makerFeeRate, takerFeeRate, relayerFeeShareRate, minimalProtocolFeeRate, discountSchedule,
+	); err != nil {
 		return nil, err
 	}
 
@@ -427,7 +462,7 @@ func (k *Keeper) SpotMarketLaunchWithCustomFees(
 		return nil, errors.Wrapf(types.ErrSpotMarketExists, "ticker %s baseDenom %s quoteDenom %s", ticker, baseDenom, quoteDenom)
 	}
 
-	market := types.SpotMarket{
+	market := v2.SpotMarket{
 		Ticker:              ticker,
 		BaseDenom:           baseDenom,
 		QuoteDenom:          quoteDenom,
@@ -435,7 +470,7 @@ func (k *Keeper) SpotMarketLaunchWithCustomFees(
 		TakerFeeRate:        takerFeeRate,
 		RelayerFeeShareRate: relayerFeeShareRate,
 		MarketId:            marketID.Hex(),
-		Status:              types.MarketStatus_Active,
+		Status:              v2.MarketStatus_Active,
 		MinPriceTickSize:    minPriceTickSize,
 		MinQuantityTickSize: minQuantityTickSize,
 		MinNotional:         minNotional,
@@ -453,7 +488,7 @@ func (k *Keeper) SpotMarketLaunchWithCustomFees(
 }
 
 // SetSpotMarketStatus sets SpotMarket's status.
-func (k *Keeper) SetSpotMarketStatus(ctx sdk.Context, marketID common.Hash, status types.MarketStatus) (*types.SpotMarket, error) {
+func (k *Keeper) SetSpotMarketStatus(ctx sdk.Context, marketID common.Hash, status v2.MarketStatus) (*v2.SpotMarket, error) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
@@ -469,7 +504,9 @@ func (k *Keeper) SetSpotMarketStatus(ctx sdk.Context, marketID common.Hash, stat
 		return nil, errors.Wrapf(types.ErrSpotMarketNotFound, "marketID %s", marketID)
 	}
 
-	isActiveStatusChange := market.Status == types.MarketStatus_Active && status != types.MarketStatus_Active || (market.Status != types.MarketStatus_Active && status == types.MarketStatus_Active)
+	isActiveStatusChange := market.Status == v2.MarketStatus_Active &&
+		status != v2.MarketStatus_Active ||
+		(market.Status != v2.MarketStatus_Active && status == v2.MarketStatus_Active)
 	if isActiveStatusChange {
 		k.DeleteSpotMarket(ctx, marketID, isEnabled)
 	}
@@ -480,21 +517,20 @@ func (k *Keeper) SetSpotMarketStatus(ctx sdk.Context, marketID common.Hash, stat
 }
 
 // SetSpotMarket sets SpotMarket in keeper.
-func (k *Keeper) SetSpotMarket(ctx sdk.Context, spotMarket *types.SpotMarket) {
+func (k *Keeper) SetSpotMarket(ctx sdk.Context, spotMarket *v2.SpotMarket) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	store := k.getStore(ctx)
 	marketID := common.HexToHash(spotMarket.MarketId)
 	isEnabled := true
-	if spotMarket.Status != types.MarketStatus_Active {
+	if spotMarket.Status != v2.MarketStatus_Active {
 		isEnabled = false
 	}
 	marketStore := prefix.NewStore(store, types.GetSpotMarketKey(isEnabled))
 	bz := k.cdc.MustMarshal(spotMarket)
 	marketStore.Set(marketID.Bytes(), bz)
-	// nolint:errcheck //ignored on purpose
-	ctx.EventManager().EmitTypedEvent(&types.EventSpotMarketUpdate{
+	k.EmitEvent(ctx, &v2.EventSpotMarketUpdate{
 		Market: *spotMarket,
 	})
 }
@@ -516,7 +552,7 @@ func (k *Keeper) DeleteSpotMarket(ctx sdk.Context, marketID common.Hash, isEnabl
 }
 
 // IterateSpotMarkets iterates over SpotMarkets calling process on each pair.
-func (k *Keeper) IterateSpotMarkets(ctx sdk.Context, isEnabled *bool, process func(*types.SpotMarket) (stop bool)) {
+func (k *Keeper) IterateSpotMarkets(ctx sdk.Context, isEnabled *bool, process func(*v2.SpotMarket) (stop bool)) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
@@ -529,13 +565,13 @@ func (k *Keeper) IterateSpotMarkets(ctx sdk.Context, isEnabled *bool, process fu
 		marketStore = prefix.NewStore(store, types.SpotMarketsPrefix)
 	}
 
-	iterator := marketStore.Iterator(nil, nil)
-	defer iterator.Close()
+	iter := marketStore.Iterator(nil, nil)
+	defer iter.Close()
 
-	for ; iterator.Valid(); iterator.Next() {
-		var market types.SpotMarket
-		bz := iterator.Value()
-		k.cdc.MustUnmarshal(bz, &market)
+	for ; iter.Valid(); iter.Next() {
+		var market v2.SpotMarket
+		k.cdc.MustUnmarshal(iter.Value(), &market)
+
 		if process(&market) {
 			return
 		}
@@ -646,8 +682,119 @@ func (k *Keeper) ProcessForceClosedSpotMarkets(ctx sdk.Context) {
 		market := k.GetSpotMarketByID(ctx, marketID)
 		k.CancelAllRestingLimitOrdersFromSpotMarket(ctx, market, marketID)
 		k.DeleteSpotMarketForceCloseInfo(ctx, marketID)
-		if _, err := k.SetSpotMarketStatus(ctx, marketID, types.MarketStatus_Paused); err != nil {
+		if _, err := k.SetSpotMarketStatus(ctx, marketID, v2.MarketStatus_Paused); err != nil {
 			k.Logger(ctx).Error("SetSpotMarketStatus during ProcessForceClosedSpotMarkets:", err)
 		}
 	}
+}
+
+func (k *Keeper) handleSpotMarketLaunchProposal(ctx sdk.Context, p *v2.SpotMarketLaunchProposal) error {
+	if err := p.ValidateBasic(); err != nil {
+		return err
+	}
+
+	exchangeParams := k.GetParams(ctx)
+	relayerFeeShareRate := exchangeParams.RelayerFeeShareRate
+
+	var makerFeeRate math.LegacyDec
+	var takerFeeRate math.LegacyDec
+
+	if p.MakerFeeRate != nil {
+		makerFeeRate = *p.MakerFeeRate
+	} else {
+		makerFeeRate = exchangeParams.DefaultSpotMakerFeeRate
+	}
+
+	if p.TakerFeeRate != nil {
+		takerFeeRate = *p.TakerFeeRate
+	} else {
+		takerFeeRate = exchangeParams.DefaultSpotTakerFeeRate
+	}
+
+	adminInfo := v2.EmptyAdminInfo()
+	if p.AdminInfo != nil {
+		adminInfo = *p.AdminInfo
+	}
+
+	_, err := k.SpotMarketLaunchWithCustomFees(
+		ctx,
+		p.Ticker,
+		p.BaseDenom,
+		p.QuoteDenom,
+		p.MinPriceTickSize,
+		p.MinQuantityTickSize,
+		p.MinNotional,
+		makerFeeRate,
+		takerFeeRate,
+		relayerFeeShareRate,
+		adminInfo,
+		p.BaseDecimals,
+		p.QuoteDecimals,
+	)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (k *Keeper) handleSpotMarketParamUpdateProposal(ctx sdk.Context, p *v2.SpotMarketParamUpdateProposal) error {
+	if err := p.ValidateBasic(); err != nil {
+		return err
+	}
+
+	market := k.GetSpotMarketByID(ctx, common.HexToHash(p.MarketId))
+	if market == nil {
+		return types.ErrSpotMarketNotFound
+	}
+
+	if p.MakerFeeRate == nil {
+		p.MakerFeeRate = &market.MakerFeeRate
+	}
+	if p.TakerFeeRate == nil {
+		p.TakerFeeRate = &market.TakerFeeRate
+	}
+	if p.RelayerFeeShareRate == nil {
+		p.RelayerFeeShareRate = &market.RelayerFeeShareRate
+	}
+	if p.MinPriceTickSize == nil {
+		p.MinPriceTickSize = &market.MinPriceTickSize
+	}
+	if p.MinQuantityTickSize == nil {
+		p.MinQuantityTickSize = &market.MinQuantityTickSize
+	}
+	if p.MinNotional == nil || p.MinNotional.IsNil() {
+		p.MinNotional = &market.MinNotional
+	}
+	if p.Ticker == "" {
+		p.Ticker = market.Ticker
+	}
+	if p.BaseDecimals == 0 {
+		p.BaseDecimals = market.BaseDecimals
+	}
+	if p.QuoteDecimals == 0 {
+		p.QuoteDecimals = market.QuoteDecimals
+	}
+
+	if p.AdminInfo == nil {
+		p.AdminInfo = &v2.AdminInfo{
+			Admin:            market.Admin,
+			AdminPermissions: market.AdminPermissions,
+		}
+	}
+
+	minimalProtocolFeeRate := k.GetMinimalProtocolFeeRate(ctx)
+	discountSchedule := k.GetFeeDiscountSchedule(ctx)
+	if err := v2.ValidateMakerWithTakerFeeAndDiscounts(
+		*p.MakerFeeRate, *p.TakerFeeRate, *p.RelayerFeeShareRate, minimalProtocolFeeRate, discountSchedule,
+	); err != nil {
+		return err
+	}
+
+	if p.Status == v2.MarketStatus_Unspecified {
+		p.Status = market.Status
+	}
+
+	k.ScheduleSpotMarketParamUpdate(ctx, p)
+
+	return nil
 }

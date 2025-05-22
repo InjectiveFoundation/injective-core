@@ -6,6 +6,34 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	FlagJSONRPCEnable              = "json-rpc.enable"
+	FlagJSONRPCAPI                 = "json-rpc.api"
+	FlagJSONRPCAddress             = "json-rpc.address"
+	FlagJSONWsAddress              = "json-rpc.ws-address"
+	FlagJSONRPCGasCap              = "json-rpc.gas-cap"
+	FlagJSONRPCEVMTimeout          = "json-rpc.evm-timeout"
+	FlagJSONRPCTxFeeCap            = "json-rpc.txfee-cap"
+	FlagJSONRPCFilterCap           = "json-rpc.filter-cap"
+	FlagJSONRPCFeeHistoryCap       = "json-rpc.feehistory-cap"
+	FlagJSONRPCLogsCap             = "json-rpc.logs-cap"
+	FlagJSONRPCBlockRangeCap       = "json-rpc.block-range-cap"
+	FlagJSONRPCHTTPTimeout         = "json-rpc.http-timeout"
+	FlagJSONRPCHTTPIdleTimeout     = "json-rpc.http-idle-timeout"
+	FlagJSONRPCAllowUnprotectedTxs = "json-rpc.allow-unprotected-txs"
+	FlagJSONRPCMaxOpenConnections  = "json-rpc.max-open-connections"
+	FlagJSONRPCEnableIndexer       = "json-rpc.enable-indexer"
+	FlagJSONRPCAllowIndexerGap     = "json-rpc.allow-indexer-gap"
+	FlagJSONRPCEnableMetrics       = "json-rpc.metrics"
+	FlagJSONRPCMetricsAddress      = "json-rpc.metrics-address"
+	FlagJSONRPCReturnDataLimit     = "json-rpc.return-data-limit"
+)
+
+const (
+	FlagEVMTracer         = "evm.tracer"
+	FlagEVMMaxTxGasWanted = "evm.max-tx-gas-wanted"
+)
+
 var (
 	statsdAgent            string
 	statsdEnabled          bool

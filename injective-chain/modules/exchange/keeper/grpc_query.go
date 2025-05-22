@@ -9,95 +9,93 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/InjectiveLabs/metrics"
-
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
+
+	"github.com/InjectiveLabs/metrics"
 )
 
-var _ types.QueryServer = &Keeper{}
+var _ v2.QueryServer = queryServer{}
 
-func (k *Keeper) L3DerivativeOrderBook(c context.Context, req *types.QueryFullDerivativeOrderbookRequest) (*types.QueryFullDerivativeOrderbookResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+type queryServer struct {
+	Keeper  *Keeper
+	svcTags metrics.Tags
+}
+
+func NewQueryServer(k *Keeper) v2.QueryServer {
+	return createQueryServer(k)
+}
+
+func createQueryServer(k *Keeper) queryServer {
+	return queryServer{
+		Keeper:  k,
+		svcTags: metrics.Tags{"svc": "exchange_query"}}
+}
+
+func (q queryServer) PositionsInMarket(
+	c context.Context, req *v2.QueryPositionsInMarketRequest,
+) (*v2.QueryPositionsInMarketResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
+	defer doneFn()
+
+	ctx := sdk.UnwrapSDKContext(c)
+	res := &v2.QueryPositionsInMarketResponse{
+		State: q.Keeper.GetAllPositionsByMarket(ctx, common.HexToHash(req.MarketId)),
+	}
+
+	return res, nil
+}
+
+func (q queryServer) L3DerivativeOrderBook(
+	c context.Context, req *v2.QueryFullDerivativeOrderbookRequest,
+) (*v2.QueryFullDerivativeOrderbookResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
 	defer doneFn()
 	ctx := sdk.UnwrapSDKContext(c)
 
 	marketId := common.HexToHash(req.MarketId)
-	res := &types.QueryFullDerivativeOrderbookResponse{
-		Bids: k.GetAllStandardizedDerivativeLimitOrdersByMarketDirection(ctx, marketId, true),
-		Asks: k.GetAllStandardizedDerivativeLimitOrdersByMarketDirection(ctx, marketId, false),
+	res := &v2.QueryFullDerivativeOrderbookResponse{
+		Bids: q.Keeper.GetAllStandardizedDerivativeLimitOrdersByMarketDirection(ctx, marketId, true),
+		Asks: q.Keeper.GetAllStandardizedDerivativeLimitOrdersByMarketDirection(ctx, marketId, false),
 	}
 	return res, nil
 }
 
-func (k *Keeper) L3SpotOrderBook(c context.Context, req *types.QueryFullSpotOrderbookRequest) (*types.QueryFullSpotOrderbookResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+func (q queryServer) L3SpotOrderBook(c context.Context, req *v2.QueryFullSpotOrderbookRequest) (*v2.QueryFullSpotOrderbookResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
 	defer doneFn()
 	ctx := sdk.UnwrapSDKContext(c)
 
 	marketId := common.HexToHash(req.MarketId)
-	res := &types.QueryFullSpotOrderbookResponse{
-		Bids: k.GetAllStandardizedSpotLimitOrdersByMarketDirection(ctx, marketId, true),
-		Asks: k.GetAllStandardizedSpotLimitOrdersByMarketDirection(ctx, marketId, false),
+	res := &v2.QueryFullSpotOrderbookResponse{
+		Bids: q.Keeper.GetAllStandardizedSpotLimitOrdersByMarketDirection(ctx, marketId, true),
+		Asks: q.Keeper.GetAllStandardizedSpotLimitOrdersByMarketDirection(ctx, marketId, false),
 	}
 	return res, nil
 }
 
-func (k *Keeper) QueryExchangeParams(c context.Context, _ *types.QueryExchangeParamsRequest) (*types.QueryExchangeParamsResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+func (q queryServer) QueryExchangeParams(c context.Context, _ *v2.QueryExchangeParamsRequest) (*v2.QueryExchangeParamsResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
 	defer doneFn()
 
-	ctx := sdk.UnwrapSDKContext(c)
-
-	params := k.GetParams(ctx)
-
-	res := &types.QueryExchangeParamsResponse{
-		Params: params,
+	resp := &v2.QueryExchangeParamsResponse{
+		Params: q.Keeper.GetParams(sdk.UnwrapSDKContext(c)),
 	}
 
-	return res, nil
+	return resp, nil
 }
 
-func (k *Keeper) SubaccountTradeNonce(c context.Context, req *types.QuerySubaccountTradeNonceRequest) (*types.QuerySubaccountTradeNonceResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+func (q queryServer) SubaccountDeposits(
+	c context.Context, req *v2.QuerySubaccountDepositsRequest,
+) (*v2.QuerySubaccountDepositsResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
 	defer doneFn()
-
-	ctx := sdk.UnwrapSDKContext(c)
-
-	nonce := k.GetSubaccountTradeNonce(ctx, common.HexToHash(req.SubaccountId))
-
-	res := &types.QuerySubaccountTradeNonceResponse{
-		Nonce: nonce.Nonce,
-	}
-
-	return res, nil
-}
-
-func (k *Keeper) SubaccountDeposit(c context.Context, req *types.QuerySubaccountDepositRequest) (*types.QuerySubaccountDepositResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
-	defer doneFn()
-
-	ctx := sdk.UnwrapSDKContext(c)
-
-	deposits := k.GetDeposit(ctx, common.HexToHash(req.SubaccountId), req.Denom)
-
-	res := &types.QuerySubaccountDepositResponse{
-		Deposits: deposits,
-	}
-
-	return res, nil
-}
-
-func (k *Keeper) SubaccountDeposits(c context.Context, req *types.QuerySubaccountDepositsRequest) (*types.QuerySubaccountDepositsResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
-	defer doneFn()
-
-	ctx := sdk.UnwrapSDKContext(c)
 
 	var subaccountID common.Hash
 	if subaccount := req.GetSubaccount(); subaccount != nil {
 		subaccountId, err := subaccount.GetSubaccountID()
 		if err != nil {
-			metrics.ReportFuncError(k.svcTags)
+			metrics.ReportFuncError(q.svcTags)
 			return nil, err
 		}
 
@@ -106,37 +104,46 @@ func (k *Keeper) SubaccountDeposits(c context.Context, req *types.QuerySubaccoun
 		subaccountID = common.HexToHash(subaccountId)
 	}
 
-	deposits := k.GetDeposits(ctx, subaccountID)
-
-	res := &types.QuerySubaccountDepositsResponse{
-		Deposits: deposits,
+	resp := &v2.QuerySubaccountDepositsResponse{
+		Deposits: q.Keeper.GetDeposits(sdk.UnwrapSDKContext(c), subaccountID),
 	}
 
-	return res, nil
+	return resp, nil
 }
 
-func (k *Keeper) ExchangeBalances(c context.Context, _ *types.QueryExchangeBalancesRequest) (*types.QueryExchangeBalancesResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+func (q queryServer) SubaccountDeposit(
+	c context.Context, req *v2.QuerySubaccountDepositRequest,
+) (*v2.QuerySubaccountDepositResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
+	defer doneFn()
+
+	resp := &v2.QuerySubaccountDepositResponse{
+		Deposits: q.Keeper.GetDeposit(sdk.UnwrapSDKContext(c), common.HexToHash(req.SubaccountId), req.Denom),
+	}
+
+	return resp, nil
+}
+
+func (q queryServer) ExchangeBalances(c context.Context, _ *v2.QueryExchangeBalancesRequest) (*v2.QueryExchangeBalancesResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
+	defer doneFn()
+
+	resp := &v2.QueryExchangeBalancesResponse{
+		Balances: q.Keeper.GetAllExchangeBalances(sdk.UnwrapSDKContext(c)),
+	}
+
+	return resp, nil
+}
+
+func (q queryServer) AggregateVolume(c context.Context, req *v2.QueryAggregateVolumeRequest) (*v2.QueryAggregateVolumeResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 
-	balances := k.GetAllExchangeBalances(ctx)
-
-	res := &types.QueryExchangeBalancesResponse{
-		Balances: balances,
-	}
-
-	return res, nil
-}
-
-func (k *Keeper) AggregateVolume(c context.Context, req *types.QueryAggregateVolumeRequest) (*types.QueryAggregateVolumeResponse, error) {
-	ctx := sdk.UnwrapSDKContext(c)
-
 	if types.IsHexHash(req.Account) {
-		subaccountID := common.HexToHash(req.Account)
-		volumes := k.GetAllSubaccountMarketAggregateVolumesBySubaccount(ctx, subaccountID)
-		return &types.QueryAggregateVolumeResponse{AggregateVolumes: volumes}, nil
+		volumes := q.Keeper.GetAllSubaccountMarketAggregateVolumesBySubaccount(ctx, common.HexToHash(req.Account))
+		return &v2.QueryAggregateVolumeResponse{AggregateVolumes: volumes}, nil
 	}
 
 	accAddress, err := sdk.AccAddressFromBech32(req.Account)
@@ -144,22 +151,41 @@ func (k *Keeper) AggregateVolume(c context.Context, req *types.QueryAggregateVol
 		return nil, err
 	}
 
-	volumes := k.GetAllSubaccountMarketAggregateVolumesByAccAddress(ctx, accAddress)
-
-	resp := &types.QueryAggregateVolumeResponse{
-		AggregateVolumes: volumes,
+	resp := &v2.QueryAggregateVolumeResponse{
+		AggregateVolumes: q.Keeper.GetAllSubaccountMarketAggregateVolumesByAccAddress(ctx, accAddress),
 	}
+
 	return resp, nil
 }
 
-func (k *Keeper) AggregateVolumes(c context.Context, req *types.QueryAggregateVolumesRequest) (*types.QueryAggregateVolumesResponse, error) {
+func (q queryServer) AggregateVolumes(c context.Context, req *v2.QueryAggregateVolumesRequest) (*v2.QueryAggregateVolumesResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
+	defer doneFn()
+
 	ctx := sdk.UnwrapSDKContext(c)
 
-	marketVolumes := make([]*types.MarketVolume, 0, len(req.MarketIds))
-	marketIDs := make([]common.Hash, 0, len(req.MarketIds))
+	marketVolumes, marketIDs, marketIDMap := q.processMarketVolumes(ctx, req.MarketIds)
+	accountVolumes, err := q.processAccountVolumes(ctx, req.Accounts, marketIDs, marketIDMap)
+	if err != nil {
+		return nil, err
+	}
+
+	resp := &v2.QueryAggregateVolumesResponse{
+		AggregateAccountVolumes: accountVolumes,
+		AggregateMarketVolumes:  marketVolumes,
+	}
+
+	return resp, nil
+}
+
+func (q queryServer) processMarketVolumes(
+	ctx sdk.Context, marketIDs []string,
+) ([]*v2.MarketVolume, []common.Hash, map[common.Hash]struct{}) {
+	marketVolumes := make([]*v2.MarketVolume, 0, len(marketIDs))
+	processedMarketIDs := make([]common.Hash, 0, len(marketIDs))
 	marketIDMap := make(map[common.Hash]struct{})
 
-	for _, marketId := range req.MarketIds {
+	for _, marketId := range marketIDs {
 		marketID := common.HexToHash(marketId)
 
 		// skip duplicate marketIDs
@@ -167,157 +193,193 @@ func (k *Keeper) AggregateVolumes(c context.Context, req *types.QueryAggregateVo
 			continue
 		}
 
-		volume := k.GetMarketAggregateVolume(ctx, marketID)
-		marketVolumes = append(marketVolumes, &types.MarketVolume{
+		volume := q.Keeper.GetMarketAggregateVolume(ctx, marketID)
+		marketVolumes = append(marketVolumes, &v2.MarketVolume{
 			MarketId: marketID.Hex(),
 			Volume:   volume,
 		})
 
 		// minor optimization so we don't check account volumes for markets that have 0 volume
 		if !volume.IsZero() {
-			marketIDs = append(marketIDs, marketID)
+			processedMarketIDs = append(processedMarketIDs, marketID)
 		}
+
 		marketIDMap[marketID] = struct{}{}
 	}
 
-	accountVolumes := make([]*types.AggregateAccountVolumeRecord, 0, len(req.Accounts))
+	return marketVolumes, processedMarketIDs, marketIDMap
+}
 
-	for _, account := range req.Accounts {
+func (q queryServer) processAccountVolumes(
+	ctx sdk.Context, accounts []string, marketIDs []common.Hash, marketIDMap map[common.Hash]struct{},
+) ([]*v2.AggregateAccountVolumeRecord, error) {
+	accountVolumes := make([]*v2.AggregateAccountVolumeRecord, 0, len(accounts))
+
+	for _, account := range accounts {
 		accAddress, err := sdk.AccAddressFromBech32(account)
 		if err != nil && !types.IsHexHash(account) {
 			return nil, err
 		}
 
-		var volumes []*types.MarketVolume
-		var accountStr string
+		volumes, accountStr := q.getAccountVolumes(ctx, account, accAddress, marketIDs, marketIDMap)
 
-		// still return the volumes if the input account is a subaccountID
-		if types.IsHexHash(account) {
-			subaccountID := common.HexToHash(account)
-			accountStr = subaccountID.Hex()
-
-			for _, marketID := range marketIDs {
-				volume := k.GetSubaccountMarketAggregateVolume(ctx, subaccountID, marketID)
-				volumes = append(volumes, &types.MarketVolume{
-					MarketId: marketID.Hex(),
-					Volume:   volume,
-				})
-			}
-		} else {
-			accountStr = accAddress.String()
-			volumes = k.GetAllSubaccountMarketAggregateVolumesByAccAddress(ctx, accAddress)
-			filteredVolumes := make([]*types.MarketVolume, 0, len(volumes))
-
-			// only include volumes for marketIDs requested
-			for _, volume := range volumes {
-				if _, ok := marketIDMap[common.HexToHash(volume.MarketId)]; ok {
-					filteredVolumes = append(filteredVolumes, volume)
-				}
-			}
-			volumes = filteredVolumes
-		}
-
-		accountVolumes = append(accountVolumes, &types.AggregateAccountVolumeRecord{
+		accountVolumes = append(accountVolumes, &v2.AggregateAccountVolumeRecord{
 			Account:       accountStr,
 			MarketVolumes: volumes,
 		})
 	}
 
-	res := &types.QueryAggregateVolumesResponse{
-		AggregateAccountVolumes: accountVolumes,
-		AggregateMarketVolumes:  marketVolumes,
-	}
-	return res, nil
+	return accountVolumes, nil
 }
 
-func (k *Keeper) AggregateMarketVolume(c context.Context, req *types.QueryAggregateMarketVolumeRequest) (*types.QueryAggregateMarketVolumeResponse, error) {
-	ctx := sdk.UnwrapSDKContext(c)
+func (q queryServer) getAccountVolumes(
+	ctx sdk.Context, account string, accAddress sdk.AccAddress, marketIDs []common.Hash, marketIDMap map[common.Hash]struct{},
+) ([]*v2.MarketVolume, string) {
+	var (
+		volumes    []*v2.MarketVolume
+		accountStr string
+	)
 
-	marketID := common.HexToHash(req.MarketId)
-	volume := k.GetMarketAggregateVolume(ctx, marketID)
-
-	res := &types.QueryAggregateMarketVolumeResponse{
-		Volume: volume,
-	}
-	return res, nil
-}
-
-func (k *Keeper) AggregateMarketVolumes(c context.Context, req *types.QueryAggregateMarketVolumesRequest) (*types.QueryAggregateMarketVolumesResponse, error) {
-	ctx := sdk.UnwrapSDKContext(c)
-
-	volumes := make([]*types.MarketVolume, 0, len(req.MarketIds))
-
-	// get all the market aggregate volumes if unspecified
-	if len(req.MarketIds) == 0 {
-		volumes = k.GetAllMarketAggregateVolumes(ctx)
+	// still return the volumes if the input account is a subaccountID
+	if types.IsHexHash(account) {
+		subaccountID := common.HexToHash(account)
+		accountStr = subaccountID.Hex()
+		volumes = q.getSubaccountVolumes(ctx, subaccountID, marketIDs)
 	} else {
-		for _, marketId := range req.MarketIds {
-			marketID := common.HexToHash(marketId)
-			volume := k.GetMarketAggregateVolume(ctx, marketID)
-			volumes = append(volumes, &types.MarketVolume{
-				MarketId: marketID.Hex(),
-				Volume:   volume,
-			})
+		accountStr = accAddress.String()
+		volumes = q.filterAccountVolumes(ctx, accAddress, marketIDMap)
+	}
+
+	return volumes, accountStr
+}
+
+func (q queryServer) getSubaccountVolumes(ctx sdk.Context, subaccountID common.Hash, marketIDs []common.Hash) []*v2.MarketVolume {
+	volumes := make([]*v2.MarketVolume, 0, len(marketIDs))
+
+	for _, marketID := range marketIDs {
+		volume := q.Keeper.GetSubaccountMarketAggregateVolume(ctx, subaccountID, marketID)
+		volumes = append(volumes, &v2.MarketVolume{
+			MarketId: marketID.Hex(),
+			Volume:   volume,
+		})
+	}
+
+	return volumes
+}
+
+func (q queryServer) filterAccountVolumes(
+	ctx sdk.Context, accAddress sdk.AccAddress, marketIDMap map[common.Hash]struct{},
+) []*v2.MarketVolume {
+	volumes := q.Keeper.GetAllSubaccountMarketAggregateVolumesByAccAddress(ctx, accAddress)
+	filteredVolumes := make([]*v2.MarketVolume, 0, len(volumes))
+
+	// only include volumes for marketIDs requested
+	for _, volume := range volumes {
+		if _, ok := marketIDMap[common.HexToHash(volume.MarketId)]; ok {
+			filteredVolumes = append(filteredVolumes, volume)
 		}
 	}
 
-	res := &types.QueryAggregateMarketVolumesResponse{
-		Volumes: volumes,
+	return filteredVolumes
+}
+
+func (q queryServer) AggregateMarketVolume(
+	c context.Context, req *v2.QueryAggregateMarketVolumeRequest,
+) (*v2.QueryAggregateMarketVolumeResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
+	defer doneFn()
+
+	res := &v2.QueryAggregateMarketVolumeResponse{
+		Volume: q.Keeper.GetMarketAggregateVolume(sdk.UnwrapSDKContext(c), common.HexToHash(req.MarketId)),
 	}
+
 	return res, nil
 }
 
-func (k *Keeper) DenomDecimal(c context.Context, req *types.QueryDenomDecimalRequest) (*types.QueryDenomDecimalResponse, error) {
+func (q queryServer) AggregateMarketVolumes(
+	c context.Context, req *v2.QueryAggregateMarketVolumesRequest,
+) (*v2.QueryAggregateMarketVolumesResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
+	defer doneFn()
+
 	ctx := sdk.UnwrapSDKContext(c)
+
+	// get all the market aggregate volumes if unspecified
+	if len(req.MarketIds) == 0 {
+		return &v2.QueryAggregateMarketVolumesResponse{Volumes: q.Keeper.GetAllMarketAggregateVolumes(ctx)}, nil
+	}
+
+	volumes := make([]*v2.MarketVolume, 0, len(req.MarketIds))
+	for _, marketId := range req.MarketIds {
+		marketID := common.HexToHash(marketId)
+
+		volumes = append(volumes, &v2.MarketVolume{
+			MarketId: marketID.Hex(),
+			Volume:   q.Keeper.GetMarketAggregateVolume(ctx, marketID),
+		})
+	}
+
+	res := &v2.QueryAggregateMarketVolumesResponse{
+		Volumes: volumes,
+	}
+
+	return res, nil
+}
+
+func (q queryServer) DenomDecimal(c context.Context, req *v2.QueryDenomDecimalRequest) (*v2.QueryDenomDecimalResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
+	defer doneFn()
 
 	if req.Denom == "" {
 		return nil, errors.New("denom is required")
 	}
 
-	res := &types.QueryDenomDecimalResponse{
-		Decimal: k.GetDenomDecimals(ctx, req.Denom),
+	res := &v2.QueryDenomDecimalResponse{
+		Decimal: q.Keeper.GetDenomDecimals(sdk.UnwrapSDKContext(c), req.Denom),
 	}
+
 	return res, nil
 }
 
-func (k *Keeper) DenomDecimals(c context.Context, req *types.QueryDenomDecimalsRequest) (*types.QueryDenomDecimalsResponse, error) {
-	ctx := sdk.UnwrapSDKContext(c)
+func (q queryServer) DenomDecimals(c context.Context, req *v2.QueryDenomDecimalsRequest) (*v2.QueryDenomDecimalsResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
+	defer doneFn()
 
-	denomDecimals := make([]types.DenomDecimals, 0, len(req.Denoms))
+	ctx := sdk.UnwrapSDKContext(c)
 	if len(req.Denoms) == 0 {
-		denomDecimals = k.GetAllDenomDecimals(ctx)
-	} else {
-		for _, denom := range req.Denoms {
-			denomDecimals = append(denomDecimals, types.DenomDecimals{
-				Denom:    denom,
-				Decimals: k.GetDenomDecimals(ctx, denom),
-			})
-		}
+		return &v2.QueryDenomDecimalsResponse{DenomDecimals: q.Keeper.GetAllDenomDecimals(ctx)}, nil
 	}
 
-	res := &types.QueryDenomDecimalsResponse{
+	denomDecimals := make([]v2.DenomDecimals, 0, len(req.Denoms))
+	for _, denom := range req.Denoms {
+		denomDecimals = append(denomDecimals, v2.DenomDecimals{
+			Denom:    denom,
+			Decimals: q.Keeper.GetDenomDecimals(ctx, denom),
+		})
+	}
+
+	res := &v2.QueryDenomDecimalsResponse{
 		DenomDecimals: denomDecimals,
 	}
+
 	return res, nil
 }
 
-func (k *Keeper) SpotMarkets(c context.Context, req *types.QuerySpotMarketsRequest) (*types.QuerySpotMarketsResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+func (q queryServer) SpotMarkets(c context.Context, req *v2.QuerySpotMarketsRequest) (*v2.QuerySpotMarketsResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 
-	var status types.MarketStatus
+	var status v2.MarketStatus
 	if req.Status == "" {
-		status = types.MarketStatus_Active
+		status = v2.MarketStatus_Active
 	} else {
-		status = types.MarketStatus(types.MarketStatus_value[req.Status])
+		status = v2.MarketStatus(v2.MarketStatus_value[req.Status])
 	}
-	res := &types.QuerySpotMarketsResponse{
-		Markets: []*types.SpotMarket{},
-	}
-	if status == types.MarketStatus_Unspecified {
-		return res, nil
+
+	if status == v2.MarketStatus_Unspecified {
+		return &v2.QuerySpotMarketsResponse{Markets: []*v2.SpotMarket{}}, nil
 	}
 
 	filters := []SpotMarketFilter{StatusSpotMarketFilter(status)}
@@ -325,46 +387,51 @@ func (k *Keeper) SpotMarkets(c context.Context, req *types.QuerySpotMarketsReque
 		filters = append(filters, MarketIDSpotMarketFilter(ids...))
 	}
 
-	res.Markets = k.FindSpotMarkets(ctx, ChainSpotMarketFilter(filters...))
-	return res, nil
+	resp := &v2.QuerySpotMarketsResponse{
+		Markets: q.Keeper.FindSpotMarkets(ctx, ChainSpotMarketFilter(filters...)),
+	}
+
+	return resp, nil
 }
 
-func (k *Keeper) SpotMarket(c context.Context, req *types.QuerySpotMarketRequest) (*types.QuerySpotMarketResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+func (q queryServer) SpotMarket(c context.Context, req *v2.QuerySpotMarketRequest) (*v2.QuerySpotMarketResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 
 	marketID := common.HexToHash(req.MarketId)
-	market := k.GetSpotMarket(ctx, marketID, true)
+	market := q.Keeper.GetSpotMarket(ctx, marketID, true)
 	if market == nil {
-		metrics.ReportFuncError(k.svcTags)
+		metrics.ReportFuncError(q.svcTags)
 		return nil, types.ErrSpotMarketNotFound
 	}
 
-	res := &types.QuerySpotMarketResponse{
+	resp := &v2.QuerySpotMarketResponse{
 		Market: market,
 	}
 
-	return res, nil
+	return resp, nil
 }
 
-func (k *Keeper) FullSpotMarkets(c context.Context, req *types.QueryFullSpotMarketsRequest) (*types.QueryFullSpotMarketsResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+func (q queryServer) FullSpotMarkets(c context.Context, req *v2.QueryFullSpotMarketsRequest) (*v2.QueryFullSpotMarketsResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 
-	var status types.MarketStatus
+	var status v2.MarketStatus
 	if req.Status == "" {
-		status = types.MarketStatus_Active
+		status = v2.MarketStatus_Active
 	} else {
-		status = types.MarketStatus(types.MarketStatus_value[req.Status])
+		status = v2.MarketStatus(v2.MarketStatus_value[req.Status])
 	}
-	res := &types.QueryFullSpotMarketsResponse{
-		Markets: []*types.FullSpotMarket{},
+
+	res := &v2.QueryFullSpotMarketsResponse{
+		Markets: []*v2.FullSpotMarket{},
 	}
-	if status == types.MarketStatus_Unspecified {
+
+	if status == v2.MarketStatus_Unspecified {
 		return res, nil
 	}
 
@@ -375,145 +442,93 @@ func (k *Keeper) FullSpotMarkets(c context.Context, req *types.QueryFullSpotMark
 
 	var fillers []FullSpotMarketFiller
 	if req.GetWithMidPriceAndTob() {
-		fillers = append(fillers, FullSpotMarketWithMidPriceToB(k))
+		fillers = append(fillers, FullSpotMarketWithMidPriceToB(q.Keeper))
 	}
 
-	res.Markets = k.FindFullSpotMarkets(ctx, ChainSpotMarketFilter(filters...), fillers...)
+	res.Markets = q.Keeper.FindFullSpotMarkets(ctx, ChainSpotMarketFilter(filters...), fillers...)
 	return res, nil
 }
 
-func (k *Keeper) FullSpotMarket(c context.Context, req *types.QueryFullSpotMarketRequest) (*types.QueryFullSpotMarketResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+func (q queryServer) FullSpotMarket(c context.Context, req *v2.QueryFullSpotMarketRequest) (*v2.QueryFullSpotMarketResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 
 	marketID := common.HexToHash(req.MarketId)
-	market := k.GetSpotMarket(ctx, marketID, true)
+	market := q.Keeper.GetSpotMarket(ctx, marketID, true)
 	if market == nil {
-		metrics.ReportFuncError(k.svcTags)
+		metrics.ReportFuncError(q.svcTags)
 		return nil, types.ErrSpotMarketNotFound
 	}
 
-	fullMarket := &types.FullSpotMarket{Market: market}
+	fullMarket := &v2.FullSpotMarket{Market: market}
 	if req.GetWithMidPriceAndTob() {
-		FullSpotMarketWithMidPriceToB(k)(ctx, fullMarket)
+		FullSpotMarketWithMidPriceToB(q.Keeper)(ctx, fullMarket)
 	}
 
-	res := &types.QueryFullSpotMarketResponse{
+	res := &v2.QueryFullSpotMarketResponse{
 		Market: fullMarket,
 	}
 
 	return res, nil
 }
 
-func (k *Keeper) SpotOrderbook(c context.Context, req *types.QuerySpotOrderbookRequest) (*types.QuerySpotOrderbookResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+func (q queryServer) SpotOrderbook(c context.Context, req *v2.QuerySpotOrderbookRequest) (*v2.QuerySpotOrderbookResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 
 	marketID := common.HexToHash(req.MarketId)
-	var limit *uint64
-	if req.Limit > 0 {
-		limit = &req.Limit
-	} else if req.LimitCumulativeNotional == nil && req.LimitCumulativeQuantity == nil {
+	limit := &req.Limit
+	if req.Limit == 0 && req.LimitCumulativeNotional == nil && req.LimitCumulativeQuantity == nil {
 		defaultLimit := types.DefaultQueryOrderbookLimit
 		limit = &defaultLimit
 	}
 
-	var buysPriceLevel []*types.Level
-	if req.OrderSide == types.OrderSide_Side_Unspecified || req.OrderSide == types.OrderSide_Buy {
-		buysPriceLevel = k.GetOrderbookPriceLevels(ctx, true, marketID, true, limit, req.LimitCumulativeNotional, req.LimitCumulativeQuantity)
-	} else {
-		buysPriceLevel = make([]*types.Level, 0)
+	buysPriceLevel := make([]*v2.Level, 0)
+	if req.OrderSide == v2.OrderSide_Side_Unspecified || req.OrderSide == v2.OrderSide_Buy {
+		buysPriceLevel = q.Keeper.GetOrderbookPriceLevels(
+			ctx, true, marketID, true, limit, req.LimitCumulativeNotional, req.LimitCumulativeQuantity,
+		)
+	}
+	sellsPriceLevel := make([]*v2.Level, 0)
+	if req.OrderSide == v2.OrderSide_Side_Unspecified || req.OrderSide == v2.OrderSide_Sell {
+		sellsPriceLevel = q.Keeper.GetOrderbookPriceLevels(
+			ctx, true, marketID, false, limit, req.LimitCumulativeNotional, req.LimitCumulativeQuantity,
+		)
 	}
 
-	var sellsPriceLevel []*types.Level
-	if req.OrderSide == types.OrderSide_Side_Unspecified || req.OrderSide == types.OrderSide_Sell {
-		sellsPriceLevel = k.GetOrderbookPriceLevels(ctx, true, marketID, false, limit, req.LimitCumulativeNotional, req.LimitCumulativeQuantity)
-	} else {
-		sellsPriceLevel = make([]*types.Level, 0)
-	}
-
-	res := &types.QuerySpotOrderbookResponse{
+	resp := &v2.QuerySpotOrderbookResponse{
 		BuysPriceLevel:  buysPriceLevel,
 		SellsPriceLevel: sellsPriceLevel,
 	}
 
-	return res, nil
+	return resp, nil
 }
 
-func (k *Keeper) SpotOrdersByHashes(c context.Context, req *types.QuerySpotOrdersByHashesRequest) (*types.QuerySpotOrdersByHashesResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+func (q queryServer) TraderSpotOrders(c context.Context, req *v2.QueryTraderSpotOrdersRequest) (*v2.QueryTraderSpotOrdersResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
 	defer doneFn()
 
-	ctx := sdk.UnwrapSDKContext(c)
+	var (
+		ctx          = sdk.UnwrapSDKContext(c)
+		marketID     = common.HexToHash(req.MarketId)
+		subaccountID = common.HexToHash(req.SubaccountId)
+	)
 
-	marketID := common.HexToHash(req.MarketId)
-	subaccountID := common.HexToHash(req.SubaccountId)
-
-	orders := make([]*types.TrimmedSpotLimitOrder, 0, len(req.OrderHashes))
-
-	for _, hash := range req.OrderHashes {
-		order := k.GetSpotLimitOrderBySubaccountID(ctx, marketID, nil, subaccountID, common.HexToHash(hash))
-		if order == nil {
-			continue
-		}
-		// we append found orders only since including a nil element in the slice results in response being redacted
-		orders = append(orders, order.ToTrimmed())
+	resp := &v2.QueryTraderSpotOrdersResponse{
+		Orders: q.Keeper.GetAllTraderSpotLimitOrders(ctx, marketID, subaccountID),
 	}
 
-	res := &types.QuerySpotOrdersByHashesResponse{
-		Orders: orders,
-	}
-	return res, nil
+	return resp, nil
 }
 
-func (k *Keeper) DerivativeOrdersByHashes(c context.Context, req *types.QueryDerivativeOrdersByHashesRequest) (*types.QueryDerivativeOrdersByHashesResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
-	defer doneFn()
-
-	ctx := sdk.UnwrapSDKContext(c)
-
-	marketID := common.HexToHash(req.MarketId)
-	subaccountID := common.HexToHash(req.SubaccountId)
-
-	orders := make([]*types.TrimmedDerivativeLimitOrder, 0, len(req.OrderHashes))
-
-	for _, hash := range req.OrderHashes {
-		order := k.GetDerivativeLimitOrderBySubaccountIDAndHash(ctx, marketID, nil, subaccountID, common.HexToHash(hash))
-		if order == nil {
-			continue
-		}
-		// we append found orders only since including a nil element in the slice results in response being redacted
-		orders = append(orders, order.ToTrimmed())
-	}
-
-	res := &types.QueryDerivativeOrdersByHashesResponse{
-		Orders: orders,
-	}
-	return res, nil
-}
-
-func (k *Keeper) TraderSpotOrders(c context.Context, req *types.QueryTraderSpotOrdersRequest) (*types.QueryTraderSpotOrdersResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
-	defer doneFn()
-
-	ctx := sdk.UnwrapSDKContext(c)
-
-	marketID := common.HexToHash(req.MarketId)
-	subaccountID := common.HexToHash(req.SubaccountId)
-
-	res := &types.QueryTraderSpotOrdersResponse{
-		Orders: k.GetAllTraderSpotLimitOrders(ctx, marketID, subaccountID),
-	}
-
-	return res, nil
-}
-
-func (k *Keeper) AccountAddressSpotOrders(c context.Context, req *types.QueryAccountAddressSpotOrdersRequest) (*types.QueryAccountAddressSpotOrdersResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+func (q queryServer) AccountAddressSpotOrders(
+	c context.Context, req *v2.QueryAccountAddressSpotOrdersRequest,
+) (*v2.QueryAccountAddressSpotOrdersResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
@@ -521,151 +536,139 @@ func (k *Keeper) AccountAddressSpotOrders(c context.Context, req *types.QueryAcc
 	marketID := common.HexToHash(req.MarketId)
 	accountAddress, err := sdk.AccAddressFromBech32(req.AccountAddress)
 	if err != nil {
-		metrics.ReportFuncError(k.svcTags)
+		metrics.ReportFuncError(q.svcTags)
 		return nil, types.ErrInvalidAddress
 	}
 
-	res := &types.QueryAccountAddressSpotOrdersResponse{
-		Orders: k.GetAccountAddressSpotLimitOrders(ctx, marketID, accountAddress),
+	resp := &v2.QueryAccountAddressSpotOrdersResponse{
+		Orders: q.Keeper.GetAccountAddressSpotLimitOrders(ctx, marketID, accountAddress),
 	}
 
-	return res, nil
+	return resp, nil
 }
 
-func (k *Keeper) TraderSpotOrdersToCancelUpToAmountRequest(c context.Context, req *types.QueryTraderSpotOrdersToCancelUpToAmountRequest) (*types.QueryTraderSpotOrdersResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+func (q queryServer) SpotOrdersByHashes(
+	c context.Context, req *v2.QuerySpotOrdersByHashesRequest,
+) (*v2.QuerySpotOrdersByHashesResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
+	defer doneFn()
+
+	var (
+		ctx          = sdk.UnwrapSDKContext(c)
+		marketID     = common.HexToHash(req.MarketId)
+		subaccountID = common.HexToHash(req.SubaccountId)
+		orders       = make([]*v2.TrimmedSpotLimitOrder, 0, len(req.OrderHashes))
+	)
+
+	for _, hash := range req.OrderHashes {
+		order := q.Keeper.GetSpotLimitOrderBySubaccountID(ctx, marketID, nil, subaccountID, common.HexToHash(hash))
+		if order == nil {
+			continue
+		}
+
+		// we append found orders only since including a nil element in the slice results in response being redacted
+		orders = append(orders, order.ToTrimmed())
+	}
+
+	resp := &v2.QuerySpotOrdersByHashesResponse{
+		Orders: orders,
+	}
+
+	return resp, nil
+}
+
+func (q queryServer) SubaccountOrders(c context.Context, req *v2.QuerySubaccountOrdersRequest) (*v2.QuerySubaccountOrdersResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
+	defer doneFn()
+
+	var (
+		ctx          = sdk.UnwrapSDKContext(c)
+		marketID     = common.HexToHash(req.MarketId)
+		subaccountID = common.HexToHash(req.SubaccountId)
+		buyOrders    = q.Keeper.GetSubaccountOrders(ctx, marketID, subaccountID, true, false)
+		sellOrders   = q.Keeper.GetSubaccountOrders(ctx, marketID, subaccountID, false, false)
+	)
+
+	resp := &v2.QuerySubaccountOrdersResponse{
+		BuyOrders:  buyOrders,
+		SellOrders: sellOrders,
+	}
+
+	return resp, nil
+}
+
+func (q queryServer) TraderSpotTransientOrders(
+	c context.Context, req *v2.QueryTraderSpotOrdersRequest,
+) (*v2.QueryTraderSpotOrdersResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
+	defer doneFn()
+
+	var (
+		ctx          = sdk.UnwrapSDKContext(c)
+		marketID     = common.HexToHash(req.MarketId)
+		subaccountID = common.HexToHash(req.SubaccountId)
+	)
+
+	resp := &v2.QueryTraderSpotOrdersResponse{
+		Orders: q.Keeper.GetAllTransientTraderSpotLimitOrders(ctx, marketID, subaccountID),
+	}
+
+	return resp, nil
+}
+
+func (q queryServer) SpotMidPriceAndTOB(
+	c context.Context, req *v2.QuerySpotMidPriceAndTOBRequest,
+) (*v2.QuerySpotMidPriceAndTOBResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
-
 	marketID := common.HexToHash(req.MarketId)
-	market := k.GetSpotMarket(ctx, marketID, true)
+
+	market := q.Keeper.GetSpotMarket(ctx, marketID, true)
 	if market == nil {
-		metrics.ReportFuncError(k.svcTags)
+		metrics.ReportFuncError(q.svcTags)
 		return nil, types.ErrSpotMarketNotFound
 	}
 
-	subaccountID := common.HexToHash(req.SubaccountId)
-
-	if req.Strategy != types.CancellationStrategy_UnspecifiedOrder && (req.ReferencePrice == nil || req.ReferencePrice.IsNil()) {
-		metrics.ReportFuncError(k.svcTags)
-		return nil, types.ErrInvalidPrice
-	}
-
-	traderOrders := k.GetAllTraderSpotLimitOrders(ctx, marketID, subaccountID)
-	ordersToCancel, hasProcessedFullAmount := k.GetSpotOrdersToCancelUpToAmount(ctx, market, traderOrders, req.Strategy, req.ReferencePrice, req.BaseAmount, req.QuoteAmount)
-
-	if !hasProcessedFullAmount {
-		metrics.ReportFuncError(k.svcTags)
-		return nil, types.ErrTransientOrdersUpToCancelNotSupported
-	}
-
-	res := &types.QueryTraderSpotOrdersResponse{
-		Orders: ordersToCancel,
-	}
-
-	return res, nil
-}
-
-func (k *Keeper) TraderDerivativeOrdersToCancelUpToAmountRequest(c context.Context, req *types.QueryTraderDerivativeOrdersToCancelUpToAmountRequest) (*types.QueryTraderDerivativeOrdersResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
-	defer doneFn()
-
-	ctx := sdk.UnwrapSDKContext(c)
-
-	marketID := common.HexToHash(req.MarketId)
-	market := k.GetDerivativeMarket(ctx, marketID, true)
-	if market == nil {
-		metrics.ReportFuncError(k.svcTags)
-		return nil, types.ErrDerivativeMarketNotFound
-	}
-
-	subaccountID := common.HexToHash(req.SubaccountId)
-
-	if req.Strategy != types.CancellationStrategy_UnspecifiedOrder && (req.ReferencePrice == nil || req.ReferencePrice.IsNil()) {
-		metrics.ReportFuncError(k.svcTags)
-		return nil, types.ErrInvalidPrice
-	}
-
-	traderOrders := k.GetAllTraderDerivativeLimitOrders(ctx, marketID, subaccountID)
-	ordersToCancel, hasProcessedFullAmount := GetDerivativeOrdersToCancelUpToAmount(market, traderOrders, req.Strategy, req.ReferencePrice, req.QuoteAmount)
-
-	if !hasProcessedFullAmount {
-		metrics.ReportFuncError(k.svcTags)
-		return nil, types.ErrTransientOrdersUpToCancelNotSupported
-	}
-
-	res := &types.QueryTraderDerivativeOrdersResponse{
-		Orders: ordersToCancel,
-	}
-
-	return res, nil
-}
-
-func (k *Keeper) TraderSpotTransientOrders(c context.Context, req *types.QueryTraderSpotOrdersRequest) (*types.QueryTraderSpotOrdersResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
-	defer doneFn()
-
-	ctx := sdk.UnwrapSDKContext(c)
-
-	marketID := common.HexToHash(req.MarketId)
-	subaccountID := common.HexToHash(req.SubaccountId)
-
-	res := &types.QueryTraderSpotOrdersResponse{
-		Orders: k.GetAllTransientTraderSpotLimitOrders(ctx, marketID, subaccountID),
-	}
-
-	return res, nil
-}
-
-func (k *Keeper) SpotMidPriceAndTOB(c context.Context, req *types.QuerySpotMidPriceAndTOBRequest) (*types.QuerySpotMidPriceAndTOBResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
-	defer doneFn()
-
-	ctx := sdk.UnwrapSDKContext(c)
-
-	marketID := common.HexToHash(req.MarketId)
-	market := k.GetSpotMarket(ctx, marketID, true)
-	if market == nil {
-		metrics.ReportFuncError(k.svcTags)
-		return nil, types.ErrSpotMarketNotFound
-	}
-
-	midPrice, bestBuyPrice, bestSellPrice := k.GetSpotMidPriceAndTOB(ctx, marketID)
-	res := &types.QuerySpotMidPriceAndTOBResponse{
+	midPrice, bestBuyPrice, bestSellPrice := q.Keeper.GetSpotMidPriceAndTOB(ctx, marketID)
+	resp := &v2.QuerySpotMidPriceAndTOBResponse{
 		MidPrice:      midPrice,
 		BestBuyPrice:  bestBuyPrice,
 		BestSellPrice: bestSellPrice,
 	}
 
-	return res, nil
+	return resp, nil
 }
 
-func (k *Keeper) DerivativeMidPriceAndTOB(c context.Context, req *types.QueryDerivativeMidPriceAndTOBRequest) (*types.QueryDerivativeMidPriceAndTOBResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+func (q queryServer) DerivativeMidPriceAndTOB(
+	c context.Context, req *v2.QueryDerivativeMidPriceAndTOBRequest,
+) (*v2.QueryDerivativeMidPriceAndTOBResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
-
 	marketID := common.HexToHash(req.MarketId)
-	midPrice, bestBuyPrice, bestSellPrice := k.GetDerivativeMidPriceAndTOB(ctx, marketID)
+	midPrice, bestBuyPrice, bestSellPrice := q.Keeper.GetDerivativeMidPriceAndTOB(ctx, marketID)
 
-	res := &types.QueryDerivativeMidPriceAndTOBResponse{
+	resp := &v2.QueryDerivativeMidPriceAndTOBResponse{
 		MidPrice:      midPrice,
 		BestBuyPrice:  bestBuyPrice,
 		BestSellPrice: bestSellPrice,
 	}
 
-	return res, nil
+	return resp, nil
 }
 
-func (k *Keeper) DerivativeOrderbook(c context.Context, req *types.QueryDerivativeOrderbookRequest) (*types.QueryDerivativeOrderbookResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+func (q queryServer) DerivativeOrderbook(
+	c context.Context, req *v2.QueryDerivativeOrderbookRequest,
+) (*v2.QueryDerivativeOrderbookResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
-
 	marketID := common.HexToHash(req.MarketId)
+
 	var limit *uint64
 	if req.Limit > 0 {
 		limit = &req.Limit
@@ -673,103 +676,122 @@ func (k *Keeper) DerivativeOrderbook(c context.Context, req *types.QueryDerivati
 		defaultLimit := types.DefaultQueryOrderbookLimit
 		limit = &defaultLimit
 	}
-	res := &types.QueryDerivativeOrderbookResponse{
-		BuysPriceLevel:  k.GetOrderbookPriceLevels(ctx, false, marketID, true, limit, req.LimitCumulativeNotional, nil),
-		SellsPriceLevel: k.GetOrderbookPriceLevels(ctx, false, marketID, false, limit, req.LimitCumulativeNotional, nil),
+
+	resp := &v2.QueryDerivativeOrderbookResponse{
+		BuysPriceLevel:  q.Keeper.GetOrderbookPriceLevels(ctx, false, marketID, true, limit, req.LimitCumulativeNotional, nil),
+		SellsPriceLevel: q.Keeper.GetOrderbookPriceLevels(ctx, false, marketID, false, limit, req.LimitCumulativeNotional, nil),
 	}
 
-	return res, nil
+	return resp, nil
 }
 
-func (k *Keeper) TraderDerivativeOrders(c context.Context, req *types.QueryTraderDerivativeOrdersRequest) (*types.QueryTraderDerivativeOrdersResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+func (q queryServer) TraderDerivativeOrders(
+	c context.Context, req *v2.QueryTraderDerivativeOrdersRequest,
+) (*v2.QueryTraderDerivativeOrdersResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
+	defer doneFn()
+
+	var (
+		ctx          = sdk.UnwrapSDKContext(c)
+		marketID     = common.HexToHash(req.MarketId)
+		subaccountID = common.HexToHash(req.SubaccountId)
+	)
+
+	resp := &v2.QueryTraderDerivativeOrdersResponse{
+		Orders: q.Keeper.GetAllTraderDerivativeLimitOrders(ctx, marketID, subaccountID),
+	}
+
+	return resp, nil
+}
+
+func (q queryServer) AccountAddressDerivativeOrders(
+	c context.Context, req *v2.QueryAccountAddressDerivativeOrdersRequest,
+) (*v2.QueryAccountAddressDerivativeOrdersResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
-
 	marketID := common.HexToHash(req.MarketId)
-	subaccountID := common.HexToHash(req.SubaccountId)
 
-	res := &types.QueryTraderDerivativeOrdersResponse{
-		Orders: k.GetAllTraderDerivativeLimitOrders(ctx, marketID, subaccountID),
-	}
-
-	return res, nil
-}
-
-func (k *Keeper) AccountAddressDerivativeOrders(c context.Context, req *types.QueryAccountAddressDerivativeOrdersRequest) (*types.QueryAccountAddressDerivativeOrdersResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
-	defer doneFn()
-
-	ctx := sdk.UnwrapSDKContext(c)
-
-	marketID := common.HexToHash(req.MarketId)
 	accountAddress, err := sdk.AccAddressFromBech32(req.AccountAddress)
 	if err != nil {
-		metrics.ReportFuncError(k.svcTags)
+		metrics.ReportFuncError(q.svcTags)
 		return nil, types.ErrInvalidAddress
 	}
 
-	res := &types.QueryAccountAddressDerivativeOrdersResponse{
-		Orders: k.GetDerivativeLimitOrdersByAddress(ctx, marketID, accountAddress),
+	resp := &v2.QueryAccountAddressDerivativeOrdersResponse{
+		Orders: q.Keeper.GetDerivativeLimitOrdersByAddress(ctx, marketID, accountAddress),
+	}
+
+	return resp, nil
+}
+
+func (q queryServer) DerivativeOrdersByHashes(
+	c context.Context, req *v2.QueryDerivativeOrdersByHashesRequest,
+) (*v2.QueryDerivativeOrdersByHashesResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
+	defer doneFn()
+
+	var (
+		ctx          = sdk.UnwrapSDKContext(c)
+		marketID     = common.HexToHash(req.MarketId)
+		subaccountID = common.HexToHash(req.SubaccountId)
+		orders       = make([]*v2.TrimmedDerivativeLimitOrder, 0, len(req.OrderHashes))
+	)
+
+	for _, hash := range req.OrderHashes {
+		order := q.Keeper.GetDerivativeLimitOrderBySubaccountIDAndHash(ctx, marketID, nil, subaccountID, common.HexToHash(hash))
+		if order == nil {
+			continue
+		}
+
+		// we append found orders only since including a nil element in the slice results in response being redacted
+		orders = append(orders, order.ToTrimmed())
+	}
+
+	resp := &v2.QueryDerivativeOrdersByHashesResponse{
+		Orders: orders,
+	}
+
+	return resp, nil
+}
+
+func (q queryServer) TraderDerivativeTransientOrders(
+	c context.Context, req *v2.QueryTraderDerivativeOrdersRequest,
+) (*v2.QueryTraderDerivativeOrdersResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
+	defer doneFn()
+
+	var (
+		ctx          = sdk.UnwrapSDKContext(c)
+		marketID     = common.HexToHash(req.MarketId)
+		subaccountID = common.HexToHash(req.SubaccountId)
+	)
+
+	res := &v2.QueryTraderDerivativeOrdersResponse{
+		Orders: q.Keeper.GetAllTransientTraderDerivativeLimitOrders(ctx, marketID, subaccountID),
 	}
 
 	return res, nil
 }
 
-func (k *Keeper) TraderDerivativeTransientOrders(c context.Context, req *types.QueryTraderDerivativeOrdersRequest) (*types.QueryTraderDerivativeOrdersResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+func (q queryServer) DerivativeMarkets(
+	c context.Context, req *v2.QueryDerivativeMarketsRequest,
+) (*v2.QueryDerivativeMarketsResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 
-	marketID := common.HexToHash(req.MarketId)
-	subaccountID := common.HexToHash(req.SubaccountId)
-
-	res := &types.QueryTraderDerivativeOrdersResponse{
-		Orders: k.GetAllTransientTraderDerivativeLimitOrders(ctx, marketID, subaccountID),
-	}
-
-	return res, nil
-}
-
-func (k *Keeper) SubaccountOrders(c context.Context, req *types.QuerySubaccountOrdersRequest) (*types.QuerySubaccountOrdersResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
-	defer doneFn()
-
-	ctx := sdk.UnwrapSDKContext(c)
-
-	marketID := common.HexToHash(req.MarketId)
-	subaccountID := common.HexToHash(req.SubaccountId)
-
-	buyOrders := k.GetSubaccountOrders(ctx, marketID, subaccountID, true, false)
-	sellOrders := k.GetSubaccountOrders(ctx, marketID, subaccountID, false, false)
-
-	res := &types.QuerySubaccountOrdersResponse{
-		BuyOrders:  buyOrders,
-		SellOrders: sellOrders,
-	}
-
-	return res, nil
-}
-
-func (k *Keeper) DerivativeMarkets(c context.Context, req *types.QueryDerivativeMarketsRequest) (*types.QueryDerivativeMarketsResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
-	defer doneFn()
-
-	ctx := sdk.UnwrapSDKContext(c)
-
-	var status types.MarketStatus
+	var status v2.MarketStatus
 	if req.Status == "" {
-		status = types.MarketStatus_Active
+		status = v2.MarketStatus_Active
 	} else {
-		status = types.MarketStatus(types.MarketStatus_value[req.Status])
+		status = v2.MarketStatus(v2.MarketStatus_value[req.Status])
 	}
-	res := &types.QueryDerivativeMarketsResponse{
-		Markets: []*types.FullDerivativeMarket{},
-	}
-	if status == types.MarketStatus_Unspecified {
-		return res, nil
+
+	if status == v2.MarketStatus_Unspecified {
+		return &v2.QueryDerivativeMarketsResponse{Markets: []*v2.FullDerivativeMarket{}}, nil
 	}
 
 	filters := []MarketFilter{StatusMarketFilter(status)}
@@ -779,224 +801,261 @@ func (k *Keeper) DerivativeMarkets(c context.Context, req *types.QueryDerivative
 
 	var fillers []FullDerivativeMarketFiller
 	if req.GetWithMidPriceAndTob() {
-		fillers = append(fillers, FullDerivativeMarketWithMidPriceToB(k))
+		fillers = append(fillers, FullDerivativeMarketWithMidPriceToB(q.Keeper))
 	}
 
-	res.Markets = k.FindFullDerivativeMarkets(ctx, ChainMarketFilter(filters...), fillers...)
+	resp := &v2.QueryDerivativeMarketsResponse{
+		Markets: q.Keeper.FindFullDerivativeMarkets(ctx, ChainMarketFilter(filters...), fillers...),
+	}
 
-	return res, nil
+	return resp, nil
 }
 
-func (k *Keeper) DerivativeMarket(c context.Context, req *types.QueryDerivativeMarketRequest) (*types.QueryDerivativeMarketResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+func (q queryServer) DerivativeMarket(c context.Context, req *v2.QueryDerivativeMarketRequest) (*v2.QueryDerivativeMarketResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
-
 	marketID := common.HexToHash(req.MarketId)
-	market := k.GetFullDerivativeMarket(ctx, marketID, true)
+	market := q.Keeper.GetFullDerivativeMarket(ctx, marketID, true)
 	if market == nil {
-		metrics.ReportFuncError(k.svcTags)
+		metrics.ReportFuncError(q.svcTags)
 		return nil, types.ErrDerivativeMarketNotFound
 	}
 
-	res := &types.QueryDerivativeMarketResponse{
+	resp := &v2.QueryDerivativeMarketResponse{
 		Market: market,
 	}
 
-	return res, nil
+	return resp, nil
 }
 
-func (k *Keeper) DerivativeMarketAddress(c context.Context, req *types.QueryDerivativeMarketAddressRequest) (*types.QueryDerivativeMarketAddressResponse, error) {
+func (q queryServer) DerivativeMarketAddress(
+	c context.Context, req *v2.QueryDerivativeMarketAddressRequest,
+) (*v2.QueryDerivativeMarketAddressResponse, error) {
+	_, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
+	defer doneFn()
+
 	marketID := common.HexToHash(req.MarketId)
 
-	res := &types.QueryDerivativeMarketAddressResponse{
+	resp := &v2.QueryDerivativeMarketAddressResponse{
 		Address:      types.SubaccountIDToSdkAddress(marketID).String(),
 		SubaccountId: types.SdkAddressToSubaccountID(types.SubaccountIDToSdkAddress(marketID)).String(),
 	}
 
-	return res, nil
+	return resp, nil
 }
 
-func (k *Keeper) ExchangeModuleState(c context.Context, req *types.QueryModuleStateRequest) (*types.QueryModuleStateResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+func (q queryServer) SubaccountTradeNonce(
+	c context.Context, req *v2.QuerySubaccountTradeNonceRequest,
+) (*v2.QuerySubaccountTradeNonceResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
+	defer doneFn()
+
+	resp := &v2.QuerySubaccountTradeNonceResponse{
+		Nonce: q.Keeper.GetSubaccountTradeNonce(sdk.UnwrapSDKContext(c), common.HexToHash(req.SubaccountId)).Nonce,
+	}
+
+	return resp, nil
+}
+
+func (q queryServer) ExchangeModuleState(c context.Context, _ *v2.QueryModuleStateRequest) (*v2.QueryModuleStateResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
+	defer doneFn()
+
+	resp := &v2.QueryModuleStateResponse{
+		State: q.Keeper.ExportGenesis(sdk.UnwrapSDKContext(c)),
+	}
+
+	return resp, nil
+}
+
+func (q queryServer) Positions(c context.Context, _ *v2.QueryPositionsRequest) (*v2.QueryPositionsResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 
-	res := &types.QueryModuleStateResponse{
-		State: k.ExportGenesis(ctx),
+	resp := &v2.QueryPositionsResponse{
+		State: q.Keeper.GetAllPositions(ctx),
 	}
-	return res, nil
+
+	return resp, nil
 }
 
-func (k *Keeper) PerpetualMarketInfo(c context.Context, req *types.QueryPerpetualMarketInfoRequest) (*types.QueryPerpetualMarketInfoResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+func (q queryServer) SubaccountPositions(
+	c context.Context, req *v2.QuerySubaccountPositionsRequest,
+) (*v2.QuerySubaccountPositionsResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
+	subaccountID := common.HexToHash(req.SubaccountId)
 
-	if req.MarketId == "" {
-		return nil, fmt.Errorf("MarketId must be specified")
+	resp := &v2.QuerySubaccountPositionsResponse{
+		State: q.Keeper.GetAllActivePositionsBySubaccountID(ctx, subaccountID),
 	}
 
-	info := k.GetPerpetualMarketInfo(ctx, common.HexToHash(req.MarketId))
-	if info == nil {
-		return nil, fmt.Errorf("market info for marketId %s doesn't exist", req.MarketId)
-	}
-
-	res := &types.QueryPerpetualMarketInfoResponse{
-		Info: *info,
-	}
-
-	return res, nil
+	return resp, nil
 }
 
-func (k *Keeper) ExpiryFuturesMarketInfo(c context.Context, req *types.QueryExpiryFuturesMarketInfoRequest) (*types.QueryExpiryFuturesMarketInfoResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+func (q queryServer) SubaccountPositionInMarket(
+	c context.Context, req *v2.QuerySubaccountPositionInMarketRequest,
+) (*v2.QuerySubaccountPositionInMarketResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
-
-	if req.MarketId == "" {
-		return nil, fmt.Errorf("MarketId must be specified")
-	}
-
-	info := k.GetExpiryFuturesMarketInfo(ctx, common.HexToHash(req.MarketId))
-	if info == nil {
-		return nil, fmt.Errorf("market info for marketId %s doesn't exist", req.MarketId)
-	}
-
-	res := &types.QueryExpiryFuturesMarketInfoResponse{
-		Info: *info,
-	}
-
-	return res, nil
-}
-
-func (k *Keeper) PerpetualMarketFunding(c context.Context, req *types.QueryPerpetualMarketFundingRequest) (*types.QueryPerpetualMarketFundingResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
-	defer doneFn()
-
-	ctx := sdk.UnwrapSDKContext(c)
-
-	if req.MarketId == "" {
-		return nil, fmt.Errorf("MarketId must be specified")
-	}
-
-	state := k.GetPerpetualMarketFunding(ctx, common.HexToHash(req.MarketId))
-	if state == nil {
-		return nil, fmt.Errorf("market info for marketId %s doesn't exist", req.MarketId)
-	}
-
-	res := &types.QueryPerpetualMarketFundingResponse{
-		State: *state,
-	}
-
-	return res, nil
-}
-
-func (k *Keeper) Positions(c context.Context, req *types.QueryPositionsRequest) (*types.QueryPositionsResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
-	defer doneFn()
-
-	ctx := sdk.UnwrapSDKContext(c)
-
-	res := &types.QueryPositionsResponse{
-		State: k.GetAllPositions(ctx),
-	}
-
-	return res, nil
-}
-
-func (k *Keeper) SubaccountPositions(c context.Context, req *types.QuerySubaccountPositionsRequest) (*types.QuerySubaccountPositionsResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
-	defer doneFn()
-
-	ctx := sdk.UnwrapSDKContext(c)
-
-	res := &types.QuerySubaccountPositionsResponse{
-		State: k.GetAllActivePositionsBySubaccountID(ctx, common.HexToHash(req.SubaccountId)),
-	}
-
-	return res, nil
-}
-
-func (k *Keeper) SubaccountPositionInMarket(c context.Context, req *types.QuerySubaccountPositionInMarketRequest) (*types.QuerySubaccountPositionInMarketResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
-	defer doneFn()
-
-	ctx := sdk.UnwrapSDKContext(c)
-
-	res := &types.QuerySubaccountPositionInMarketResponse{
-		State: k.GetPosition(ctx, common.HexToHash(req.MarketId), common.HexToHash(req.SubaccountId)),
-	}
-
-	return res, nil
-}
-
-func (k *Keeper) SubaccountEffectivePositionInMarket(c context.Context, req *types.QuerySubaccountEffectivePositionInMarketRequest) (*types.QuerySubaccountEffectivePositionInMarketResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
-	defer doneFn()
-
-	ctx := sdk.UnwrapSDKContext(c)
-
 	marketID := common.HexToHash(req.MarketId)
-	position := k.GetPosition(ctx, marketID, common.HexToHash(req.SubaccountId))
+	subaccountID := common.HexToHash(req.SubaccountId)
+
+	resp := &v2.QuerySubaccountPositionInMarketResponse{
+		State: q.Keeper.GetPosition(ctx, marketID, subaccountID),
+	}
+
+	return resp, nil
+}
+
+func (q queryServer) SubaccountEffectivePositionInMarket(
+	c context.Context, req *v2.QuerySubaccountEffectivePositionInMarketRequest,
+) (*v2.QuerySubaccountEffectivePositionInMarketResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
+	defer doneFn()
+
+	ctx := sdk.UnwrapSDKContext(c)
+	marketID := common.HexToHash(req.MarketId)
+	position := q.Keeper.GetPosition(ctx, marketID, common.HexToHash(req.SubaccountId))
 
 	if position == nil {
-		return &types.QuerySubaccountEffectivePositionInMarketResponse{
-			State: nil,
-		}, nil
+		return &v2.QuerySubaccountEffectivePositionInMarketResponse{State: nil}, nil
 	}
 
-	funding := k.GetPerpetualMarketFunding(ctx, marketID)
-	_, markPrice := k.GetDerivativeOrBinaryOptionsMarketWithMarkPrice(ctx, marketID, true)
+	funding := q.Keeper.GetPerpetualMarketFunding(ctx, marketID)
+	_, markPrice := q.Keeper.GetDerivativeOrBinaryOptionsMarketWithMarkPrice(ctx, marketID, true)
 
-	effectivePosition := types.EffectivePosition{
+	effectivePosition := v2.EffectivePosition{
 		IsLong:          position.IsLong,
 		EntryPrice:      position.EntryPrice,
 		Quantity:        position.Quantity,
 		EffectiveMargin: position.GetEffectiveMargin(funding, markPrice),
 	}
 
-	res := &types.QuerySubaccountEffectivePositionInMarketResponse{
+	resp := &v2.QuerySubaccountEffectivePositionInMarketResponse{
 		State: &effectivePosition,
 	}
 
-	return res, nil
+	return resp, nil
 }
 
-func (k *Keeper) SubaccountOrderMetadata(c context.Context, req *types.QuerySubaccountOrderMetadataRequest) (*types.QuerySubaccountOrderMetadataResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+func (q queryServer) PerpetualMarketInfo(
+	c context.Context, req *v2.QueryPerpetualMarketInfoRequest,
+) (*v2.QueryPerpetualMarketInfoResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 
-	subaccountOrderbookMetadata := make([]types.SubaccountOrderbookMetadataWithMarket, 0)
-	markets := k.GetAllDerivativeAndBinaryOptionsMarkets(ctx)
-
-	for _, market := range markets {
-		subaccountOrderbookMetadata = append(subaccountOrderbookMetadata, types.SubaccountOrderbookMetadataWithMarket{
-			Metadata: k.GetSubaccountOrderbookMetadata(ctx, market.MarketID(), common.HexToHash(req.SubaccountId), true),
-			MarketId: market.MarketID().String(),
-			IsBuy:    true,
-		}, types.SubaccountOrderbookMetadataWithMarket{
-			Metadata: k.GetSubaccountOrderbookMetadata(ctx, market.MarketID(), common.HexToHash(req.SubaccountId), false),
-			MarketId: market.MarketID().String(),
-			IsBuy:    false,
-		})
+	if req.MarketId == "" {
+		return nil, fmt.Errorf("MarketId must be specified")
 	}
 
-	res := &types.QuerySubaccountOrderMetadataResponse{
+	info := q.Keeper.GetPerpetualMarketInfo(ctx, common.HexToHash(req.MarketId))
+	if info == nil {
+		return nil, fmt.Errorf("market info for marketId %s doesn't exist", req.MarketId)
+	}
+
+	res := &v2.QueryPerpetualMarketInfoResponse{
+		Info: *info,
+	}
+
+	return res, nil
+}
+
+func (q queryServer) ExpiryFuturesMarketInfo(
+	c context.Context, req *v2.QueryExpiryFuturesMarketInfoRequest,
+) (*v2.QueryExpiryFuturesMarketInfoResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
+	defer doneFn()
+
+	ctx := sdk.UnwrapSDKContext(c)
+
+	if req.MarketId == "" {
+		return nil, errors.New("MarketId must be specified")
+	}
+
+	info := q.Keeper.GetExpiryFuturesMarketInfo(ctx, common.HexToHash(req.MarketId))
+	if info == nil {
+		return nil, fmt.Errorf("market info for marketId %s doesn't exist", req.MarketId)
+	}
+
+	resp := &v2.QueryExpiryFuturesMarketInfoResponse{
+		Info: *info,
+	}
+
+	return resp, nil
+}
+
+func (q queryServer) PerpetualMarketFunding(
+	c context.Context, req *v2.QueryPerpetualMarketFundingRequest,
+) (*v2.QueryPerpetualMarketFundingResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
+	defer doneFn()
+
+	ctx := sdk.UnwrapSDKContext(c)
+
+	if req.MarketId == "" {
+		return nil, errors.New("MarketId must be specified")
+	}
+
+	state := q.Keeper.GetPerpetualMarketFunding(ctx, common.HexToHash(req.MarketId))
+	if state == nil {
+		return nil, fmt.Errorf("market info for marketId %s doesn't exist", req.MarketId)
+	}
+
+	resp := &v2.QueryPerpetualMarketFundingResponse{
+		State: *state,
+	}
+
+	return resp, nil
+}
+
+func (q queryServer) SubaccountOrderMetadata(
+	c context.Context, req *v2.QuerySubaccountOrderMetadataRequest,
+) (*v2.QuerySubaccountOrderMetadataResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
+	defer doneFn()
+
+	ctx := sdk.UnwrapSDKContext(c)
+
+	subaccountOrderbookMetadata := make([]v2.SubaccountOrderbookMetadataWithMarket, 0)
+	markets := q.Keeper.GetAllDerivativeAndBinaryOptionsMarkets(ctx)
+
+	for _, market := range markets {
+		subaccountOrderbookMetadata = append(subaccountOrderbookMetadata,
+			v2.SubaccountOrderbookMetadataWithMarket{
+				Metadata: q.Keeper.GetSubaccountOrderbookMetadata(ctx, market.MarketID(), common.HexToHash(req.SubaccountId), true),
+				MarketId: market.MarketID().String(),
+				IsBuy:    true,
+			},
+			v2.SubaccountOrderbookMetadataWithMarket{
+				Metadata: q.Keeper.GetSubaccountOrderbookMetadata(ctx, market.MarketID(), common.HexToHash(req.SubaccountId), false),
+				MarketId: market.MarketID().String(),
+				IsBuy:    false,
+			},
+		)
+	}
+
+	resp := &v2.QuerySubaccountOrderMetadataResponse{
 		Metadata: subaccountOrderbookMetadata,
 	}
 
-	return res, nil
+	return resp, nil
 }
 
-func (k *Keeper) TradeRewardPoints(c context.Context, req *types.QueryTradeRewardPointsRequest) (*types.QueryTradeRewardPointsResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+func (q queryServer) TradeRewardPoints(
+	c context.Context, req *v2.QueryTradeRewardPointsRequest,
+) (*v2.QueryTradeRewardPointsResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
@@ -1013,19 +1072,21 @@ func (k *Keeper) TradeRewardPoints(c context.Context, req *types.QueryTradeRewar
 	accountPoints := make([]math.LegacyDec, 0, len(accounts))
 
 	for _, account := range accounts {
-		points := k.GetCampaignTradingRewardPoints(ctx, account)
+		points := q.Keeper.GetCampaignTradingRewardPoints(ctx, account)
 		accountPoints = append(accountPoints, points)
 	}
 
-	res := &types.QueryTradeRewardPointsResponse{
+	resp := &v2.QueryTradeRewardPointsResponse{
 		AccountTradeRewardPoints: accountPoints,
 	}
 
-	return res, nil
+	return resp, nil
 }
 
-func (k *Keeper) PendingTradeRewardPoints(c context.Context, req *types.QueryTradeRewardPointsRequest) (*types.QueryTradeRewardPointsResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+func (q queryServer) PendingTradeRewardPoints(
+	c context.Context, req *v2.QueryTradeRewardPointsRequest,
+) (*v2.QueryTradeRewardPointsResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
@@ -1042,41 +1103,45 @@ func (k *Keeper) PendingTradeRewardPoints(c context.Context, req *types.QueryTra
 	accountPoints := make([]math.LegacyDec, 0, len(accounts))
 
 	for _, account := range accounts {
-		points := k.GetCampaignTradingRewardPendingPoints(ctx, account, req.PendingPoolTimestamp)
+		points := q.Keeper.GetCampaignTradingRewardPendingPoints(ctx, account, req.PendingPoolTimestamp)
 		accountPoints = append(accountPoints, points)
 	}
 
-	res := &types.QueryTradeRewardPointsResponse{
+	resp := &v2.QueryTradeRewardPointsResponse{
 		AccountTradeRewardPoints: accountPoints,
 	}
 
-	return res, nil
+	return resp, nil
 }
 
-func (k *Keeper) TradeRewardCampaign(c context.Context, req *types.QueryTradeRewardCampaignRequest) (*types.QueryTradeRewardCampaignResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+func (q queryServer) TradeRewardCampaign(
+	c context.Context, _ *v2.QueryTradeRewardCampaignRequest,
+) (*v2.QueryTradeRewardCampaignResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 
-	res := &types.QueryTradeRewardCampaignResponse{
-		TradingRewardCampaignInfo:                k.GetCampaignInfo(ctx),
-		TradingRewardPoolCampaignSchedule:        k.GetAllCampaignRewardPools(ctx),
-		TotalTradeRewardPoints:                   k.GetTotalTradingRewardPoints(ctx),
-		PendingTradingRewardPoolCampaignSchedule: k.GetAllCampaignRewardPendingPools(ctx),
+	resp := &v2.QueryTradeRewardCampaignResponse{
+		TradingRewardCampaignInfo:                q.Keeper.GetCampaignInfo(ctx),
+		TradingRewardPoolCampaignSchedule:        q.Keeper.GetAllCampaignRewardPools(ctx),
+		TotalTradeRewardPoints:                   q.Keeper.GetTotalTradingRewardPoints(ctx),
+		PendingTradingRewardPoolCampaignSchedule: q.Keeper.GetAllCampaignRewardPendingPools(ctx),
 		PendingTotalTradeRewardPoints:            make([]math.LegacyDec, 0),
 	}
 
-	for _, campaign := range res.PendingTradingRewardPoolCampaignSchedule {
-		totalPoints := k.GetTotalTradingRewardPendingPoints(ctx, campaign.StartTimestamp)
-		res.PendingTotalTradeRewardPoints = append(res.PendingTotalTradeRewardPoints, totalPoints)
+	for _, campaign := range resp.PendingTradingRewardPoolCampaignSchedule {
+		totalPoints := q.Keeper.GetTotalTradingRewardPendingPoints(ctx, campaign.StartTimestamp)
+		resp.PendingTotalTradeRewardPoints = append(resp.PendingTotalTradeRewardPoints, totalPoints)
 	}
 
-	return res, nil
+	return resp, nil
 }
 
-func (k *Keeper) IsOptedOutOfRewards(c context.Context, req *types.QueryIsOptedOutOfRewardsRequest) (*types.QueryIsOptedOutOfRewardsResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+func (q queryServer) FeeDiscountAccountInfo(
+	c context.Context, req *v2.QueryFeeDiscountAccountInfoRequest,
+) (*v2.QueryFeeDiscountAccountInfoResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
@@ -1085,46 +1150,16 @@ func (k *Keeper) IsOptedOutOfRewards(c context.Context, req *types.QueryIsOptedO
 		return nil, err
 	}
 
-	res := &types.QueryIsOptedOutOfRewardsResponse{
-		IsOptedOut: k.GetIsOptedOutOfRewards(ctx, account),
-	}
-
-	return res, nil
-}
-
-func (k *Keeper) OptedOutOfRewardsAccounts(c context.Context, req *types.QueryOptedOutOfRewardsAccountsRequest) (*types.QueryOptedOutOfRewardsAccountsResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
-	defer doneFn()
-
-	ctx := sdk.UnwrapSDKContext(c)
-
-	res := &types.QueryOptedOutOfRewardsAccountsResponse{
-		Accounts: k.GetAllOptedOutRewardAccounts(ctx),
-	}
-
-	return res, nil
-}
-
-func (k *Keeper) FeeDiscountAccountInfo(c context.Context, req *types.QueryFeeDiscountAccountInfoRequest) (*types.QueryFeeDiscountAccountInfoResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
-	defer doneFn()
-
-	ctx := sdk.UnwrapSDKContext(c)
-	account, err := sdk.AccAddressFromBech32(req.Account)
-	if err != nil {
-		return nil, err
-	}
-
-	schedule := k.GetFeeDiscountSchedule(ctx)
+	schedule := q.Keeper.GetFeeDiscountSchedule(ctx)
 	if schedule == nil {
 		return nil, types.ErrInvalidFeeDiscountSchedule
 	}
 
-	currBucketStartTimestamp := k.GetFeeDiscountCurrentBucketStartTimestamp(ctx)
-	oldestBucketStartTimestamp := k.GetOldestBucketStartTimestamp(ctx)
-	isFirstFeeCycleFinished := k.GetIsFirstFeeCycleFinished(ctx)
+	currBucketStartTimestamp := q.Keeper.GetFeeDiscountCurrentBucketStartTimestamp(ctx)
+	oldestBucketStartTimestamp := q.Keeper.GetOldestBucketStartTimestamp(ctx)
+	isFirstFeeCycleFinished := q.Keeper.GetIsFirstFeeCycleFinished(ctx)
 	maxTTLTimestamp := currBucketStartTimestamp
-	nextTTLTimestamp := maxTTLTimestamp + k.GetFeeDiscountBucketDuration(ctx)
+	nextTTLTimestamp := maxTTLTimestamp + q.Keeper.GetFeeDiscountBucketDuration(ctx)
 
 	stakingInfo := NewFeeDiscountStakingInfo(
 		schedule,
@@ -1136,15 +1171,15 @@ func (k *Keeper) FeeDiscountAccountInfo(c context.Context, req *types.QueryFeeDi
 	)
 
 	config := NewFeeDiscountConfig(true, stakingInfo)
-	feeDiscountRates, tierLevel, _, effectiveGrant := k.GetAccountFeeDiscountRates(ctx, account, config)
-	effectiveStakedAmount := k.CalculateStakedAmountWithCache(ctx, account, config).Add(effectiveGrant.NetGrantedStake)
+	feeDiscountRates, tierLevel, _, effectiveGrant := q.Keeper.GetAccountFeeDiscountRates(ctx, account, config)
+	effectiveStakedAmount := q.Keeper.CalculateStakedAmountWithCache(ctx, account, config).Add(effectiveGrant.NetGrantedStake)
 
-	volume := k.GetFeeDiscountTotalAccountVolume(ctx, account, currBucketStartTimestamp)
-	feeDiscountTierTTL := k.GetFeeDiscountAccountTierInfo(ctx, account)
+	volume := q.Keeper.GetFeeDiscountTotalAccountVolume(ctx, account, currBucketStartTimestamp)
+	feeDiscountTierTTL := q.Keeper.GetFeeDiscountAccountTierInfo(ctx, account)
 
-	res := &types.QueryFeeDiscountAccountInfoResponse{
+	resp := &v2.QueryFeeDiscountAccountInfoResponse{
 		TierLevel: tierLevel,
-		AccountInfo: &types.FeeDiscountTierInfo{
+		AccountInfo: &v2.FeeDiscountTierInfo{
 			MakerDiscountRate: feeDiscountRates.MakerDiscountRate,
 			TakerDiscountRate: feeDiscountRates.TakerDiscountRate,
 			StakedAmount:      effectiveStakedAmount,
@@ -1152,103 +1187,32 @@ func (k *Keeper) FeeDiscountAccountInfo(c context.Context, req *types.QueryFeeDi
 		},
 		AccountTtl: feeDiscountTierTTL,
 	}
-	return res, nil
+
+	return resp, nil
 }
 
-func (k *Keeper) FeeDiscountSchedule(c context.Context, req *types.QueryFeeDiscountScheduleRequest) (*types.QueryFeeDiscountScheduleResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+func (q queryServer) FeeDiscountSchedule(
+	c context.Context, _ *v2.QueryFeeDiscountScheduleRequest,
+) (*v2.QueryFeeDiscountScheduleResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
+	defer doneFn()
+
+	resp := &v2.QueryFeeDiscountScheduleResponse{
+		FeeDiscountSchedule: q.Keeper.GetFeeDiscountSchedule(sdk.UnwrapSDKContext(c)),
+	}
+
+	return resp, nil
+}
+
+func (q queryServer) BalanceMismatches(
+	c context.Context, req *v2.QueryBalanceMismatchesRequest,
+) (*v2.QueryBalanceMismatchesResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
-
-	res := &types.QueryFeeDiscountScheduleResponse{
-		FeeDiscountSchedule: k.GetFeeDiscountSchedule(ctx),
-	}
-	return res, nil
-}
-
-func (k *Keeper) GetAllBalancesWithBalanceHolds(ctx sdk.Context) []*types.BalanceWithMarginHold {
-	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
-	defer doneFn()
-
-	balanceHolds := make(map[string]map[string]math.LegacyDec)
-
-	balances := k.GetAllExchangeBalances(ctx)
-	restingSpotOrders := k.GetAllSpotLimitOrderbook(ctx)
-	restingDerivativeOrders := k.GetAllDerivativeAndBinaryOptionsLimitOrderbook(ctx)
-
-	var safeUpdateBalanceHolds = func(subaccountId, denom string, amount math.LegacyDec) {
-		if _, ok := balanceHolds[subaccountId]; !ok {
-			balanceHolds[subaccountId] = make(map[string]math.LegacyDec)
-		}
-
-		if balanceHolds[subaccountId][denom].IsNil() {
-			balanceHolds[subaccountId][denom] = math.LegacyZeroDec()
-		}
-
-		balanceHolds[subaccountId][denom] = balanceHolds[subaccountId][denom].Add(amount)
-	}
-
-	for _, orderbook := range restingSpotOrders {
-		market := k.GetSpotMarketByID(ctx, common.HexToHash(orderbook.MarketId))
-
-		for _, order := range orderbook.Orders {
-			balanceHold, denom := order.GetUnfilledMarginHoldAndMarginDenom(market, false)
-			safeUpdateBalanceHolds(order.SubaccountID().Hex(), denom, balanceHold)
-		}
-	}
-
-	for _, orderbook := range restingDerivativeOrders {
-		market := k.GetDerivativeOrBinaryOptionsMarket(ctx, common.HexToHash(orderbook.MarketId), nil)
-
-		for _, order := range orderbook.Orders {
-			balanceHold := order.GetCancelDepositDelta(market.GetMakerFeeRate()).AvailableBalanceDelta
-			safeUpdateBalanceHolds(order.SubaccountID().Hex(), market.GetQuoteDenom(), balanceHold)
-		}
-	}
-
-	balanceWithBalanceHolds := make([]*types.BalanceWithMarginHold, 0, len(balances))
-	for _, balance := range balances {
-		balanceHold := balanceHolds[balance.SubaccountId][balance.Denom]
-
-		if balanceHold.IsNil() {
-			balanceHold = math.LegacyZeroDec()
-		}
-
-		balanceWithBalanceHolds = append(balanceWithBalanceHolds, &types.BalanceWithMarginHold{
-			SubaccountId: balance.SubaccountId,
-			Denom:        balance.Denom,
-			Available:    balance.Deposits.AvailableBalance,
-			Total:        balance.Deposits.TotalBalance,
-			BalanceHold:  balanceHold,
-		})
-	}
-
-	return balanceWithBalanceHolds
-}
-
-func (k *Keeper) BalanceWithBalanceHolds(c context.Context, req *types.QueryBalanceWithBalanceHoldsRequest) (*types.QueryBalanceWithBalanceHoldsResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
-	defer doneFn()
-
-	ctx := sdk.UnwrapSDKContext(c)
-
-	res := &types.QueryBalanceWithBalanceHoldsResponse{
-		BalanceWithBalanceHolds: k.GetAllBalancesWithBalanceHolds(ctx),
-	}
-
-	return res, nil
-}
-
-func (k *Keeper) BalanceMismatches(c context.Context, req *types.QueryBalanceMismatchesRequest) (*types.QueryBalanceMismatchesResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
-	defer doneFn()
-
-	ctx := sdk.UnwrapSDKContext(c)
-
-	balancesWithBalanceHolds := k.GetAllBalancesWithBalanceHolds(ctx)
-
-	balanceMismatches := make([]*types.BalanceMismatch, 0)
+	balancesWithBalanceHolds := q.Keeper.GetAllBalancesWithBalanceHolds(ctx)
+	balanceMismatches := make([]*v2.BalanceMismatch, 0)
 
 	for _, balanceWithBalanceHold := range balancesWithBalanceHolds {
 		balanceHold := balanceWithBalanceHold.BalanceHold
@@ -1257,7 +1221,7 @@ func (k *Keeper) BalanceMismatches(c context.Context, req *types.QueryBalanceMis
 		isMatching := expectedTotalBalance.Sub(balanceWithBalanceHold.Total).Abs().LT(math.LegacySmallestDec().MulInt64(req.DustFactor))
 
 		if !isMatching {
-			balanceMismatches = append(balanceMismatches, &types.BalanceMismatch{
+			balanceMismatches = append(balanceMismatches, &v2.BalanceMismatch{
 				SubaccountId:  balanceWithBalanceHold.SubaccountId,
 				Denom:         balanceWithBalanceHold.Denom,
 				Available:     balanceWithBalanceHold.Available,
@@ -1269,45 +1233,66 @@ func (k *Keeper) BalanceMismatches(c context.Context, req *types.QueryBalanceMis
 		}
 	}
 
-	res := &types.QueryBalanceMismatchesResponse{
+	resp := &v2.QueryBalanceMismatchesResponse{
 		BalanceMismatches: balanceMismatches,
 	}
 
-	return res, nil
+	return resp, nil
 }
 
-func (k *Keeper) FeeDiscountTierStatistics(c context.Context, req *types.QueryFeeDiscountTierStatisticsRequest) (*types.QueryFeeDiscountTierStatisticsResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+func (q queryServer) BalanceWithBalanceHolds(
+	c context.Context, _ *v2.QueryBalanceWithBalanceHoldsRequest,
+) (*v2.QueryBalanceWithBalanceHoldsResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
 	defer doneFn()
 
-	ctx := sdk.UnwrapSDKContext(c)
+	resp := &v2.QueryBalanceWithBalanceHoldsResponse{
+		BalanceWithBalanceHolds: q.Keeper.GetAllBalancesWithBalanceHolds(sdk.UnwrapSDKContext(c)),
+	}
 
-	tierCount := len(k.GetFeeDiscountSchedule(ctx).TierInfos)
-	tierStatistics := make(map[uint64]uint64)
-	statistics := make([]*types.TierStatistic, tierCount)
+	return resp, nil
+}
+
+func (q queryServer) FeeDiscountTierStatistics(
+	c context.Context, _ *v2.QueryFeeDiscountTierStatisticsRequest,
+) (*v2.QueryFeeDiscountTierStatisticsResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
+	defer doneFn()
+
+	var (
+		ctx            = sdk.UnwrapSDKContext(c)
+		tierCount      = len(q.Keeper.GetFeeDiscountSchedule(ctx).TierInfos)
+		tierStatistics = make(map[uint64]uint64)
+		statistics     = make([]*v2.TierStatistic, tierCount)
+	)
 
 	for i := 0; i < tierCount; i++ {
 		tierStatistics[uint64(i)] = 0
 	}
 
-	accountTierInfos := k.GetAllFeeDiscountAccountTierInfo(ctx)
+	accountTierInfos := q.Keeper.GetAllFeeDiscountAccountTierInfo(ctx)
 	for _, accountTierInfo := range accountTierInfos {
 		tierStatistics[accountTierInfo.TierTtl.Tier]++
 	}
 
 	for i := 0; i < tierCount; i++ {
-		statistics[i] = &types.TierStatistic{Tier: uint64(i), Count: tierStatistics[uint64(i)]}
+		statistics[i] = &v2.TierStatistic{
+			Tier:  uint64(i),
+			Count: tierStatistics[uint64(i)],
+		}
 	}
 
-	res := &types.QueryFeeDiscountTierStatisticsResponse{
+	resp := &v2.QueryFeeDiscountTierStatisticsResponse{
 		Statistics: statistics,
 	}
 
-	return res, nil
+	return resp, nil
 }
 
-func (k *Keeper) MitoVaultInfos(c context.Context, req *types.MitoVaultInfosRequest) (*types.MitoVaultInfosResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+func (q queryServer) MitoVaultInfos(
+	c context.Context, _ *v2.MitoVaultInfosRequest,
+) (*v2.MitoVaultInfosResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
@@ -1325,97 +1310,144 @@ func (k *Keeper) MitoVaultInfos(c context.Context, req *types.MitoVaultInfosRequ
 	cw20CodeID := uint64(4)
 	spotCodeID := uint64(5)
 
-	k.wasmViewKeeper.IterateContractsByCode(ctx, derivativeCodeID, func(addr sdk.AccAddress) bool {
+	q.Keeper.wasmViewKeeper.IterateContractsByCode(ctx, derivativeCodeID, func(addr sdk.AccAddress) bool {
 		derivativeContractAddresses = append(derivativeContractAddresses, addr.String())
 		return false
 	})
-	k.wasmViewKeeper.IterateContractsByCode(ctx, masterCodeID, func(addr sdk.AccAddress) bool {
+	q.Keeper.wasmViewKeeper.IterateContractsByCode(ctx, masterCodeID, func(addr sdk.AccAddress) bool {
 		masterContractAddresses = append(masterContractAddresses, addr.String())
 		return false
 	})
-	k.wasmViewKeeper.IterateContractsByCode(ctx, cw20CodeID, func(addr sdk.AccAddress) bool {
+	q.Keeper.wasmViewKeeper.IterateContractsByCode(ctx, cw20CodeID, func(addr sdk.AccAddress) bool {
 		cw20ContractAddresses = append(cw20ContractAddresses, addr.String())
 		return false
 	})
-	k.wasmViewKeeper.IterateContractsByCode(ctx, spotCodeID, func(addr sdk.AccAddress) bool {
+	q.Keeper.wasmViewKeeper.IterateContractsByCode(ctx, spotCodeID, func(addr sdk.AccAddress) bool {
 		spotContractAddresses = append(spotContractAddresses, addr.String())
 		return false
 	})
 
-	res := &types.MitoVaultInfosResponse{
+	resp := &v2.MitoVaultInfosResponse{
 		MasterAddresses:     masterContractAddresses,
 		DerivativeAddresses: derivativeContractAddresses,
 		SpotAddresses:       spotContractAddresses,
 		Cw20Addresses:       cw20ContractAddresses,
 	}
-	return res, nil
+
+	return resp, nil
 }
 
-func (k *Keeper) HistoricalTradeRecords(c context.Context, req *types.QueryHistoricalTradeRecordsRequest) (*types.QueryHistoricalTradeRecordsResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+func (q queryServer) QueryMarketIDFromVault(
+	c context.Context, req *v2.QueryMarketIDFromVaultRequest,
+) (*v2.QueryMarketIDFromVaultResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
+	defer doneFn()
+
+	ctx := sdk.UnwrapSDKContext(c)
+	marketID, err := q.Keeper.QueryMarketID(ctx, req.VaultAddress)
+	if err != nil {
+		metrics.ReportFuncError(q.svcTags)
+		return nil, err
+	}
+
+	resp := &v2.QueryMarketIDFromVaultResponse{
+		MarketId: marketID.Hex(),
+	}
+
+	return resp, nil
+}
+
+func (q queryServer) HistoricalTradeRecords(
+	c context.Context, req *v2.QueryHistoricalTradeRecordsRequest,
+) (*v2.QueryHistoricalTradeRecordsResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 
-	res := &types.QueryHistoricalTradeRecordsResponse{}
+	resp := &v2.QueryHistoricalTradeRecordsResponse{}
 
 	if req.MarketId != "" {
-		records, _ := k.GetHistoricalTradeRecords(ctx, common.HexToHash(req.MarketId), 0)
-		res.TradeRecords = []*types.TradeRecords{records}
+		records, _ := q.Keeper.GetHistoricalTradeRecords(ctx, common.HexToHash(req.MarketId), 0)
+		resp.TradeRecords = []*v2.TradeRecords{records}
 	} else {
-		res.TradeRecords = k.GetAllHistoricalTradeRecords(ctx)
+		resp.TradeRecords = q.Keeper.GetAllHistoricalTradeRecords(ctx)
 	}
 
-	return res, nil
+	return resp, nil
 }
 
-func (k *Keeper) MarketVolatility(c context.Context, req *types.QueryMarketVolatilityRequest) (*types.QueryMarketVolatilityResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+func (q queryServer) IsOptedOutOfRewards(
+	c context.Context, req *v2.QueryIsOptedOutOfRewardsRequest,
+) (*v2.QueryIsOptedOutOfRewardsResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
 	defer doneFn()
 
-	vol, rawHistory, meta := k.GetMarketVolatility(sdk.UnwrapSDKContext(c), common.HexToHash(req.MarketId), req.TradeHistoryOptions)
-	res := &types.QueryMarketVolatilityResponse{
+	ctx := sdk.UnwrapSDKContext(c)
+	account, err := sdk.AccAddressFromBech32(req.Account)
+	if err != nil {
+		return nil, err
+	}
+
+	resp := &v2.QueryIsOptedOutOfRewardsResponse{
+		IsOptedOut: q.Keeper.GetIsOptedOutOfRewards(ctx, account),
+	}
+
+	return resp, nil
+}
+
+func (q queryServer) OptedOutOfRewardsAccounts(
+	c context.Context, _ *v2.QueryOptedOutOfRewardsAccountsRequest,
+) (*v2.QueryOptedOutOfRewardsAccountsResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
+	defer doneFn()
+
+	resp := &v2.QueryOptedOutOfRewardsAccountsResponse{
+		Accounts: q.Keeper.GetAllOptedOutRewardAccounts(sdk.UnwrapSDKContext(c)),
+	}
+
+	return resp, nil
+}
+
+func (q queryServer) MarketVolatility(
+	c context.Context, req *v2.QueryMarketVolatilityRequest,
+) (*v2.QueryMarketVolatilityResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
+	defer doneFn()
+
+	vol, rawHistory, meta := q.Keeper.GetMarketVolatility(
+		sdk.UnwrapSDKContext(c),
+		common.HexToHash(req.MarketId),
+		req.TradeHistoryOptions,
+	)
+
+	resp := &v2.QueryMarketVolatilityResponse{
 		Volatility:      vol,
 		HistoryMetadata: meta,
 		RawHistory:      rawHistory,
 	}
-	return res, nil
+
+	return resp, nil
 }
 
-func (k *Keeper) QueryMarketIDFromVault(c context.Context, req *types.QueryMarketIDFromVaultRequest) (*types.QueryMarketIDFromVaultResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+func (q queryServer) BinaryOptionsMarkets(
+	c context.Context, req *v2.QueryBinaryMarketsRequest,
+) (*v2.QueryBinaryMarketsResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
-	marketID, err := k.QueryMarketID(ctx, req.VaultAddress)
-	if err != nil {
-		metrics.ReportFuncError(k.svcTags)
-		return nil, err
-	}
+	m := q.Keeper.GetAllBinaryOptionsMarkets(ctx)
 
-	res := &types.QueryMarketIDFromVaultResponse{
-		MarketId: marketID.Hex(),
-	}
-	return res, nil
-}
-
-func (k *Keeper) BinaryOptionsMarkets(c context.Context, req *types.QueryBinaryMarketsRequest) (*types.QueryBinaryMarketsResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
-	defer doneFn()
-
-	ctx := sdk.UnwrapSDKContext(c)
-	m := k.GetAllBinaryOptionsMarkets(ctx)
-
-	markets := make([]*types.BinaryOptionsMarket, 0, len(m))
-
-	var status types.MarketStatus
+	var status v2.MarketStatus
 	if req.Status == "" {
-		status = types.MarketStatus_Active
+		status = v2.MarketStatus_Active
 	} else {
-		status = types.MarketStatus(types.MarketStatus_value[req.Status])
+		status = v2.MarketStatus(v2.MarketStatus_value[req.Status])
 	}
 
-	if status != types.MarketStatus_Unspecified {
+	markets := make([]*v2.BinaryOptionsMarket, 0, len(m))
+	if status != v2.MarketStatus_Unspecified {
 		for _, market := range m {
 			if market.Status == status {
 				markets = append(markets, market)
@@ -1423,68 +1455,75 @@ func (k *Keeper) BinaryOptionsMarkets(c context.Context, req *types.QueryBinaryM
 		}
 	}
 
-	res := &types.QueryBinaryMarketsResponse{
+	resp := &v2.QueryBinaryMarketsResponse{
 		Markets: markets,
 	}
 
-	return res, nil
+	return resp, nil
 }
 
-func (k *Keeper) TraderDerivativeConditionalOrders(c context.Context, req *types.QueryTraderDerivativeConditionalOrdersRequest) (*types.QueryTraderDerivativeConditionalOrdersResponse, error) {
-	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+func (q queryServer) TraderDerivativeConditionalOrders(
+	c context.Context, req *v2.QueryTraderDerivativeConditionalOrdersRequest,
+) (*v2.QueryTraderDerivativeConditionalOrdersResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
-
 	marketID := common.HexToHash(req.MarketId)
 	subaccountID := common.HexToHash(req.SubaccountId)
 
-	res := &types.QueryTraderDerivativeConditionalOrdersResponse{
-		Orders: k.GetAllSubaccountConditionalOrders(ctx, marketID, subaccountID),
+	resp := &v2.QueryTraderDerivativeConditionalOrdersResponse{
+		Orders: q.Keeper.GetAllSubaccountConditionalOrders(ctx, marketID, subaccountID),
 	}
 
-	return res, nil
+	return resp, nil
 }
 
-func (k *Keeper) MarketAtomicExecutionFeeMultiplier(c context.Context, req *types.QueryMarketAtomicExecutionFeeMultiplierRequest) (*types.QueryMarketAtomicExecutionFeeMultiplierResponse, error) {
-	metrics.ReportFuncCall(k.svcTags)
-	defer metrics.ReportFuncTiming(k.svcTags)()
+func (q queryServer) MarketAtomicExecutionFeeMultiplier(
+	c context.Context, req *v2.QueryMarketAtomicExecutionFeeMultiplierRequest,
+) (*v2.QueryMarketAtomicExecutionFeeMultiplierResponse, error) {
+	metrics.ReportFuncCall(q.svcTags)
+	defer metrics.ReportFuncTiming(q.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(c)
 	marketID := common.HexToHash(req.MarketId)
-	marketType, err := k.GetMarketType(ctx, marketID, true)
+	marketType, err := q.Keeper.GetMarketType(ctx, marketID, true)
 	if err != nil {
 		return nil, err
 	}
-	multiplier := k.GetMarketAtomicExecutionFeeMultiplier(ctx, marketID, *marketType)
-	response := types.QueryMarketAtomicExecutionFeeMultiplierResponse{
-		Multiplier: multiplier,
+
+	resp := v2.QueryMarketAtomicExecutionFeeMultiplierResponse{
+		Multiplier: q.Keeper.GetMarketAtomicExecutionFeeMultiplier(ctx, marketID, *marketType),
 	}
-	return &response, nil
+
+	return &resp, nil
 }
 
-func (k *Keeper) ActiveStakeGrant(c context.Context, req *types.QueryActiveStakeGrantRequest) (*types.QueryActiveStakeGrantResponse, error) {
-	metrics.ReportFuncCall(k.svcTags)
-	defer metrics.ReportFuncTiming(k.svcTags)()
-
-	ctx := sdk.UnwrapSDKContext(c)
+func (q queryServer) ActiveStakeGrant(
+	c context.Context, req *v2.QueryActiveStakeGrantRequest,
+) (*v2.QueryActiveStakeGrantResponse, error) {
+	metrics.ReportFuncCall(q.svcTags)
+	defer metrics.ReportFuncTiming(q.svcTags)()
 
 	grantee, err := sdk.AccAddressFromBech32(req.Grantee)
 	if err != nil {
 		return nil, err
 	}
 
-	res := &types.QueryActiveStakeGrantResponse{
-		Grant:          k.GetActiveGrant(ctx, grantee),
-		EffectiveGrant: k.GetValidatedEffectiveGrant(ctx, grantee),
+	ctx := sdk.UnwrapSDKContext(c)
+	resp := &v2.QueryActiveStakeGrantResponse{
+		Grant:          q.Keeper.GetActiveGrant(ctx, grantee),
+		EffectiveGrant: q.Keeper.GetValidatedEffectiveGrant(ctx, grantee),
 	}
 
-	return res, nil
+	return resp, nil
 }
 
-func (k *Keeper) GrantAuthorization(c context.Context, req *types.QueryGrantAuthorizationRequest) (*types.QueryGrantAuthorizationResponse, error) {
-	metrics.ReportFuncCall(k.svcTags)
-	defer metrics.ReportFuncTiming(k.svcTags)()
+func (q queryServer) GrantAuthorization(
+	c context.Context, req *v2.QueryGrantAuthorizationRequest,
+) (*v2.QueryGrantAuthorizationResponse, error) {
+	metrics.ReportFuncCall(q.svcTags)
+	defer metrics.ReportFuncTiming(q.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(c)
 
@@ -1498,16 +1537,18 @@ func (k *Keeper) GrantAuthorization(c context.Context, req *types.QueryGrantAuth
 		return nil, err
 	}
 
-	res := &types.QueryGrantAuthorizationResponse{
-		Amount: k.GetGrantAuthorization(ctx, granter, grantee),
+	resp := &v2.QueryGrantAuthorizationResponse{
+		Amount: q.Keeper.GetGrantAuthorization(ctx, granter, grantee),
 	}
 
-	return res, nil
+	return resp, nil
 }
 
-func (k *Keeper) GrantAuthorizations(c context.Context, req *types.QueryGrantAuthorizationsRequest) (*types.QueryGrantAuthorizationsResponse, error) {
-	metrics.ReportFuncCall(k.svcTags)
-	defer metrics.ReportFuncTiming(k.svcTags)()
+func (q queryServer) GrantAuthorizations(
+	c context.Context, req *v2.QueryGrantAuthorizationsRequest,
+) (*v2.QueryGrantAuthorizationsResponse, error) {
+	metrics.ReportFuncCall(q.svcTags)
+	defer metrics.ReportFuncTiming(q.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(c)
 
@@ -1516,46 +1557,52 @@ func (k *Keeper) GrantAuthorizations(c context.Context, req *types.QueryGrantAut
 		return nil, err
 	}
 
-	res := &types.QueryGrantAuthorizationsResponse{
-		TotalGrantAmount: k.GetTotalGrantAmount(ctx, granter),
-		Grants:           k.GetAllGranterAuthorizations(ctx, granter),
+	resp := &v2.QueryGrantAuthorizationsResponse{
+		TotalGrantAmount: q.Keeper.GetTotalGrantAmount(ctx, granter),
+		Grants:           q.Keeper.GetAllGranterAuthorizations(ctx, granter),
 	}
 
-	return res, nil
+	return resp, nil
 }
 
-func (k *Keeper) MarketBalance(c context.Context, req *types.QueryMarketBalanceRequest) (*types.QueryMarketBalanceResponse, error) {
-	metrics.ReportFuncCall(k.svcTags)
-	defer metrics.ReportFuncTiming(k.svcTags)()
+func (q queryServer) MarketBalance(
+	c context.Context, req *v2.QueryMarketBalanceRequest,
+) (*v2.QueryMarketBalanceResponse, error) {
+	metrics.ReportFuncCall(q.Keeper.svcTags)
+	defer metrics.ReportFuncTiming(q.Keeper.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(c)
 	marketID := common.HexToHash(req.MarketId)
 
-	res := &types.QueryMarketBalanceResponse{
-		Balance: &types.MarketBalance{
+	res := &v2.QueryMarketBalanceResponse{
+		Balance: &v2.MarketBalance{
 			MarketId: req.MarketId,
-			Balance:  k.GetMarketBalance(ctx, marketID),
+			Balance:  q.Keeper.GetMarketBalance(ctx, marketID),
 		},
 	}
 
 	return res, nil
 }
 
-func (k *Keeper) MarketBalances(c context.Context, _ *types.QueryMarketBalancesRequest) (*types.QueryMarketBalancesResponse, error) {
-	metrics.ReportFuncCall(k.svcTags)
-	defer metrics.ReportFuncTiming(k.svcTags)()
+func (q queryServer) MarketBalances(
+	c context.Context, _ *v2.QueryMarketBalancesRequest,
+) (*v2.QueryMarketBalancesResponse, error) {
+	metrics.ReportFuncCall(q.Keeper.svcTags)
+	defer metrics.ReportFuncTiming(q.Keeper.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(c)
 
-	res := &types.QueryMarketBalancesResponse{
-		Balances: k.GetAllMarketBalances(ctx),
+	res := &v2.QueryMarketBalancesResponse{
+		Balances: q.Keeper.GetAllMarketBalances(ctx),
 	}
 	return res, nil
 }
 
-func (k *Keeper) DenomMinNotional(c context.Context, req *types.QueryDenomMinNotionalRequest) (*types.QueryDenomMinNotionalResponse, error) {
-	metrics.ReportFuncCall(k.svcTags)
-	defer metrics.ReportFuncTiming(k.svcTags)()
+func (q queryServer) DenomMinNotional(
+	c context.Context, req *v2.QueryDenomMinNotionalRequest,
+) (*v2.QueryDenomMinNotionalResponse, error) {
+	metrics.ReportFuncCall(q.svcTags)
+	defer metrics.ReportFuncTiming(q.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(c)
 
@@ -1563,21 +1610,23 @@ func (k *Keeper) DenomMinNotional(c context.Context, req *types.QueryDenomMinNot
 		return nil, errors.New("denom is required")
 	}
 
-	res := &types.QueryDenomMinNotionalResponse{
-		Amount: k.GetMinNotionalForDenom(ctx, req.Denom),
+	res := &v2.QueryDenomMinNotionalResponse{
+		Amount: q.Keeper.GetMinNotionalForDenom(ctx, req.Denom),
 	}
 
 	return res, nil
 }
 
-func (k *Keeper) DenomMinNotionals(c context.Context, _ *types.QueryDenomMinNotionalsRequest) (*types.QueryDenomMinNotionalsResponse, error) {
-	metrics.ReportFuncCall(k.svcTags)
-	defer metrics.ReportFuncTiming(k.svcTags)()
+func (q queryServer) DenomMinNotionals(
+	c context.Context, _ *v2.QueryDenomMinNotionalsRequest,
+) (*v2.QueryDenomMinNotionalsResponse, error) {
+	metrics.ReportFuncCall(q.svcTags)
+	defer metrics.ReportFuncTiming(q.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(c)
 
-	res := &types.QueryDenomMinNotionalsResponse{
-		DenomMinNotionals: k.GetAllDenomMinNotionals(ctx),
+	res := &v2.QueryDenomMinNotionalsResponse{
+		DenomMinNotionals: q.Keeper.GetAllDenomMinNotionals(ctx),
 	}
 
 	return res, nil

@@ -3,11 +3,11 @@ package keeper
 import (
 	"cosmossdk.io/math"
 	"cosmossdk.io/store/prefix"
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/InjectiveLabs/metrics"
-
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 )
 
 // GetFeeDiscountTotalAccountVolume fetches the volume for a given account for all the buckets
@@ -126,23 +126,26 @@ func (k *Keeper) DeleteAllAccountVolumeInAllBucketsWithMetadata(ctx sdk.Context)
 }
 
 // GetAllAccountVolumeInAllBuckets gets all total volume in all buckets for all accounts
-func (k *Keeper) GetAllAccountVolumeInAllBuckets(ctx sdk.Context) []*types.FeeDiscountBucketVolumeAccounts {
+func (k *Keeper) GetAllAccountVolumeInAllBuckets(ctx sdk.Context) []*v2.FeeDiscountBucketVolumeAccounts {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	accountVolumeInAllBuckets := make([]*types.FeeDiscountBucketVolumeAccounts, 0)
-	accountVolumeMap := make(map[int64][]*types.AccountVolume)
-
+	accountVolumeInAllBuckets := make([]*v2.FeeDiscountBucketVolumeAccounts, 0)
+	accountVolumeMap := make(map[int64][]*v2.AccountVolume)
 	timestamps := make([]int64, 0)
 
-	appendVolume := func(bucketStartTimestamp int64, account sdk.AccAddress, volume math.LegacyDec) (stop bool) {
-		accountVolume := &types.AccountVolume{
+	appendVolume := func(
+		bucketStartTimestamp int64,
+		account sdk.AccAddress,
+		volume math.LegacyDec,
+	) (stop bool) {
+		accountVolume := &v2.AccountVolume{
 			Account: account.String(),
 			Volume:  volume,
 		}
 
 		if v, ok := accountVolumeMap[bucketStartTimestamp]; !ok {
-			accountVolumeMap[bucketStartTimestamp] = make([]*types.AccountVolume, 0)
+			accountVolumeMap[bucketStartTimestamp] = make([]*v2.AccountVolume, 0)
 			timestamps = append(timestamps, bucketStartTimestamp)
 			accountVolumeMap[bucketStartTimestamp] = append(accountVolumeMap[bucketStartTimestamp], accountVolume)
 		} else {
@@ -155,11 +158,12 @@ func (k *Keeper) GetAllAccountVolumeInAllBuckets(ctx sdk.Context) []*types.FeeDi
 	k.iterateAccountVolume(ctx, appendVolume)
 
 	for _, timestamp := range timestamps {
-		accountVolumeInAllBuckets = append(accountVolumeInAllBuckets, &types.FeeDiscountBucketVolumeAccounts{
+		accountVolumeInAllBuckets = append(accountVolumeInAllBuckets, &v2.FeeDiscountBucketVolumeAccounts{
 			BucketStartTimestamp: timestamp,
 			AccountVolume:        accountVolumeMap[timestamp],
 		})
 	}
+
 	return accountVolumeInAllBuckets
 }
 
@@ -186,14 +190,13 @@ func (k *Keeper) iterateAccountVolume(
 	defer doneFn()
 
 	store := k.getStore(ctx)
-
 	pastBucketVolumeStore := prefix.NewStore(store, types.FeeDiscountBucketAccountVolumePrefix)
-	iterator := pastBucketVolumeStore.Iterator(nil, nil)
-	defer iterator.Close()
+	iter := pastBucketVolumeStore.Iterator(nil, nil)
+	defer iter.Close()
 
-	for ; iterator.Valid(); iterator.Next() {
-		bucketStartTime, accountAddress := types.ParseFeeDiscountBucketAccountVolumeIteratorKey(iterator.Key())
-		bz := iterator.Value()
+	for ; iter.Valid(); iter.Next() {
+		bucketStartTime, accountAddress := types.ParseFeeDiscountBucketAccountVolumeIteratorKey(iter.Key())
+		bz := iter.Value()
 		if process(bucketStartTime, accountAddress, types.UnsignedDecBytesToDec(bz)) {
 			return
 		}
@@ -201,14 +204,14 @@ func (k *Keeper) iterateAccountVolume(
 }
 
 // GetAllAccountVolumeInBucket gets all total volume in a given bucket for all accounts
-func (k *Keeper) GetAllAccountVolumeInBucket(ctx sdk.Context, bucketStartTimestamp int64) []*types.AccountVolume {
+func (k *Keeper) GetAllAccountVolumeInBucket(ctx sdk.Context, bucketStartTimestamp int64) []*v2.AccountVolume {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	accountVolumes := make([]*types.AccountVolume, 0)
+	accountVolumes := make([]*v2.AccountVolume, 0)
 
 	appendFees := func(account sdk.AccAddress, totalVolume math.LegacyDec) (stop bool) {
-		accountVolumes = append(accountVolumes, &types.AccountVolume{
+		accountVolumes = append(accountVolumes, &v2.AccountVolume{
 			Account: account.String(),
 			Volume:  totalVolume,
 		})

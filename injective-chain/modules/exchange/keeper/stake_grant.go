@@ -9,9 +9,10 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 )
 
-func (k *Keeper) GetValidatedEffectiveGrant(ctx sdk.Context, grantee sdk.AccAddress) *types.EffectiveGrant {
+func (k *Keeper) GetValidatedEffectiveGrant(ctx sdk.Context, grantee sdk.AccAddress) *v2.EffectiveGrant {
 	effectiveGrant := k.getEffectiveGrant(ctx, grantee)
 
 	if effectiveGrant.Granter == "" {
@@ -35,29 +36,29 @@ func (k *Keeper) GetValidatedEffectiveGrant(ctx sdk.Context, grantee sdk.AccAddr
 	// invalidate the grant if the granter's real stake is less than the total grant amount
 	if totalGrantAmount.GT(granterStake) {
 		stakeGrantedToOthers := k.GetTotalGrantAmount(ctx, grantee)
-		return types.NewEffectiveGrant(effectiveGrant.Granter, stakeGrantedToOthers.Neg(), false)
+		return v2.NewEffectiveGrant(effectiveGrant.Granter, stakeGrantedToOthers.Neg(), false)
 	}
 
 	return effectiveGrant
 }
 
-func (k *Keeper) getEffectiveGrant(ctx sdk.Context, grantee sdk.AccAddress) *types.EffectiveGrant {
+func (k *Keeper) getEffectiveGrant(ctx sdk.Context, grantee sdk.AccAddress) *v2.EffectiveGrant {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 	stakeGrantedToOthers := k.GetTotalGrantAmount(ctx, grantee)
 	activeGrant := k.GetActiveGrant(ctx, grantee)
 
 	if activeGrant == nil {
-		return types.NewEffectiveGrant("", stakeGrantedToOthers.Neg(), true)
+		return v2.NewEffectiveGrant("", stakeGrantedToOthers.Neg(), true)
 	}
 
 	netGrantedStake := activeGrant.Amount.Sub(stakeGrantedToOthers)
-	return types.NewEffectiveGrant(activeGrant.Granter, netGrantedStake, true)
+	return v2.NewEffectiveGrant(activeGrant.Granter, netGrantedStake, true)
 }
 
 func (k *Keeper) ensureValidGrantAuthorization(
 	ctx sdk.Context,
 	granter sdk.AccAddress,
-	grants []*types.GrantAuthorization,
+	grants []*v2.GrantAuthorization,
 	totalStakeAmount math.Int,
 ) error {
 	grantAmountDelta := math.ZeroInt()
@@ -108,24 +109,20 @@ func (k *Keeper) GetGrantAuthorization(
 	return types.IntBytesToInt(bz)
 }
 
-func (k *Keeper) GetAllGranterAuthorizations(
-	ctx sdk.Context,
-	granter sdk.AccAddress,
-) []*types.GrantAuthorization {
+func (k *Keeper) GetAllGranterAuthorizations(ctx sdk.Context, granter sdk.AccAddress) []*v2.GrantAuthorization {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	authorizationsPrefix := types.GetGrantAuthorizationIteratorPrefix(granter)
 	authorizationsStore := prefix.NewStore(k.getStore(ctx), authorizationsPrefix)
-	iterator := authorizationsStore.Iterator(nil, nil)
-	defer iterator.Close()
+	iter := authorizationsStore.Iterator(nil, nil)
+	defer iter.Close()
 
-	authorizations := make([]*types.GrantAuthorization, 0)
+	authorizations := make([]*v2.GrantAuthorization, 0)
+	for ; iter.Valid(); iter.Next() {
+		grantee := sdk.AccAddress(iter.Key())
+		bz := iter.Value()
 
-	for ; iterator.Valid(); iterator.Next() {
-		grantee := sdk.AccAddress(iterator.Key())
-		bz := iterator.Value()
-
-		authorizations = append(authorizations, &types.GrantAuthorization{
+		authorizations = append(authorizations, &v2.GrantAuthorization{
 			Grantee: grantee.String(),
 			Amount:  types.IntBytesToInt(bz),
 		})
@@ -133,39 +130,37 @@ func (k *Keeper) GetAllGranterAuthorizations(
 	return authorizations
 }
 
-func (k *Keeper) GetAllGrantAuthorizations(
-	ctx sdk.Context,
-) []*types.FullGrantAuthorizations {
+func (k *Keeper) GetAllGrantAuthorizations(ctx sdk.Context) []*v2.FullGrantAuthorizations {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	authorizationsStore := prefix.NewStore(k.getStore(ctx), types.GrantAuthorizationsPrefix)
-	iterator := authorizationsStore.Iterator(nil, nil)
-	defer iterator.Close()
+	iter := authorizationsStore.Iterator(nil, nil)
+	defer iter.Close()
 
-	fullAuthorizations := make([]*types.FullGrantAuthorizations, 0)
+	fullAuthorizations := make([]*v2.FullGrantAuthorizations, 0)
 
 	granters := make([]sdk.AccAddress, 0)
-	authorizations := make(map[string][]*types.GrantAuthorization, 0)
+	authorizations := make(map[string][]*v2.GrantAuthorization, 0)
 
-	for ; iterator.Valid(); iterator.Next() {
-		granter := sdk.AccAddress(iterator.Key()[:common.AddressLength])
+	for ; iter.Valid(); iter.Next() {
+		granter := sdk.AccAddress(iter.Key()[:common.AddressLength])
 
 		if _, ok := authorizations[granter.String()]; !ok {
 			granters = append(granters, granter)
-			authorizations[granter.String()] = make([]*types.GrantAuthorization, 0)
+			authorizations[granter.String()] = make([]*v2.GrantAuthorization, 0)
 		}
 
-		grantee := sdk.AccAddress(iterator.Key()[common.AddressLength:])
-		amount := types.IntBytesToInt(iterator.Value())
+		grantee := sdk.AccAddress(iter.Key()[common.AddressLength:])
+		amount := types.IntBytesToInt(iter.Value())
 
-		authorizations[granter.String()] = append(authorizations[granter.String()], &types.GrantAuthorization{
+		authorizations[granter.String()] = append(authorizations[granter.String()], &v2.GrantAuthorization{
 			Grantee: grantee.String(),
 			Amount:  amount,
 		})
 	}
 
 	for _, granter := range granters {
-		fullAuthorizations = append(fullAuthorizations, &types.FullGrantAuthorizations{
+		fullAuthorizations = append(fullAuthorizations, &v2.FullGrantAuthorizations{
 			Granter:                    granter.String(),
 			TotalGrantAmount:           k.GetTotalGrantAmount(ctx, granter),
 			LastDelegationsCheckedTime: k.getLastValidGrantDelegationCheckTime(ctx, granter),
@@ -204,17 +199,14 @@ func (k *Keeper) deleteGrantAuthorization(
 	k.getStore(ctx).Delete(key)
 }
 
-func (k *Keeper) GetTotalGrantAmount(
-	ctx sdk.Context,
-	granter sdk.AccAddress,
-) math.Int {
+func (k *Keeper) GetTotalGrantAmount(ctx sdk.Context, granter sdk.AccAddress) math.Int {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
-	key := types.GetTotalGrantAmountKey(granter)
 
-	bz := k.getStore(ctx).Get(key)
+	bz := k.getStore(ctx).Get(types.GetTotalGrantAmountKey(granter))
 	if bz == nil {
 		return math.ZeroInt()
 	}
+
 	return types.IntBytesToInt(bz)
 }
 
@@ -244,10 +236,7 @@ func (k *Keeper) deleteTotalGrantAmount(
 	k.getStore(ctx).Delete(key)
 }
 
-func (k *Keeper) GetActiveGrant(
-	ctx sdk.Context,
-	grantee sdk.AccAddress,
-) *types.ActiveGrant {
+func (k *Keeper) GetActiveGrant(ctx sdk.Context, grantee sdk.AccAddress) *v2.ActiveGrant {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 	key := types.GetActiveGrantKey(grantee)
 
@@ -256,15 +245,13 @@ func (k *Keeper) GetActiveGrant(
 		return nil
 	}
 
-	var grant types.ActiveGrant
+	var grant v2.ActiveGrant
 	k.cdc.MustUnmarshal(bz, &grant)
+
 	return &grant
 }
 
-func (k *Keeper) GetActiveGrantAmount(
-	ctx sdk.Context,
-	grantee sdk.AccAddress,
-) math.Int {
+func (k *Keeper) GetActiveGrantAmount(ctx sdk.Context, grantee sdk.AccAddress) math.Int {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 	grant := k.GetActiveGrant(ctx, grantee)
 	if grant == nil {
@@ -273,22 +260,20 @@ func (k *Keeper) GetActiveGrantAmount(
 	return grant.Amount
 }
 
-func (k *Keeper) GetAllActiveGrants(
-	ctx sdk.Context,
-) []*types.FullActiveGrant {
+func (k *Keeper) GetAllActiveGrants(ctx sdk.Context) []*v2.FullActiveGrant {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	activeGrantsStore := prefix.NewStore(k.getStore(ctx), types.ActiveGrantPrefix)
-	iterator := activeGrantsStore.Iterator(nil, nil)
-	defer iterator.Close()
+	iter := activeGrantsStore.Iterator(nil, nil)
+	defer iter.Close()
 
-	activeGrants := make([]*types.FullActiveGrant, 0)
+	activeGrants := make([]*v2.FullActiveGrant, 0)
 
-	for ; iterator.Valid(); iterator.Next() {
-		grantee := sdk.AccAddress(iterator.Key())
-		var grant types.ActiveGrant
-		k.cdc.MustUnmarshal(iterator.Value(), &grant)
-		activeGrants = append(activeGrants, &types.FullActiveGrant{
+	for ; iter.Valid(); iter.Next() {
+		grantee := sdk.AccAddress(iter.Key())
+		var grant v2.ActiveGrant
+		k.cdc.MustUnmarshal(iter.Value(), &grant)
+		activeGrants = append(activeGrants, &v2.FullActiveGrant{
 			Grantee:     grantee.String(),
 			ActiveGrant: &grant,
 		})
@@ -297,15 +282,10 @@ func (k *Keeper) GetAllActiveGrants(
 	return activeGrants
 }
 
-func (k *Keeper) setActiveGrant(
-	ctx sdk.Context,
-	grantee sdk.AccAddress,
-	grant *types.ActiveGrant,
-) {
+func (k *Keeper) setActiveGrant(ctx sdk.Context, grantee sdk.AccAddress, grant *v2.ActiveGrant) {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
-	// nolint:errcheck //ignored on purpose
-	defer ctx.EventManager().EmitTypedEvent(&types.EventGrantActivation{
+	defer k.EmitEvent(ctx, &v2.EventGrantActivation{
 		Grantee: grantee.String(),
 		Granter: grant.Granter,
 		Amount:  grant.Amount,
@@ -322,20 +302,13 @@ func (k *Keeper) setActiveGrant(
 	k.getStore(ctx).Set(key, bz)
 }
 
-func (k *Keeper) deleteActiveGrant(
-	ctx sdk.Context,
-	grantee sdk.AccAddress,
-) {
+func (k *Keeper) deleteActiveGrant(ctx sdk.Context, grantee sdk.AccAddress) {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 	key := types.GetActiveGrantKey(grantee)
 	k.getStore(ctx).Delete(key)
 }
 
-func (k *Keeper) setLastValidGrantDelegationCheckTime(
-	ctx sdk.Context,
-	granter string,
-	timestamp int64,
-) {
+func (k *Keeper) setLastValidGrantDelegationCheckTime(ctx sdk.Context, granter string, timestamp int64) {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	if granter == "" {
@@ -346,14 +319,10 @@ func (k *Keeper) setLastValidGrantDelegationCheckTime(
 	k.getStore(ctx).Set(key, sdk.Uint64ToBigEndian(uint64(timestamp)))
 }
 
-func (k *Keeper) getLastValidGrantDelegationCheckTime(
-	ctx sdk.Context,
-	granter sdk.AccAddress,
-) int64 {
+func (k *Keeper) getLastValidGrantDelegationCheckTime(ctx sdk.Context, granter sdk.AccAddress) int64 {
 	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
-	key := types.GetLastValidGrantDelegationCheckTimeKey(granter)
-	bz := k.getStore(ctx).Get(key)
+	bz := k.getStore(ctx).Get(types.GetLastValidGrantDelegationCheckTimeKey(granter))
 	if bz == nil {
 		return 0
 	}

@@ -11,16 +11,14 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/InjectiveLabs/metrics"
-
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
+	"github.com/InjectiveLabs/metrics"
 )
 
-// SetNewTransientDerivativeLimitOrderWithMetadata stores the DerivativeLimitOrder in the transient store.
-func (k *Keeper) SetNewTransientDerivativeLimitOrderWithMetadata(
+func (k *Keeper) SetNewTransientDerivativeLimitOrder(
 	ctx sdk.Context,
-	order *types.DerivativeLimitOrder,
-	metadata *types.SubaccountOrderbookMetadata,
+	order *v2.DerivativeLimitOrder,
 	marketID common.Hash,
 	isBuy bool,
 	orderHash common.Hash,
@@ -43,6 +41,23 @@ func (k *Keeper) SetNewTransientDerivativeLimitOrderWithMetadata(
 	ordersIndexStore := prefix.NewStore(tStore, types.DerivativeLimitOrdersIndexPrefix)
 	subaccountKey := types.GetLimitOrderIndexKey(marketID, isBuy, subaccountID, orderHash)
 	ordersIndexStore.Set(subaccountKey, key)
+}
+
+// SetNewTransientDerivativeLimitOrderWithMetadata stores the DerivativeLimitOrder in the transient store.
+func (k *Keeper) SetNewTransientDerivativeLimitOrderWithMetadata(
+	ctx sdk.Context,
+	order *v2.DerivativeLimitOrder,
+	metadata *v2.SubaccountOrderbookMetadata,
+	marketID common.Hash,
+	isBuy bool,
+	orderHash common.Hash,
+) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
+	k.SetNewTransientDerivativeLimitOrder(ctx, order, marketID, isBuy, orderHash)
+
+	subaccountID := order.SubaccountID()
 
 	// Set cid => orderHash
 	k.setCid(ctx, true, subaccountID, order.OrderInfo.GetCid(), marketID, order.IsBuy(), orderHash)
@@ -61,7 +76,7 @@ func (k *Keeper) SetNewTransientDerivativeLimitOrderWithMetadata(
 
 	k.SetTransientDerivativeLimitOrderIndicator(ctx, marketID, isBuy)
 	k.SetSubaccountOrderbookMetadata(ctx, marketID, subaccountID, order.IsBuy(), metadata)
-	k.SetSubaccountOrder(ctx, marketID, subaccountID, order.IsBuy(), order.Hash(), types.NewSubaccountOrder(order))
+	k.SetSubaccountOrder(ctx, marketID, subaccountID, order.IsBuy(), order.Hash(), v2.NewSubaccountOrder(order))
 }
 
 func (k *Keeper) SetTransientDerivativeLimitOrderIndicator(
@@ -84,7 +99,7 @@ func (k *Keeper) GetAllTransientDerivativeLimitOrdersByMarketDirection(
 	ctx sdk.Context,
 	marketID common.Hash,
 	isBuy bool,
-) []*types.DerivativeLimitOrder {
+) []*v2.DerivativeLimitOrder {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
@@ -92,10 +107,10 @@ func (k *Keeper) GetAllTransientDerivativeLimitOrdersByMarketDirection(
 }
 
 // ReduceOnlyOrdersTracker maps subaccountID => orders
-type ReduceOnlyOrdersTracker map[common.Hash][]*types.DerivativeLimitOrder
+type ReduceOnlyOrdersTracker map[common.Hash][]*v2.DerivativeLimitOrder
 
 func NewReduceOnlyOrdersTracker() ReduceOnlyOrdersTracker {
-	return make(map[common.Hash][]*types.DerivativeLimitOrder)
+	return make(map[common.Hash][]*v2.DerivativeLimitOrder)
 }
 
 func (r ReduceOnlyOrdersTracker) GetSortedSubaccountIDs() []common.Hash {
@@ -122,10 +137,10 @@ func (r ReduceOnlyOrdersTracker) GetCumulativeOrderQuantity(subaccountID common.
 	return cumulativeQuantity
 }
 
-func (r ReduceOnlyOrdersTracker) AppendOrder(subaccountID common.Hash, order *types.DerivativeLimitOrder) {
+func (r ReduceOnlyOrdersTracker) AppendOrder(subaccountID common.Hash, order *v2.DerivativeLimitOrder) {
 	orders, ok := r[subaccountID]
 	if !ok {
-		r[subaccountID] = []*types.DerivativeLimitOrder{order}
+		r[subaccountID] = []*v2.DerivativeLimitOrder{order}
 		return
 	}
 
@@ -137,16 +152,16 @@ func (k *Keeper) GetAllTransientDerivativeLimitOrdersWithPotentiallyConflictingR
 	marketID common.Hash,
 	isBuy bool,
 	modifiedPositionCache ModifiedPositionCache,
-) ([]*types.DerivativeLimitOrder, ReduceOnlyOrdersTracker) {
+) ([]*v2.DerivativeLimitOrder, ReduceOnlyOrdersTracker) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	orders := make([]*types.DerivativeLimitOrder, 0)
+	orders := make([]*v2.DerivativeLimitOrder, 0)
 
 	roTracker := NewReduceOnlyOrdersTracker()
 	hasAnyModifiedPositionsInMarket := modifiedPositionCache.HasAnyModifiedPositionsInMarket(marketID)
 
-	appendOrder := func(o *types.DerivativeLimitOrder) (stop bool) {
+	appendOrder := func(o *v2.DerivativeLimitOrder) (stop bool) {
 		orders = append(orders, o)
 
 		if !hasAnyModifiedPositionsInMarket {
@@ -174,7 +189,7 @@ func (k *Keeper) IterateTransientDerivativeLimitOrdersByMarketDirectionBySubacco
 	ctx sdk.Context,
 	marketID common.Hash,
 	isBuy bool,
-	process func(o *types.DerivativeLimitOrder) (stop bool),
+	process func(o *v2.DerivativeLimitOrder) (stop bool),
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
@@ -191,14 +206,17 @@ func (k *Keeper) IterateTransientDerivativeLimitOrdersByMarketDirectionBySubacco
 	} else {
 		iterator = ordersStore.Iterator(nil, nil)
 	}
-	defer iterator.Close()
-
+	orders := []*v2.DerivativeLimitOrder{}
 	for ; iterator.Valid(); iterator.Next() {
-		var order types.DerivativeLimitOrder
+		var order v2.DerivativeLimitOrder
 		bz := iterator.Value()
 		k.cdc.MustUnmarshal(bz, &order)
+		orders = append(orders, &order)
+	}
+	iterator.Close()
 
-		if process(&order) {
+	for _, order := range orders {
+		if process(order) {
 			return
 		}
 	}
@@ -210,12 +228,12 @@ func (k *Keeper) GetAllTransientDerivativeLimitOrdersByMarketDirectionBySubaccou
 	marketID common.Hash,
 	subaccountID *common.Hash,
 	isBuy bool,
-) []*types.DerivativeLimitOrder {
+) []*v2.DerivativeLimitOrder {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	orders := make([]*types.DerivativeLimitOrder, 0)
-	appendOrder := func(o *types.DerivativeLimitOrder) (stop bool) {
+	orders := make([]*v2.DerivativeLimitOrder, 0)
+	appendOrder := func(o *v2.DerivativeLimitOrder) (stop bool) {
 		// only append orders with the same subaccountID
 		if subaccountID == nil || bytes.Equal(o.OrderInfo.SubaccountID().Bytes(), subaccountID.Bytes()) {
 			orders = append(orders, o)
@@ -229,14 +247,15 @@ func (k *Keeper) GetAllTransientDerivativeLimitOrdersByMarketDirectionBySubaccou
 		isBuy,
 		appendOrder,
 	)
+
 	return orders
 }
 
 // SetTransientDerivativeMarketOrder stores DerivativeMarketOrder in the transient store.
 func (k *Keeper) SetTransientDerivativeMarketOrder(
 	ctx sdk.Context,
-	marketOrder *types.DerivativeMarketOrder,
-	order *types.DerivativeOrder,
+	marketOrder *v2.DerivativeMarketOrder,
+	order *v2.DerivativeOrder,
 	orderHash common.Hash,
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
@@ -263,7 +282,7 @@ func (k *Keeper) SetTransientDerivativeMarketOrder(
 
 func (k *Keeper) DeleteDerivativeMarketOrder(
 	ctx sdk.Context,
-	order *types.DerivativeMarketOrder,
+	order *v2.DerivativeMarketOrder,
 	marketID common.Hash,
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
@@ -281,7 +300,7 @@ func (k *Keeper) DeleteDerivativeMarketOrder(
 
 func (k *Keeper) CancelAllTransientDerivativeLimitOrdersBySubaccountID(
 	ctx sdk.Context,
-	market DerivativeMarketI,
+	market DerivativeMarketInterface,
 	subaccountID common.Hash,
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
@@ -294,16 +313,24 @@ func (k *Keeper) CancelAllTransientDerivativeLimitOrdersBySubaccountID(
 	for _, buyOrder := range buyOrders {
 		if err := k.CancelTransientDerivativeLimitOrder(ctx, market, buyOrder); err != nil {
 			orderHash := common.BytesToHash(buyOrder.OrderHash)
-			k.Logger(ctx).Error("CancelTransientDerivativeLimitOrder for buyOrder %s failed during CancelAllTransientDerivativeLimitOrdersBySubaccountID:", orderHash.Hex(), err)
-			_ = ctx.EventManager().EmitTypedEvent(types.NewEventOrderCancelFail(marketID, subaccountID, orderHash.Hex(), buyOrder.Cid(), err))
+			k.Logger(ctx).Error(
+				"CancelTransientDerivativeLimitOrder for buyOrder %s failed during CancelAllTransientDerivativeLimitOrdersBySubaccountID:",
+				orderHash.Hex(),
+				err,
+			)
+			k.EmitEvent(ctx, v2.NewEventOrderCancelFail(marketID, subaccountID, orderHash.Hex(), buyOrder.Cid(), err))
 		}
 	}
 
 	for _, sellOrder := range sellOrders {
 		if err := k.CancelTransientDerivativeLimitOrder(ctx, market, sellOrder); err != nil {
 			orderHash := common.BytesToHash(sellOrder.OrderHash)
-			k.Logger(ctx).Error("CancelTransientDerivativeLimitOrder for sellOrder %s failed during CancelAllTransientDerivativeLimitOrdersBySubaccountID:", orderHash.Hex(), err)
-			_ = ctx.EventManager().EmitTypedEvent(types.NewEventOrderCancelFail(marketID, subaccountID, orderHash.Hex(), sellOrder.Cid(), err))
+			k.Logger(ctx).Error(
+				"CancelTransientDerivativeLimitOrder for sellOrder %s failed during CancelAllTransientDerivativeLimitOrdersBySubaccountID:",
+				orderHash.Hex(),
+				err,
+			)
+			k.EmitEvent(ctx, v2.NewEventOrderCancelFail(marketID, subaccountID, orderHash.Hex(), sellOrder.Cid(), err))
 		}
 	}
 }
@@ -312,7 +339,7 @@ func (k *Keeper) CancelAllTransientDerivativeLimitOrdersBySubaccountID(
 // the given balance has been freed up, i.e., total balance becoming available balance.
 func (k *Keeper) CancelTransientDerivativeLimitOrdersForSubaccountUpToBalance(
 	ctx sdk.Context,
-	market *types.DerivativeMarket,
+	market *v2.DerivativeMarket,
 	subaccountID common.Hash,
 	freeingUpBalance math.LegacyDec,
 ) (freedUpBalance math.LegacyDec) {
@@ -331,7 +358,10 @@ func (k *Keeper) CancelTransientDerivativeLimitOrdersForSubaccountUpToBalance(
 
 		if err := k.CancelTransientDerivativeLimitOrder(ctx, market, order); err != nil {
 			metrics.ReportFuncError(k.svcTags)
-			_ = ctx.EventManager().EmitTypedEvent(types.NewEventOrderCancelFail(marketID, subaccountID, common.Bytes2Hex(order.GetOrderHash()), order.Cid(), err))
+			k.EmitEvent(
+				ctx,
+				v2.NewEventOrderCancelFail(marketID, subaccountID, common.Bytes2Hex(order.GetOrderHash()), order.Cid(), err),
+			)
 			continue
 		} else {
 			notional := order.OrderInfo.Price.Mul(order.OrderInfo.Quantity)
@@ -348,7 +378,10 @@ func (k *Keeper) CancelTransientDerivativeLimitOrdersForSubaccountUpToBalance(
 
 		if err := k.CancelTransientDerivativeLimitOrder(ctx, market, order); err != nil {
 			metrics.ReportFuncError(k.svcTags)
-			_ = ctx.EventManager().EmitTypedEvent(types.NewEventOrderCancelFail(marketID, subaccountID, common.Bytes2Hex(order.GetOrderHash()), order.Cid(), err))
+			k.EmitEvent(
+				ctx,
+				v2.NewEventOrderCancelFail(marketID, subaccountID, common.Bytes2Hex(order.GetOrderHash()), order.Cid(), err),
+			)
 			continue
 		} else {
 			notional := order.OrderInfo.Price.Mul(order.OrderInfo.Quantity)
@@ -362,7 +395,7 @@ func (k *Keeper) CancelTransientDerivativeLimitOrdersForSubaccountUpToBalance(
 
 func (k *Keeper) CancelAllTransientDerivativeLimitOrders(
 	ctx sdk.Context,
-	market DerivativeMarketI,
+	market DerivativeMarketInterface,
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
@@ -373,15 +406,41 @@ func (k *Keeper) CancelAllTransientDerivativeLimitOrders(
 
 	for _, buyOrder := range buyOrders {
 		if err := k.CancelTransientDerivativeLimitOrder(ctx, market, buyOrder); err != nil {
-			k.Logger(ctx).Error("CancelTransientDerivativeLimitOrder for buyOrder failed during CancelAllTransientDerivativeLimitOrders", "orderHash", common.BytesToHash(buyOrder.OrderHash).Hex(), "err", err.Error())
-			_ = ctx.EventManager().EmitTypedEvent(types.NewEventOrderCancelFail(marketID, buyOrder.SubaccountID(), common.Bytes2Hex(buyOrder.GetOrderHash()), buyOrder.Cid(), err))
+			k.Logger(ctx).Error(
+				"CancelTransientDerivativeLimitOrder for buyOrder failed during CancelAllTransientDerivativeLimitOrders",
+				"orderHash", common.BytesToHash(buyOrder.OrderHash).Hex(),
+				"err", err.Error(),
+			)
+			k.EmitEvent(
+				ctx,
+				v2.NewEventOrderCancelFail(
+					marketID,
+					buyOrder.SubaccountID(),
+					common.Bytes2Hex(buyOrder.GetOrderHash()),
+					buyOrder.Cid(),
+					err,
+				),
+			)
 		}
 	}
 
 	for _, sellOrder := range sellOrders {
 		if err := k.CancelTransientDerivativeLimitOrder(ctx, market, sellOrder); err != nil {
-			k.Logger(ctx).Error("CancelTransientDerivativeLimitOrder for sellOrder failed during CancelAllTransientDerivativeLimitOrders", "orderHash", common.BytesToHash(sellOrder.OrderHash).Hex(), "err", err.Error())
-			_ = ctx.EventManager().EmitTypedEvent(types.NewEventOrderCancelFail(marketID, sellOrder.SubaccountID(), common.Bytes2Hex(sellOrder.GetOrderHash()), sellOrder.Cid(), err))
+			k.Logger(ctx).Error(
+				"CancelTransientDerivativeLimitOrder for sellOrder failed during CancelAllTransientDerivativeLimitOrders",
+				"orderHash", common.BytesToHash(sellOrder.OrderHash).Hex(),
+				"err", err.Error(),
+			)
+			k.EmitEvent(
+				ctx,
+				v2.NewEventOrderCancelFail(
+					marketID,
+					sellOrder.SubaccountID(),
+					common.Bytes2Hex(sellOrder.GetOrderHash()),
+					sellOrder.Cid(),
+					err,
+				),
+			)
 		}
 	}
 }
@@ -391,21 +450,17 @@ func (k *Keeper) GetAllTransientTraderDerivativeLimitOrders(
 	ctx sdk.Context,
 	marketID common.Hash,
 	subaccountID common.Hash,
-) []*types.TrimmedDerivativeLimitOrder {
+) []*v2.TrimmedDerivativeLimitOrder {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
-
-	orders := make([]*types.TrimmedDerivativeLimitOrder, 0)
 
 	store := k.getTransientStore(ctx)
 	ordersStore := prefix.NewStore(store, types.DerivativeLimitOrdersPrefix)
 
+	orders := make([]*v2.TrimmedDerivativeLimitOrder, 0)
 	appendOrder := func(orderKey []byte) (stop bool) {
-		// Fetch Limit Order from ordersStore
-		bz := ordersStore.Get(orderKey)
-		// Unmarshal order
-		var order types.DerivativeLimitOrder
-		k.cdc.MustUnmarshal(bz, &order)
+		var order v2.DerivativeLimitOrder
+		k.cdc.MustUnmarshal(ordersStore.Get(orderKey), &order)
 
 		orders = append(orders, order.ToTrimmed())
 		return false
@@ -430,16 +485,18 @@ func (k *Keeper) IterateTransientDerivativeLimitOrdersBySubaccount(
 
 	store := k.getTransientStore(ctx)
 	orderIndexStore := prefix.NewStore(store, types.GetDerivativeLimitOrderIndexPrefix(marketID, isBuy, subaccountID))
-	var iterator storetypes.Iterator
-	if isBuy {
-		iterator = orderIndexStore.ReverseIterator(nil, nil)
-	} else {
-		iterator = orderIndexStore.Iterator(nil, nil)
-	}
-	defer iterator.Close()
 
-	for ; iterator.Valid(); iterator.Next() {
-		orderKeyBz := iterator.Value()
+	var iter storetypes.Iterator
+	if isBuy {
+		iter = orderIndexStore.ReverseIterator(nil, nil)
+	} else {
+		iter = orderIndexStore.Iterator(nil, nil)
+	}
+
+	defer iter.Close()
+
+	for ; iter.Valid(); iter.Next() {
+		orderKeyBz := iter.Value()
 		if process(orderKeyBz) {
 			return
 		}
@@ -453,7 +510,7 @@ func (k *Keeper) GetTransientDerivativeLimitOrderBySubaccountIDAndHash(
 	isBuy *bool,
 	subaccountID common.Hash,
 	orderHash common.Hash,
-) *types.DerivativeLimitOrder {
+) *v2.DerivativeLimitOrder {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
@@ -487,7 +544,7 @@ func (k *Keeper) GetTransientDerivativeLimitOrderBySubaccountIDAndHash(
 		return nil
 	}
 
-	var order types.DerivativeLimitOrder
+	var order v2.DerivativeLimitOrder
 
 	k.cdc.MustUnmarshal(orderBz, &order)
 	return &order
@@ -496,8 +553,8 @@ func (k *Keeper) GetTransientDerivativeLimitOrderBySubaccountIDAndHash(
 // CancelTransientDerivativeLimitOrder cancels the transient derivative limit order
 func (k *Keeper) CancelTransientDerivativeLimitOrder(
 	ctx sdk.Context,
-	market DerivativeMarketI,
-	order *types.DerivativeLimitOrder,
+	market MarketInterface,
+	order *v2.DerivativeLimitOrder,
 ) error {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
@@ -508,13 +565,17 @@ func (k *Keeper) CancelTransientDerivativeLimitOrder(
 
 	if order.IsVanilla() {
 		refundAmount := order.GetCancelRefundAmount(market.GetTakerFeeRate())
-		k.incrementAvailableBalanceOrBank(ctx, subaccountID, market.GetQuoteDenom(), refundAmount)
+		chainFormatRefund := market.NotionalToChainFormat(refundAmount)
+		k.incrementAvailableBalanceOrBank(ctx, subaccountID, market.GetQuoteDenom(), chainFormatRefund)
 	} else if order.IsReduceOnly() {
 		position := k.GetPosition(ctx, marketID, subaccountID)
 		if position == nil {
 			k.Logger(ctx).Error("Derivative Position doesn't exist", "marketId", marketID, "subaccountID", subaccountID, "orderHash", order.Hash().Hex())
 			metrics.ReportFuncError(k.svcTags)
-			return errors.Wrapf(types.ErrPositionNotFound, "marketId %s subaccountID %s orderHash %s", marketID, subaccountID.Hex(), order.Hash().Hex())
+			return errors.Wrapf(
+				types.ErrPositionNotFound,
+				"marketId %s subaccountID %s orderHash %s", marketID, subaccountID.Hex(), order.Hash().Hex(),
+			)
 		}
 	}
 
@@ -523,8 +584,7 @@ func (k *Keeper) CancelTransientDerivativeLimitOrder(
 	// 2. Delete the order state from ordersStore and ordersIndexStore
 	k.DeleteTransientDerivativeLimitOrder(ctx, marketID, order)
 
-	// nolint:errcheck //ignored on purpose
-	ctx.EventManager().EmitTypedEvent(&types.EventCancelDerivativeOrder{
+	k.EmitEvent(ctx, &v2.EventCancelDerivativeOrder{
 		MarketId:      marketID.Hex(),
 		IsLimitCancel: true,
 		LimitOrder:    order,
@@ -541,7 +601,7 @@ func (k *Keeper) DeleteTransientDerivativeLimitOrderByFields(
 	price math.LegacyDec,
 	isBuy bool,
 	hash common.Hash,
-) *types.DerivativeLimitOrder {
+) *v2.DerivativeLimitOrder {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
@@ -555,7 +615,7 @@ func (k *Keeper) DeleteTransientDerivativeLimitOrderByFields(
 		return nil
 	}
 
-	var order types.DerivativeLimitOrder
+	var order v2.DerivativeLimitOrder
 	k.cdc.MustUnmarshal(bz, &order)
 
 	k.DeleteTransientDerivativeLimitOrder(ctx, marketID, &order)
@@ -566,7 +626,7 @@ func (k *Keeper) DeleteTransientDerivativeLimitOrderByFields(
 func (k *Keeper) DeleteTransientDerivativeLimitOrder(
 	ctx sdk.Context,
 	marketID common.Hash,
-	order *types.DerivativeLimitOrder,
+	order *v2.DerivativeLimitOrder,
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
@@ -596,7 +656,7 @@ func (k *Keeper) DeleteTransientDerivativeLimitOrder(
 // CancelAllDerivativeMarketOrdersBySubaccountID cancels all of the derivative market orders for a given subaccount and marketID.
 func (k *Keeper) CancelAllDerivativeMarketOrdersBySubaccountID(
 	ctx sdk.Context,
-	market *types.DerivativeMarket,
+	market *v2.DerivativeMarket,
 	subaccountID common.Hash,
 	marketID common.Hash,
 ) {
@@ -619,7 +679,7 @@ func (k *Keeper) CancelAllDerivativeMarketOrdersBySubaccountID(
 // the given balance has been freed up, i.e., total balance becoming available balance.
 func (k *Keeper) CancelMarketDerivativeOrdersForSubaccountUpToBalance(
 	ctx sdk.Context,
-	market *types.DerivativeMarket,
+	market *v2.DerivativeMarket,
 	subaccountID common.Hash,
 	freeingUpBalance math.LegacyDec,
 ) (freedUpBalance math.LegacyDec) {
@@ -654,7 +714,7 @@ func (k *Keeper) CancelMarketDerivativeOrdersForSubaccountUpToBalance(
 }
 
 // CancelAllDerivativeMarketOrders cancels all of the derivative market orders for a given marketID.
-func (k *Keeper) CancelAllDerivativeMarketOrders(ctx sdk.Context, market DerivativeMarketI) {
+func (k *Keeper) CancelAllDerivativeMarketOrders(ctx sdk.Context, market DerivativeMarketInterface) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
@@ -674,8 +734,8 @@ func (k *Keeper) CancelAllDerivativeMarketOrders(ctx sdk.Context, market Derivat
 
 func (k *Keeper) CancelDerivativeMarketOrder(
 	ctx sdk.Context,
-	market DerivativeMarketI,
-	order *types.DerivativeMarketOrder,
+	market DerivativeMarketInterface,
+	order *v2.DerivativeMarketOrder,
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
@@ -683,15 +743,15 @@ func (k *Keeper) CancelDerivativeMarketOrder(
 	marketID := market.MarketID()
 	subaccountID := order.SubaccountID()
 	refundAmount := order.GetCancelRefundAmount()
+	chainFormatRefund := market.NotionalToChainFormat(refundAmount)
 
-	k.incrementAvailableBalanceOrBank(ctx, subaccountID, market.GetQuoteDenom(), refundAmount)
+	k.incrementAvailableBalanceOrBank(ctx, subaccountID, market.GetQuoteDenom(), chainFormatRefund)
 	k.DeleteDerivativeMarketOrder(ctx, order, marketID)
 
-	// nolint:errcheck //ignored on purpose
-	ctx.EventManager().EmitTypedEvent(&types.EventCancelDerivativeOrder{
+	k.EmitEvent(ctx, &v2.EventCancelDerivativeOrder{
 		MarketId:      marketID.Hex(),
 		IsLimitCancel: false,
-		MarketOrderCancel: &types.DerivativeMarketOrderCancel{
+		MarketOrderCancel: &v2.DerivativeMarketOrderCancel{
 			MarketOrder:    order,
 			CancelQuantity: order.OrderInfo.Quantity,
 		},
@@ -704,12 +764,12 @@ func (k *Keeper) GetAllSubaccountDerivativeMarketOrdersByMarketDirection(
 	marketID common.Hash,
 	subaccountID common.Hash,
 	isBuy bool,
-) []*types.DerivativeMarketOrder {
+) []*v2.DerivativeMarketOrder {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	orders := make([]*types.DerivativeMarketOrder, 0)
-	appendOrder := func(order *types.DerivativeMarketOrder) (stop bool) {
+	orders := make([]*v2.DerivativeMarketOrder, 0)
+	appendOrder := func(order *v2.DerivativeMarketOrder) (stop bool) {
 		// only append orders with the same subaccountID
 		if bytes.Equal(order.OrderInfo.SubaccountID().Bytes(), subaccountID.Bytes()) {
 			orders = append(orders, order)
@@ -718,6 +778,7 @@ func (k *Keeper) GetAllSubaccountDerivativeMarketOrdersByMarketDirection(
 	}
 
 	k.IterateDerivativeMarketOrders(ctx, marketID, isBuy, appendOrder)
+
 	return orders
 }
 
@@ -726,12 +787,12 @@ func (k *Keeper) GetAllDerivativeMarketOrdersByMarketDirection(
 	ctx sdk.Context,
 	marketID common.Hash,
 	isBuy bool,
-) []*types.DerivativeMarketOrder {
+) []*v2.DerivativeMarketOrder {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	orders := make([]*types.DerivativeMarketOrder, 0)
-	appendOrder := func(order *types.DerivativeMarketOrder) (stop bool) {
+	orders := make([]*v2.DerivativeMarketOrder, 0)
+	appendOrder := func(order *v2.DerivativeMarketOrder) (stop bool) {
 		orders = append(orders, order)
 		return false
 	}
@@ -745,12 +806,12 @@ func (k *Keeper) GetAllTransientDerivativeMarketOrdersByMarketDirection(
 	ctx sdk.Context,
 	marketID common.Hash,
 	isBuy bool,
-) []*types.DerivativeMarketOrder {
+) []*v2.DerivativeMarketOrder {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	orders := make([]*types.DerivativeMarketOrder, 0)
-	appendOrder := func(order *types.DerivativeMarketOrder) (stop bool) {
+	orders := make([]*v2.DerivativeMarketOrder, 0)
+	appendOrder := func(order *v2.DerivativeMarketOrder) (stop bool) {
 		orders = append(orders, order)
 		return false
 	}
@@ -764,7 +825,7 @@ func (k *Keeper) IterateDerivativeMarketOrders(
 	ctx sdk.Context,
 	marketID common.Hash,
 	isBuy bool,
-	process func(order *types.DerivativeMarketOrder) (stop bool),
+	process func(order *v2.DerivativeMarketOrder) (stop bool),
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
@@ -783,13 +844,17 @@ func (k *Keeper) IterateDerivativeMarketOrders(
 	} else {
 		iterator = ordersStore.Iterator(nil, nil)
 	}
-	defer iterator.Close()
-
+	orders := []*v2.DerivativeMarketOrder{}
 	for ; iterator.Valid(); iterator.Next() {
-		var order types.DerivativeMarketOrder
+		var order v2.DerivativeMarketOrder
 		bz := iterator.Value()
 		k.cdc.MustUnmarshal(bz, &order)
-		if process(&order) {
+		orders = append(orders, &order)
+	}
+	iterator.Close()
+
+	for _, order := range orders {
+		if process(order) {
 			return
 		}
 	}
@@ -851,22 +916,22 @@ func (k *Keeper) GetAllTransientDerivativeMarketDirections(
 }
 
 // GetAllTransientDerivativeLimitOrderbook returns all transient orderbooks for all derivative markets.
-func (k *Keeper) GetAllTransientDerivativeLimitOrderbook(ctx sdk.Context) []types.DerivativeOrderBook {
+func (k *Keeper) GetAllTransientDerivativeLimitOrderbook(ctx sdk.Context) []v2.DerivativeOrderBook {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	markets := k.GetAllDerivativeMarkets(ctx)
-	orderbook := make([]types.DerivativeOrderBook, 0, len(markets)*2)
+	orderbook := make([]v2.DerivativeOrderBook, 0, len(markets)*2)
 	for _, market := range markets {
 		marketID := market.MarketID()
 		buyOrders := k.GetAllDerivativeLimitOrdersByMarketDirection(ctx, marketID, true)
-		orderbook = append(orderbook, types.DerivativeOrderBook{
+		orderbook = append(orderbook, v2.DerivativeOrderBook{
 			MarketId:  marketID.Hex(),
 			IsBuySide: true,
 			Orders:    buyOrders,
 		})
 		sellOrders := k.GetAllDerivativeLimitOrdersByMarketDirection(ctx, marketID, false)
-		orderbook = append(orderbook, types.DerivativeOrderBook{
+		orderbook = append(orderbook, v2.DerivativeOrderBook{
 			MarketId:  marketID.Hex(),
 			IsBuySide: false,
 			Orders:    sellOrders,

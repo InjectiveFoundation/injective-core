@@ -3,10 +3,11 @@ package keeper
 import (
 	"fmt"
 
+	"cosmossdk.io/math"
 	storetypes "cosmossdk.io/store/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	exchangetypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	exchangev2types "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 )
 
 var (
@@ -19,6 +20,8 @@ var (
 	MsgCreateSpotLimitPostOnlyOrderGas = storetypes.Gas(120_000)
 	MsgCreateSpotMarketOrderGas        = storetypes.Gas(50_000)
 	MsgCancelSpotOrderGas              = storetypes.Gas(65_000)
+
+	GTBOrdersGasMultiplier = math.LegacyMustNewDecFromStr("1.1")
 
 	// NOTE: binary option orders are handled identically as derivative orders
 	MsgCreateBinaryOptionsLimitOrderGas         = MsgCreateDerivativeLimitOrderGas
@@ -37,74 +40,91 @@ var (
 //nolint:revive //this is fine
 func DetermineGas(msg sdk.Msg) uint64 {
 	switch msg := msg.(type) {
-	case *exchangetypes.MsgCreateSpotLimitOrder:
+	case *exchangev2types.MsgCreateSpotLimitOrder:
+		requiredGas := MsgCreateSpotLimitOrderGas
 		if msg.Order.OrderType.IsPostOnly() {
-			return MsgCreateSpotLimitPostOnlyOrderGas
+			requiredGas = MsgCreateSpotLimitPostOnlyOrderGas
 		}
-		return MsgCreateSpotLimitOrderGas
-	case *exchangetypes.MsgCreateSpotMarketOrder:
+		if msg.Order.ExpirationBlock > 0 {
+			requiredGas = storetypes.Gas(GTBOrdersGasMultiplier.Mul(math.LegacyNewDec(int64(requiredGas))).TruncateInt64())
+		}
+		return requiredGas
+	case *exchangev2types.MsgCreateSpotMarketOrder:
 		return MsgCreateSpotMarketOrderGas
-	case *exchangetypes.MsgCancelSpotOrder:
+	case *exchangev2types.MsgCancelSpotOrder:
 		return MsgCancelSpotOrderGas
-	case *exchangetypes.MsgBatchCreateSpotLimitOrders:
+	case *exchangev2types.MsgBatchCreateSpotLimitOrders:
 		sum := uint64(0)
 		for _, order := range msg.Orders {
+			requiredGas := MsgCreateSpotLimitOrderGas
 			if order.OrderType.IsPostOnly() {
-				sum += MsgCreateSpotLimitPostOnlyOrderGas
-			} else {
-				sum += MsgCreateSpotLimitOrderGas
+				requiredGas = MsgCreateSpotLimitPostOnlyOrderGas
 			}
+			if order.ExpirationBlock > 0 {
+				requiredGas = storetypes.Gas(GTBOrdersGasMultiplier.Mul(math.LegacyNewDec(int64(requiredGas))).TruncateInt64())
+			}
+			sum += requiredGas
 		}
 
 		return sum
-	case *exchangetypes.MsgBatchCancelSpotOrders:
+	case *exchangev2types.MsgBatchCancelSpotOrders:
 		panic("developer error: MsgBatchCancelSpotOrders gas already determined in msg server impl")
-	case *exchangetypes.MsgCreateDerivativeLimitOrder:
+	case *exchangev2types.MsgCreateDerivativeLimitOrder:
+		requiredGas := MsgCreateDerivativeLimitOrderGas
 		if msg.Order.OrderType.IsPostOnly() {
-			return MsgCreateDerivativeLimitPostOnlyOrderGas
+			requiredGas = MsgCreateDerivativeLimitPostOnlyOrderGas
 		}
-
-		return MsgCreateDerivativeLimitOrderGas
-	case *exchangetypes.MsgCreateDerivativeMarketOrder:
+		if msg.Order.ExpirationBlock > 0 {
+			requiredGas = storetypes.Gas(GTBOrdersGasMultiplier.Mul(math.LegacyNewDec(int64(requiredGas))).TruncateInt64())
+		}
+		return requiredGas
+	case *exchangev2types.MsgCreateDerivativeMarketOrder:
 		return MsgCreateDerivativeMarketOrderGas
-	case *exchangetypes.MsgCancelDerivativeOrder:
+	case *exchangev2types.MsgCancelDerivativeOrder:
 		return MsgCancelDerivativeOrderGas
-	case *exchangetypes.MsgBatchCreateDerivativeLimitOrders:
+	case *exchangev2types.MsgBatchCreateDerivativeLimitOrders:
 		sum := uint64(0)
 		for _, order := range msg.Orders {
+			requiredGas := MsgCreateDerivativeLimitOrderGas
 			if order.OrderType.IsPostOnly() {
-				sum += MsgCreateDerivativeLimitPostOnlyOrderGas
-			} else {
-				sum += MsgCreateDerivativeLimitOrderGas
+				requiredGas = MsgCreateDerivativeLimitPostOnlyOrderGas
 			}
+			if order.ExpirationBlock > 0 {
+				requiredGas = storetypes.Gas(GTBOrdersGasMultiplier.Mul(math.LegacyNewDec(int64(requiredGas))).TruncateInt64())
+			}
+			sum += requiredGas
 		}
 
 		return sum
-	case *exchangetypes.MsgBatchCancelDerivativeOrders:
+	case *exchangev2types.MsgBatchCancelDerivativeOrders:
 		panic("developer error: MsgBatchCancelDerivativeOrders gas already determined in msg server impl")
-	case *exchangetypes.MsgCreateBinaryOptionsLimitOrder:
+	case *exchangev2types.MsgCreateBinaryOptionsLimitOrder:
+		requiredGas := MsgCreateBinaryOptionsLimitOrderGas
 		if msg.Order.OrderType.IsPostOnly() {
-			return MsgCreateBinaryOptionsLimitPostOnlyOrderGas
+			requiredGas = MsgCreateBinaryOptionsLimitPostOnlyOrderGas
 		}
-		return MsgCreateBinaryOptionsLimitOrderGas
-	case *exchangetypes.MsgCreateBinaryOptionsMarketOrder:
+		if msg.Order.ExpirationBlock > 0 {
+			requiredGas = storetypes.Gas(GTBOrdersGasMultiplier.Mul(math.LegacyNewDec(int64(requiredGas))).TruncateInt64())
+		}
+		return requiredGas
+	case *exchangev2types.MsgCreateBinaryOptionsMarketOrder:
 		return MsgCreateBinaryOptionsMarketOrderGas
-	case *exchangetypes.MsgCancelBinaryOptionsOrder:
+	case *exchangev2types.MsgCancelBinaryOptionsOrder:
 		return MsgCancelBinaryOptionsOrderGas
-	case *exchangetypes.MsgBatchCancelBinaryOptionsOrders:
+	case *exchangev2types.MsgBatchCancelBinaryOptionsOrders:
 		panic("developer error: MsgBatchCancelBinaryOptionsOrders gas already determined in msg server impl")
 	//	MISCELLANEOUS //
-	case *exchangetypes.MsgDeposit:
+	case *exchangev2types.MsgDeposit:
 		return MsgDepositGas
-	case *exchangetypes.MsgWithdraw:
+	case *exchangev2types.MsgWithdraw:
 		return MsgWithdrawGas
-	case *exchangetypes.MsgSubaccountTransfer:
+	case *exchangev2types.MsgSubaccountTransfer:
 		return MsgSubaccountTransferGas
-	case *exchangetypes.MsgExternalTransfer:
+	case *exchangev2types.MsgExternalTransfer:
 		return MsgExternalTransferGas
-	case *exchangetypes.MsgIncreasePositionMargin:
+	case *exchangev2types.MsgIncreasePositionMargin:
 		return MsgIncreasePositionMarginGas
-	case *exchangetypes.MsgDecreasePositionMargin:
+	case *exchangev2types.MsgDecreasePositionMargin:
 		return MsgDecreasePositionMarginGas
 	default:
 		panic(fmt.Sprintf("developer error: unknown message type: %T", msg))

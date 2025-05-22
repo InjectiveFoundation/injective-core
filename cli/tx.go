@@ -37,7 +37,7 @@ func txRunE(msg sdk.Msg, flagsMap FlagsMapping, argsMap ArgsMapping) func(*cobra
 			return fmt.Errorf("couldn't parse sender from ctx: %w", err)
 		}
 
-		err = parseFieldsFromFlagsAndArgs(msg, flagsMap, argsMap, cmd.Flags(), args, clientCtx)
+		err = ParseFieldsFromFlagsAndArgs(msg, flagsMap, argsMap, cmd.Flags(), args, clientCtx)
 		if err != nil {
 			return err
 		}

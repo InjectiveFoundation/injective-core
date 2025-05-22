@@ -6,6 +6,7 @@ import (
 
 	"cosmossdk.io/errors"
 	"cosmossdk.io/x/feegrant"
+	feegrantkeeper "cosmossdk.io/x/feegrant/keeper"
 	wasmvmtypes "github.com/CosmWasm/wasmvm/v2/types"
 	cdctypes "github.com/cosmos/cosmos-sdk/codec/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -17,18 +18,15 @@ import (
 
 	auctionkeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/auction/keeper"
 	auctiontypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/auction/types"
-
-	wasmxkeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/keeper"
-	wasmxtypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/types"
-
-	feegrantkeeper "cosmossdk.io/x/feegrant/keeper"
-
 	exchangekeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/keeper"
 	exchangetypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	exchangev2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 	oraclekeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/keeper"
 	oracletypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/types"
 	tokenfactorykeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/tokenfactory/keeper"
 	tokenfactorytypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/tokenfactory/types"
+	wasmxkeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/keeper"
+	wasmxtypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/types"
 	"github.com/InjectiveLabs/injective-core/injective-chain/wasmbinding/bindings"
 )
 
@@ -76,8 +74,7 @@ func ForceMarshalJSONAny(msgAny *cdctypes.Any) {
 		panic(err)
 	}
 
-	err = msgAny.UnmarshalJSON(bz)
-	if err != nil {
+	if err = msgAny.UnmarshalJSON(bz); err != nil {
 		panic(err)
 	}
 }
@@ -291,301 +288,227 @@ func (qp QueryPlugin) HandleExchangeQuery(ctx sdk.Context, queryData json.RawMes
 		return nil, errors.Wrap(err, "Error parsing Injective ExchangeQuery")
 	}
 
-	var bz []byte
-	var err error
+	queryServer := exchangekeeper.NewV1QueryServer(qp.exchangeKeeper)
 
 	switch {
 
 	case query.ExchangeParams != nil:
-		params := qp.exchangeKeeper.GetParams(ctx)
-		bz, err = json.Marshal(exchangetypes.QueryExchangeParamsResponse{Params: params})
+		response, err := queryServer.QueryExchangeParams(ctx, query.ExchangeParams)
+		if err != nil {
+			return json.Marshal(exchangetypes.QueryExchangeParamsResponse{})
+		}
+		return json.Marshal(response)
 	case query.SubaccountDeposit != nil:
-		deposit := qp.exchangeKeeper.GetDeposit(ctx, common.HexToHash(query.SubaccountDeposit.SubaccountId), query.SubaccountDeposit.Denom)
-		bz, err = json.Marshal(bindings.SubaccountDepositQueryResponse{Deposits: deposit})
+		response, err := queryServer.SubaccountDeposit(ctx, query.SubaccountDeposit)
+		if err != nil {
+			return json.Marshal(bindings.SubaccountDepositQueryResponse{})
+		}
+		return json.Marshal(bindings.SubaccountDepositQueryResponse{Deposits: response.Deposits})
 	case query.SpotMarket != nil:
-		market := qp.exchangeKeeper.GetSpotMarketByID(ctx, common.HexToHash(query.SpotMarket.MarketId))
-		bz, err = json.Marshal(exchangetypes.QuerySpotMarketResponse{Market: market})
+		response, err := queryServer.SpotMarket(ctx, query.SpotMarket)
+		if err != nil {
+			return json.Marshal(exchangetypes.QuerySpotMarketResponse{})
+		}
+		return json.Marshal(response)
 	case query.DerivativeMarket != nil:
-		market := qp.exchangeKeeper.GetFullDerivativeMarket(ctx, common.HexToHash(query.DerivativeMarket.MarketId), true)
-		if market != nil {
-			bz, err = json.Marshal(bindings.DerivativeMarketQueryResponse{Market: &bindings.FullDerivativeMarketQuery{
-				Market:    market.Market,
-				Info:      market.Info.(*exchangetypes.FullDerivativeMarket_PerpetualInfo),
-				MarkPrice: market.MarkPrice,
-			}})
-		} else {
-			bz, err = json.Marshal(bindings.DerivativeMarketQueryResponse{Market: nil})
+		response, err := queryServer.DerivativeMarket(ctx, query.DerivativeMarket)
+		if err != nil {
+			return json.Marshal(bindings.DerivativeMarketQueryResponse{Market: nil})
 		}
+		return json.Marshal(bindings.DerivativeMarketQueryResponse{Market: &bindings.FullDerivativeMarketQuery{
+			Market:    response.Market.Market,
+			Info:      response.Market.Info.(*exchangetypes.FullDerivativeMarket_PerpetualInfo),
+			MarkPrice: response.Market.MarkPrice,
+		}})
 	case query.SubaccountPositions != nil:
-		positions := qp.exchangeKeeper.GetAllActivePositionsBySubaccountID(ctx, common.HexToHash(query.SubaccountPositions.SubaccountId))
-		bz, err = json.Marshal(exchangetypes.QuerySubaccountPositionsResponse{State: positions})
-	case query.SubaccountPositionInMarket != nil:
-		position := qp.exchangeKeeper.GetPosition(ctx, common.HexToHash(query.SubaccountPositionInMarket.MarketId), common.HexToHash(query.SubaccountPositionInMarket.SubaccountId))
-		bz, err = json.Marshal(exchangetypes.QuerySubaccountPositionInMarketResponse{State: position})
-	case query.SubaccountEffectivePositionInMarket != nil:
-		marketID := common.HexToHash(query.SubaccountEffectivePositionInMarket.MarketId)
-		position := qp.exchangeKeeper.GetPosition(ctx, marketID, common.HexToHash(query.SubaccountEffectivePositionInMarket.SubaccountId))
-
-		if position == nil {
-			bz, err = json.Marshal(exchangetypes.QuerySubaccountEffectivePositionInMarketResponse{State: nil})
-		} else {
-			_, markPrice := qp.exchangeKeeper.GetDerivativeMarketWithMarkPrice(ctx, marketID, true)
-			funding := qp.exchangeKeeper.GetPerpetualMarketFunding(ctx, marketID)
-
-			effectivePosition := exchangetypes.EffectivePosition{
-				IsLong:          position.IsLong,
-				EntryPrice:      position.EntryPrice,
-				Quantity:        position.Quantity,
-				EffectiveMargin: position.GetEffectiveMargin(funding, markPrice),
-			}
-			bz, err = json.Marshal(exchangetypes.QuerySubaccountEffectivePositionInMarketResponse{State: &effectivePosition})
+		response, err := queryServer.SubaccountPositions(ctx, query.SubaccountPositions)
+		if err != nil {
+			return json.Marshal(exchangetypes.QuerySubaccountPositionsResponse{})
 		}
+		return json.Marshal(response)
+	case query.SubaccountPositionInMarket != nil:
+		response, err := queryServer.SubaccountPositionInMarket(ctx, query.SubaccountPositionInMarket)
+		if err != nil {
+			return json.Marshal(exchangetypes.QuerySubaccountPositionInMarketResponse{})
+		}
+		return json.Marshal(response)
+	case query.SubaccountEffectivePositionInMarket != nil:
+		response, err := queryServer.SubaccountEffectivePositionInMarket(ctx, query.SubaccountEffectivePositionInMarket)
+		if err != nil {
+			return json.Marshal(exchangetypes.QuerySubaccountEffectivePositionInMarketResponse{})
+		}
+		return json.Marshal(response)
 	case query.SubaccountOrders != nil:
-		marketID := common.HexToHash(query.SubaccountOrders.MarketId)
-		subaccountID := common.HexToHash(query.SubaccountOrders.SubaccountId)
-
-		buyOrders := qp.exchangeKeeper.GetSubaccountOrders(ctx, marketID, subaccountID, true, false)
-		sellOrders := qp.exchangeKeeper.GetSubaccountOrders(ctx, marketID, subaccountID, false, false)
-
-		bz, err = json.Marshal(exchangetypes.QuerySubaccountOrdersResponse{
-			BuyOrders:  buyOrders,
-			SellOrders: sellOrders,
-		})
+		response, err := queryServer.SubaccountOrders(ctx, query.SubaccountOrders)
+		if err != nil {
+			return json.Marshal(exchangetypes.QuerySubaccountOrdersResponse{})
+		}
+		return json.Marshal(response)
 	case query.TraderDerivativeOrders != nil:
-		marketID := common.HexToHash(query.TraderDerivativeOrders.MarketId)
-		subaccountID := common.HexToHash(query.TraderDerivativeOrders.SubaccountId)
-		orders := qp.exchangeKeeper.GetAllTraderDerivativeLimitOrders(ctx, marketID, subaccountID)
-
-		bz, err = json.Marshal(exchangetypes.QueryTraderDerivativeOrdersResponse{
-			Orders: orders,
-		})
+		response, err := queryServer.TraderDerivativeOrders(ctx, query.TraderDerivativeOrders)
+		if err != nil {
+			return json.Marshal(exchangetypes.QueryTraderDerivativeOrdersResponse{})
+		}
+		return json.Marshal(response)
 	case query.TraderSpotOrdersToCancelUpToAmountRequest != nil:
 		marketID := common.HexToHash(query.TraderSpotOrdersToCancelUpToAmountRequest.MarketId)
 		subaccountID := common.HexToHash(query.TraderSpotOrdersToCancelUpToAmountRequest.SubaccountId)
 		market := qp.exchangeKeeper.GetSpotMarket(ctx, marketID, true)
 
-		traderOrders := qp.exchangeKeeper.GetAllTraderSpotLimitOrders(ctx, marketID, subaccountID)
 		ordersToCancel, hasProcessedFullAmount := qp.exchangeKeeper.GetSpotOrdersToCancelUpToAmount(
 			ctx,
 			market,
-			traderOrders,
-			query.TraderSpotOrdersToCancelUpToAmountRequest.Strategy,
+			qp.exchangeKeeper.GetAllTraderSpotLimitOrders(ctx, marketID, subaccountID),
+			exchangev2.CancellationStrategy(query.TraderSpotOrdersToCancelUpToAmountRequest.Strategy),
 			query.TraderSpotOrdersToCancelUpToAmountRequest.ReferencePrice,
 			query.TraderSpotOrdersToCancelUpToAmountRequest.BaseAmount,
 			query.TraderSpotOrdersToCancelUpToAmountRequest.QuoteAmount,
 		)
 
 		if hasProcessedFullAmount {
-			bz, err = json.Marshal(exchangetypes.QueryTraderSpotOrdersResponse{
-				Orders: ordersToCancel,
+			ordersToCancelV1 := make([]*exchangetypes.TrimmedSpotLimitOrder, 0, len(ordersToCancel))
+			for _, order := range ordersToCancel {
+				ordersToCancelV1 = append(ordersToCancelV1, exchangekeeper.NewV1TrimmedSpotLimitOrderFromV2(market, order))
+			}
+
+			return json.Marshal(exchangetypes.QueryTraderSpotOrdersResponse{
+				Orders: ordersToCancelV1,
 			})
 		} else {
-			err = exchangetypes.ErrTransientOrdersUpToCancelNotSupported
+			return nil, exchangetypes.ErrTransientOrdersUpToCancelNotSupported
 		}
 	case query.TraderDerivativeOrdersToCancelUpToAmountRequest != nil:
 		marketID := common.HexToHash(query.TraderDerivativeOrdersToCancelUpToAmountRequest.MarketId)
 		subaccountID := common.HexToHash(query.TraderDerivativeOrdersToCancelUpToAmountRequest.SubaccountId)
 		market := qp.exchangeKeeper.GetDerivativeMarket(ctx, marketID, true)
-
 		traderOrders := qp.exchangeKeeper.GetAllTraderDerivativeLimitOrders(ctx, marketID, subaccountID)
+
 		ordersToCancel, hasProcessedFullAmount := exchangekeeper.GetDerivativeOrdersToCancelUpToAmount(
 			market,
 			traderOrders,
-			query.TraderDerivativeOrdersToCancelUpToAmountRequest.Strategy,
+			exchangev2.CancellationStrategy(query.TraderDerivativeOrdersToCancelUpToAmountRequest.Strategy),
 			query.TraderDerivativeOrdersToCancelUpToAmountRequest.ReferencePrice,
 			query.TraderDerivativeOrdersToCancelUpToAmountRequest.QuoteAmount,
 		)
 
 		if hasProcessedFullAmount {
-			bz, err = json.Marshal(exchangetypes.QueryTraderDerivativeOrdersResponse{
-				Orders: ordersToCancel,
+			ordersToCancelV1 := make([]*exchangetypes.TrimmedDerivativeLimitOrder, 0, len(ordersToCancel))
+			for _, order := range ordersToCancel {
+				orderV1 := exchangekeeper.NewV1TrimmedDerivativeLimitOrderFromV2(market, *order)
+				ordersToCancelV1 = append(ordersToCancelV1, &orderV1)
+			}
+
+			return json.Marshal(exchangetypes.QueryTraderDerivativeOrdersResponse{
+				Orders: ordersToCancelV1,
 			})
 		} else {
-			err = exchangetypes.ErrTransientOrdersUpToCancelNotSupported
+			return nil, exchangetypes.ErrTransientOrdersUpToCancelNotSupported
 		}
 	case query.TraderSpotOrders != nil:
-		marketId := common.HexToHash(query.TraderSpotOrders.MarketId)
-		subaccountId := common.HexToHash(query.TraderSpotOrders.SubaccountId)
-		orders := qp.exchangeKeeper.GetAllTraderSpotLimitOrders(ctx, marketId, subaccountId)
-
-		bz, err = json.Marshal(exchangetypes.QueryTraderSpotOrdersResponse{
-			Orders: orders,
-		})
+		response, err := queryServer.TraderSpotOrders(ctx, query.TraderSpotOrders)
+		if err != nil {
+			return json.Marshal(exchangetypes.QueryTraderSpotOrdersResponse{})
+		}
+		return json.Marshal(response)
 	case query.TraderTransientSpotOrders != nil:
-		marketId := common.HexToHash(query.TraderTransientSpotOrders.MarketId)
-		subaccountId := common.HexToHash(query.TraderTransientSpotOrders.SubaccountId)
-		orders := qp.exchangeKeeper.GetAllTransientTraderSpotLimitOrders(ctx, marketId, subaccountId)
-
-		bz, err = json.Marshal(exchangetypes.QueryTraderSpotOrdersResponse{
-			Orders: orders,
-		})
+		response, err := queryServer.TraderSpotTransientOrders(ctx, query.TraderTransientSpotOrders)
+		if err != nil {
+			return json.Marshal(exchangetypes.QueryTraderSpotOrdersResponse{})
+		}
+		return json.Marshal(response)
 	case query.SpotOrderbook != nil:
-		req := query.SpotOrderbook
-		marketID := common.HexToHash(req.MarketId)
-
-		var limit *uint64
-		if req.Limit > 0 {
-			limit = &req.Limit
-		} else if req.LimitCumulativeNotional == nil && req.LimitCumulativeQuantity == nil {
-			defaultLimit := exchangetypes.DefaultQueryOrderbookLimit
-			limit = &defaultLimit
+		response, err := queryServer.SpotOrderbook(ctx, query.SpotOrderbook)
+		if err != nil {
+			return json.Marshal(exchangetypes.QuerySpotOrderbookResponse{})
 		}
-		buysLevels := make([]*exchangetypes.Level, 0)
-		if req.OrderSide == exchangetypes.OrderSide_Buy || req.OrderSide == exchangetypes.OrderSide_Side_Unspecified {
-			buysLevels = qp.exchangeKeeper.GetOrderbookPriceLevels(ctx, true, marketID, true, limit, req.LimitCumulativeNotional, req.LimitCumulativeQuantity)
-		}
-		sellLevels := make([]*exchangetypes.Level, 0)
-		if req.OrderSide == exchangetypes.OrderSide_Sell || req.OrderSide == exchangetypes.OrderSide_Side_Unspecified {
-			sellLevels = qp.exchangeKeeper.GetOrderbookPriceLevels(ctx, true, marketID, false, limit, req.LimitCumulativeNotional, req.LimitCumulativeQuantity)
-		}
-		bz, err = json.Marshal(exchangetypes.QuerySpotOrderbookResponse{
-			BuysPriceLevel:  buysLevels,
-			SellsPriceLevel: sellLevels,
-		})
+		return json.Marshal(response)
 	case query.DerivativeOrderbook != nil:
-		req := query.DerivativeOrderbook
-		marketID := common.HexToHash(req.MarketId)
-
-		var limit *uint64
-		if req.Limit > 0 {
-			limit = &req.Limit
-		} else if req.LimitCumulativeNotional == nil {
-			defaultLimit := exchangetypes.DefaultQueryOrderbookLimit
-			limit = &defaultLimit
+		response, err := queryServer.DerivativeOrderbook(ctx, query.DerivativeOrderbook)
+		if err != nil {
+			return json.Marshal(exchangetypes.QueryDerivativeOrderbookResponse{})
 		}
-
-		bz, err = json.Marshal(exchangetypes.QueryDerivativeOrderbookResponse{
-			BuysPriceLevel:  qp.exchangeKeeper.GetOrderbookPriceLevels(ctx, false, marketID, true, limit, req.LimitCumulativeNotional, nil),
-			SellsPriceLevel: qp.exchangeKeeper.GetOrderbookPriceLevels(ctx, false, marketID, false, limit, req.LimitCumulativeNotional, nil),
-		})
+		return json.Marshal(response)
 	case query.TraderTransientDerivativeOrders != nil:
-		marketId := common.HexToHash(query.TraderTransientDerivativeOrders.MarketId)
-		subaccountId := common.HexToHash(query.TraderTransientDerivativeOrders.SubaccountId)
-		orders := qp.exchangeKeeper.GetAllTransientTraderDerivativeLimitOrders(ctx, marketId, subaccountId)
-
-		bz, err = json.Marshal(exchangetypes.QueryTraderDerivativeOrdersResponse{
-			Orders: orders,
-		})
+		response, err := queryServer.TraderDerivativeTransientOrders(ctx, query.TraderTransientDerivativeOrders)
+		if err != nil {
+			return json.Marshal(exchangetypes.QueryTraderDerivativeOrdersResponse{})
+		}
+		return json.Marshal(response)
 	case query.PerpetualMarketInfo != nil:
-		info := qp.exchangeKeeper.GetPerpetualMarketInfo(ctx, common.HexToHash(query.PerpetualMarketInfo.MarketId))
-		if info != nil {
-			bz, err = json.Marshal(exchangetypes.QueryPerpetualMarketInfoResponse{
-				Info: *info,
-			})
-		} else {
-			bz, err = json.Marshal(exchangetypes.QueryPerpetualMarketInfoResponse{
+		response, err := queryServer.PerpetualMarketInfo(ctx, query.PerpetualMarketInfo)
+		if err != nil {
+			return json.Marshal(exchangetypes.QueryPerpetualMarketInfoResponse{
 				Info: exchangetypes.PerpetualMarketInfo{},
 			})
 		}
+		return json.Marshal(response)
 	case query.ExpiryFuturesMarketInfo != nil:
-		info := qp.exchangeKeeper.GetExpiryFuturesMarketInfo(ctx, common.HexToHash(query.ExpiryFuturesMarketInfo.MarketId))
-		if info != nil {
-			bz, err = json.Marshal(exchangetypes.QueryExpiryFuturesMarketInfoResponse{
-				Info: *info,
-			})
-		} else {
-			bz, err = json.Marshal(exchangetypes.QueryExpiryFuturesMarketInfoResponse{
+		response, err := queryServer.ExpiryFuturesMarketInfo(ctx, query.ExpiryFuturesMarketInfo)
+		if err != nil {
+			return json.Marshal(exchangetypes.QueryExpiryFuturesMarketInfoResponse{
 				Info: exchangetypes.ExpiryFuturesMarketInfo{},
 			})
 		}
+		return json.Marshal(response)
 	case query.PerpetualMarketFunding != nil:
-		funding := qp.exchangeKeeper.GetPerpetualMarketFunding(ctx, common.HexToHash(query.PerpetualMarketFunding.MarketId))
-		if funding != nil {
-			bz, err = json.Marshal(exchangetypes.QueryPerpetualMarketFundingResponse{
-				State: *funding,
-			})
-		} else {
-			bz, err = json.Marshal(exchangetypes.QueryPerpetualMarketFundingResponse{
+		response, err := queryServer.PerpetualMarketFunding(ctx, query.PerpetualMarketFunding)
+		if err != nil {
+			return json.Marshal(exchangetypes.QueryPerpetualMarketFundingResponse{
 				State: exchangetypes.PerpetualMarketFunding{},
 			})
 		}
+		return json.Marshal(response)
 	case query.MarketVolatility != nil:
-		req := query.MarketVolatility
-		vol, rawHistory, meta := qp.exchangeKeeper.GetMarketVolatility(ctx, common.HexToHash(req.MarketId), req.TradeHistoryOptions)
-		bz, err = json.Marshal(exchangetypes.QueryMarketVolatilityResponse{
-			Volatility:      vol,
-			RawHistory:      rawHistory,
-			HistoryMetadata: meta,
-		})
+		response, err := queryServer.MarketVolatility(ctx, query.MarketVolatility)
+		if err != nil {
+			return json.Marshal(exchangetypes.QueryMarketVolatilityResponse{})
+		}
+		return json.Marshal(response)
 	case query.SpotMarketMidPriceAndTOB != nil:
-		req := query.SpotMarketMidPriceAndTOB
-		midPrice, bestBuyPrice, bestSellPrice := qp.exchangeKeeper.GetSpotMidPriceAndTOB(ctx, common.HexToHash(req.MarketId))
-
-		bz, err = json.Marshal(exchangetypes.QuerySpotMidPriceAndTOBResponse{
-			MidPrice:      midPrice,
-			BestBuyPrice:  bestBuyPrice,
-			BestSellPrice: bestSellPrice,
-		})
+		response, err := queryServer.SpotMidPriceAndTOB(ctx, query.SpotMarketMidPriceAndTOB)
+		if err != nil {
+			return json.Marshal(exchangetypes.QuerySpotMidPriceAndTOBResponse{})
+		}
+		return json.Marshal(response)
 	case query.DerivativeMarketMidPriceAndTOB != nil:
-		req := query.DerivativeMarketMidPriceAndTOB
-		midPrice, bestBuyPrice, bestSellPrice := qp.exchangeKeeper.GetDerivativeMidPriceAndTOB(ctx, common.HexToHash(req.MarketId))
-
-		bz, err = json.Marshal(exchangetypes.QueryDerivativeMidPriceAndTOBResponse{
-			MidPrice:      midPrice,
-			BestBuyPrice:  bestBuyPrice,
-			BestSellPrice: bestSellPrice,
-		})
+		response, err := queryServer.DerivativeMidPriceAndTOB(ctx, query.DerivativeMarketMidPriceAndTOB)
+		if err != nil {
+			return json.Marshal(exchangetypes.QueryDerivativeMidPriceAndTOBResponse{})
+		}
+		return json.Marshal(response)
 	case query.MarketAtomicExecutionFeeMultiplier != nil:
-		req := query.MarketAtomicExecutionFeeMultiplier
-		marketID := common.HexToHash(req.MarketId)
-		marketType, err := qp.exchangeKeeper.GetMarketType(ctx, marketID, true)
+		response, err := queryServer.MarketAtomicExecutionFeeMultiplier(ctx, query.MarketAtomicExecutionFeeMultiplier)
 		if err != nil {
 			return nil, err
 		}
-		multiplier := qp.exchangeKeeper.GetMarketAtomicExecutionFeeMultiplier(ctx, marketID, *marketType)
-		// nolint:all //tool is wrong, ofc this assignment is effectual
-		bz, err = json.Marshal(exchangetypes.QueryMarketAtomicExecutionFeeMultiplierResponse{
-			Multiplier: multiplier,
-		})
+		return json.Marshal(response)
 	case query.AggregateMarketVolume != nil:
-		req := query.AggregateMarketVolume
-		marketID := common.HexToHash(req.MarketId)
-		volume := qp.exchangeKeeper.GetMarketAggregateVolume(ctx, marketID)
-		res := &exchangetypes.QueryAggregateMarketVolumeResponse{
-			Volume: volume,
+		response, err := queryServer.AggregateMarketVolume(ctx, query.AggregateMarketVolume)
+		if err != nil {
+			return json.Marshal(exchangetypes.QueryAggregateMarketVolumeResponse{})
 		}
-		bz, err = json.Marshal(res)
+		return json.Marshal(response)
 	case query.AggregateAccountVolume != nil:
-		req := query.AggregateAccountVolume
-		if exchangetypes.IsHexHash(req.Account) {
-			subaccountID := common.HexToHash(req.Account)
-			volumes := qp.exchangeKeeper.GetAllSubaccountMarketAggregateVolumesBySubaccount(ctx, subaccountID)
-			res := &exchangetypes.QueryAggregateVolumeResponse{AggregateVolumes: volumes}
-			bz, err = json.Marshal(res)
-		} else {
-			accAddress, err2 := sdk.AccAddressFromBech32(req.Account)
-			if err2 != nil {
-				return nil, err2
-			}
-			volumes := qp.exchangeKeeper.GetAllSubaccountMarketAggregateVolumesByAccAddress(ctx, accAddress)
-			res := &exchangetypes.QueryAggregateVolumeResponse{
-				AggregateVolumes: volumes,
-			}
-			bz, err = json.Marshal(res)
+		response, err := queryServer.AggregateVolume(ctx, query.AggregateAccountVolume)
+		if err != nil {
+			return json.Marshal(exchangetypes.QueryAggregateVolumeResponse{})
 		}
+		return json.Marshal(response)
 	case query.DenomDecimal != nil:
-		var res *exchangetypes.QueryDenomDecimalResponse
-		res, err = qp.exchangeKeeper.DenomDecimal(ctx, query.DenomDecimal)
+		response, err := queryServer.DenomDecimal(ctx, query.DenomDecimal)
 		if err != nil {
-			return nil, err
+			return json.Marshal(exchangetypes.QueryDenomDecimalResponse{})
 		}
-		bz, err = json.Marshal(res)
+		return json.Marshal(response)
 	case query.DenomDecimals != nil:
-		var res *exchangetypes.QueryDenomDecimalsResponse
-		res, err = qp.exchangeKeeper.DenomDecimals(ctx, query.DenomDecimals)
+		response, err := queryServer.DenomDecimals(ctx, query.DenomDecimals)
 		if err != nil {
-			return nil, err
+			return json.Marshal(exchangetypes.QueryDenomDecimalsResponse{})
 		}
-		bz, err = json.Marshal(res)
+		return json.Marshal(response)
 	default:
 		return nil, wasmvmtypes.UnsupportedRequest{Kind: "unknown exchange query variant"}
 	}
-
-	if err != nil {
-		return nil, errors.Wrap(sdkerrors.ErrJSONMarshal, err.Error())
-	}
-
-	return bz, nil
 }
 
 func (qp QueryPlugin) HandleTokenFactoryQuery(ctx sdk.Context, queryData json.RawMessage) ([]byte, error) {
@@ -605,7 +528,7 @@ func (qp QueryPlugin) HandleTokenFactoryQuery(ctx sdk.Context, queryData json.Ra
 			return nil, err
 		}
 
-		bz, err = json.Marshal(&bindings.DenomAdminResponse{
+		return json.Marshal(&bindings.DenomAdminResponse{
 			Admin: metadata.Admin,
 		})
 	case query.DenomTotalSupply != nil:

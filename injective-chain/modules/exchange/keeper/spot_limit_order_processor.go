@@ -11,6 +11,7 @@ import (
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/keeper/ordermatching"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 )
 
 func (k *Keeper) getSpotLimitOrderbookIterator(ctx sdk.Context, marketID common.Hash, isBuy bool) storetypes.Iterator {
@@ -32,8 +33,8 @@ func (k *Keeper) getSpotLimitOrderbookIterator(ctx sdk.Context, marketID common.
 func (k *Keeper) getMatchedSpotLimitOrderClearingResults(
 	ctx sdk.Context,
 	marketID common.Hash,
-	transientBuyOrders []*types.SpotLimitOrder,
-	transientSellOrders []*types.SpotLimitOrder,
+	transientBuyOrders []*v2.SpotLimitOrder,
+	transientSellOrders []*v2.SpotLimitOrder,
 ) *ordermatching.SpotOrderbookMatchingResults {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
@@ -123,10 +124,10 @@ func (k *Keeper) getMatchedSpotLimitOrderClearingResults(
 
 func (k *Keeper) getMarketOrderStateExpansionsAndClearingPrice(
 	ctx sdk.Context,
-	market *types.SpotMarket,
+	market *v2.SpotMarket,
 	isMarketBuy bool,
-	marketOrders []*types.SpotMarketOrder,
-	pointsMultiplier types.PointsMultiplier,
+	marketOrders []*v2.SpotMarketOrder,
+	pointsMultiplier v2.PointsMultiplier,
 	feeDiscountConfig *FeeDiscountConfig,
 	takerFeeRate math.LegacyDec,
 ) (spotLimitOrderStateExpansions, spotMarketOrderStateExpansions []*spotOrderStateExpansion, clearingPrice, clearingQuantity math.LegacyDec) {
@@ -148,7 +149,7 @@ func (k *Keeper) getMarketOrderStateExpansionsAndClearingPrice(
 
 	// Determine matchable market orders and limit orders
 	for {
-		var buyOrder, sellOrder *types.PriceLevel
+		var buyOrder, sellOrder *v2.PriceLevel
 
 		if isMarketBuy {
 			buyOrder = marketOrderbook.Peek()
@@ -197,15 +198,15 @@ func (k *Keeper) GetFillableSpotLimitOrdersByMarketDirection(
 	marketID common.Hash,
 	isBuy bool,
 	maxQuantity math.LegacyDec,
-) (limitOrders []*types.SpotLimitOrder, clearingPrice, clearingQuantity math.LegacyDec) {
+) (limitOrders []*v2.SpotLimitOrder, clearingPrice, clearingQuantity math.LegacyDec) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	limitOrders = make([]*types.SpotLimitOrder, 0)
+	limitOrders = make([]*v2.SpotLimitOrder, 0)
 	clearingQuantity = math.LegacyZeroDec()
 	notional := math.LegacyZeroDec()
 
-	appendOrder := func(order *types.SpotLimitOrder) (stop bool) {
+	appendOrder := func(order *v2.SpotLimitOrder) (stop bool) {
 		// stop iterating if the quantity needed will be exhausted
 		if (clearingQuantity.Add(order.Fillable)).GTE(maxQuantity) {
 			neededQuantity := maxQuantity.Sub(clearingQuantity)

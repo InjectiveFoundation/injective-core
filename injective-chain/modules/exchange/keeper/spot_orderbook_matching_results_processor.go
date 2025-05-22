@@ -2,11 +2,12 @@ package keeper
 
 import (
 	"cosmossdk.io/math"
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/keeper/ordermatching"
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 	"github.com/InjectiveLabs/metrics"
 )
 
@@ -15,50 +16,75 @@ import (
 func (k *Keeper) processBothRestingSpotLimitOrderbookMatchingResults(
 	ctx sdk.Context,
 	o *ordermatching.SpotOrderbookMatchingResults,
-	marketID common.Hash,
+	market *v2.SpotMarket,
 	clearingPrice math.LegacyDec,
 	tradeFeeRate, relayerFeeShareRate math.LegacyDec,
 	baseDenomDepositDeltas types.DepositDeltas,
 	quoteDenomDepositDeltas types.DepositDeltas,
-	pointsMultiplier types.PointsMultiplier,
+	pointsMultiplier v2.PointsMultiplier,
 	feeDiscountConfig *FeeDiscountConfig,
 ) (
-	limitBuyRestingOrderBatchEvent *types.EventBatchSpotExecution,
-	limitSellRestingOrderBatchEvent *types.EventBatchSpotExecution,
-	filledDeltas []*types.SpotLimitOrderDelta,
+	limitBuyRestingOrderBatchEvent *v2.EventBatchSpotExecution,
+	limitSellRestingOrderBatchEvent *v2.EventBatchSpotExecution,
+	filledDeltas []*SpotLimitOrderDelta,
 	tradingRewardPoints types.TradingRewardPoints,
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
+	marketID := market.MarketID()
+
 	var spotLimitBuyOrderStateExpansions, spotLimitSellOrderStateExpansions []*spotOrderStateExpansion
 	var buyTradingRewards, sellTradingRewards types.TradingRewardPoints
-	var currFilledDeltas []*types.SpotLimitOrderDelta
+	var currFilledDeltas []*SpotLimitOrderDelta
 
-	filledDeltas = make([]*types.SpotLimitOrderDelta, 0)
+	filledDeltas = make([]*SpotLimitOrderDelta, 0)
 
 	if o.RestingBuyOrderbookFills != nil {
 		orderbookFills := o.GetOrderbookFills(ordermatching.RestingLimitBuy)
-		spotLimitBuyOrderStateExpansions = k.processRestingSpotLimitOrderExpansions(ctx, marketID, orderbookFills, true, clearingPrice, tradeFeeRate, relayerFeeShareRate, pointsMultiplier, feeDiscountConfig)
+		spotLimitBuyOrderStateExpansions = k.processRestingSpotLimitOrderExpansions(
+			ctx,
+			marketID,
+			orderbookFills,
+			true,
+			clearingPrice,
+			tradeFeeRate,
+			relayerFeeShareRate,
+			pointsMultiplier,
+			feeDiscountConfig,
+		)
+
 		// Process limit order events and filledDeltas
 		limitBuyRestingOrderBatchEvent, currFilledDeltas, buyTradingRewards = GetBatchExecutionEventsFromSpotLimitOrderStateExpansions(
 			true,
-			marketID,
-			types.ExecutionType_LimitMatchRestingOrder,
+			market,
+			v2.ExecutionType_LimitMatchRestingOrder,
 			spotLimitBuyOrderStateExpansions,
 			baseDenomDepositDeltas, quoteDenomDepositDeltas,
 		)
+
 		filledDeltas = append(filledDeltas, currFilledDeltas...)
 	}
 
 	if o.RestingSellOrderbookFills != nil {
 		orderbookFills := o.GetOrderbookFills(ordermatching.RestingLimitSell)
-		spotLimitSellOrderStateExpansions = k.processRestingSpotLimitOrderExpansions(ctx, marketID, orderbookFills, false, clearingPrice, tradeFeeRate, relayerFeeShareRate, pointsMultiplier, feeDiscountConfig)
+		spotLimitSellOrderStateExpansions = k.processRestingSpotLimitOrderExpansions(
+			ctx,
+			marketID,
+			orderbookFills,
+			false,
+			clearingPrice,
+			tradeFeeRate,
+			relayerFeeShareRate,
+			pointsMultiplier,
+			feeDiscountConfig,
+		)
+
 		// Process limit order events and filledDeltas
 		limitSellRestingOrderBatchEvent, currFilledDeltas, sellTradingRewards = GetBatchExecutionEventsFromSpotLimitOrderStateExpansions(
 			false,
-			marketID,
-			types.ExecutionType_LimitMatchRestingOrder,
+			market,
+			v2.ExecutionType_LimitMatchRestingOrder,
 			spotLimitSellOrderStateExpansions,
 			baseDenomDepositDeltas, quoteDenomDepositDeltas,
 		)
@@ -74,18 +100,17 @@ func (k *Keeper) processBothRestingSpotLimitOrderbookMatchingResults(
 func (k *Keeper) processBothTransientSpotLimitOrderbookMatchingResults(
 	ctx sdk.Context,
 	o *ordermatching.SpotOrderbookMatchingResults,
-	marketID common.Hash,
+	market *v2.SpotMarket,
 	clearingPrice math.LegacyDec,
 	makerFeeRate, takerFeeRate, relayerFeeShareRate math.LegacyDec,
-	baseDenomDepositDeltas types.DepositDeltas,
-	quoteDenomDepositDeltas types.DepositDeltas,
-	pointsMultiplier types.PointsMultiplier,
+	baseDenomDepositDeltas, quoteDenomDepositDeltas types.DepositDeltas,
+	pointsMultiplier v2.PointsMultiplier,
 	feeDiscountConfig *FeeDiscountConfig,
 ) (
-	limitBuyNewOrderBatchEvent *types.EventBatchSpotExecution,
-	limitSellNewOrderBatchEvent *types.EventBatchSpotExecution,
-	newRestingBuySpotLimitOrders []*types.SpotLimitOrder,
-	newRestingSellSpotLimitOrders []*types.SpotLimitOrder,
+	limitBuyNewOrderBatchEvent *v2.EventBatchSpotExecution,
+	limitSellNewOrderBatchEvent *v2.EventBatchSpotExecution,
+	newRestingBuySpotLimitOrders []*v2.SpotLimitOrder,
+	newRestingSellSpotLimitOrders []*v2.SpotLimitOrder,
 	tradingRewardPoints types.TradingRewardPoints,
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
@@ -96,22 +121,43 @@ func (k *Keeper) processBothTransientSpotLimitOrderbookMatchingResults(
 	var sellTradingRewards types.TradingRewardPoints
 
 	if o.TransientBuyOrderbookFills != nil {
-		expansions, newRestingBuySpotLimitOrders = k.processTransientSpotLimitBuyOrderbookMatchingResults(ctx, marketID, o, clearingPrice, makerFeeRate, takerFeeRate, relayerFeeShareRate, pointsMultiplier, feeDiscountConfig)
+		expansions, newRestingBuySpotLimitOrders = k.processTransientSpotLimitBuyOrderbookMatchingResults(
+			ctx,
+			market.MarketID(),
+			o,
+			clearingPrice,
+			makerFeeRate,
+			takerFeeRate,
+			relayerFeeShareRate,
+			pointsMultiplier,
+			feeDiscountConfig,
+		)
+
 		limitBuyNewOrderBatchEvent, _, buyTradingRewards = GetBatchExecutionEventsFromSpotLimitOrderStateExpansions(
 			true,
-			marketID,
-			types.ExecutionType_LimitMatchNewOrder,
+			market,
+			v2.ExecutionType_LimitMatchNewOrder,
 			expansions,
 			baseDenomDepositDeltas, quoteDenomDepositDeltas,
 		)
 	}
 
 	if o.TransientSellOrderbookFills != nil {
-		expansions, newRestingSellSpotLimitOrders = k.processTransientSpotLimitSellOrderbookMatchingResults(ctx, marketID, o, clearingPrice, takerFeeRate, relayerFeeShareRate, pointsMultiplier, feeDiscountConfig)
+		expansions, newRestingSellSpotLimitOrders = k.processTransientSpotLimitSellOrderbookMatchingResults(
+			ctx,
+			market.MarketID(),
+			o,
+			clearingPrice,
+			takerFeeRate,
+			relayerFeeShareRate,
+			pointsMultiplier,
+			feeDiscountConfig,
+		)
+
 		limitSellNewOrderBatchEvent, _, sellTradingRewards = GetBatchExecutionEventsFromSpotLimitOrderStateExpansions(
 			false,
-			marketID,
-			types.ExecutionType_LimitMatchNewOrder,
+			market,
+			v2.ExecutionType_LimitMatchNewOrder,
 			expansions,
 			baseDenomDepositDeltas, quoteDenomDepositDeltas,
 		)
@@ -127,15 +173,15 @@ func (k *Keeper) processTransientSpotLimitBuyOrderbookMatchingResults(
 	o *ordermatching.SpotOrderbookMatchingResults,
 	clearingPrice math.LegacyDec,
 	makerFeeRate, takerFeeRate, relayerFeeShare math.LegacyDec,
-	pointsMultiplier types.PointsMultiplier,
+	pointsMultiplier v2.PointsMultiplier,
 	feeDiscountConfig *FeeDiscountConfig,
-) ([]*spotOrderStateExpansion, []*types.SpotLimitOrder) {
+) ([]*spotOrderStateExpansion, []*v2.SpotLimitOrder) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	orderbookFills := o.TransientBuyOrderbookFills
 	stateExpansions := make([]*spotOrderStateExpansion, len(orderbookFills.Orders))
-	newRestingOrders := make([]*types.SpotLimitOrder, 0, len(orderbookFills.Orders))
+	newRestingOrders := make([]*v2.SpotLimitOrder, 0, len(orderbookFills.Orders))
 
 	for idx, order := range orderbookFills.Orders {
 		fillQuantity := math.LegacyZeroDec()
@@ -168,16 +214,16 @@ func (k *Keeper) processTransientSpotLimitSellOrderbookMatchingResults(
 	o *ordermatching.SpotOrderbookMatchingResults,
 	clearingPrice math.LegacyDec,
 	takerFeeRate, relayerFeeShare math.LegacyDec,
-	pointsMultiplier types.PointsMultiplier,
+	pointsMultiplier v2.PointsMultiplier,
 	feeDiscountConfig *FeeDiscountConfig,
-) ([]*spotOrderStateExpansion, []*types.SpotLimitOrder) {
+) ([]*spotOrderStateExpansion, []*v2.SpotLimitOrder) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	orderbookFills := o.TransientSellOrderbookFills
 
 	stateExpansions := make([]*spotOrderStateExpansion, len(orderbookFills.Orders))
-	newRestingOrders := make([]*types.SpotLimitOrder, 0, len(orderbookFills.Orders))
+	newRestingOrders := make([]*v2.SpotLimitOrder, 0, len(orderbookFills.Orders))
 
 	for idx, order := range orderbookFills.Orders {
 		fillQuantity, fillPrice := orderbookFills.FillQuantities[idx], order.OrderInfo.Price

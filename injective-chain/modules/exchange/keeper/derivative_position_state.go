@@ -4,13 +4,12 @@ import (
 	"bytes"
 	"sort"
 
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 	"github.com/ethereum/go-ethereum/common"
-
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 )
 
 type PositionState struct {
-	Position *types.Position
+	Position *v2.Position
 }
 
 func NewPositionStates() map[common.Hash]*PositionState {
@@ -18,7 +17,7 @@ func NewPositionStates() map[common.Hash]*PositionState {
 }
 
 // ApplyFundingAndGetUpdatedPositionState updates the position to account for any funding payment and returns a PositionState.
-func ApplyFundingAndGetUpdatedPositionState(p *types.Position, funding *types.PerpetualMarketFunding) *PositionState {
+func ApplyFundingAndGetUpdatedPositionState(p *v2.Position, funding *v2.PerpetualMarketFunding) *PositionState {
 	p.ApplyFunding(funding)
 	positionState := &PositionState{
 		Position: p,
@@ -37,9 +36,9 @@ func GetSortedSubaccountKeys(p map[common.Hash]*PositionState) []common.Hash {
 	return subaccountKeys
 }
 
-func GetPositionSliceData(p map[common.Hash]*PositionState) ([]*types.Position, []common.Hash) {
+func GetPositionSliceData(p map[common.Hash]*PositionState) ([]*v2.Position, []common.Hash) {
 	positionSubaccountIDs := GetSortedSubaccountKeys(p)
-	positions := make([]*types.Position, 0, len(positionSubaccountIDs))
+	positions := make([]*v2.Position, 0, len(positionSubaccountIDs))
 
 	nonNilPositionSubaccountIDs := make([]common.Hash, 0)
 	for idx := range positionSubaccountIDs {

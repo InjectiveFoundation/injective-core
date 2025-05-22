@@ -2,22 +2,20 @@ package ordermatching
 
 import (
 	"cosmossdk.io/math"
-
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 )
 
 type SpotMarketOrderbook struct {
 	notional      math.LegacyDec
 	totalQuantity math.LegacyDec
 
-	orders         []*types.SpotMarketOrder
+	orders         []*v2.SpotMarketOrder
 	fillQuantities []math.LegacyDec
 	orderIdx       int
 }
 
-func NewSpotMarketOrderbook(
-	spotMarketOrders []*types.SpotMarketOrder,
-) *SpotMarketOrderbook {
+func NewSpotMarketOrderbook(spotMarketOrders []*v2.SpotMarketOrder) *SpotMarketOrderbook {
 	if len(spotMarketOrders) == 0 {
 		return nil
 	}
@@ -43,7 +41,7 @@ func (b *SpotMarketOrderbook) GetNotional() math.LegacyDec                  { re
 func (b *SpotMarketOrderbook) GetTotalQuantityFilled() math.LegacyDec       { return b.totalQuantity }
 func (b *SpotMarketOrderbook) GetOrderbookFillQuantities() []math.LegacyDec { return b.fillQuantities }
 func (b *SpotMarketOrderbook) Done() bool                                   { return b.orderIdx == len(b.orders) }
-func (b *SpotMarketOrderbook) Peek() *types.PriceLevel {
+func (b *SpotMarketOrderbook) Peek() *v2.PriceLevel {
 	if b.Done() {
 		return nil
 	}
@@ -53,7 +51,7 @@ func (b *SpotMarketOrderbook) Peek() *types.PriceLevel {
 		return b.Peek()
 	}
 
-	return &types.PriceLevel{
+	return &v2.PriceLevel{
 		Price:    b.orders[b.orderIdx].OrderInfo.Price,
 		Quantity: b.orders[b.orderIdx].OrderInfo.Quantity.Sub(b.fillQuantities[b.orderIdx]),
 	}

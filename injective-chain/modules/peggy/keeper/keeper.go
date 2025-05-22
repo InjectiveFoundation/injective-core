@@ -61,12 +61,10 @@ func NewKeeper(
 	bankKeeper types.BankKeeper,
 	slashingKeeper types.SlashingKeeper,
 	distKeeper distrkeeper.Keeper,
-	exchangeKeeper exchangekeeper.Keeper,
+	exchangeKeeper *exchangekeeper.Keeper,
 	authority string,
 	accountKeeper keeper.AccountKeeper,
 ) Keeper {
-	exchangeMsgServer := exchangekeeper.NewMsgServerImpl(&exchangeKeeper)
-
 	k := Keeper{
 		cdc:               cdc,
 		storeKey:          storeKey,
@@ -74,7 +72,7 @@ func NewKeeper(
 		bankKeeper:        bankKeeper,
 		DistKeeper:        distKeeper,
 		SlashingKeeper:    slashingKeeper,
-		exchangeMsgServer: exchangeMsgServer,
+		exchangeMsgServer: exchangekeeper.NewV1MsgServerImpl(exchangeKeeper, exchangekeeper.NewMsgServerImpl(exchangeKeeper)),
 		authority:         authority,
 		svcTags: metrics.Tags{
 			"svc": "peggy_k",
@@ -969,4 +967,60 @@ func (k *Keeper) CreateModuleAccount(ctx sdk.Context) {
 	baseAcc := authtypes.NewEmptyModuleAccount(types.ModuleName, authtypes.Minter, authtypes.Burner)
 	moduleAcc := (k.accountKeeper.NewAccount(ctx, baseAcc)).(sdk.ModuleAccountI) // set the account number
 	k.accountKeeper.SetModuleAccount(ctx, moduleAcc)
+}
+
+// ResetPeggyModuleState is triggered whenever the Peggy.sol contract has moved to another network making
+// (most) of the module state obsolete. Valset Updates are preserved since that's coming from Peggy to Ethereum
+func (k *Keeper) ResetPeggyModuleState(ctx sdk.Context, params *types.Params) error {
+	height := params.GetBridgeContractStartHeight()
+
+	// 1. update last observed claims for all validators
+	err := k.StakingKeeper.IterateValidators(ctx, func(_ int64, validator stakingtypes.ValidatorI) (stop bool) {
+		v, _ := sdk.ValAddressFromBech32(validator.GetOperator())
+
+		// 1. update last observed claims for all validators
+		if validator.IsBonded() {
+			// Any bonded validator must have orchestrator running, so we're ensuring they are aware
+			// of the new contract start height
+			k.setLastEventByValidator(ctx, v, 0, height)
+		} else {
+			// once validator bonds again, their last claim will be initialized by peggy hook
+			k.setLastEventByValidator(ctx, v, 0, 0)
+		}
+
+		return false
+	})
+	if err != nil {
+		return err
+	}
+
+	// 2. cancel all batches in outgoing pool
+	// (regardless if they might be executed because we're changing Eth networks)
+	for _, batch := range k.GetOutgoingTxBatches(ctx) {
+		// can't error
+		_ = k.CancelOutgoingTXBatch(ctx, common.HexToAddress(batch.TokenContract), batch.BatchNonce)
+	}
+
+	// 3. cancel all withdrawals (old peggy denoms are unusable)
+	for _, tx := range k.GetPoolTransactions(ctx) {
+		// can't error
+		_ = k.RemoveFromOutgoingPoolAndRefund(ctx, tx.Id, sdk.MustAccAddressFromBech32(tx.Sender))
+	}
+
+	// 4. remove all attestations
+	attestationsMapping := k.GetAttestationMapping(ctx)
+
+	sortedNonces := make([]uint64, 0, len(attestationsMapping))
+	for k := range attestationsMapping {
+		sortedNonces = append(sortedNonces, k)
+	}
+	sort.SliceStable(sortedNonces, func(i, j int) bool { return sortedNonces[i] < sortedNonces[j] })
+
+	for _, nonce := range sortedNonces {
+		for _, attestation := range attestationsMapping[nonce] {
+			k.DeleteAttestation(ctx, attestation)
+		}
+	}
+
+	return nil
 }

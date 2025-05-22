@@ -2,11 +2,12 @@ package keeper
 
 import (
 	"cosmossdk.io/math"
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 	"github.com/InjectiveLabs/metrics"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/keeper/ordermatching"
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 )
 
 func (k *Keeper) ExecuteSpotLimitOrderMatching(
@@ -41,10 +42,10 @@ func (k *Keeper) ExecuteSpotLimitOrderMatching(
 
 func (k *Keeper) GetSpotLimitMatchingBatchExecutionData(
 	ctx sdk.Context,
-	market *types.SpotMarket,
+	market *v2.SpotMarket,
 	orderbookResults *ordermatching.SpotOrderbookMatchingResults,
 	clearingPrice math.LegacyDec,
-	pointsMultiplier types.PointsMultiplier,
+	pointsMultiplier v2.PointsMultiplier,
 	feeDiscountConfig *FeeDiscountConfig,
 ) *SpotBatchExecutionData {
 	// Initialize map DepositKey subaccountID => Deposit Delta (availableBalanceDelta, totalDepositsDelta)
@@ -54,7 +55,7 @@ func (k *Keeper) GetSpotLimitMatchingBatchExecutionData(
 	limitBuyRestingOrderBatchEvent, limitSellRestingOrderBatchEvent, filledDeltas, restingTradingRewards := k.processBothRestingSpotLimitOrderbookMatchingResults(
 		ctx,
 		orderbookResults,
-		market.MarketID(),
+		market,
 		clearingPrice,
 		market.MakerFeeRate,
 		market.RelayerFeeShareRate,
@@ -68,7 +69,7 @@ func (k *Keeper) GetSpotLimitMatchingBatchExecutionData(
 	limitBuyNewOrderBatchEvent, limitSellNewOrderBatchEvent, newRestingBuySpotLimitOrders, newRestingSellSpotLimitOrders, transientTradingRewards := k.processBothTransientSpotLimitOrderbookMatchingResults(
 		ctx,
 		orderbookResults,
-		market.MarketID(),
+		market,
 		clearingPrice,
 		market.MakerFeeRate,
 		market.TakerFeeRate,
@@ -79,7 +80,7 @@ func (k *Keeper) GetSpotLimitMatchingBatchExecutionData(
 		feeDiscountConfig,
 	)
 
-	eventBatchSpotExecution := make([]*types.EventBatchSpotExecution, 0)
+	eventBatchSpotExecution := make([]*v2.EventBatchSpotExecution, 0)
 
 	if limitBuyRestingOrderBatchEvent != nil {
 		eventBatchSpotExecution = append(eventBatchSpotExecution, limitBuyRestingOrderBatchEvent)
@@ -116,7 +117,7 @@ func (k *Keeper) GetSpotLimitMatchingBatchExecutionData(
 	}
 
 	if len(newRestingBuySpotLimitOrders) > 0 || len(newRestingSellSpotLimitOrders) > 0 {
-		batch.NewOrdersEvent = &types.EventNewSpotOrders{
+		batch.NewOrdersEvent = &v2.EventNewSpotOrders{
 			MarketId:   market.MarketId,
 			BuyOrders:  newRestingBuySpotLimitOrders,
 			SellOrders: newRestingSellSpotLimitOrders,
@@ -125,7 +126,12 @@ func (k *Keeper) GetSpotLimitMatchingBatchExecutionData(
 	return batch
 }
 
-func (k *Keeper) PersistSpotMatchingExecution(ctx sdk.Context, batchSpotMatchingExecutionData []*SpotBatchExecutionData, spotVwapData SpotVwapInfo, tradingRewardPoints types.TradingRewardPoints) types.TradingRewardPoints {
+func (k *Keeper) PersistSpotMatchingExecution(
+	ctx sdk.Context,
+	batchSpotMatchingExecutionData []*SpotBatchExecutionData,
+	spotVwapData SpotVwapInfo,
+	tradingRewardPoints types.TradingRewardPoints,
+) types.TradingRewardPoints {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
@@ -168,8 +174,7 @@ func (k *Keeper) PersistSpotMatchingExecution(ctx sdk.Context, batchSpotMatching
 				)
 			}
 
-			// nolint:errcheck //ignored on purpose
-			ctx.EventManager().EmitTypedEvent(execution.NewOrdersEvent)
+			k.EmitEvent(ctx, execution.NewOrdersEvent)
 		}
 
 		for _, limitOrderDelta := range execution.LimitOrderFilledDeltas {
@@ -179,8 +184,7 @@ func (k *Keeper) PersistSpotMatchingExecution(ctx sdk.Context, batchSpotMatching
 		for idx := range execution.LimitOrderExecutionEvent {
 			if execution.LimitOrderExecutionEvent[idx] != nil {
 				tradeEvent := execution.LimitOrderExecutionEvent[idx]
-				// nolint:errcheck //ignored on purpose
-				ctx.EventManager().EmitTypedEvent(tradeEvent)
+				k.EmitEvent(ctx, tradeEvent)
 			}
 		}
 

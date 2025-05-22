@@ -6,11 +6,12 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 	"github.com/InjectiveLabs/metrics"
 )
 
 // GetCampaignRewardPendingPool fetches the trading reward pool corresponding to a given start timestamp.
-func (k *Keeper) GetCampaignRewardPendingPool(ctx sdk.Context, startTimestamp int64) *types.CampaignRewardPool {
+func (k *Keeper) GetCampaignRewardPendingPool(ctx sdk.Context, startTimestamp int64) *v2.CampaignRewardPool {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
@@ -20,7 +21,7 @@ func (k *Keeper) GetCampaignRewardPendingPool(ctx sdk.Context, startTimestamp in
 		return nil
 	}
 
-	var rewardPool types.CampaignRewardPool
+	var rewardPool v2.CampaignRewardPool
 	k.cdc.MustUnmarshal(bz, &rewardPool)
 	return &rewardPool
 }
@@ -35,7 +36,7 @@ func (k *Keeper) DeleteCampaignRewardPendingPool(ctx sdk.Context, startTimestamp
 }
 
 // SetCampaignRewardPendingPool sets the trading reward pool corresponding to a given start timestamp.
-func (k *Keeper) SetCampaignRewardPendingPool(ctx sdk.Context, rewardPool *types.CampaignRewardPool) {
+func (k *Keeper) SetCampaignRewardPendingPool(ctx sdk.Context, rewardPool *v2.CampaignRewardPool) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
@@ -45,27 +46,25 @@ func (k *Keeper) SetCampaignRewardPendingPool(ctx sdk.Context, rewardPool *types
 }
 
 // GetAllCampaignRewardPendingPools gets all campaign reward pools
-func (k *Keeper) GetAllCampaignRewardPendingPools(ctx sdk.Context) []*types.CampaignRewardPool {
+func (k *Keeper) GetAllCampaignRewardPendingPools(ctx sdk.Context) []*v2.CampaignRewardPool {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	rewardPools := make([]*types.CampaignRewardPool, 0)
-
-	appendPool := func(pool *types.CampaignRewardPool) (stop bool) {
+	rewardPools := make([]*v2.CampaignRewardPool, 0)
+	k.IterateCampaignRewardPendingPools(ctx, false, func(pool *v2.CampaignRewardPool) (stop bool) {
 		rewardPools = append(rewardPools, pool)
 		return false
-	}
+	})
 
-	k.IterateCampaignRewardPendingPools(ctx, false, appendPool)
 	return rewardPools
 }
 
 // GetFirstCampaignRewardPendingPool gets the first campaign reward pool.
-func (k *Keeper) GetFirstCampaignRewardPendingPool(ctx sdk.Context) (rewardPool *types.CampaignRewardPool) {
+func (k *Keeper) GetFirstCampaignRewardPendingPool(ctx sdk.Context) (rewardPool *v2.CampaignRewardPool) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	appendPool := func(pool *types.CampaignRewardPool) (stop bool) {
+	appendPool := func(pool *v2.CampaignRewardPool) (stop bool) {
 		rewardPool = pool
 		return true
 	}
@@ -78,27 +77,27 @@ func (k *Keeper) GetFirstCampaignRewardPendingPool(ctx sdk.Context) (rewardPool 
 func (k *Keeper) IterateCampaignRewardPendingPools(
 	ctx sdk.Context,
 	shouldReverseIterate bool,
-	process func(*types.CampaignRewardPool) (stop bool),
+	process func(*v2.CampaignRewardPool) (stop bool),
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	store := k.getStore(ctx)
-
 	rewardPoolStore := prefix.NewStore(store, types.TradingRewardCampaignRewardPendingPoolPrefix)
 
-	var iterator storetypes.Iterator
+	var iter storetypes.Iterator
 	if shouldReverseIterate {
-		iterator = rewardPoolStore.ReverseIterator(nil, nil)
+		iter = rewardPoolStore.ReverseIterator(nil, nil)
 	} else {
-		iterator = rewardPoolStore.Iterator(nil, nil)
+		iter = rewardPoolStore.Iterator(nil, nil)
 	}
-	defer iterator.Close()
 
-	for ; iterator.Valid(); iterator.Next() {
-		var pool types.CampaignRewardPool
-		bz := iterator.Value()
-		k.cdc.MustUnmarshal(bz, &pool)
+	defer iter.Close()
+
+	for ; iter.Valid(); iter.Next() {
+		var pool v2.CampaignRewardPool
+		k.cdc.MustUnmarshal(iter.Value(), &pool)
+
 		if process(&pool) {
 			return
 		}

@@ -20,7 +20,7 @@ import (
 
 	tmcmd "github.com/cometbft/cometbft/cmd/cometbft/commands"
 	tmcfg "github.com/cometbft/cometbft/config"
-	tmcli "github.com/cometbft/cometbft/libs/cli"
+	cmcli "github.com/cometbft/cometbft/libs/cli"
 
 	"cosmossdk.io/log"
 	"cosmossdk.io/math"
@@ -53,7 +53,6 @@ import (
 	"github.com/cosmos/cosmos-sdk/x/genutil"
 	genutilcli "github.com/cosmos/cosmos-sdk/x/genutil/client/cli"
 	genutiltypes "github.com/cosmos/cosmos-sdk/x/genutil/types"
-	rosettaCmd "github.com/cosmos/rosetta/cmd"
 
 	"github.com/CosmWasm/wasmd/x/wasm"
 	wasmcli "github.com/CosmWasm/wasmd/x/wasm/client/cli"
@@ -144,7 +143,6 @@ func NewRootCmd() *cobra.Command {
 
 	initRootCmd(rootCmd, encodingConfig.TxConfig, tempApp.BasicModuleManager, encodingConfig)
 
-	// add keyring to autocli opts
 	autoCliOpts := tempApp.AutoCliOpts()
 	initClientCtx, _ = config.ReadDefaultValuesFromDefaultClientConfig(initClientCtx)
 	autoCliOpts.ClientCtx = initClientCtx
@@ -172,7 +170,7 @@ func Execute(rootCmd *cobra.Command) error {
 	rootCmd.PersistentFlags().String("log-format", tmcfg.LogFormatPlain, "The logging format (json|plain)")
 	rootCmd.PersistentFlags().Bool("log-color", true, "Enable log output coloring")
 
-	executor := tmcli.PrepareBaseCmd(rootCmd, "", app.DefaultNodeHome)
+	executor := cmcli.PrepareBaseCmd(rootCmd, "", app.DefaultNodeHome)
 	return executor.ExecuteContext(ctx)
 }
 
@@ -225,6 +223,8 @@ func initRootCmd(
 		sdkserver.NewRollbackCmd(newApp, app.DefaultNodeHome),
 	)
 
+	rootCmd.AddCommand(bootstrapDevnetStateCmd(app.NewDevnetApp))
+
 	wasmcli.ExtendUnsafeResetAllCmd(rootCmd)
 
 	// add keybase, auxiliary RPC, query, genesis, and tx child commands
@@ -235,8 +235,6 @@ func initRootCmd(
 		txCommand(),
 		chainclient.KeyCommands(app.DefaultNodeHome),
 	)
-
-	rootCmd.AddCommand(rosettaCmd.RosettaCommand(ec.InterfaceRegistry, ec.Codec))
 }
 
 func AddModuleInitFlags(startCmd *cobra.Command) {
@@ -381,9 +379,9 @@ func newApp(logger log.Logger, db dbm.DB, traceStore io.Writer, appOpts serverty
 		baseapp.SetTrace(cast.ToBool(appOpts.Get(sdkserver.FlagTrace))),
 		baseapp.SetIndexEvents(cast.ToStringSlice(appOpts.Get(sdkserver.FlagIndexEvents))),
 		baseapp.SetSnapshot(snapshotStore, snapshotOptions),
-		baseapp.SetCommitSync(cast.ToBool(appOpts.Get(FlagMultiStoreCommitSync))),
 		baseapp.SetIAVLCacheSize(cast.ToInt(appOpts.Get(FlagIAVLCacheSize))),
 		baseapp.SetIAVLDisableFastNode(cast.ToBool(appOpts.Get(sdkserver.FlagDisableIAVLFastNode))),
+		baseapp.SetIAVLSyncPruning(cast.ToBool(appOpts.Get(sdkserver.FlagIAVLSyncPruning))),
 		baseapp.SetChainID(chainID),
 	}
 

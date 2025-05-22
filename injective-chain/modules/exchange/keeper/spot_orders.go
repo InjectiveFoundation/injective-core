@@ -6,24 +6,24 @@ import (
 	"cosmossdk.io/math"
 	"cosmossdk.io/store/prefix"
 	storetypes "cosmossdk.io/store/types"
+	"github.com/InjectiveLabs/metrics"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/InjectiveLabs/metrics"
-
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 )
 
 func (k *Keeper) GetAllStandardizedSpotLimitOrdersByMarketDirection(
 	ctx sdk.Context,
 	marketID common.Hash,
 	isBuy bool,
-) (orders []*types.TrimmedLimitOrder) {
+) (orders []*v2.TrimmedLimitOrder) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	orders = make([]*types.TrimmedLimitOrder, 0)
-	appendOrder := func(order *types.SpotLimitOrder) (stop bool) {
+	orders = make([]*v2.TrimmedLimitOrder, 0)
+	appendOrder := func(order *v2.SpotLimitOrder) (stop bool) {
 		orders = append(orders, order.ToStandardized())
 		return false
 	}
@@ -35,7 +35,7 @@ func (k *Keeper) GetAllStandardizedSpotLimitOrdersByMarketDirection(
 // SetNewSpotLimitOrder stores SpotLimitOrder and order index in keeper.
 func (k *Keeper) SetNewSpotLimitOrder(
 	ctx sdk.Context,
-	order *types.SpotLimitOrder,
+	order *v2.SpotLimitOrder,
 	marketID common.Hash,
 	isBuy bool,
 	orderHash common.Hash,
@@ -60,75 +60,24 @@ func (k *Keeper) SetNewSpotLimitOrder(
 	// update the orderbook metadata
 	k.IncrementOrderbookPriceLevelQuantity(ctx, marketID, isBuy, true, order.GetPrice(), order.GetFillable())
 
+	if order.ExpirationBlock > 0 {
+		orderData := &v2.OrderData{
+			MarketId:     marketID.Hex(),
+			SubaccountId: order.SubaccountID().Hex(),
+			OrderHash:    order.Hash().Hex(),
+			Cid:          order.Cid(),
+		}
+		k.AppendOrderExpirations(ctx, marketID, order.ExpirationBlock, orderData)
+	}
+
 	// set the cid
 	k.setCid(ctx, false, order.SubaccountID(), order.Cid(), marketID, isBuy, orderHash)
-}
-
-// SetConditionalSpotMarketOrder stores conditional order in a store
-func (k *Keeper) SetConditionalSpotMarketOrder(
-	ctx sdk.Context,
-	order *types.SpotMarketOrder,
-	marketID common.Hash,
-	markPrice math.LegacyDec,
-) {
-	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
-	defer doneFn()
-
-	store := k.getStore(ctx)
-	ordersStore := prefix.NewStore(store, types.SpotConditionalMarketOrdersPrefix)
-	ordersIndexStore := prefix.NewStore(store, types.SpotConditionalMarketOrdersIndexPrefix)
-
-	var (
-		subaccountID = order.SubaccountID()
-		isHigher     = order.TriggerPrice.GT(markPrice)
-		triggerPrice = *order.TriggerPrice
-		orderHash    = order.Hash()
-	)
-
-	priceKey := types.GetConditionalOrderByTriggerPriceKeyPrefix(marketID, isHigher, triggerPrice, orderHash)
-	subaccountIndexKey := types.GetLimitOrderIndexKey(marketID, isHigher, subaccountID, orderHash)
-
-	orderBz := k.cdc.MustMarshal(order)
-	ordersIndexStore.Set(subaccountIndexKey, triggerPrice.BigInt().Bytes())
-	ordersStore.Set(priceKey, orderBz)
-
-	k.setCid(ctx, false, order.SubaccountID(), order.Cid(), marketID, order.IsBuy(), orderHash)
-}
-
-func (k *Keeper) SetConditionalSpotLimitOrder(
-	ctx sdk.Context,
-	order *types.SpotLimitOrder,
-	marketID common.Hash,
-	markPrice math.LegacyDec,
-) {
-	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
-	defer doneFn()
-
-	store := k.getStore(ctx)
-	ordersStore := prefix.NewStore(store, types.SpotConditionalLimitOrdersPrefix)
-	ordersIndexStore := prefix.NewStore(store, types.SpotConditionalLimitOrdersIndexPrefix)
-
-	var (
-		subaccountID = order.SubaccountID()
-		isHigher     = order.TriggerPrice.GT(markPrice)
-		triggerPrice = *order.TriggerPrice
-		orderHash    = order.Hash()
-	)
-
-	priceKey := types.GetConditionalOrderByTriggerPriceKeyPrefix(marketID, isHigher, triggerPrice, orderHash)
-	subaccountIndexKey := types.GetLimitOrderIndexKey(marketID, isHigher, subaccountID, orderHash)
-
-	orderBz := k.cdc.MustMarshal(order)
-	ordersIndexStore.Set(subaccountIndexKey, triggerPrice.BigInt().Bytes())
-	ordersStore.Set(priceKey, orderBz)
-
-	k.setCid(ctx, false, order.SubaccountID(), order.Cid(), marketID, order.IsBuy(), orderHash)
 }
 
 // CancelAllSpotLimitOrders cancels all resting and transient spot limit orders for a given subaccount and marketID.
 func (k *Keeper) CancelAllSpotLimitOrders(
 	ctx sdk.Context,
-	market *types.SpotMarket,
+	market *v2.SpotMarket,
 	subaccountID common.Hash,
 	marketID common.Hash,
 ) {
@@ -160,16 +109,16 @@ func (k *Keeper) CancelAllSpotLimitOrders(
 // CancelAllRestingLimitOrdersFromSpotMarket cancels all resting and transient spot limit orders for a marketID.
 func (k *Keeper) CancelAllRestingLimitOrdersFromSpotMarket(
 	ctx sdk.Context,
-	market *types.SpotMarket,
+	market *v2.SpotMarket,
 	marketID common.Hash,
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	cancelFunc := func(order *types.SpotLimitOrder) bool {
+	cancelFunc := func(order *v2.SpotLimitOrder) bool {
 		err := k.cancelSpotLimitOrderByOrderHash(ctx, order.SubaccountID(), order.Hash(), market, marketID)
 		if err != nil {
-			_ = ctx.EventManager().EmitTypedEvent(types.NewEventOrderCancelFail(marketID, order.SubaccountID(), order.Hash().Hex(), order.Cid(), err))
+			k.EmitEvent(ctx, v2.NewEventOrderCancelFail(marketID, order.SubaccountID(), order.Hash().Hex(), order.Cid(), err))
 		}
 		return err != nil
 	}
@@ -184,11 +133,11 @@ func (k *Keeper) GetAllSpotLimitOrdersBySubaccountAndMarket(
 	marketID common.Hash,
 	isBuy bool,
 	subaccountID common.Hash,
-) []*types.SpotLimitOrder {
+) []*v2.SpotLimitOrder {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	orders := make([]*types.SpotLimitOrder, 0)
+	orders := make([]*v2.SpotLimitOrder, 0)
 
 	store := k.getStore(ctx)
 	ordersStore := prefix.NewStore(store, types.SpotLimitOrdersPrefix)
@@ -197,7 +146,7 @@ func (k *Keeper) GetAllSpotLimitOrdersBySubaccountAndMarket(
 		// Fetch Limit Order from ordersStore
 		bz := ordersStore.Get(orderKey)
 		// Unmarshal order
-		var order types.SpotLimitOrder
+		var order v2.SpotLimitOrder
 		k.cdc.MustUnmarshal(bz, &order)
 		orders = append(orders, &order)
 		return false
@@ -212,21 +161,17 @@ func (k *Keeper) GetAllTraderSpotLimitOrders(
 	ctx sdk.Context,
 	marketID common.Hash,
 	subaccountID common.Hash,
-) []*types.TrimmedSpotLimitOrder {
+) []*v2.TrimmedSpotLimitOrder {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
-
-	orders := make([]*types.TrimmedSpotLimitOrder, 0)
 
 	store := k.getStore(ctx)
 	ordersStore := prefix.NewStore(store, types.SpotLimitOrdersPrefix)
 
+	orders := make([]*v2.TrimmedSpotLimitOrder, 0)
 	appendOrder := func(orderKey []byte) (stop bool) {
-		// Fetch Limit Order from ordersStore
-		bz := ordersStore.Get(orderKey)
-		// Unmarshal order
-		var order types.SpotLimitOrder
-		k.cdc.MustUnmarshal(bz, &order)
+		var order v2.SpotLimitOrder
+		k.cdc.MustUnmarshal(ordersStore.Get(orderKey), &order)
 
 		orders = append(orders, order.ToTrimmed())
 		return false
@@ -234,6 +179,7 @@ func (k *Keeper) GetAllTraderSpotLimitOrders(
 
 	k.IterateSpotLimitOrdersBySubaccount(ctx, marketID, true, subaccountID, appendOrder)
 	k.IterateSpotLimitOrdersBySubaccount(ctx, marketID, false, subaccountID, appendOrder)
+
 	return orders
 }
 
@@ -241,21 +187,17 @@ func (k *Keeper) GetAccountAddressSpotLimitOrders(
 	ctx sdk.Context,
 	marketID common.Hash,
 	accountAddress sdk.AccAddress,
-) []*types.TrimmedSpotLimitOrder {
+) []*v2.TrimmedSpotLimitOrder {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
-
-	orders := make([]*types.TrimmedSpotLimitOrder, 0)
 
 	store := k.getStore(ctx)
 	ordersStore := prefix.NewStore(store, types.SpotLimitOrdersPrefix)
 
+	orders := make([]*v2.TrimmedSpotLimitOrder, 0)
 	appendOrder := func(orderKey []byte) (stop bool) {
-		// Fetch Limit Order from ordersStore
-		bz := ordersStore.Get(orderKey)
-		// Unmarshal order
-		var order types.SpotLimitOrder
-		k.cdc.MustUnmarshal(bz, &order)
+		var order v2.SpotLimitOrder
+		k.cdc.MustUnmarshal(ordersStore.Get(orderKey), &order)
 
 		orders = append(orders, order.ToTrimmed())
 		return false
@@ -263,34 +205,35 @@ func (k *Keeper) GetAccountAddressSpotLimitOrders(
 
 	k.IterateSpotLimitOrdersByAccountAddress(ctx, marketID, true, accountAddress, appendOrder)
 	k.IterateSpotLimitOrdersByAccountAddress(ctx, marketID, false, accountAddress, appendOrder)
+
 	return orders
 }
 
 // GetSpotOrdersToCancelUpToAmount returns the spot orders to cancel up to a given amount
 func (k *Keeper) GetSpotOrdersToCancelUpToAmount(
 	ctx sdk.Context,
-	market *types.SpotMarket,
-	orders []*types.TrimmedSpotLimitOrder,
-	strategy types.CancellationStrategy,
+	market *v2.SpotMarket,
+	orders []*v2.TrimmedSpotLimitOrder,
+	strategy v2.CancellationStrategy,
 	referencePrice *math.LegacyDec,
 	baseAmount, quoteAmount math.LegacyDec,
-) ([]*types.TrimmedSpotLimitOrder, bool) {
+) ([]*v2.TrimmedSpotLimitOrder, bool) {
 	switch strategy {
-	case types.CancellationStrategy_FromWorstToBest:
+	case v2.CancellationStrategy_FromWorstToBest:
 		sort.SliceStable(orders, func(i, j int) bool {
 			return GetIsOrderLess(*referencePrice, orders[i].Price, orders[j].Price, orders[i].IsBuy, orders[j].IsBuy, true)
 		})
-	case types.CancellationStrategy_FromBestToWorst:
+	case v2.CancellationStrategy_FromBestToWorst:
 		sort.SliceStable(orders, func(i, j int) bool {
 			return GetIsOrderLess(*referencePrice, orders[i].Price, orders[j].Price, orders[i].IsBuy, orders[j].IsBuy, false)
 		})
-	case types.CancellationStrategy_UnspecifiedOrder:
+	case v2.CancellationStrategy_UnspecifiedOrder:
 		// do nothing
 	}
 
 	positiveMakerFeePart := math.LegacyMaxDec(math.LegacyZeroDec(), market.MakerFeeRate)
 
-	ordersToCancel := make([]*types.TrimmedSpotLimitOrder, 0)
+	ordersToCancel := make([]*v2.TrimmedSpotLimitOrder, 0)
 	cumulativeBaseAmount, cumulativeQuoteAmount := math.LegacyZeroDec(), math.LegacyZeroDec()
 
 	for _, order := range orders {
@@ -383,26 +326,27 @@ func (k *Keeper) IterateSpotLimitOrdersByAccountAddress(
 // CancelSpotLimitOrder cancels the SpotLimitOrder
 func (k *Keeper) CancelSpotLimitOrder(
 	ctx sdk.Context,
-	market *types.SpotMarket,
+	market *v2.SpotMarket,
 	marketID common.Hash,
 	subaccountID common.Hash,
 	isBuy bool,
-	order *types.SpotLimitOrder,
+	order *v2.SpotLimitOrder,
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	// 1. Add back the margin hold to available balance
 	marginHold, marginDenom := order.GetUnfilledMarginHoldAndMarginDenom(market, false)
+	var chainFormattedMarginHold math.LegacyDec
+	if order.IsBuy() {
+		chainFormattedMarginHold = market.NotionalToChainFormat(marginHold)
+	} else {
+		chainFormattedMarginHold = market.QuantityToChainFormat(marginHold)
+	}
 
-	// 2. Increment the available balance margin hold
-	k.incrementAvailableBalanceOrBank(ctx, subaccountID, marginDenom, marginHold)
-
-	// 3. Delete the order state from ordersStore and ordersIndexStore
+	k.incrementAvailableBalanceOrBank(ctx, subaccountID, marginDenom, chainFormattedMarginHold)
 	k.DeleteSpotLimitOrder(ctx, marketID, isBuy, order)
 
-	// nolint:errcheck // ignored on purpose
-	ctx.EventManager().EmitTypedEvent(&types.EventCancelSpotOrder{
+	k.EmitEvent(ctx, &v2.EventCancelSpotOrder{
 		MarketId: marketID.Hex(),
 		Order:    *order,
 	})
@@ -412,7 +356,7 @@ func (k *Keeper) CancelSpotLimitOrder(
 func (k *Keeper) UpdateSpotLimitOrder(
 	ctx sdk.Context,
 	marketID common.Hash,
-	orderDelta *types.SpotLimitOrderDelta,
+	orderDelta *SpotLimitOrderDelta,
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
@@ -445,7 +389,7 @@ func (k *Keeper) GetSpotLimitOrderByPrice(
 	isBuy bool,
 	price math.LegacyDec,
 	orderHash common.Hash,
-) *types.SpotLimitOrder {
+) *v2.SpotLimitOrder {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
@@ -458,7 +402,7 @@ func (k *Keeper) GetSpotLimitOrderByPrice(
 		return nil
 	}
 
-	var order types.SpotLimitOrder
+	var order v2.SpotLimitOrder
 	k.cdc.MustUnmarshal(bz, &order)
 	return &order
 }
@@ -470,7 +414,7 @@ func (k *Keeper) GetSpotLimitOrderBySubaccountID(
 	isBuy *bool,
 	subaccountID common.Hash,
 	orderHash common.Hash,
-) *types.SpotLimitOrder {
+) *v2.SpotLimitOrder {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
@@ -502,8 +446,9 @@ func (k *Keeper) GetSpotLimitOrderBySubaccountID(
 		return nil
 	}
 
-	var order types.SpotLimitOrder
+	var order v2.SpotLimitOrder
 	k.cdc.MustUnmarshal(bz, &order)
+
 	return &order
 }
 
@@ -512,7 +457,7 @@ func (k *Keeper) DeleteSpotLimitOrder(
 	ctx sdk.Context,
 	marketID common.Hash,
 	isBuy bool,
-	order *types.SpotLimitOrder,
+	order *v2.SpotLimitOrder,
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
@@ -537,7 +482,7 @@ func (k *Keeper) DeleteSpotLimitOrder(
 	k.DecrementOrderbookPriceLevelQuantity(ctx, marketID, isBuy, true, order.GetPrice(), order.GetFillable())
 }
 
-func (k *Keeper) SpotOrderCrossesTopOfBook(ctx sdk.Context, order *types.SpotOrder) bool {
+func (k *Keeper) SpotOrderCrossesTopOfBook(ctx sdk.Context, order *v2.SpotOrder) bool {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 	// get best price of TOB from opposite side
@@ -563,15 +508,15 @@ func (k *Keeper) GetBestSpotLimitOrderPrice(
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	var bestOrder *types.SpotLimitOrder
-	appendOrder := func(order *types.SpotLimitOrder) (stop bool) {
+	var bestOrder *v2.SpotLimitOrder
+	appendOrder := func(order *v2.SpotLimitOrder) (stop bool) {
 		bestOrder = order
 		return true
 	}
 
 	k.IterateSpotLimitOrdersByMarketDirection(ctx, marketID, isBuy, appendOrder)
-	var bestPrice *math.LegacyDec
 
+	var bestPrice *math.LegacyDec
 	if bestOrder != nil {
 		bestPrice = &bestOrder.OrderInfo.Price
 	}
@@ -584,17 +529,18 @@ func (k *Keeper) GetAllSpotLimitOrdersByMarketDirection(
 	ctx sdk.Context,
 	marketID common.Hash,
 	isBuy bool,
-) (orders []*types.SpotLimitOrder) {
+) []*v2.SpotLimitOrder {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	orders = make([]*types.SpotLimitOrder, 0)
-	appendOrder := func(order *types.SpotLimitOrder) (stop bool) {
+	orders := make([]*v2.SpotLimitOrder, 0)
+	appendOrder := func(order *v2.SpotLimitOrder) (stop bool) {
 		orders = append(orders, order)
 		return false
 	}
 
 	k.IterateSpotLimitOrdersByMarketDirection(ctx, marketID, isBuy, appendOrder)
+
 	return orders
 }
 
@@ -604,32 +550,29 @@ func (k *Keeper) GetComputedSpotLimitOrderbook(
 	marketID common.Hash,
 	isBuy bool,
 	limit uint64,
-) (priceLevel []*types.Level) {
+) []*v2.Level {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	priceLevel = make([]*types.Level, 0, limit)
-
-	appendPriceLevel := func(order *types.SpotLimitOrder) (stop bool) {
-		lastIdx := len(priceLevel) - 1
+	priceLevels := make([]*v2.Level, 0, limit)
+	k.IterateSpotLimitOrdersByMarketDirection(ctx, marketID, isBuy, func(order *v2.SpotLimitOrder) (stop bool) {
+		lastIdx := len(priceLevels) - 1
 		if lastIdx+1 == int(limit) {
 			return true
 		}
 
-		if lastIdx == -1 || !priceLevel[lastIdx].GetPrice().Equal(order.OrderInfo.Price) {
-			priceLevel = append(priceLevel, &types.Level{
+		if lastIdx == -1 || !priceLevels[lastIdx].GetPrice().Equal(order.OrderInfo.Price) {
+			priceLevels = append(priceLevels, &v2.Level{
 				P: order.OrderInfo.Price,
 				Q: order.Fillable,
 			})
 		} else {
-			priceLevel[lastIdx].Q = priceLevel[lastIdx].Q.Add(order.Fillable)
+			priceLevels[lastIdx].Q = priceLevels[lastIdx].Q.Add(order.Fillable)
 		}
 		return false
-	}
+	})
 
-	k.IterateSpotLimitOrdersByMarketDirection(ctx, marketID, isBuy, appendPriceLevel)
-
-	return priceLevel
+	return priceLevels
 }
 
 // IterateSpotLimitOrdersByMarketDirection iterates over spot limits for a given marketID and direction.
@@ -639,7 +582,7 @@ func (k *Keeper) IterateSpotLimitOrdersByMarketDirection(
 	ctx sdk.Context,
 	marketID common.Hash,
 	isBuy bool,
-	process func(order *types.SpotLimitOrder) (stop bool),
+	process func(order *v2.SpotLimitOrder) (stop bool),
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
@@ -648,43 +591,43 @@ func (k *Keeper) IterateSpotLimitOrdersByMarketDirection(
 	prefixKey := types.SpotLimitOrdersPrefix
 	prefixKey = append(prefixKey, types.MarketDirectionPrefix(marketID, isBuy)...)
 	ordersStore := prefix.NewStore(store, prefixKey)
-	var iterator storetypes.Iterator
-	if isBuy {
-		iterator = ordersStore.ReverseIterator(nil, nil)
-	} else {
-		iterator = ordersStore.Iterator(nil, nil)
-	}
-	defer iterator.Close()
 
-	for ; iterator.Valid(); iterator.Next() {
-		var order types.SpotLimitOrder
-		bz := iterator.Value()
-		k.cdc.MustUnmarshal(bz, &order)
+	var iter storetypes.Iterator
+	if isBuy {
+		iter = ordersStore.ReverseIterator(nil, nil)
+	} else {
+		iter = ordersStore.Iterator(nil, nil)
+	}
+
+	defer iter.Close()
+
+	for ; iter.Valid(); iter.Next() {
+		var order v2.SpotLimitOrder
+		k.cdc.MustUnmarshal(iter.Value(), &order)
+
 		if process(&order) {
 			return
 		}
 	}
 }
 
-func (k *Keeper) GetAllSpotLimitOrderbook(ctx sdk.Context) []types.SpotOrderBook {
+func (k *Keeper) GetAllSpotLimitOrderbook(ctx sdk.Context) []v2.SpotOrderBook {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	markets := k.GetAllSpotMarkets(ctx)
-	orderbook := make([]types.SpotOrderBook, 0, len(markets)*2)
+	orderbook := make([]v2.SpotOrderBook, 0, len(markets)*2)
 	for _, market := range markets {
-		buyOrders := k.GetAllSpotLimitOrdersByMarketDirection(ctx, market.MarketID(), true)
-		orderbook = append(orderbook, types.SpotOrderBook{
+		orderbook = append(orderbook, v2.SpotOrderBook{
 			MarketId:  market.MarketID().Hex(),
 			IsBuySide: true,
-			Orders:    buyOrders,
-		})
-		sellOrders := k.GetAllSpotLimitOrdersByMarketDirection(ctx, market.MarketID(), false)
-		orderbook = append(orderbook, types.SpotOrderBook{
-			MarketId:  market.MarketID().Hex(),
-			IsBuySide: false,
-			Orders:    sellOrders,
-		})
+			Orders:    k.GetAllSpotLimitOrdersByMarketDirection(ctx, market.MarketID(), true),
+		},
+			v2.SpotOrderBook{
+				MarketId:  market.MarketID().Hex(),
+				IsBuySide: false,
+				Orders:    k.GetAllSpotLimitOrdersByMarketDirection(ctx, market.MarketID(), false),
+			})
 	}
 
 	return orderbook
@@ -734,7 +677,52 @@ func (k *Keeper) GetSpotMidPriceOrBestPrice(
 	return &midPrice
 }
 
-func (k *Keeper) getConditionalOrderBytesBySubaccountIDAndHash(
+func (k *Keeper) ExecuteAtomicSpotMarketOrder(
+	ctx sdk.Context, market *v2.SpotMarket, marketOrder *v2.SpotMarketOrder, feeRate math.LegacyDec,
+) *v2.SpotMarketOrderResults {
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
+	marketID := market.MarketID()
+
+	stakingInfo, feeDiscountConfig := k.getFeeDiscountConfigAndStakingInfoForMarket(ctx, marketID)
+	tradingRewards := types.NewTradingRewardPoints()
+	spotVwapInfo := &SpotVwapInfo{}
+	tradeRewardsMultiplierConfig := k.GetEffectiveTradingRewardsMarketPointsMultiplierConfig(ctx, market.MarketID())
+
+	isMarketBuy := marketOrder.IsBuy()
+
+	spotLimitOrderStateExpansions, spotMarketOrderStateExpansions, clearingPrice, clearingQuantity :=
+		k.getMarketOrderStateExpansionsAndClearingPrice(
+			ctx, market, isMarketBuy, SingleElementSlice(marketOrder), tradeRewardsMultiplierConfig, feeDiscountConfig, feeRate,
+		)
+	batchExecutionData := GetSpotMarketOrderBatchExecutionData(
+		isMarketBuy, market, spotLimitOrderStateExpansions, spotMarketOrderStateExpansions, clearingPrice, clearingQuantity,
+	)
+
+	modifiedPositionCache := NewModifiedPositionCache()
+
+	tradingRewards = k.PersistSingleSpotMarketOrderExecution(ctx, marketID, batchExecutionData, *spotVwapInfo, tradingRewards)
+
+	sortedSubaccountIDs := modifiedPositionCache.GetSortedSubaccountIDsByMarket(marketID)
+	k.AppendModifiedSubaccountsByMarket(ctx, marketID, sortedSubaccountIDs)
+
+	k.PersistTradingRewardPoints(ctx, tradingRewards)
+	k.PersistFeeDiscountStakingInfoUpdates(ctx, stakingInfo)
+	k.PersistVwapInfo(ctx, spotVwapInfo, nil)
+
+	// a trade will always occur since there must exist at least one spot limit order that will cross
+	marketOrderTrade := batchExecutionData.MarketOrderExecutionEvent.Trades[0]
+
+	return &v2.SpotMarketOrderResults{
+		Quantity: marketOrderTrade.Quantity,
+		Price:    marketOrderTrade.Price,
+		Fee:      marketOrderTrade.Fee,
+	}
+}
+
+func (*Keeper) getConditionalOrderBytesBySubaccountIDAndHash(
 	_ sdk.Context,
 	marketID common.Hash,
 	isHigher *bool,
@@ -773,90 +761,178 @@ func (k *Keeper) getConditionalOrderBytesBySubaccountIDAndHash(
 	return orderBz, direction
 }
 
-// GetConditionalSpotMarketOrderBySubaccountIDAndHash returns the active conditional spot market order from hash and subaccountID.
-func (k *Keeper) GetConditionalSpotMarketOrderBySubaccountIDAndHash(
+func (k *Keeper) validateSpotLimitOrder(
 	ctx sdk.Context,
+	order *v2.SpotOrder,
+	market *v2.SpotMarket,
 	marketID common.Hash,
-	isHigher *bool,
 	subaccountID common.Hash,
-	orderHash common.Hash,
-) (order *types.SpotMarketOrder, direction bool) {
-	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
-	defer doneFn()
-
-	store := k.getStore(ctx)
-	ordersStore := prefix.NewStore(store, types.SpotConditionalMarketOrdersPrefix)
-	ordersIndexStore := prefix.NewStore(store, types.SpotConditionalMarketOrdersIndexPrefix)
-
-	orderBz, direction := k.getConditionalOrderBytesBySubaccountIDAndHash(ctx, marketID, isHigher, subaccountID, orderHash, ordersStore, ordersIndexStore)
-	if orderBz == nil {
-		return nil, false
+) (*v2.SpotMarket, error) {
+	// 2. Reject if spot market id does not reference an active spot market
+	if market == nil {
+		market = k.GetSpotMarket(ctx, marketID, true)
+		if market == nil {
+			k.Logger(ctx).Error("active spot market doesn't exist", "marketId", order.MarketId)
+			metrics.ReportFuncError(k.svcTags)
+			return nil, types.ErrSpotMarketNotFound.Wrapf("active spot market doesn't exist %s", order.MarketId)
+		}
 	}
-	// Fetch price key from ordersIndexStore
-	var orderObj types.SpotMarketOrder
-	k.cdc.MustUnmarshal(orderBz, &orderObj)
-	return &orderObj, direction
+
+	// 3. Reject if order does not comply to the market's min tick size
+	if err := order.CheckTickSize(market.MinPriceTickSize, market.MinQuantityTickSize); err != nil {
+		metrics.ReportFuncError(k.svcTags)
+		return nil, err
+	}
+
+	// 4. Reject if order does not comply to the market's min notional
+	if err := order.CheckNotional(market.MinNotional); err != nil {
+		metrics.ReportFuncError(k.svcTags)
+		return nil, err
+	}
+
+	// 5. Check for post-only orders (or if in post-only mode) if order crosses tob
+	isPostOnlyMode := k.IsPostOnlyMode(ctx)
+	if (order.OrderType.IsPostOnly() || isPostOnlyMode) && k.SpotOrderCrossesTopOfBook(ctx, order) {
+		metrics.ReportFuncError(k.svcTags)
+		return nil, types.ErrExceedsTopOfBookPrice
+	}
+
+	// 7. Reject order if cid is already used
+	if k.existsCid(ctx, subaccountID, order.OrderInfo.Cid) {
+		return nil, types.ErrClientOrderIdAlreadyExists
+	}
+
+	return market, nil
 }
 
-// GetConditionalSpotLimitOrderBySubaccountIDAndHash returns the active conditional spot limit order from hash and subaccountID.
-func (k *Keeper) GetConditionalSpotLimitOrderBySubaccountIDAndHash(
+func (k *Keeper) createSpotLimitOrder(
 	ctx sdk.Context,
-	marketID common.Hash,
-	isHigher *bool,
-	subaccountID common.Hash,
-	orderHash common.Hash,
-) (order *types.SpotLimitOrder, direction bool) {
+	sender sdk.AccAddress,
+	order *v2.SpotOrder,
+	market *v2.SpotMarket,
+) (hash common.Hash, err error) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	store := k.getStore(ctx)
-	ordersStore := prefix.NewStore(store, types.SpotConditionalLimitOrdersPrefix)
-	ordersIndexStore := prefix.NewStore(store, types.SpotConditionalLimitOrdersIndexPrefix)
+	marketID := common.HexToHash(order.MarketId)
 
-	orderBz, direction := k.getConditionalOrderBytesBySubaccountIDAndHash(ctx, marketID, isHigher, subaccountID, orderHash, ordersStore, ordersIndexStore)
-	if orderBz == nil {
-		return nil, false
+	// 0. Derive the subaccountID and populate the order with it
+	subaccountID := types.MustGetSubaccountIDOrDeriveFromNonce(sender, order.OrderInfo.SubaccountId)
+
+	// set the actual subaccountID value in the order, since it might be a nonce value
+	order.OrderInfo.SubaccountId = subaccountID.Hex()
+
+	// 1. Check and increment Subaccount Nonce, Compute Order Hash
+	subaccountNonce := k.IncrementSubaccountTradeNonce(ctx, subaccountID)
+	orderHash, err := order.ComputeOrderHash(subaccountNonce.Nonce)
+	if err != nil {
+		metrics.ReportFuncError(k.svcTags)
+		return orderHash, err
 	}
 
-	var orderObj types.SpotLimitOrder
-	k.cdc.MustUnmarshal(orderBz, &orderObj)
-	return &orderObj, direction
+	// Validate the order
+	market, err = k.validateSpotLimitOrder(ctx, order, market, marketID, subaccountID)
+	if err != nil {
+		return orderHash, err
+	}
+
+	// 6. Reject if the subaccount's available deposits does not have at least the required funds for the trade
+	balanceHoldIncrement, marginDenom := order.GetBalanceHoldAndMarginDenom(market)
+	var chainFormattedBalanceHoldIncrement math.LegacyDec
+	if order.IsBuy() {
+		chainFormattedBalanceHoldIncrement = market.NotionalToChainFormat(balanceHoldIncrement)
+	} else {
+		chainFormattedBalanceHoldIncrement = market.QuantityToChainFormat(balanceHoldIncrement)
+	}
+
+	// 8. Decrement the available balance or bank by the funds amount needed to fund the order
+	if err := k.chargeAccount(ctx, subaccountID, marginDenom, chainFormattedBalanceHoldIncrement); err != nil {
+		return orderHash, err
+	}
+
+	// 9. If Post Only, add the order to the resting orderbook
+	//    Otherwise store the order in the transient limit order store and transient market indicator store
+	spotLimitOrder := order.GetNewSpotLimitOrder(sender, orderHash)
+
+	if order.ExpirationBlock != 0 && order.ExpirationBlock <= ctx.BlockHeight() {
+		return orderHash, types.ErrInvalidExpirationBlock.Wrap("expiration block must be higher than current block")
+	}
+
+	// 10b. store the order in the spot limit order store or transient spot limit order store
+	if order.OrderType.IsPostOnly() {
+		k.SetNewSpotLimitOrder(ctx, spotLimitOrder, marketID, spotLimitOrder.IsBuy(), spotLimitOrder.Hash())
+
+		var (
+			buyOrders  = make([]*v2.SpotLimitOrder, 0)
+			sellOrders = make([]*v2.SpotLimitOrder, 0)
+		)
+		if order.IsBuy() {
+			buyOrders = append(buyOrders, spotLimitOrder)
+		} else {
+			sellOrders = append(sellOrders, spotLimitOrder)
+		}
+
+		k.EmitEvent(ctx, &v2.EventNewSpotOrders{
+			MarketId:   marketID.Hex(),
+			BuyOrders:  buyOrders,
+			SellOrders: sellOrders,
+		})
+	} else {
+		k.SetTransientSpotLimitOrder(ctx, spotLimitOrder, marketID, order.IsBuy(), orderHash)
+		k.CheckAndSetFeeDiscountAccountActivityIndicator(ctx, marketID, sender)
+	}
+
+	return orderHash, nil
 }
 
-func (k *Keeper) ExecuteAtomicSpotMarketOrder(ctx sdk.Context, market *types.SpotMarket, marketOrder *types.SpotMarketOrder, feeRate math.LegacyDec) *types.SpotMarketOrderResults {
-	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+func (k *Keeper) cancelSpotLimitOrderWithIdentifier(
+	ctx sdk.Context,
+	subaccountID common.Hash,
+	identifier any, // either order hash or cid
+	market *v2.SpotMarket,
+	marketID common.Hash,
+) error {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	marketID := market.MarketID()
-
-	stakingInfo, feeDiscountConfig := k.getFeeDiscountConfigAndStakingInfoForMarket(ctx, marketID)
-	tradingRewards := types.NewTradingRewardPoints()
-	spotVwapInfo := &SpotVwapInfo{}
-	tradeRewardsMultiplierConfig := k.GetEffectiveTradingRewardsMarketPointsMultiplierConfig(ctx, market.MarketID())
-
-	isMarketBuy := marketOrder.IsBuy()
-
-	spotLimitOrderStateExpansions, spotMarketOrderStateExpansions, clearingPrice, clearingQuantity := k.getMarketOrderStateExpansionsAndClearingPrice(ctx, market, isMarketBuy, SingleElementSlice(marketOrder), tradeRewardsMultiplierConfig, feeDiscountConfig, feeRate)
-	batchExecutionData := GetSpotMarketOrderBatchExecutionData(isMarketBuy, market, spotLimitOrderStateExpansions, spotMarketOrderStateExpansions, clearingPrice, clearingQuantity)
-
-	modifiedPositionCache := NewModifiedPositionCache()
-
-	tradingRewards = k.PersistSingleSpotMarketOrderExecution(ctx, marketID, batchExecutionData, *spotVwapInfo, tradingRewards)
-
-	sortedSubaccountIDs := modifiedPositionCache.GetSortedSubaccountIDsByMarket(marketID)
-	k.AppendModifiedSubaccountsByMarket(ctx, marketID, sortedSubaccountIDs)
-
-	k.PersistTradingRewardPoints(ctx, tradingRewards)
-	k.PersistFeeDiscountStakingInfoUpdates(ctx, stakingInfo)
-	k.PersistVwapInfo(ctx, spotVwapInfo, nil)
-
-	// a trade will always occur since there must exist at least one spot limit order that will cross
-	marketOrderTrade := batchExecutionData.MarketOrderExecutionEvent.Trades[0]
-
-	return &types.SpotMarketOrderResults{
-		Quantity: marketOrderTrade.Quantity,
-		Price:    marketOrderTrade.Price,
-		Fee:      marketOrderTrade.Fee,
+	orderHash, err := k.getOrderHashFromIdentifier(ctx, subaccountID, identifier)
+	if err != nil {
+		return err
 	}
+
+	return k.cancelSpotLimitOrderByOrderHash(ctx, subaccountID, orderHash, market, marketID)
+}
+
+func (k *Keeper) cancelSpotLimitOrderByOrderHash(
+	ctx sdk.Context,
+	subaccountID common.Hash,
+	orderHash common.Hash,
+	market *v2.SpotMarket,
+	marketID common.Hash,
+) (err error) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
+	if market == nil || !market.StatusSupportsOrderCancellations() {
+		k.Logger(ctx).Error("active spot market doesn't exist")
+		metrics.ReportFuncError(k.svcTags)
+		return types.ErrSpotMarketNotFound.Wrapf("active spot market doesn't exist %s", marketID.Hex())
+	}
+
+	order := k.GetSpotLimitOrderBySubaccountID(ctx, marketID, nil, subaccountID, orderHash)
+	var isTransient bool
+	if order == nil {
+		order = k.GetTransientSpotLimitOrderBySubaccountID(ctx, marketID, nil, subaccountID, orderHash)
+		if order == nil {
+			return types.ErrOrderDoesntExist.Wrap("Spot Limit Order is nil")
+		}
+		isTransient = true
+	}
+
+	if isTransient {
+		k.CancelTransientSpotLimitOrder(ctx, market, marketID, subaccountID, order)
+	} else {
+		k.CancelSpotLimitOrder(ctx, market, marketID, subaccountID, order.IsBuy(), order)
+	}
+	return nil
 }

@@ -33,31 +33,43 @@ func isExchangeMsg(msgTypeURL string) bool {
 	return moduleName == "exchange"
 }
 
-func hasExchangeMsg(msg sdk.Msg) bool {
+func hasOnlyExchangeMsgs(msg sdk.Msg) bool {
 	if isExchangeMsg(sdk.MsgTypeURL(msg)) {
 		return true
 	}
 
 	// If the message is an authz.MsgExec, check its inner messages.
 	if msgExec, ok := msg.(*authz.MsgExec); ok {
+		if len(msgExec.Msgs) == 0 {
+			return false
+		}
+
 		for _, innerMsg := range msgExec.Msgs {
-			if isExchangeMsg(innerMsg.TypeUrl) {
-				return true
+			if !isExchangeMsg(innerMsg.TypeUrl) {
+				return false
 			}
 		}
+
+		return true
 	}
+
 	return false
 }
 
 // ExchangeMatchHandler returns the exchange match handler for the exchange lane.
 func ExchangeMatchHandler() skipbase.MatchHandler {
 	return func(_ sdk.Context, tx sdk.Tx) bool {
+		if len(tx.GetMsgs()) == 0 {
+			return false
+		}
+
 		for _, msg := range tx.GetMsgs() {
-			if hasExchangeMsg(msg) {
-				return true
+			if !hasOnlyExchangeMsgs(msg) {
+				return false
 			}
 		}
-		return false
+
+		return true
 	}
 }
 

@@ -4,14 +4,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	coreheader "cosmossdk.io/core/header"
 	"cosmossdk.io/log"
 	abci "github.com/cometbft/cometbft/abci/types"
-	tmproto "github.com/cometbft/cometbft/proto/tendermint/types"
-	tmtypes "github.com/cometbft/cometbft/types"
+	cmtproto "github.com/cometbft/cometbft/api/cometbft/types/v1"
+	cmtypes "github.com/cometbft/cometbft/types"
 	dbm "github.com/cosmos/cosmos-db"
+	"github.com/cosmos/cosmos-sdk/baseapp"
 	"github.com/cosmos/cosmos-sdk/client/flags"
 	"github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	"github.com/cosmos/cosmos-sdk/testutil/mock"
@@ -20,21 +22,25 @@ import (
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 )
 
+const TestChainID = "test-123"
+
+var setupMutex = new(sync.Mutex)
+
 // DefaultConsensusParams defines the default Tendermint consensus params used in
 // InjectiveApp testing.
-var DefaultConsensusParams = &tmproto.ConsensusParams{
-	Block: &tmproto.BlockParams{
+var DefaultConsensusParams = &cmtproto.ConsensusParams{
+	Block: &cmtproto.BlockParams{
 		MaxBytes: 200000,
-		MaxGas:   -1, // no limit
+		MaxGas:   150000000, // mainnet value
 	},
-	Evidence: &tmproto.EvidenceParams{
+	Evidence: &cmtproto.EvidenceParams{
 		MaxAgeNumBlocks: 302400,
 		MaxAgeDuration:  504 * time.Hour, // 3 weeks is the max duration
 		MaxBytes:        10000,
 	},
-	Validator: &tmproto.ValidatorParams{
+	Validator: &cmtproto.ValidatorParams{
 		PubKeyTypes: []string{
-			tmtypes.ABCIPubKeyTypeEd25519,
+			cmtypes.ABCIPubKeyTypeEd25519,
 		},
 	},
 }
@@ -43,6 +49,9 @@ const defaultHomeDirForTest = "testrun"
 
 // Setup initializes a new InjectiveApp. A Nop logger is set in InjectiveApp.
 func Setup(isCheckTx bool, appOpts ...simtestutil.AppOptionsMap) *InjectiveApp {
+	setupMutex.Lock()
+	defer setupMutex.Unlock()
+
 	sdk.DefaultBondDenom = "inj"
 	testAppOpts := simtestutil.AppOptionsMap{"trace": true}
 
@@ -56,8 +65,20 @@ func Setup(isCheckTx bool, appOpts ...simtestutil.AppOptionsMap) *InjectiveApp {
 		testAppOpts[flags.FlagHome] = defaultHomeDirForTest
 	}
 
+	chainId := TestChainID
+	if iChaindId, ok := testAppOpts["chainId"]; ok && iChaindId.(string) != "" {
+		chainId = iChaindId.(string)
+	}
+
 	db := dbm.NewMemDB()
-	app := NewInjectiveApp(log.NewNopLogger(), db, nil, true, testAppOpts)
+	app := NewInjectiveApp(
+		log.NewNopLogger(),
+		db,
+		nil,
+		true,
+		testAppOpts,
+		baseapp.SetChainID(chainId),
+	)
 
 	if isCheckTx {
 		return app
@@ -69,8 +90,8 @@ func Setup(isCheckTx bool, appOpts ...simtestutil.AppOptionsMap) *InjectiveApp {
 		panic(err)
 	}
 	// create validator set with single validator
-	validator := tmtypes.NewValidator(pubKey, 1)
-	valSet := tmtypes.NewValidatorSet([]*tmtypes.Validator{validator})
+	validator := cmtypes.NewValidator(pubKey, 1)
+	valSet := cmtypes.NewValidatorSet([]*cmtypes.Validator{validator})
 
 	// generate genesis account
 	senderPrivKey := secp256k1.GenPrivKey()
@@ -90,7 +111,8 @@ func Setup(isCheckTx bool, appOpts ...simtestutil.AppOptionsMap) *InjectiveApp {
 
 	// Initialize the chain
 	_, err = app.InitChain(
-		&abci.RequestInitChain{
+		&abci.InitChainRequest{
+			ChainId:         chainId,
 			Validators:      []abci.ValidatorUpdate{},
 			ConsensusParams: DefaultConsensusParams,
 			AppStateBytes:   stateBytes,
@@ -100,7 +122,7 @@ func Setup(isCheckTx bool, appOpts ...simtestutil.AppOptionsMap) *InjectiveApp {
 		panic(err)
 	}
 
-	_, err = app.FinalizeBlock(&abci.RequestFinalizeBlock{
+	_, err = app.FinalizeBlock(&abci.FinalizeBlockRequest{
 		Height: app.LastBlockHeight() + 1,
 	})
 	if err != nil {
@@ -113,7 +135,7 @@ func Setup(isCheckTx bool, appOpts ...simtestutil.AppOptionsMap) *InjectiveApp {
 		panic(err)
 	}
 
-	reqProcProp := abci.RequestProcessProposal{
+	reqProcProp := abci.ProcessProposalRequest{
 		Height: app.LastBlockHeight() + 1,
 	}
 	_, err = app.ProcessProposal(&reqProcProp)
@@ -126,7 +148,7 @@ func Setup(isCheckTx bool, appOpts ...simtestutil.AppOptionsMap) *InjectiveApp {
 
 // NextBlock starts a new block.
 func NextBlock(app *InjectiveApp, ctx sdk.Context, jumpTime time.Duration) (sdk.Context, error) {
-	_, err := app.FinalizeBlock(&abci.RequestFinalizeBlock{Height: ctx.BlockHeight(), Time: ctx.BlockTime()})
+	_, err := app.FinalizeBlock(&abci.FinalizeBlockRequest{Height: ctx.BlockHeight(), Time: ctx.BlockTime()})
 	if err != nil {
 		return sdk.Context{}, err
 	}

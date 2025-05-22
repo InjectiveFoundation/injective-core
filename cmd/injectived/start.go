@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -12,44 +13,23 @@ import (
 	"runtime/pprof"
 	"time"
 
-	"github.com/InjectiveLabs/metrics"
-	"github.com/cosmos/cosmos-sdk/codec"
-	"github.com/cosmos/cosmos-sdk/telemetry"
-	"github.com/cosmos/cosmos-sdk/types/mempool"
-	"github.com/spf13/pflag"
-	"golang.org/x/sync/errgroup"
-	"google.golang.org/grpc/credentials/insecure"
-
-	"github.com/InjectiveLabs/injective-core/injective-chain/stream"
-
-	genutiltypes "github.com/cosmos/cosmos-sdk/x/genutil/types"
-
-	gometrics "github.com/hashicorp/go-metrics"
-
-	sdkversion "github.com/cosmos/cosmos-sdk/version"
-	"github.com/spf13/cast"
-
-	injectivechain "github.com/InjectiveLabs/injective-core/injective-chain/app"
-	"github.com/InjectiveLabs/injective-core/version"
-
-	cmttypes "github.com/cometbft/cometbft/types"
-	"github.com/improbable-eng/grpc-web/go/grpcweb"
-	"github.com/rs/cors"
-	"github.com/spf13/cobra"
-	"github.com/xlab/closer"
-	"google.golang.org/grpc"
-
 	pruningtypes "cosmossdk.io/store/pruning/types"
+	"github.com/InjectiveLabs/metrics"
 	cmtcmd "github.com/cometbft/cometbft/cmd/cometbft/commands"
-	cometconfig "github.com/cometbft/cometbft/config"
+	cmtconfig "github.com/cometbft/cometbft/config"
+	cmtcrypto "github.com/cometbft/cometbft/crypto"
+	cmted22519 "github.com/cometbft/cometbft/crypto/ed25519"
+	"github.com/cometbft/cometbft/crypto/tmhash"
 	"github.com/cometbft/cometbft/node"
 	"github.com/cometbft/cometbft/p2p"
 	pvm "github.com/cometbft/cometbft/privval"
 	"github.com/cometbft/cometbft/proxy"
+	rpcclient "github.com/cometbft/cometbft/rpc/client"
 	"github.com/cometbft/cometbft/rpc/client/local"
 	dbm "github.com/cosmos/cosmos-db"
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/client/flags"
+	"github.com/cosmos/cosmos-sdk/codec"
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
 	"github.com/cosmos/cosmos-sdk/server"
 	"github.com/cosmos/cosmos-sdk/server/api"
@@ -57,14 +37,33 @@ import (
 	servergrpc "github.com/cosmos/cosmos-sdk/server/grpc"
 	servercmtlog "github.com/cosmos/cosmos-sdk/server/log"
 	"github.com/cosmos/cosmos-sdk/server/types"
+	"github.com/cosmos/cosmos-sdk/telemetry"
+	"github.com/cosmos/cosmos-sdk/types/mempool"
+	sdkversion "github.com/cosmos/cosmos-sdk/version"
+	genutiltypes "github.com/cosmos/cosmos-sdk/x/genutil/types"
+	gometrics "github.com/hashicorp/go-metrics"
+	"github.com/improbable-eng/grpc-web/go/grpcweb"
+	"github.com/rs/cors"
+	"github.com/spf13/cast"
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
+	"github.com/xlab/closer"
+	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
 
 	"github.com/InjectiveLabs/injective-core/cmd/injectived/config"
-
-	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
+	injectivechain "github.com/InjectiveLabs/injective-core/injective-chain/app"
+	ethserver "github.com/InjectiveLabs/injective-core/injective-chain/server"
+	ethindexer "github.com/InjectiveLabs/injective-core/injective-chain/server/indexer"
+	"github.com/InjectiveLabs/injective-core/injective-chain/server/jsonrpc"
+	chainstreamserver "github.com/InjectiveLabs/injective-core/injective-chain/stream/server"
+	chaintypes "github.com/InjectiveLabs/injective-core/injective-chain/types"
+	"github.com/InjectiveLabs/injective-core/version"
 )
 
 const (
-	// CometBFT full-node start flags
 	flagWithComet          = "with-comet"
 	flagAddress            = "address"
 	flagTransport          = "transport"
@@ -86,11 +85,11 @@ const (
 	FlagMinRetainBlocks      = "min-retain-blocks"
 	FlagMultiStoreCommitSync = "multistore-commit-sync"
 	FlagIAVLCacheSize        = "iavl-cache-size"
+	FlagIAVLSyncPruning      = "iavl-sync-pruning"
 
 	FlagOptimisticExecutionEnabled = "optimistic-execution-enabled"
 )
 
-// GRPC-related flags.
 const (
 	flagGRPCOnly      = "grpc-only"
 	flagGRPCEnable    = "grpc.enable"
@@ -221,7 +220,11 @@ func addStartNodeFlags(cmd *cobra.Command, opts server.StartCmdOptions) {
 	cmd.Flags().String(flagAddress, "tcp://0.0.0.0:26658", "Listen address")
 	cmd.Flags().String(flagTransport, "socket", "Transport protocol: socket, grpc")
 	cmd.Flags().String(flagTraceStore, "", "Enable KVStore tracing to an output file")
-	cmd.Flags().String(FlagMinGasPrices, "", "Minimum gas prices to accept for transactions; Any fee in a tx must meet this minimum (e.g. 0.01photino;0.0001stake)")
+	cmd.Flags().String(
+		FlagMinGasPrices,
+		"",
+		"Minimum gas prices to accept for transactions; Any fee in a tx must meet this minimum (e.g. 0.01photino;0.0001stake)",
+	)
 	cmd.Flags().Uint64(FlagQueryGasLimit, 0, "Maximum gas a Rest/Grpc query can consume. Blank and 0 imply unbounded.")
 	cmd.Flags().IntSlice(FlagUnsafeSkipUpgrades, []int{}, "Skip a set of upgrade heights to continue the old binary")
 	cmd.Flags().Uint64(FlagHaltHeight, 0, "Block height at which to gracefully halt the chain and shutdown the node")
@@ -232,12 +235,20 @@ func addStartNodeFlags(cmd *cobra.Command, opts server.StartCmdOptions) {
 	cmd.Flags().String(FlagPruning, pruningtypes.PruningOptionDefault, "Pruning strategy (default|nothing|everything|custom)")
 	cmd.Flags().Uint64(FlagPruningKeepRecent, 0, "Number of recent heights to keep on disk (ignored if pruning is not 'custom')")
 	cmd.Flags().Uint64(FlagPruningKeepEvery, 0, "Offset heights to keep on disk after 'keep-every' (ignored if pruning is not 'custom')")
-	cmd.Flags().Uint64(FlagPruningInterval, 0, "Height interval at which pruned heights are removed from disk (ignored if pruning is not 'custom')")
+	cmd.Flags().Uint64(
+		FlagPruningInterval,
+		0,
+		"Height interval at which pruned heights are removed from disk (ignored if pruning is not 'custom')",
+	)
 	cmd.Flags().Uint(FlagInvCheckPeriod, 0, "Assert registered invariants every N blocks")
 	cmd.Flags().Uint64(FlagMinRetainBlocks, 0, "Minimum block height offset during ABCI commit to prune Tendermint blocks")
 
 	cmd.Flags().Bool(server.FlagAPIEnable, false, "Define if the API server should be enabled")
-	cmd.Flags().Bool(server.FlagAPISwagger, false, "Define if swagger documentation should automatically be registered (Note: the API must also be enabled)")
+	cmd.Flags().Bool(
+		server.FlagAPISwagger,
+		false,
+		"Define if swagger documentation should automatically be registered (Note: the API must also be enabled)",
+	)
 	cmd.Flags().String(server.FlagAPIAddress, serverconfig.DefaultAPIAddress, "the API server address to listen on")
 	cmd.Flags().Uint(server.FlagAPIMaxOpenConnections, 1000, "Define the number of maximum open connections")
 	cmd.Flags().Uint(server.FlagRPCReadTimeout, 10, "Define the CometBFT RPC read timeout (in seconds)")
@@ -260,23 +271,73 @@ func addStartNodeFlags(cmd *cobra.Command, opts server.StartCmdOptions) {
 	cmd.Flags().String(flags.FlagKeyringBackend, keyring.BackendFile, "Select keyring's backend (os|file|kwallet|pass|test)")
 
 	// add chainstream server flag
-	cmd.Flags().String(stream.FlagStreamServer, "", "Configure ChainStream server")
-	cmd.Flags().Uint(stream.FlagStreamServerBufferCapacity, 100, "Configure ChainStream server buffer capacity for each connected client")
-	cmd.Flags().Uint(stream.FlagStreamPublisherBufferCapacity, 100, "Configure ChainStream publisher buffer capacity")
-	cmd.Flags().Bool(stream.FlagStreamEnforceKeepalive, false, "Define if Keepalive configuration params should be applied to chainstream gRPC server")
-	cmd.Flags().Uint64(stream.FlagStreamMinClientPingInterval, 30, "Amount of time (in seconds) a client should wait before sending a keepalive ping")
-	cmd.Flags().Uint64(stream.FlagStreamMaxConnectionIdle, 180, "Amount of time in seconds a connection is allowed to stay idle before forcing the disconnection")
-	cmd.Flags().Uint64(stream.FlagStreamServerPingInterval, 60, "Amount of time in seconds after which the server will send a keepalive ping to the client on an idle connection")
-	cmd.Flags().Uint64(stream.FlagStreamServerPingResponseTimeout, 40, "Amount of time in seconds the server waits for the client to respond to a ping message before forcing a disconnection")
+	cmd.Flags().String(chainstreamserver.FlagStreamServer, "", "Configure ChainStream server")
+	cmd.Flags().Uint(
+		chainstreamserver.FlagStreamServerBufferCapacity,
+		100,
+		"Configure ChainStream server buffer capacity for each connected client",
+	)
+	cmd.Flags().Uint(chainstreamserver.FlagStreamPublisherBufferCapacity, 100, "Configure ChainStream publisher buffer capacity")
+	cmd.Flags().Bool(
+		chainstreamserver.FlagStreamEnforceKeepalive,
+		false,
+		"Define if Keepalive configuration params should be applied to chainstream gRPC server",
+	)
+	cmd.Flags().Uint64(
+		chainstreamserver.FlagStreamMinClientPingInterval,
+		30,
+		"Amount of time (in seconds) a client should wait before sending a keepalive ping",
+	)
+	cmd.Flags().Uint64(
+		chainstreamserver.FlagStreamMaxConnectionIdle,
+		180,
+		"Amount of time in seconds a connection is allowed to stay idle before forcing the disconnection",
+	)
+	cmd.Flags().Uint64(
+		chainstreamserver.FlagStreamServerPingInterval,
+		60,
+		"Amount of time in seconds after which the server will send a keepalive ping to the client on an idle connection",
+	)
+	cmd.Flags().Uint64(
+		chainstreamserver.FlagStreamServerPingResponseTimeout,
+		40,
+		"Amount of time in seconds the server waits for the client to respond to a ping message before forcing a disconnection",
+	)
 
 	// add store commit sync flag
 	cmd.Flags().Bool(FlagMultiStoreCommitSync, false, "Define if commit multistore should use sync mode (false|true)")
 
-	// add iavl flag
+	// add IAVL flag
 	cmd.Flags().Int(FlagIAVLCacheSize, 500000, "Configure IAVL cache size for app")
+	cmd.Flags().Bool(FlagIAVLSyncPruning, true, "Define if IAVL pruning should use sync mode (true|false)")
+
+	// add EVM related flags
+	cmd.Flags().Bool(FlagJSONRPCEnable, true, "Define if the JSON-RPC server should be enabled")
+	cmd.Flags().StringSlice(FlagJSONRPCAPI, nil, "Defines a list of JSON-RPC namespaces that should be enabled")
+	cmd.Flags().String(FlagJSONRPCAddress, config.DefaultJSONRPCAddress, "The JSON-RPC server address to listen on")
+	cmd.Flags().String(FlagJSONWsAddress, config.DefaultJSONRPCWsAddress, "The JSON-RPC WS server address to listen on")
+	cmd.Flags().Uint64(FlagJSONRPCGasCap, config.DefaultGasCap, "Sets a cap on gas that can be used in eth_call/estimateGas (0=infinite)")
+	cmd.Flags().Float64(FlagJSONRPCTxFeeCap, config.DefaultTxFeeCap, "Sets a cap on transaction fee that can be sent via the RPC APIs (1 = default 1 photon)")
+	cmd.Flags().Int32(FlagJSONRPCFilterCap, config.DefaultFilterCap, "Sets the global cap for total number of filters that can be created")
+	cmd.Flags().Int32(FlagJSONRPCFeeHistoryCap, config.DefaultFeeHistoryCap, "Sets the global cap for fee history")
+	cmd.Flags().Duration(FlagJSONRPCEVMTimeout, config.DefaultEVMTimeout, "Sets a timeout used for eth_call (0=infinite)")
+	cmd.Flags().Duration(FlagJSONRPCHTTPTimeout, config.DefaultHTTPTimeout, "Sets a read/write timeout for JSON-RPC HTTP server (0=infinite)")
+	cmd.Flags().Duration(FlagJSONRPCHTTPIdleTimeout, config.DefaultHTTPIdleTimeout, "Sets a idle timeout for JSON-RPC HTTP server (0=infinite)")
+	cmd.Flags().Bool(FlagJSONRPCAllowUnprotectedTxs, config.DefaultAllowUnprotectedTxs, "Allow for unprotected (non EIP155 signed) transactions to be submitted via the node's RPC when the global parameter is disabled")
+	cmd.Flags().Int32(FlagJSONRPCLogsCap, config.DefaultLogsCap, "Sets the max number of results can be returned from single `eth_getLogs` query")
+	cmd.Flags().Int32(FlagJSONRPCBlockRangeCap, config.DefaultBlockRangeCap, "Sets the max block range allowed for `eth_getLogs` query")
+	cmd.Flags().Uint(FlagJSONRPCMaxOpenConnections, config.DefaultMaxOpenConnections, "Sets the maximum number of simultaneous connections for the server listener")
+	cmd.Flags().Bool(FlagJSONRPCEnableIndexer, true, "Enable the custom tx indexer for JSON-RPC")
+	cmd.Flags().Bool(FlagJSONRPCAllowIndexerGap, true, "Allow block gap for the custom tx indexer for JSON-RPC")
+	cmd.Flags().Bool(FlagJSONRPCEnableMetrics, false, "Define if JSON-RPC rpc metrics server should be enabled")
+	cmd.Flags().String(FlagJSONRPCMetricsAddress, config.DefaultJSONRPCMetricsAddress, "Set the address for the JSON-RPC metrics server")
+	cmd.Flags().Uint(FlagJSONRPCReturnDataLimit, config.DefaultReturnDataLimit, "Set the maximum number of bytes returned from `eth_call` or similar invocations")
+
+	cmd.Flags().String(FlagEVMTracer, config.DefaultEVMTracer, "The EVM tracer type to collect execution traces from the EVM transaction execution (json|struct|access_list|markdown)")
+	cmd.Flags().Uint64(FlagEVMMaxTxGasWanted, config.DefaultMaxTxGasWanted, "The gas wanted for each eth tx returned in ante handler in check tx mode")
 
 	// add optimistic execution flag
-	cmd.Flags().Bool(FlagOptimisticExecutionEnabled, false, "Enable optimistic execution")
+	cmd.Flags().Bool(FlagOptimisticExecutionEnabled, false, "Enable optimistic execution (true|false)")
 
 	// support old flags name for backwards compatibility
 	cmd.Flags().SetNormalizeFunc(func(f *pflag.FlagSet, name string) pflag.NormalizedName {
@@ -297,7 +358,7 @@ func addStartNodeFlags(cmd *cobra.Command, opts server.StartCmdOptions) {
 
 func startCmtNode(
 	ctx context.Context,
-	cfg *cometconfig.Config,
+	cfg *cmtconfig.Config,
 	app types.Application,
 	svrCtx *server.Context,
 ) (tmNode *node.Node, cleanupFn func(), err error) {
@@ -307,14 +368,23 @@ func startCmtNode(
 	}
 
 	cmtApp := server.NewCometABCIWrapper(app)
-	tmNode, err = node.NewNodeWithContext(
+	privValidator, err := pvm.LoadOrGenFilePV(
+		cfg.PrivValidatorKeyFile(),
+		cfg.PrivValidatorStateFile(),
+		func() (cmtcrypto.PrivKey, error) { return cmted22519.GenPrivKey(), nil },
+	)
+	if err != nil {
+		return nil, cleanupFn, err
+	}
+
+	tmNode, err = node.NewNode(
 		ctx,
 		cfg,
-		pvm.LoadOrGenFilePV(cfg.PrivValidatorKeyFile(), cfg.PrivValidatorStateFile()),
+		privValidator,
 		nodeKey,
 		proxy.NewLocalClientCreator(cmtApp),
 		getGenDocProvider(cfg),
-		cometconfig.DefaultDBProvider,
+		cmtconfig.DefaultDBProvider,
 		node.DefaultMetricsProvider(cfg.Instrumentation),
 		servercmtlog.CometLoggerWrapper{Logger: svrCtx.Logger},
 	)
@@ -348,14 +418,26 @@ func getAndValidateConfig(svrCtx *server.Context) (serverconfig.Config, error) {
 }
 
 // returns a function which returns the genesis doc from the genesis file.
-func getGenDocProvider(cfg *cometconfig.Config) func() (*cmttypes.GenesisDoc, error) {
-	return func() (*cmttypes.GenesisDoc, error) {
-		appGenesis, err := genutiltypes.AppGenesisFromFile(cfg.GenesisFile())
+func getGenDocProvider(cfg *cmtconfig.Config) node.GenesisDocProvider {
+	return func() (node.ChecksummedGenesisDoc, error) {
+		jsonBlob, err := os.ReadFile(cfg.GenesisFile())
 		if err != nil {
-			return nil, err
+			return node.ChecksummedGenesisDoc{}, fmt.Errorf("couldn't read GenesisDoc file: %w", err)
 		}
 
-		return appGenesis.ToGenesisDoc()
+		incomingChecksum := tmhash.Sum(jsonBlob)
+
+		appGenesis, err := genutiltypes.AppGenesisFromFile(cfg.GenesisFile())
+		if err != nil {
+			return node.ChecksummedGenesisDoc{}, err
+		}
+
+		genDoc, err := appGenesis.ToGenesisDoc()
+		if err != nil {
+			return node.ChecksummedGenesisDoc{}, err
+		}
+
+		return node.ChecksummedGenesisDoc{GenesisDoc: genDoc, Sha256Checksum: incomingChecksum}, nil
 	}
 }
 
@@ -579,13 +661,13 @@ func startInProcess(svrCtx *server.Context, svrCfg serverconfig.Config, clientCt
 
 	if injApp, ok := app.(*injectivechain.InjectiveApp); ok {
 		// start chainstream server
-		chainStreamServeAddr := cast.ToString(svrCtx.Viper.Get(stream.FlagStreamServer))
-		buffCap := cast.ToUint(svrCtx.Viper.Get(stream.FlagStreamServerBufferCapacity))
+		chainStreamServeAddr := cast.ToString(svrCtx.Viper.Get(chainstreamserver.FlagStreamServer))
+		buffCap := cast.ToUint(svrCtx.Viper.Get(chainstreamserver.FlagStreamServerBufferCapacity))
 		if buffCap == 0 {
 			return fmt.Errorf("invalid buffer capacity %d. Please set a positive value greater than 0", buffCap)
 		}
 		injApp.ChainStreamServer.WithBufferCapacity(buffCap)
-		pubBuffCap := cast.ToUint(svrCtx.Viper.Get(stream.FlagStreamPublisherBufferCapacity))
+		pubBuffCap := cast.ToUint(svrCtx.Viper.Get(chainstreamserver.FlagStreamPublisherBufferCapacity))
 		if pubBuffCap == 0 {
 			return fmt.Errorf("invalid publisher buffer capacity %d. Please set a positive value greater than 0", pubBuffCap)
 		}
@@ -599,6 +681,22 @@ func startInProcess(svrCtx *server.Context, svrCfg serverconfig.Config, clientCt
 			if err = injApp.ChainStreamServer.Serve(chainStreamServeAddr); err != nil {
 				svrCtx.Logger.Error("failed to start chainstream server", "error", err)
 			}
+		}
+	}
+
+	srvconfig, err := config.GetConfig(svrCtx.Viper)
+	if err != nil {
+		svrCtx.Logger.Error("failed to start JSON-RPC server, config error", "error", err)
+	} else if srvconfig.JSONRPC.Enable {
+		if _, _, _, err := startJSONRPCServer(
+			svrCtx,
+			clientCtx,
+			srvconfig.JSONRPC,
+			srvconfig.API.EnableUnsafeCORS,
+			g,
+			app,
+		); err != nil {
+			return err
 		}
 	}
 
@@ -621,6 +719,77 @@ func startInProcess(svrCtx *server.Context, svrCfg serverconfig.Config, clientCt
 	closer.Hold()
 
 	return g.Wait()
+}
+func startJSONRPCServer(
+	svrCtx *server.Context,
+	clientCtx client.Context,
+	jsonRPCConfig config.JSONRPCConfig,
+	enableUsafeCors bool,
+	g *errgroup.Group,
+	_ types.Application,
+) (ctx client.Context, httpSrv *http.Server, httpSrvDone chan struct{}, err error) {
+	ctx = clientCtx
+
+	genDoc, err := getGenDocProvider(svrCtx.Config)()
+	if err != nil {
+		return ctx, httpSrv, httpSrvDone, fmt.Errorf("can't get genDocProvider")
+	}
+
+	chainId := genDoc.GenesisDoc.ChainID
+	home := svrCtx.Config.RootDir
+	ctx = ctx.WithChainID(chainId).WithHomeDir(home)
+
+	var idxer chaintypes.EVMTxIndexer
+	if jsonRPCConfig.EnableIndexer {
+		var idxDB dbm.DB
+		idxDB, err = openIndexerDB(home, server.GetAppDBBackend(svrCtx.Viper))
+		if err != nil {
+			svrCtx.Logger.Error("failed to open evm indexer DB", "error", err.Error())
+			return
+		}
+
+		idxLogger := svrCtx.Logger.With("indexer", "evm")
+		idxer = ethindexer.NewKVIndexer(idxDB, idxLogger, clientCtx)
+		indexerService := ethserver.NewEVMIndexerService(idxer, clientCtx.Client.(rpcclient.Client), jsonRPCConfig.AllowIndexerGap)
+		indexerService.SetLogger(servercmtlog.CometLoggerWrapper{Logger: idxLogger})
+
+		g.Go(func() error {
+			defer func() {
+				if e := recover(); e != nil {
+					idxLogger.Error("panic in indexer service", "error", e)
+				}
+			}()
+
+			defer func() {
+				if err := idxDB.Close(); err != nil {
+					idxLogger.Error("failed to close indexer DB", "error", err.Error())
+				}
+			}()
+
+			return indexerService.Start()
+		})
+	}
+
+	g.Go(func() error {
+		defer func() {
+			if e := recover(); e != nil {
+				svrCtx.Logger.Error("panic in JSONRPC service", "error", e)
+			}
+		}()
+
+		httpSrv, httpSrvDone, err = jsonrpc.Start(
+			svrCtx,
+			ctx,
+			g,
+			jsonRPCConfig,
+			enableUsafeCors,
+			idxer,
+		)
+
+		return err
+	})
+
+	return
 }
 
 // StartGRPCWeb starts a gRPC-Web server on the given address.
@@ -654,7 +823,7 @@ func StartGRPCWeb(ctx *server.Context, grpcSrv *grpc.Server, parsedConfig server
 	go func() {
 		ctx.Logger.Info("Starting GRPC Web server on", "address", parsedConfig.GRPC.Address)
 		if err := grpcWebSrv.ListenAndServe(); err != nil {
-			if err == http.ErrServerClosed {
+			if errors.Is(err, http.ErrServerClosed) {
 				return
 			}
 
@@ -676,6 +845,12 @@ func StartGRPCWeb(ctx *server.Context, grpcSrv *grpc.Server, parsedConfig server
 func openDB(rootDir string, backendType dbm.BackendType) (dbm.DB, error) {
 	dataDir := filepath.Join(rootDir, "data")
 	return dbm.NewDB("application", backendType, dataDir)
+}
+
+// openIndexerDB opens the custom eth indexer db, using the same db backend as the main app
+func openIndexerDB(rootDir string, backendType dbm.BackendType) (dbm.DB, error) {
+	dataDir := filepath.Join(rootDir, "data")
+	return dbm.NewDB("evmindexer", backendType, dataDir)
 }
 
 func openTraceWriter(traceWriterFile string) (w io.WriteCloser, err error) {
@@ -716,7 +891,11 @@ func getCtx(svrCtx *server.Context, block bool) (*errgroup.Group, context.Contex
 	return g, ctx
 }
 
-func startApp(svrCtx *server.Context, appCreator types.AppCreator, opts server.StartCmdOptions) (app types.Application, cleanupFn func(), err error) {
+func startApp(
+	svrCtx *server.Context,
+	appCreator types.AppCreator,
+	opts server.StartCmdOptions,
+) (app types.Application, cleanupFn func(), err error) {
 	traceWriter, traceCleanupFn, err := setupTraceWriter(svrCtx)
 	if err != nil {
 		return app, traceCleanupFn, err

@@ -5,7 +5,7 @@ import (
 
 	"cosmossdk.io/math"
 	mempool1559 "github.com/InjectiveLabs/injective-core/injective-chain/modules/txfees/keeper/mempool-1559"
-	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
+	cmtproto "github.com/cometbft/cometbft/api/cometbft/types/v1"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 

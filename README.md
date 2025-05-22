@@ -68,3 +68,11 @@ To run all unit tests:
 ```bash
 $ go test ./injective-chain/...
 ```
+
+## License
+
+Injective Core is licensed under the [Injective Labs License](LICENSE).
+
+Certain code in [evm](/injective-chain/modules/evm) and [erc20](/injective-chain/modules/erc20) modules is licensed under the [LGPLv3](https://www.gnu.org/licenses/lgpl-3.0.en.html).
+
+Except code from from [evm/precompiles](/injective-chain/modules/evm/precompiles) which is also is licensed under the [Injective Labs License](LICENSE).

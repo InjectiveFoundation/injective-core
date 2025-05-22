@@ -2,17 +2,16 @@ package keeper
 
 import (
 	"cosmossdk.io/math"
-
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 )
 
 type DerivativeOrderbookFills struct {
-	Orders         []*types.DerivativeLimitOrder
+	Orders         []*v2.DerivativeLimitOrder
 	FillQuantities []math.LegacyDec
 }
 
 type DerivativeOrderbookFill struct {
-	Order        *types.DerivativeLimitOrder
+	Order        *v2.DerivativeLimitOrder
 	FillQuantity math.LegacyDec
 	IsTransient  bool
 }

@@ -3,11 +3,11 @@ package keeper
 import (
 	"cosmossdk.io/math"
 	"cosmossdk.io/store/prefix"
+	"github.com/InjectiveLabs/metrics"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"github.com/InjectiveLabs/metrics"
-
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 )
 
 // GetCampaignTradingRewardPoints fetches the trading reward points for a given account.
@@ -63,21 +63,20 @@ func (k *Keeper) SetAccountCampaignTradingRewardPoints(ctx sdk.Context, account 
 }
 
 // GetAllTradingRewardCampaignAccountPoints gets the trading reward points for all accounts
-func (k *Keeper) GetAllTradingRewardCampaignAccountPoints(ctx sdk.Context) (accountPoints []*types.TradingRewardCampaignAccountPoints) {
+func (k *Keeper) GetAllTradingRewardCampaignAccountPoints(ctx sdk.Context) []*v2.TradingRewardCampaignAccountPoints {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	accountPoints = make([]*types.TradingRewardCampaignAccountPoints, 0)
-
-	appendPoints := func(points *types.TradingRewardAccountPoints) (stop bool) {
-		accountPoints = append(accountPoints, &types.TradingRewardCampaignAccountPoints{
+	accountPoints := make([]*v2.TradingRewardCampaignAccountPoints, 0)
+	k.IterateAccountCampaignTradingRewardPoints(ctx, func(points *types.TradingRewardAccountPoints) (stop bool) {
+		accountPoints = append(accountPoints, &v2.TradingRewardCampaignAccountPoints{
 			Account: points.Account.String(),
 			Points:  points.Points,
 		})
-		return false
-	}
 
-	k.IterateAccountCampaignTradingRewardPoints(ctx, appendPoints)
+		return false
+	})
+
 	return accountPoints
 }
 
@@ -108,21 +107,16 @@ func (k *Keeper) IterateAccountCampaignTradingRewardPoints(
 	defer doneFn()
 
 	store := k.getStore(ctx)
-
 	pointsStore := prefix.NewStore(store, types.TradingRewardAccountPointsPrefix)
+	iter := pointsStore.Iterator(nil, nil)
+	defer iter.Close()
 
-	iterator := pointsStore.Iterator(nil, nil)
-	defer iterator.Close()
-
-	for ; iterator.Valid(); iterator.Next() {
-		bz := iterator.Value()
-		points := types.UnsignedDecBytesToDec(bz)
-		account := sdk.AccAddress(iterator.Key())
-
+	for ; iter.Valid(); iter.Next() {
 		accountPoints := &types.TradingRewardAccountPoints{
-			Account: account,
-			Points:  points,
+			Account: sdk.AccAddress(iter.Key()),
+			Points:  types.UnsignedDecBytesToDec(iter.Value()),
 		}
+
 		if process(accountPoints) {
 			return
 		}

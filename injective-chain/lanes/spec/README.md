@@ -4,7 +4,7 @@ Injective integrates the [Block SDK](https://github.com/InjectiveLabs/block-sdk)
 
 - **Oracle Lane** – for transactions that contain oracle messages.
 - **Governance Lane** – for any transaction sent by an admin of the exchange module.
-- **Exchange Lane** – for transactions that contain exchange messages.
+- **Exchange Lane** – for transactions that contain only exchange messages.
 - **Default Lane** – for all other transactions.
 
 ## Key Features
@@ -18,7 +18,7 @@ Injective integrates the [Block SDK](https://github.com/InjectiveLabs/block-sdk)
   Each lane uses its own match handler. We have the following lanes in order of priority:
   1. The **Oracle Lane** checks that the transaction contains an oracle message.
   2. The **Governance Lane** checks that the first signer is an admin of the exchange module.
-  3. The **Exchange Lane** verifies that at least one exchange message is present and orders transactions using custom fee/priority logic.
+  3. The **Exchange Lane** verifies that all messages belong to the exchange module and orders transactions using custom fee/priority logic.
   4. The **Default Lane** accepts any transaction not matching the other lanes.
 
 ### 2. Routing Transactions Based on Priority
@@ -45,9 +45,9 @@ The Exchange Lane uses custom priority logic to order transactions based on fee 
 
 ### 4. Oracle and Governance Lane Max Gas Limit
 
-Transactions that exceed the max gas limit of the Oracle and Governance Lanes 
-are rejected in the `matching` stage (when a tx is inserted in the mempool). If 
-we didn't do this in the matching stage, a big transaction could make it into the 
-lane, and be rejected later in the `prepare` stage (in PrepareProposal). The 
-transaction would remain in the mempool indefinitely, thereby blocking the sender 
+Transactions that exceed the max gas limit of the Oracle and Governance Lanes
+are rejected in the `matching` stage (when a tx is inserted in the mempool). If
+we didn't do this in the matching stage, a big transaction could make it into the
+lane, and be rejected later in the `prepare` stage (in PrepareProposal). The
+transaction would remain in the mempool indefinitely, thereby blocking the sender
 account from submitting any other transactions.

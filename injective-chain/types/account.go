@@ -24,10 +24,30 @@ var (
 	_ codectypes.UnpackInterfacesMessage = (*EthAccount)(nil)
 )
 
+const (
+	// AccountTypeEOA defines the type for externally owned accounts (EOAs)
+	AccountTypeEOA = int8(iota + 1)
+	// AccountTypeContract defines the type for contract accounts
+	AccountTypeContract
+)
+
 var EmptyCodeHash = ethcrypto.Keccak256(nil)
 
+// EthAccountI represents the interface of an EVM compatible account
+type EthAccountI interface {
+	sdk.AccountI
+	// EthAddress returns the ethereum Address representation of the AccAddress
+	EthAddress() ethcmn.Address
+	// CodeHash is the keccak256 hash of the contract code (if any)
+	GetCodeHash() ethcmn.Hash
+	// SetCodeHash sets the code hash to the account fields
+	SetCodeHash(code ethcmn.Hash) error
+	// Type returns the type of Ethereum Account (EOA or Contract)
+	Type() int8
+}
+
 // ----------------------------------------------------------------------------
-// Main Ethermint account
+// Main Eth account
 // ----------------------------------------------------------------------------
 
 // ProtoAccount defines the prototype function for BaseAccount used for an
@@ -44,6 +64,30 @@ func (acc EthAccount) EthAddress() ethcmn.Address {
 	return ethcmn.BytesToAddress(acc.GetAddress().Bytes())
 }
 
+// GetBaseAccount returns base account.
+func (acc EthAccount) GetBaseAccount() *authtypes.BaseAccount {
+	return acc.BaseAccount
+}
+
+// GetCodeHash returns the account code hash in byte format
+func (acc EthAccount) GetCodeHash() ethcmn.Hash {
+	return ethcmn.BytesToHash(acc.CodeHash)
+}
+
+// SetCodeHash sets the account code hash to the EthAccount fields
+func (acc *EthAccount) SetCodeHash(codeHash ethcmn.Hash) error {
+	acc.CodeHash = codeHash.Bytes()
+	return nil
+}
+
+// Type returns the type of Ethereum Account (EOA or Contract)
+func (acc EthAccount) Type() int8 {
+	if bytes.Equal(EmptyCodeHash, acc.CodeHash) {
+		return AccountTypeEOA
+	}
+	return AccountTypeContract
+}
+
 type ethAccountPretty struct {
 	Address       string `json:"address" yaml:"address"`
 	EthAddress    string `json:"eth_address" yaml:"eth_address"`
@@ -54,7 +98,7 @@ type ethAccountPretty struct {
 }
 
 // MarshalYAML returns the YAML representation of an account.
-func (acc EthAccount) MarshalYAML() (interface{}, error) {
+func (acc EthAccount) MarshalYAML() (any, error) {
 	alias := ethAccountPretty{
 		Address:       acc.Address,
 		EthAddress:    acc.EthAddress().String(),

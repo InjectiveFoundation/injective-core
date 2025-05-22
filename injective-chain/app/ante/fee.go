@@ -3,13 +3,12 @@ package ante
 import (
 	"fmt"
 
-	txtypes "github.com/cosmos/cosmos-sdk/types/tx"
-
 	"cosmossdk.io/errors"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
+	txtypes "github.com/cosmos/cosmos-sdk/types/tx"
 	authante "github.com/cosmos/cosmos-sdk/x/auth/ante"
-	"github.com/cosmos/cosmos-sdk/x/auth/types"
+	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 
 	chaintypes "github.com/InjectiveLabs/injective-core/injective-chain/types"
 )
@@ -20,11 +19,11 @@ import (
 // CONTRACT: Tx must implement FeeTx interface to use DeductFeeDecorator
 type DeductFeeDecorator struct {
 	ak           authante.AccountKeeper
-	bankKeeper   types.BankKeeper
+	bankKeeper   authtypes.BankKeeper
 	txFeeChecker authante.TxFeeChecker
 }
 
-func NewDeductFeeDecorator(ak authante.AccountKeeper, bk types.BankKeeper) DeductFeeDecorator {
+func NewDeductFeeDecorator(ak authante.AccountKeeper, bk authtypes.BankKeeper) DeductFeeDecorator {
 	return DeductFeeDecorator{
 		ak:           ak,
 		bankKeeper:   bk,
@@ -42,8 +41,8 @@ func (dfd DeductFeeDecorator) AnteHandle(ctx sdk.Context, tx sdk.Tx, simulate bo
 		return ctx, errors.Wrapf(sdkerrors.ErrInvalidGasLimit, "must provide positive gas")
 	}
 
-	if addr := dfd.ak.GetModuleAddress(types.FeeCollectorName); addr == nil {
-		panic(fmt.Sprintf("%s module account has not been set", types.FeeCollectorName))
+	if addr := dfd.ak.GetModuleAddress(authtypes.FeeCollectorName); addr == nil {
+		panic(fmt.Sprintf("%s module account has not been set", authtypes.FeeCollectorName))
 	}
 
 	var feeDelegated bool
@@ -102,15 +101,18 @@ func (dfd DeductFeeDecorator) AnteHandle(ctx sdk.Context, tx sdk.Tx, simulate bo
 }
 
 // DeductFees deducts fees from the given account.
-func DeductFees(bankKeeper types.BankKeeper, ctx sdk.Context, acc sdk.AccountI, fees sdk.Coins) error {
+func DeductFees(bankKeeper authtypes.BankKeeper, ctx sdk.Context, acc sdk.AccountI, fees sdk.Coins) error {
 	if !fees.IsValid() {
 		return errors.Wrapf(sdkerrors.ErrInsufficientFee, "invalid fee amount: %s", fees)
 	}
 
-	err := bankKeeper.SendCoinsFromAccountToModule(ctx, acc.GetAddress(), types.FeeCollectorName, fees)
+	err := bankKeeper.SendCoinsFromAccountToModule(ctx, acc.GetAddress(), authtypes.FeeCollectorName, fees)
 	if err != nil {
 		return errors.Wrap(sdkerrors.ErrInsufficientFunds, err.Error())
 	}
+
+	// Alternative way (from EVM support): doesn't work for now in wasmx tests.
+	// err = bankKeeper.SendCoinsFromAccountToModuleVirtual(ctx, acc.GetAddress(), authtypes.FeeCollectorName, fees)
 
 	events := sdk.Events{
 		sdk.NewEvent(

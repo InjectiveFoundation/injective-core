@@ -3,6 +3,7 @@ package types
 import (
 	"cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	"math/big"
 )
 
 const (
@@ -20,6 +21,9 @@ const (
 	BaseDenomUnit = 18
 )
 
+// PowerReduction defines the default power reduction value for staking
+var PowerReduction = math.NewIntFromBigInt(new(big.Int).Exp(big.NewInt(10), big.NewInt(BaseDenomUnit), nil))
+
 // NewInjectiveCoin is a utility function that returns an "inj" coin with the given math.Int amount.
 // The function will panic if the provided amount is negative.
 func NewInjectiveCoin(amount math.Int) sdk.Coin {
@@ -30,4 +34,8 @@ func NewInjectiveCoin(amount math.Int) sdk.Coin {
 // The function will panic if the provided amount is negative.
 func NewInjectiveCoinInt64(amount int64) sdk.Coin {
 	return sdk.NewInt64Coin(InjectiveCoin, amount)
+}
+
+func NewDefaultCoinInt64(amount int64) sdk.Coin {
+	return NewInjectiveCoinInt64(amount)
 }

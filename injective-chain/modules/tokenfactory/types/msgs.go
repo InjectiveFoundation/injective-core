@@ -81,7 +81,7 @@ func (m MsgCreateDenom) ValidateBasic() error {
 	if len(m.Name) > MaxNameLength {
 		return errors.Wrapf(ErrInvalidDenom, "name cannot exceed %d characters", MaxNameLength)
 	}
-	
+
 	if m.Decimals > MaxDecimals {
 		return errors.Wrapf(ErrInvalidDenom, "decimals cannot exceed %d", MaxDecimals)
 	}
@@ -119,7 +119,11 @@ func (m MsgMint) ValidateBasic() error {
 		return errors.Wrapf(sdkerrors.ErrInvalidAddress, "Invalid sender address (%s)", err)
 	}
 
-	if !m.Amount.IsValid() || m.Amount.IsZero() {
+	err = m.Amount.Validate()
+	if err != nil {
+		return err
+	}
+	if m.Amount.IsZero() {
 		return errors.Wrap(sdkerrors.ErrInvalidCoins, m.Amount.String())
 	}
 

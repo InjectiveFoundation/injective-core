@@ -38,7 +38,11 @@ func parseNumFields(message any, flagsMap FlagsMapping, argsMap ArgsMapping) int
 			}
 			num--
 		case fieldT.Kind() == reflect.Ptr && fieldT.Elem().Kind() == reflect.Struct && fieldT.Elem().String() == "types.Any": // proto-encoded type, never nil
-			concreteStruct := field.Elem().Interface().(codectypes.Any)
+			concreteStructInterface := field.Elem().Interface()
+			concreteStruct, ok := concreteStructInterface.(codectypes.Any)
+			if !ok {
+				continue
+			}
 			num += parseNumFields(concreteStruct.GetCachedValue(), flagsMap, argsMap)
 			num-- // remove this field itself
 		// recursively look for internal structs with empty fields
@@ -104,91 +108,258 @@ func fillSenderFromCtx(msg sdk.Msg, clientCtx client.Context) error {
 }
 
 // Parses arguments 1-1 from flags (if corresponding mapping is found in flagsMap) or from args (by position index). Skips already set non-zero fields.
-func parseFieldsFromFlagsAndArgs(msg proto.Message, flagsMap FlagsMapping, argsMap ArgsMapping, flags *pflag.FlagSet, args []string, ctx grpc.ClientConn) error {
-
+func ParseFieldsFromFlagsAndArgs(
+	msg proto.Message, flagsMap FlagsMapping, argsMap ArgsMapping, flags *pflag.FlagSet, args []string, ctx grpc.ClientConn,
+) error {
 	nextArgIdx := 0
+	return parseStruct(reflect.ValueOf(msg).Interface(), flagsMap, argsMap, flags, args, ctx, &nextArgIdx)
+}
 
-	var parseStruct func(any) error
-	parseStruct = func(msg any) error {
-		v := reflect.ValueOf(msg).Elem()
-		t := v.Type()
-		for i := 0; i < v.Type().NumField(); i++ {
-			field := v.Field(i)
-			fieldT := field.Type()
-			switch {
-			case fieldT.Kind() == reflect.Ptr && fieldT.Elem().Kind() == reflect.Struct && fieldT.Elem().String() == "types.Any": // proto-encoded type, never nil
-				anyField := field.Elem().Interface().(codectypes.Any)
-				concreteField := anyField.GetCachedValue()
-				if err := parseStruct(concreteField); err != nil {
-					return fmt.Errorf("can't parse internal Any struct %s: %w", t.Field(i).Name, err)
-				}
-				if parsedAnyField, err := codectypes.NewAnyWithValue(concreteField.(proto.Message)); err != nil {
-					return fmt.Errorf("can't construct Any struct from parsed %s: %w", t.Field(i).Name, err)
-				} else {
-					field.Set(reflect.ValueOf(parsedAnyField))
-				}
-			// recursively look for internal structs
-			case fieldT.Kind() == reflect.Ptr && fieldT.Elem().Kind() == reflect.Struct && !isComplexValue(fieldT.Elem().String()): // pointer to struct, must be initialized
-				if err := parseStruct(field.Interface()); err != nil {
-					return fmt.Errorf("can't parse internal struct %s: %w", t.Field(i).Name, err)
-				}
-			case fieldT.Kind() == reflect.Struct && !isComplexValue(fieldT.String()): // struct
-				if err := parseStruct(field.Addr().Interface()); err != nil {
-					return fmt.Errorf("can't parse internal struct %s: %w", t.Field(i).Name, err)
-				}
-			default:
-				val := ""
-				flagTransform, hasFlagT := flagsMap[t.Field(i).Name]
-				argTransform, hasArgT := argsMap[t.Field(i).Name]
+// parseStruct handles parsing a struct recursively
+func parseStruct(
+	msg any, flagsMap FlagsMapping, argsMap ArgsMapping, flags *pflag.FlagSet, args []string, ctx grpc.ClientConn, nextArgIdx *int,
+) error {
+	v := reflect.ValueOf(msg).Elem()
+	t := v.Type()
+	return parseStructFields(v, t, flagsMap, argsMap, flags, args, ctx, nextArgIdx)
+}
 
-				switch {
-				case hasFlagT: // flags mapping
-					if flagTransform.Flag == "" { // special case to leave msg field zero-initialized
-						continue
-					}
-					flag := flags.Lookup(flagTransform.Flag)
-					if flag == nil || (!flag.Changed && !flagTransform.UseDefaultIfOmitted) { // flag not found, or not set and we don't want it's default value
-						continue
-					}
-					val = flag.Value.String()
-					if flagTransform.Transform != nil {
-						if valT, err := flagTransform.Transform(val, ctx); err != nil {
-							return fmt.Errorf("error during transforming flag %s: %w", t.Field(i).Name, err)
-						} else {
-							val = fmt.Sprintf("%v", valT)
-						}
-					}
-				case hasArgT && len(args) > argTransform.Index: // args mapping
-					val = args[argTransform.Index]
-					if argTransform.Transform != nil {
-						if valT, err := argTransform.Transform(val, ctx); err != nil {
-							return fmt.Errorf("error during transforming argument %s: %w", t.Field(i).Name, err)
-						} else {
-							val = fmt.Sprintf("%v", valT)
-						}
-					}
-					args[argTransform.Index] = "" // mark arg as used by setting it to ""
-				case field.IsZero(), isZeroNumber(field): // fill only zero fields from args
-					for len(args) > nextArgIdx { // skip used arguments
-						val = args[nextArgIdx]
-						nextArgIdx++
-						if val != "" {
-							break
-						}
-					}
-				default:
-					continue
-				}
+func parseStructFields(
+	v reflect.Value, t reflect.Type,
+	flagsMap FlagsMapping, argsMap ArgsMapping, flags *pflag.FlagSet, args []string, ctx grpc.ClientConn, nextArgIdx *int,
+) error {
+	for i := 0; i < t.NumField(); i++ {
+		if err := parseField(v, t, i, flagsMap, argsMap, flags, args, ctx, nextArgIdx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
-				if err := parseFieldFromString(field, t.Field(i), val); err != nil {
-					return err
-				}
-			}
+func parseField(
+	v reflect.Value, t reflect.Type, i int,
+	flagsMap FlagsMapping, argsMap ArgsMapping, flags *pflag.FlagSet, args []string, ctx grpc.ClientConn, nextArgIdx *int,
+) error {
+	field := v.Field(i)
+	fieldT := field.Type()
+	fieldName := t.Field(i).Name
 
+	if isAnyType(fieldT) {
+		return handleAnyType(field, fieldName, flagsMap, argsMap, flags, args, ctx, nextArgIdx)
+	}
+
+	if isPtrToStruct(fieldT) {
+		err := parseStruct(field.Interface(), flagsMap, argsMap, flags, args, ctx, nextArgIdx)
+		if err != nil {
+			return fmt.Errorf("can't parse internal struct %s: %w", fieldName, err)
 		}
 		return nil
 	}
-	return parseStruct(reflect.ValueOf(msg).Interface())
+
+	if isStruct(fieldT) {
+		err := parseStruct(field.Addr().Interface(), flagsMap, argsMap, flags, args, ctx, nextArgIdx)
+		if err != nil {
+			return fmt.Errorf("can't parse internal struct %s: %w", fieldName, err)
+		}
+		return nil
+	}
+
+	return handleBasicField(field, t.Field(i), fieldName, flagsMap, argsMap, flags, args, ctx, nextArgIdx)
+}
+
+// isAnyType checks if the field type is an Any type
+func isAnyType(fieldT reflect.Type) bool {
+	return fieldT.Kind() == reflect.Ptr && fieldT.Elem().Kind() == reflect.Struct && fieldT.Elem().String() == "types.Any"
+}
+
+// isPtrToStruct checks if the field type is a pointer to a struct
+func isPtrToStruct(fieldT reflect.Type) bool {
+	return fieldT.Kind() == reflect.Ptr && fieldT.Elem().Kind() == reflect.Struct && !isComplexValue(fieldT.Elem().String())
+}
+
+// isStruct checks if the field type is a struct
+func isStruct(fieldT reflect.Type) bool {
+	return fieldT.Kind() == reflect.Struct && !isComplexValue(fieldT.String())
+}
+
+// handleAnyType handles parsing an Any type field
+func handleAnyType(
+	field reflect.Value,
+	fieldName string,
+	flagsMap FlagsMapping,
+	argsMap ArgsMapping,
+	flags *pflag.FlagSet,
+	args []string,
+	ctx grpc.ClientConn,
+	nextArgIdx *int,
+) error {
+	anyFieldInterface := field.Elem().Interface()
+	anyField, ok := anyFieldInterface.(codectypes.Any)
+	if !ok {
+		return fmt.Errorf("field %s is not of type codectypes.Any", fieldName)
+	}
+	concreteField := anyField.GetCachedValue()
+	if err := parseStruct(concreteField, flagsMap, argsMap, flags, args, ctx, nextArgIdx); err != nil {
+		return fmt.Errorf("can't parse internal Any struct %s: %w", fieldName, err)
+	}
+	parsedAnyField, err := codectypes.NewAnyWithValue(concreteField.(proto.Message))
+	if err != nil {
+		return fmt.Errorf("can't construct Any struct from parsed %s: %w", fieldName, err)
+	}
+	field.Set(reflect.ValueOf(parsedAnyField))
+	return nil
+}
+
+// handleBasicField handles parsing a basic field type
+func handleBasicField(
+	field reflect.Value,
+	fieldType reflect.StructField,
+	fieldName string,
+	flagsMap FlagsMapping,
+	argsMap ArgsMapping,
+	flags *pflag.FlagSet,
+	args []string,
+	ctx grpc.ClientConn,
+	nextArgIdx *int,
+) error {
+	val, found, err := getFieldValue(field, fieldName, flagsMap, argsMap, flags, args, ctx, nextArgIdx)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return nil
+	}
+	return parseFieldFromString(field, fieldType, val)
+}
+
+func getFieldValue(
+	field reflect.Value,
+	fieldName string,
+	flagsMap FlagsMapping,
+	argsMap ArgsMapping,
+	flags *pflag.FlagSet,
+	args []string,
+	ctx grpc.ClientConn,
+	nextArgIdx *int,
+) (string, bool, error) {
+	// Try to get value from flag
+	flagTransform, hasFlagT := flagsMap[fieldName]
+	if !hasFlagT {
+		return getValueFromArgOrPositional(field, fieldName, argsMap, args, ctx, nextArgIdx)
+	}
+
+	flagVal, err := getValueFromFlag(flagTransform, flags, ctx, fieldName)
+	if err != nil {
+		return "", false, err
+	}
+	if flagVal != "" {
+		return flagVal, true, nil
+	}
+
+	return "", false, nil
+}
+
+// getValueFromArgOrPositional tries to get a value from an argument or positional argument
+func getValueFromArgOrPositional(
+	field reflect.Value,
+	fieldName string,
+	argsMap ArgsMapping,
+	args []string,
+	ctx grpc.ClientConn,
+	nextArgIdx *int,
+) (string, bool, error) {
+	// Try to get value from arg mapping
+	val, found, err := tryGetValueFromArg(fieldName, argsMap, args, ctx)
+	if err != nil || found {
+		return val, found, err
+	}
+
+	// Try to get value from positional arg
+	if field.IsZero() || isZeroNumber(field) {
+		return tryGetValueFromPositionalArg(args, nextArgIdx)
+	}
+
+	return "", false, nil
+}
+
+// tryGetValueFromArg attempts to get a value from the argument mapping
+func tryGetValueFromArg(
+	fieldName string,
+	argsMap ArgsMapping,
+	args []string,
+	ctx grpc.ClientConn,
+) (string, bool, error) {
+	argTransform, hasArgT := argsMap[fieldName]
+	if hasArgT && len(args) > argTransform.Index {
+		argVal, err := getValueFromArg(argTransform, args, ctx, fieldName)
+		if err != nil {
+			return "", false, err
+		}
+		if argVal != "" {
+			return argVal, true, nil
+		}
+	}
+	return "", false, nil
+}
+
+// tryGetValueFromPositionalArg attempts to get a value from a positional argument
+func tryGetValueFromPositionalArg(
+	args []string,
+	nextArgIdx *int,
+) (string, bool, error) {
+	posVal, ok := getValueFromPositionalArg(args, nextArgIdx)
+	if ok {
+		return posVal, true, nil
+	}
+	return "", false, nil
+}
+
+// getValueFromFlag gets a value from a flag
+func getValueFromFlag(flagTransform Flag, flags *pflag.FlagSet, ctx grpc.ClientConn, fieldName string) (string, error) {
+	if flagTransform.Flag == "" {
+		// Special case to leave msg field zero-initialized
+		return "", nil
+	}
+	flag := flags.Lookup(flagTransform.Flag)
+	if flag == nil || (!flag.Changed && !flagTransform.UseDefaultIfOmitted) {
+		// Flag not found, or not set and we don't want its default value
+		return "", nil
+	}
+	val := flag.Value.String()
+	if flagTransform.Transform != nil {
+		valT, err := flagTransform.Transform(val, ctx)
+		if err != nil {
+			return "", fmt.Errorf("error during transforming flag %s: %w", fieldName, err)
+		}
+		val = fmt.Sprintf("%v", valT)
+	}
+	return val, nil
+}
+
+// getValueFromArg gets a value from an argument
+func getValueFromArg(argTransform Arg, args []string, ctx grpc.ClientConn, fieldName string) (string, error) {
+	val := args[argTransform.Index]
+	if argTransform.Transform != nil {
+		valT, err := argTransform.Transform(val, ctx)
+		if err != nil {
+			return "", fmt.Errorf("error during transforming argument %s: %w", fieldName, err)
+		}
+		val = fmt.Sprintf("%v", valT)
+	}
+	args[argTransform.Index] = "" // Mark arg as used by setting it to ""
+	return val, nil
+}
+
+// getValueFromPositionalArg gets a value from a positional argument
+func getValueFromPositionalArg(args []string, nextArgIdx *int) (string, bool) {
+	for len(args) > *nextArgIdx {
+		val := args[*nextArgIdx]
+		*nextArgIdx++
+		if val != "" {
+			return val, true
+		}
+	}
+	return "", false
 }
 
 func parseFieldFromString(fVal reflect.Value, fType reflect.StructField, val string) error {

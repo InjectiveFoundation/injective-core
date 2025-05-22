@@ -20,6 +20,9 @@ import (
 	ibckeeper "github.com/cosmos/ibc-go/v8/modules/core/keeper"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/crypto/ethsecp256k1"
+	evmante "github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/ante"
+	evmkeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/keeper"
+	evmtypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/types"
 	txfeeskeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/txfees/keeper"
 )
 
@@ -51,6 +54,27 @@ type HandlerOptions struct {
 	WasmKeeper            *wasmkeeper.Keeper
 	TXCounterStoreService corestoretypes.KVStoreService
 	TxFeesKeeper          *txfeeskeeper.Keeper
+	EVMKeeper             *evmkeeper.Keeper
+	MaxEthTxGasWanted     uint64
+	DisabledAuthzMsgs     []string
+}
+
+func newEVMAnteHandler(options HandlerOptions) (sdk.AnteHandler, error) {
+	return evmante.NewEthAnteHandler(evmante.EthAnteHandlerOptions{
+		// authante.HandlerOptions has more relaxed requirements for the keepers,
+		// re-cast into the expected interfaces.
+		AccountKeeper: options.AccountKeeper.(evmtypes.AccountKeeper),
+		BankKeeper:    options.BankKeeper.(evmtypes.BankKeeper),
+
+		EvmKeeper:       options.EVMKeeper,
+		SignModeHandler: options.SignModeHandler,
+		SigGasConsumer:  options.SigGasConsumer,
+		MaxTxGasWanted:  options.MaxEthTxGasWanted,
+		// TODO: use TxFeesKeeper
+		DisabledAuthzMsgs: []string{
+			sdk.MsgTypeURL(&evmtypes.MsgEthereumTx{}),
+		},
+	})
 }
 
 // NewAnteHandler returns an ante handler responsible for attempting to route an
@@ -87,6 +111,11 @@ func NewAnteHandler(
 					switch tx.(type) {
 					case sdk.Tx:
 						anteHandler = sdk.ChainAnteDecorators(
+							// don't allow EVM messages in this route:
+							evmante.RejectEthMessagesDecorator{},
+							// disable the Msg types that cannot be included on an authz.MsgExec msgs field, e.g. EVM messages:
+							NewAuthzLimiterDecorator(options.DisabledAuthzMsgs),
+
 							authante.NewSetUpContextDecorator(),                                              // outermost AnteDecorator. SetUpContext must be called first
 							wasmkeeper.NewLimitSimulationGasDecorator(options.WasmConfig.SimulationGasLimit), // after setup context to enforce limits early
 							wasmkeeper.NewCountTXDecorator(options.TXCounterStoreService),
@@ -105,7 +134,12 @@ func NewAnteHandler(
 					default:
 						return ctx, errors.Wrapf(sdkerrors.ErrUnknownRequest, "invalid transaction type: %T", tx)
 					}
-
+				case "/injective.evm.v1.ExtensionOptionsEthereumTx":
+					// handle as *evmtypes.MsgEthereumTx
+					anteHandler, err = newEVMAnteHandler(options)
+					if err != nil {
+						return ctx, errors.Wrapf(sdkerrors.ErrAppConfig, "can't create Eth Ante handler: %v", err)
+					}
 				default:
 					ctx.Logger().Error("rejecting tx with unsupported extension option", "type_url", typeURL)
 					return ctx, sdkerrors.ErrUnknownExtensionOptions
@@ -120,6 +154,11 @@ func NewAnteHandler(
 		switch tx.(type) {
 		case sdk.Tx:
 			anteHandler = sdk.ChainAnteDecorators(
+				// don't allow EVM messages in this route:
+				evmante.RejectEthMessagesDecorator{},
+				// disable the Msg types that cannot be included on an authz.MsgExec msgs field, e.g. EVM messages:
+				NewAuthzLimiterDecorator(options.DisabledAuthzMsgs),
+
 				authante.NewSetUpContextDecorator(),                                              // outermost AnteDecorator. SetUpContext must be called first
 				wasmkeeper.NewLimitSimulationGasDecorator(options.WasmConfig.SimulationGasLimit), // after setup context to enforce limits early
 				wasmkeeper.NewCountTXDecorator(options.TXCounterStoreService),

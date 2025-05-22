@@ -53,8 +53,6 @@ type ExchangeMsg struct {
 	IncreasePositionMargin           *exchangetypes.MsgIncreasePositionMargin           `json:"increase_position_margin,omitempty"`
 	LiquidatePosition                *exchangetypes.MsgLiquidatePosition                `json:"liquidate_position,omitempty"`
 	InstantSpotMarketLaunch          *exchangetypes.MsgInstantSpotMarketLaunch          `json:"instant_spot_market_launch,omitempty"`
-	InstantPerpetualMarketLaunch     *exchangetypes.MsgInstantPerpetualMarketLaunch     `json:"instant_perpetual_market_launch,omitempty"`
-	InstantExpiryFuturesMarketLaunch *exchangetypes.MsgInstantExpiryFuturesMarketLaunch `json:"instant_expiry_futures_market_launch,omitempty"`
 	BatchUpdateOrders                *exchangetypes.MsgBatchUpdateOrders                `json:"batch_update_orders,omitempty"`
 	PrivilegedExecuteContract        *exchangetypes.MsgPrivilegedExecuteContract        `json:"privileged_execute_contract,omitempty"`
 	RewardsOptOut                    *exchangetypes.MsgRewardsOptOut                    `json:"rewards_opt_out,omitempty"`

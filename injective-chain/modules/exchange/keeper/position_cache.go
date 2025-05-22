@@ -4,29 +4,30 @@ import (
 	"bytes"
 	"sort"
 
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
+
 	"cosmossdk.io/store/prefix"
 	"github.com/InjectiveLabs/metrics"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
-
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 )
 
 func NewModifiedPositionCache() ModifiedPositionCache {
-	return make(map[common.Hash]map[common.Hash]*types.Position)
+	return make(map[common.Hash]map[common.Hash]*v2.Position)
 }
 
 // ModifiedPositionCache maps marketID => subaccountID => position or nil indicator
-type ModifiedPositionCache map[common.Hash]map[common.Hash]*types.Position
+type ModifiedPositionCache map[common.Hash]map[common.Hash]*v2.Position
 
-func (c ModifiedPositionCache) SetPosition(marketID, subaccountID common.Hash, position *types.Position) {
+func (c ModifiedPositionCache) SetPosition(marketID, subaccountID common.Hash, position *v2.Position) {
 	if position == nil {
 		return
 	}
 
 	v, ok := c[marketID]
 	if !ok {
-		v = make(map[common.Hash]*types.Position)
+		v = make(map[common.Hash]*v2.Position)
 		c[marketID] = v
 	}
 
@@ -36,14 +37,14 @@ func (c ModifiedPositionCache) SetPosition(marketID, subaccountID common.Hash, p
 func (c ModifiedPositionCache) SetPositionIndicator(marketID, subaccountID common.Hash) {
 	v, ok := c[marketID]
 	if !ok {
-		v = make(map[common.Hash]*types.Position)
+		v = make(map[common.Hash]*v2.Position)
 		c[marketID] = v
 	}
 
 	v[subaccountID] = nil
 }
 
-func (c ModifiedPositionCache) GetPosition(marketID, subaccountID common.Hash) *types.Position {
+func (c ModifiedPositionCache) GetPosition(marketID, subaccountID common.Hash) *v2.Position {
 	v, ok := c[marketID]
 	if !ok {
 		return nil
@@ -102,7 +103,7 @@ func (k *Keeper) AppendModifiedSubaccountsByMarket(ctx sdk.Context, marketID com
 			existingSubaccountIDMap[common.BytesToHash(subaccountID)] = struct{}{}
 		}
 	} else {
-		existingSubaccountIDs = &types.SubaccountIDs{
+		existingSubaccountIDs = &v2.SubaccountIDs{
 			SubaccountIds: [][]byte{},
 		}
 	}
@@ -120,7 +121,7 @@ func (k *Keeper) AppendModifiedSubaccountsByMarket(ctx sdk.Context, marketID com
 	modifiedPositionsStore.Set(marketID.Bytes(), bz)
 }
 
-func (k *Keeper) GetModifiedSubaccountsByMarket(ctx sdk.Context, marketID common.Hash) *types.SubaccountIDs {
+func (k *Keeper) GetModifiedSubaccountsByMarket(ctx sdk.Context, marketID common.Hash) *v2.SubaccountIDs {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
@@ -132,7 +133,7 @@ func (k *Keeper) GetModifiedSubaccountsByMarket(ctx sdk.Context, marketID common
 		return nil
 	}
 
-	var subaccountIDs types.SubaccountIDs
+	var subaccountIDs v2.SubaccountIDs
 	k.cdc.MustUnmarshal(bz, &subaccountIDs)
 
 	return &subaccountIDs

@@ -3,14 +3,14 @@ package ordermatching
 import (
 	"cosmossdk.io/math"
 	storetypes "cosmossdk.io/store/types"
-	"github.com/cosmos/cosmos-sdk/codec"
-
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
+	"github.com/cosmos/cosmos-sdk/codec"
 )
 
 var _ SpotOrderbook = &SpotLimitOrderbook{}
 
-func NewSpotOrderbookMatchingResults(transientBuyOrders, transientSellOrders []*types.SpotLimitOrder) *SpotOrderbookMatchingResults {
+func NewSpotOrderbookMatchingResults(transientBuyOrders, transientSellOrders []*v2.SpotLimitOrder) *SpotOrderbookMatchingResults {
 	orderbookResults := SpotOrderbookMatchingResults{
 		TransientBuyOrderbookFills: &OrderbookFills{
 			Orders: transientBuyOrders,
@@ -74,13 +74,13 @@ type SpotOrderbook interface {
 	GetTotalQuantityFilled() math.LegacyDec
 	GetTransientOrderbookFills() *OrderbookFills
 	GetRestingOrderbookFills() *OrderbookFills
-	Peek() *types.PriceLevel
+	Peek() *v2.PriceLevel
 	Fill(math.LegacyDec) error
 	Close() error
 }
 
 type OrderbookFills struct {
-	Orders         []*types.SpotLimitOrder
+	Orders         []*v2.SpotLimitOrder
 	FillQuantities []math.LegacyDec
 }
 
@@ -104,7 +104,7 @@ type SpotLimitOrderbook struct {
 func NewSpotLimitOrderbook(
 	cdc codec.BinaryCodec,
 	iterator storetypes.Iterator,
-	transientOrders []*types.SpotLimitOrder,
+	transientOrders []*v2.SpotLimitOrder,
 	isBuy bool,
 ) *SpotLimitOrderbook {
 	// return early if there are no limit orders in this direction
@@ -132,7 +132,7 @@ func NewSpotLimitOrderbook(
 
 	if iterator.Valid() {
 		restingOrderbookState = &OrderbookFills{
-			Orders:         make([]*types.SpotLimitOrder, 0),
+			Orders:         make([]*v2.SpotLimitOrder, 0),
 			FillQuantities: make([]math.LegacyDec, 0),
 		}
 	}
@@ -187,7 +187,7 @@ func (b *SpotLimitOrderbook) advanceNewOrder() {
 	}
 }
 
-func (b *SpotLimitOrderbook) Peek() *types.PriceLevel {
+func (b *SpotLimitOrderbook) Peek() *v2.PriceLevel {
 	// Sets currState to the orderbook (transientOrderbook or restingOrderbook) with the next best priced order
 	b.advanceNewOrder()
 
@@ -195,7 +195,7 @@ func (b *SpotLimitOrderbook) Peek() *types.PriceLevel {
 		return nil
 	}
 
-	priceLevel := types.PriceLevel{}
+	priceLevel := v2.PriceLevel{}
 
 	idx := b.getCurrIndex()
 	order := b.currState.Orders[idx]
@@ -261,7 +261,7 @@ func (b *SpotLimitOrderbook) getTransientFillableQuantity() math.LegacyDec {
 	return b.transientOrderbookFills.Orders[idx].Fillable.Sub(b.transientOrderbookFills.FillQuantities[idx])
 }
 
-func (b *SpotLimitOrderbook) getRestingOrder() *types.SpotLimitOrder {
+func (b *SpotLimitOrderbook) getRestingOrder() *v2.SpotLimitOrder {
 	// if no more orders to iterate + fully filled, return nil
 	if !b.restingOrderIterator.Valid() && (b.restingOrderbookFills == nil || b.getRestingFillableQuantity().IsZero()) {
 		return nil
@@ -271,7 +271,7 @@ func (b *SpotLimitOrderbook) getRestingOrder() *types.SpotLimitOrder {
 
 	// if the current resting order state is fully filled, advance the iterator
 	if b.getRestingFillableQuantity().IsZero() {
-		var order types.SpotLimitOrder
+		var order v2.SpotLimitOrder
 		bz := b.restingOrderIterator.Value()
 		b.cdc.MustUnmarshal(bz, &order)
 
@@ -286,7 +286,7 @@ func (b *SpotLimitOrderbook) getRestingOrder() *types.SpotLimitOrder {
 	return b.restingOrderbookFills.Orders[idx]
 }
 
-func (b *SpotLimitOrderbook) getTransientOrder() *types.SpotLimitOrder {
+func (b *SpotLimitOrderbook) getTransientOrder() *v2.SpotLimitOrder {
 	if b.transientOrderbookFills == nil {
 		return nil
 	}
@@ -296,7 +296,7 @@ func (b *SpotLimitOrderbook) getTransientOrder() *types.SpotLimitOrder {
 	}
 
 	if b.getTransientFillableQuantity().IsZero() {
-		b.transientOrderIdx += 1
+		b.transientOrderIdx++
 		// apply recursion to obtain the new current New Order
 		return b.getTransientOrder()
 	}

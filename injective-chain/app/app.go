@@ -8,30 +8,6 @@ import (
 	"path/filepath"
 	"strconv"
 
-	icahost "github.com/cosmos/ibc-go/v8/modules/apps/27-interchain-accounts/host"
-	porttypes "github.com/cosmos/ibc-go/v8/modules/core/05-port/types"
-
-	"github.com/InjectiveLabs/injective-core/injective-chain/wasmbinding"
-
-	"github.com/cosmos/cosmos-sdk/types/tx/signing"
-	"github.com/cosmos/cosmos-sdk/x/auth/migrations/legacytx"
-	tx "github.com/cosmos/cosmos-sdk/x/auth/tx/config"
-	"github.com/gorilla/mux"
-
-	skipabci "github.com/skip-mev/block-sdk/v2/abci"
-	skipchecktx "github.com/skip-mev/block-sdk/v2/abci/checktx"
-	signerextraction "github.com/skip-mev/block-sdk/v2/adapters/signer_extraction_adapter"
-	skipblock "github.com/skip-mev/block-sdk/v2/block"
-	skipbase "github.com/skip-mev/block-sdk/v2/block/base"
-	skiputils "github.com/skip-mev/block-sdk/v2/block/utils"
-	skipdefaultlane "github.com/skip-mev/block-sdk/v2/lanes/base"
-
-	"github.com/spf13/cast"
-
-	abci "github.com/cometbft/cometbft/abci/types"
-	tmos "github.com/cometbft/cometbft/libs/os"
-	"github.com/cometbft/cometbft/libs/pubsub"
-
 	autocliv1 "cosmossdk.io/api/cosmos/autocli/v1"
 	reflectionv1 "cosmossdk.io/api/cosmos/reflection/v1"
 	"cosmossdk.io/client/v2/autocli"
@@ -48,7 +24,11 @@ import (
 	"cosmossdk.io/x/upgrade"
 	upgradekeeper "cosmossdk.io/x/upgrade/keeper"
 	upgradetypes "cosmossdk.io/x/upgrade/types"
-
+	"github.com/CosmWasm/wasmd/x/wasm"
+	wasmkeeper "github.com/CosmWasm/wasmd/x/wasm/keeper"
+	wasmtypes "github.com/CosmWasm/wasmd/x/wasm/types"
+	abci "github.com/cometbft/cometbft/abci/types"
+	"github.com/cometbft/cometbft/libs/pubsub"
 	dbm "github.com/cosmos/cosmos-db"
 	"github.com/cosmos/cosmos-sdk/baseapp"
 	"github.com/cosmos/cosmos-sdk/client"
@@ -65,15 +45,18 @@ import (
 	servertypes "github.com/cosmos/cosmos-sdk/server/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/module"
+	"github.com/cosmos/cosmos-sdk/types/tx/signing"
 	"github.com/cosmos/cosmos-sdk/version"
 	"github.com/cosmos/cosmos-sdk/x/auth"
 	authante "github.com/cosmos/cosmos-sdk/x/auth/ante"
 	authcodec "github.com/cosmos/cosmos-sdk/x/auth/codec"
 	authkeeper "github.com/cosmos/cosmos-sdk/x/auth/keeper"
+	"github.com/cosmos/cosmos-sdk/x/auth/migrations/legacytx"
 	authsims "github.com/cosmos/cosmos-sdk/x/auth/simulation"
 	authtx "github.com/cosmos/cosmos-sdk/x/auth/tx"
+	tx "github.com/cosmos/cosmos-sdk/x/auth/tx/config"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
-	"github.com/cosmos/cosmos-sdk/x/auth/vesting"
+
 	vestingtypes "github.com/cosmos/cosmos-sdk/x/auth/vesting/types"
 	"github.com/cosmos/cosmos-sdk/x/authz"
 	authzcdc "github.com/cosmos/cosmos-sdk/x/authz/codec"
@@ -113,9 +96,13 @@ import (
 	stakingkeeper "github.com/cosmos/cosmos-sdk/x/staking/keeper"
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 
-	"github.com/CosmWasm/wasmd/x/wasm"
-	wasmkeeper "github.com/CosmWasm/wasmd/x/wasm/keeper"
-	wasmtypes "github.com/CosmWasm/wasmd/x/wasm/types"
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/evm"
+	evmkeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/keeper"
+	evmtypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/types"
+	"github.com/ethereum/go-ethereum/core/vm"
+	_ "github.com/ethereum/go-ethereum/eth/tracers/js"
+	_ "github.com/ethereum/go-ethereum/eth/tracers/native"
+	ethparams "github.com/ethereum/go-ethereum/params"
 
 	"github.com/cosmos/ibc-apps/middleware/packet-forward-middleware/v8/packetforward"
 	packetforwardkeeper "github.com/cosmos/ibc-apps/middleware/packet-forward-middleware/v8/packetforward/keeper"
@@ -128,6 +115,7 @@ import (
 	capabilitytypes "github.com/cosmos/ibc-go/modules/capability/types"
 	ica "github.com/cosmos/ibc-go/v8/modules/apps/27-interchain-accounts"
 	icacontrollertypes "github.com/cosmos/ibc-go/v8/modules/apps/27-interchain-accounts/controller/types"
+	icahost "github.com/cosmos/ibc-go/v8/modules/apps/27-interchain-accounts/host"
 	icahostkeeper "github.com/cosmos/ibc-go/v8/modules/apps/27-interchain-accounts/host/keeper"
 	icahosttypes "github.com/cosmos/ibc-go/v8/modules/apps/27-interchain-accounts/host/types"
 	icatypes "github.com/cosmos/ibc-go/v8/modules/apps/27-interchain-accounts/types"
@@ -141,12 +129,20 @@ import (
 	ibcclient "github.com/cosmos/ibc-go/v8/modules/core/02-client"
 	ibcclienttypes "github.com/cosmos/ibc-go/v8/modules/core/02-client/types"
 	ibcconnectiontypes "github.com/cosmos/ibc-go/v8/modules/core/03-connection/types"
+	porttypes "github.com/cosmos/ibc-go/v8/modules/core/05-port/types"
 	ibcexported "github.com/cosmos/ibc-go/v8/modules/core/exported"
 	ibckeeper "github.com/cosmos/ibc-go/v8/modules/core/keeper"
 	ibctm "github.com/cosmos/ibc-go/v8/modules/light-clients/07-tendermint"
 	ibctestingtypes "github.com/cosmos/ibc-go/v8/testing/types"
-
-	"github.com/InjectiveLabs/metrics"
+	"github.com/gorilla/mux"
+	skipabci "github.com/skip-mev/block-sdk/v2/abci"
+	skipchecktx "github.com/skip-mev/block-sdk/v2/abci/checktx"
+	signerextraction "github.com/skip-mev/block-sdk/v2/adapters/signer_extraction_adapter"
+	skipblock "github.com/skip-mev/block-sdk/v2/block"
+	skipbase "github.com/skip-mev/block-sdk/v2/block/base"
+	skiputils "github.com/skip-mev/block-sdk/v2/block/utils"
+	skipdefaultlane "github.com/skip-mev/block-sdk/v2/lanes/base"
+	"github.com/spf13/cast"
 
 	"github.com/InjectiveLabs/injective-core/client/docs"
 	"github.com/InjectiveLabs/injective-core/injective-chain/app/ante"
@@ -157,6 +153,13 @@ import (
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/auction"
 	auctionkeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/auction/keeper"
 	auctiontypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/auction/types"
+	erc20keeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/erc20/keeper"
+	erc20module "github.com/InjectiveLabs/injective-core/injective-chain/modules/erc20/module"
+	erc20types "github.com/InjectiveLabs/injective-core/injective-chain/modules/erc20/types"
+	bankpc "github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/precompiles/bank"
+	exchangepc "github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/precompiles/exchange"
+	stakingpc "github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/precompiles/staking"
+	cosmostracing "github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/tracing"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange"
 	exchangekeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/keeper"
 	exchangetypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
@@ -183,8 +186,10 @@ import (
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx"
 	wasmxkeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/keeper"
 	wasmxtypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/types"
-	"github.com/InjectiveLabs/injective-core/injective-chain/stream"
+	chainstreamserver "github.com/InjectiveLabs/injective-core/injective-chain/stream/server"
 	chaintypes "github.com/InjectiveLabs/injective-core/injective-chain/types"
+	"github.com/InjectiveLabs/injective-core/injective-chain/wasmbinding"
+	"github.com/InjectiveLabs/metrics"
 
 	// unnamed import of statik for swagger UI support
 	_ "github.com/InjectiveLabs/injective-core/client/docs/statik"
@@ -235,7 +240,6 @@ var (
 		upgrade.AppModuleBasic{},
 		evidence.AppModuleBasic{},
 		ibctransfer.AppModuleBasic{},
-		vesting.AppModuleBasic{},
 		feegrantmodule.AppModuleBasic{},
 		authzmodule.AppModuleBasic{},
 		packetforward.AppModuleBasic{},
@@ -251,6 +255,9 @@ var (
 		txfees.AppModuleBasic{},
 		wasm.AppModuleBasic{},
 		wasmx.AppModuleBasic{},
+
+		evm.AppModuleBasic{},
+		erc20module.AppModuleBasic{},
 	)
 
 	// module account permissions
@@ -274,6 +281,8 @@ var (
 		txfees.ModuleName:              nil,
 		wasmtypes.ModuleName:           {authtypes.Burner},
 		wasmxtypes.ModuleName:          {authtypes.Burner},
+		evmtypes.ModuleName:            {authtypes.Minter, authtypes.Burner}, // used for secure addition and subtraction of balance using module account
+		erc20types.ModuleName:          nil,
 	}
 
 	// module accounts that are allowed to receive tokens
@@ -285,6 +294,8 @@ var (
 		peggytypes.ModuleName:        true,
 		tokenfactorytypes.ModuleName: true,
 		wasmxtypes.ModuleName:        true,
+		evmtypes.ModuleName:          true,
+		govtypes.ModuleName:          true,
 	}
 )
 
@@ -302,6 +313,7 @@ type InjectiveApp struct {
 	keys    map[string]*storetypes.KVStoreKey
 	tKeys   map[string]*storetypes.TransientStoreKey
 	memKeys map[string]*storetypes.MemoryStoreKey
+	okeys   map[string]*storetypes.ObjectStoreKey
 
 	// cosmos keepers
 	AuthzKeeper           authzkeeper.Keeper
@@ -325,12 +337,14 @@ type InjectiveApp struct {
 	InsuranceKeeper    insurancekeeper.Keeper
 	TokenFactoryKeeper tokenfactorykeeper.Keeper
 	PermissionsKeeper  permissionskeeper.Keeper
+	EvmKeeper          *evmkeeper.Keeper
 	PeggyKeeper        peggyKeeper.Keeper
 	OracleKeeper       oraclekeeper.Keeper
 	OcrKeeper          ocrkeeper.Keeper
 	WasmKeeper         wasmkeeper.Keeper
 	WasmxKeeper        wasmxkeeper.Keeper
 	TxFeesKeeper       txfeeskeeper.Keeper
+	ERC20Keeper        erc20keeper.Keeper
 
 	// ibc keepers
 	IBCKeeper           *ibckeeper.Keeper // IBC Keeper must be a pointer in the app, so we can SetRouter on it correctly
@@ -355,8 +369,8 @@ type InjectiveApp struct {
 	configurator module.Configurator
 
 	// stream server
-	ChainStreamServer *stream.StreamServer
-	EventPublisher    *stream.Publisher
+	ChainStreamServer *chainstreamserver.StreamServer
+	EventPublisher    *chainstreamserver.Publisher
 
 	// custom checkTx wrapper to ensure mempool parity between app and cometbft
 	checkTxHandler skipchecktx.CheckTx
@@ -381,6 +395,7 @@ func NewInjectiveApp(
 
 	oracleModule := app.initKeepers(authority, appOpts, wasmConfig)
 	app.initManagers(oracleModule)
+
 	app.registerUpgradeHandlers()
 
 	lanes := app.initLanes()
@@ -421,6 +436,7 @@ func NewInjectiveApp(
 	app.MountKVStores(app.keys)
 	app.MountTransientStores(app.tKeys)
 	app.MountMemoryStores(app.memKeys)
+	app.MountObjectStores(app.okeys)
 
 	// initialize BaseApp
 	app.SetInitChainer(app.InitChainer)
@@ -428,9 +444,23 @@ func NewInjectiveApp(
 	app.SetBeginBlocker(app.BeginBlocker)
 	app.SetEndBlocker(app.EndBlocker)
 
+	// TODO: xlab: move srvflags.EVMTracer
+	tracer := cast.ToString(appOpts.Get("evm.tracer"))
+
+	switch {
+	case tracer == "access_list":
+		panic("access_list tracer is not supported")
+	case tracer != "":
+		liveTracer := evmtypes.NewTracer(tracer, nil, ethparams.Rules{})
+		app.EvmKeeper.SetTracer(&cosmostracing.Hooks{
+			Hooks: liveTracer.Hooks,
+		})
+	}
+
 	// use Injective's custom AnteHandler
 	skipAnteHandlers := cast.ToBool(appOpts.Get("SkipAnteHandlers"))
 	if !skipAnteHandlers {
+		maxEthTxGasWanted := cast.ToUint64(appOpts.Get("evm.max-tx-gas-wanted")) // TODO: xlab: move srvflags.EVMMaxTxGasWanted
 		anteHandler := ante.NewAnteHandler(ante.HandlerOptions{
 			HandlerOptions: authante.HandlerOptions{
 				AccountKeeper:          app.AccountKeeper,
@@ -445,6 +475,11 @@ func NewInjectiveApp(
 			WasmKeeper:            &app.WasmKeeper,
 			TXCounterStoreService: runtime.NewKVStoreService(app.keys[wasmtypes.StoreKey]),
 			TxFeesKeeper:          &app.TxFeesKeeper,
+			EVMKeeper:             app.EvmKeeper,
+			MaxEthTxGasWanted:     maxEthTxGasWanted,
+			DisabledAuthzMsgs: []string{
+				sdk.MsgTypeURL(&evmtypes.MsgEthereumTx{}),
+			},
 		})
 		app.SetAnteHandler(anteHandler)
 		// Set the ante handler on the lanes.
@@ -491,7 +526,7 @@ func NewInjectiveApp(
 
 	if loadLatest {
 		if err := app.LoadLatestVersion(); err != nil {
-			tmos.Exit(err.Error())
+			panic(err)
 		}
 	}
 
@@ -500,8 +535,14 @@ func NewInjectiveApp(
 	app.CapabilityKeeper.Seal()
 
 	bus := pubsub.NewServer()
-	app.EventPublisher = stream.NewPublisher(app.StreamEvents, bus)
-	app.ChainStreamServer = stream.NewChainStreamServer(bus, appOpts)
+	app.EventPublisher = chainstreamserver.NewPublisher(app.StreamEvents, bus)
+	app.ChainStreamServer = chainstreamserver.NewChainStreamServer(
+		bus,
+		appOpts,
+		app.ExchangeKeeper,
+		&app.TxFeesKeeper,
+		app.CreateQueryContext,
+	)
 
 	authzcdc.GlobalCdc = codec.NewProtoCodec(app.interfaceRegistry)
 	ante.GlobalCdc = codec.NewProtoCodec(app.interfaceRegistry)
@@ -544,6 +585,8 @@ func initInjectiveApp(
 			permissionsmodule.StoreKey,
 			wasmtypes.StoreKey,
 			wasmxtypes.StoreKey,
+			evmtypes.StoreKey,
+			erc20module.StoreKey,
 		)
 
 		tKeys = storetypes.NewTransientStoreKeys(
@@ -554,6 +597,8 @@ func initInjectiveApp(
 		)
 
 		memKeys = storetypes.NewMemoryStoreKeys(capabilitytypes.MemStoreKey)
+
+		okeys = storetypes.NewObjectStoreKeys(banktypes.ObjectStoreKey, evmtypes.ObjectStoreKey)
 	)
 
 	bApp := baseapp.NewBaseApp(
@@ -569,6 +614,9 @@ func initInjectiveApp(
 	bApp.SetName(version.Name)
 	bApp.SetInterfaceRegistry(interfaceRegistry)
 
+	// Might be required for EVM
+	// bApp.SetDisableBlockGasMeter(true)
+
 	app := &InjectiveApp{
 		BaseApp:           bApp,
 		amino:             legacyAmino,
@@ -578,6 +626,7 @@ func initInjectiveApp(
 		keys:              keys,
 		tKeys:             tKeys,
 		memKeys:           memKeys,
+		okeys:             okeys,
 	}
 
 	return app
@@ -634,7 +683,7 @@ func (app *InjectiveApp) initLanes() (lanes initLanesResult) {
 			Logger:          app.Logger(),
 			TxEncoder:       app.txConfig.TxEncoder(),
 			TxDecoder:       app.txConfig.TxDecoder(),
-			SignerExtractor: signerextraction.NewDefaultAdapter(),
+			SignerExtractor: NewEthSignerExtractionAdapter(signerextraction.NewDefaultAdapter()),
 			MaxBlockSpace:   math.LegacyZeroDec(),
 			MaxTxs:          0,
 		},
@@ -651,7 +700,7 @@ func (app *InjectiveApp) initLanes() (lanes initLanesResult) {
 
 // CheckTx calls a custom checkTx wrapper to ensure mempool parity between app and cometbft.
 // This overrides  BaseApp default checkTx handler.
-func (app *InjectiveApp) CheckTx(req *abci.RequestCheckTx) (*abci.ResponseCheckTx, error) {
+func (app *InjectiveApp) CheckTx(req *abci.CheckTxRequest) (*abci.CheckTxResponse, error) {
 	return app.checkTxHandler(req)
 }
 
@@ -666,6 +715,18 @@ func (app *InjectiveApp) GetIBCKeeper() *ibckeeper.Keeper { return app.IBCKeeper
 
 func (app *InjectiveApp) GetScopedIBCKeeper() capabilitykeeper.ScopedKeeper {
 	return app.ScopedIBCKeeper
+}
+
+func (app *InjectiveApp) GetExchangeKeeper() *exchangekeeper.Keeper {
+	return app.ExchangeKeeper
+}
+
+func (app *InjectiveApp) GetEvmKeeper() *evmkeeper.Keeper {
+	return app.EvmKeeper
+}
+
+func (app *InjectiveApp) GetPeggyKeeper() *peggyKeeper.Keeper {
+	return &app.PeggyKeeper
 }
 
 func (app *InjectiveApp) GetTxConfig() client.TxConfig { return app.txConfig }
@@ -698,11 +759,12 @@ func (app *InjectiveApp) Name() string { return app.BaseApp.Name() }
 func (app *InjectiveApp) BeginBlocker(ctx sdk.Context) (sdk.BeginBlock, error) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, metrics.Tags{"svc": "app", "height": strconv.Itoa(int(ctx.BlockHeight()))})
 	defer doneFn()
+
 	return app.mm.BeginBlock(ctx)
 }
 
 // PreBlocker application updates every pre block
-func (app *InjectiveApp) PreBlocker(ctx sdk.Context, _ *abci.RequestFinalizeBlock) (*sdk.ResponsePreBlock, error) {
+func (app *InjectiveApp) PreBlocker(ctx sdk.Context, _ *abci.FinalizeBlockRequest) (*sdk.ResponsePreBlock, error) {
 	return app.mm.PreBlock(ctx)
 }
 
@@ -710,11 +772,12 @@ func (app *InjectiveApp) PreBlocker(ctx sdk.Context, _ *abci.RequestFinalizeBloc
 func (app *InjectiveApp) EndBlocker(ctx sdk.Context) (sdk.EndBlock, error) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, metrics.Tags{"svc": "app", "height": strconv.Itoa(int(ctx.BlockHeight()))})
 	defer doneFn()
+
 	return app.mm.EndBlock(ctx)
 }
 
 // InitChainer updates at chain initialization
-func (app *InjectiveApp) InitChainer(ctx sdk.Context, req *abci.RequestInitChain) (*abci.ResponseInitChain, error) {
+func (app *InjectiveApp) InitChainer(ctx sdk.Context, req *abci.InitChainRequest) (*abci.InitChainResponse, error) {
 	var genesisState GenesisState
 	app.amino.MustUnmarshalJSON(req.AppStateBytes, &genesisState)
 	if err := app.UpgradeKeeper.SetModuleVersionMap(ctx, app.mm.GetVersionMap()); err != nil {
@@ -726,6 +789,22 @@ func (app *InjectiveApp) InitChainer(ctx sdk.Context, req *abci.RequestInitChain
 
 func (app *InjectiveApp) RegisterNodeService(clientCtx client.Context, cfg config.Config) {
 	nodeservice.RegisterNodeService(clientCtx, app.GRPCQueryRouter(), cfg)
+}
+
+func (app *InjectiveApp) GetStoreKey(name string) storetypes.StoreKey {
+	key, ok := app.keys[name]
+	if ok {
+		return key
+	}
+	tkey, ok := app.tKeys[name]
+	if ok {
+		return tkey
+	}
+	mkey, ok := app.memKeys[name]
+	if ok {
+		return mkey
+	}
+	return app.okeys[name]
 }
 
 // LoadHeight loads state at a particular height
@@ -907,7 +986,7 @@ func (app *InjectiveApp) initKeepers(authority string, appOpts servertypes.AppOp
 	app.AccountKeeper = authkeeper.NewAccountKeeper(
 		app.codec,
 		runtime.NewKVStoreService(app.keys[authtypes.StoreKey]),
-		chaintypes.ProtoAccount, // use custom Ethermint account
+		chaintypes.ProtoAccount, // use custom Injective (Eth) account
 		maccPerms,
 		authcodec.NewBech32Codec(chaintypes.InjectiveBech32Prefix),
 		chaintypes.InjectiveBech32Prefix,
@@ -918,6 +997,7 @@ func (app *InjectiveApp) initKeepers(authority string, appOpts servertypes.AppOp
 		app.codec,
 		runtime.NewKVStoreService(app.keys[banktypes.StoreKey]),
 		runtime.NewTransientKVStoreService(app.tKeys[banktypes.TStoreKey]),
+		app.okeys[banktypes.ObjectStoreKey],
 		app.AccountKeeper,
 		app.BlockedAddrs(),
 		authority,
@@ -1027,6 +1107,40 @@ func (app *InjectiveApp) initKeepers(authority string, appOpts servertypes.AppOp
 		authority,
 	)
 
+	// Sets authority to x/gov module account to only expect the module account to update params
+	evmSubspace := app.GetSubspace(evmtypes.ModuleName)
+
+	app.EvmKeeper = evmkeeper.NewKeeper(
+		app.codec,
+		app.keys[evmtypes.StoreKey], app.okeys[evmtypes.ObjectStoreKey], authtypes.NewModuleAddress(govtypes.ModuleName),
+		app.AccountKeeper, app.BankKeeper, app.StakingKeeper,
+		evmSubspace,
+		[]evmkeeper.CustomContractFn{
+			func(_ sdk.Context, rules ethparams.Rules) vm.PrecompiledContract {
+				return bankpc.NewBankContract(
+					app.BankKeeper,
+					erc20keeper.NewQueryServerImpl(app.ERC20Keeper), // it's OK to reference erc20Keeper here since it's inside generator function that will be called later
+					app.codec,
+					storetypes.TransientGasConfig(),
+				)
+			},
+			func(_ sdk.Context, rules ethparams.Rules) vm.PrecompiledContract {
+				return exchangepc.NewExchangeContract(
+					app.ExchangeKeeper,
+					&app.AuthzKeeper,
+					storetypes.TransientGasConfig(),
+				)
+			},
+			func(_ sdk.Context, rules ethparams.Rules) vm.PrecompiledContract {
+				return stakingpc.NewStakingContract(
+					app.StakingKeeper,
+					app.DistrKeeper,
+					storetypes.TransientGasConfig(),
+				)
+			},
+		},
+	)
+
 	app.OcrKeeper = ocrkeeper.NewKeeper(
 		app.codec,
 		app.keys[ocrtypes.StoreKey],
@@ -1080,7 +1194,7 @@ func (app *InjectiveApp) initKeepers(authority string, appOpts servertypes.AppOp
 		app.codec,
 		app.keys[wasmxtypes.StoreKey],
 		app.AccountKeeper,
-		app.BankKeeper,
+		app.BankKeeper.(wasmxtypes.BankKeeper),
 		app.FeeGrantKeeper,
 		authority,
 	)
@@ -1116,7 +1230,7 @@ func (app *InjectiveApp) initKeepers(authority string, appOpts servertypes.AppOp
 		app.BankKeeper,
 		app.SlashingKeeper,
 		app.DistrKeeper,
-		*app.ExchangeKeeper,
+		app.ExchangeKeeper,
 		authority,
 		app.AccountKeeper,
 	)
@@ -1129,6 +1243,8 @@ func (app *InjectiveApp) initKeepers(authority string, appOpts servertypes.AppOp
 		GetModuleAccAddresses(),
 		authority,
 	)
+
+	app.ERC20Keeper = erc20keeper.NewKeeper(app.keys[erc20module.StoreKey], app.EvmKeeper, app.BankKeeper, app.AccountKeeper, app.TokenFactoryKeeper, authority)
 
 	app.StakingKeeper.SetHooks(stakingtypes.NewMultiStakingHooks(
 		app.DistrKeeper.Hooks(),
@@ -1338,7 +1454,6 @@ func (app *InjectiveApp) initManagers(oracleModule oracle.AppModule) {
 		// SDK app modules
 		genutil.NewAppModule(app.AccountKeeper, app.StakingKeeper, app, app.txConfig),
 		auth.NewAppModule(app.codec, app.AccountKeeper, authsims.RandomGenesisAccounts, app.GetSubspace(authtypes.ModuleName)),
-		vesting.NewAppModule(app.AccountKeeper, app.BankKeeper),
 		bank.NewAppModule(app.codec, app.BankKeeper, app.AccountKeeper, app.GetSubspace(banktypes.ModuleName)),
 		capability.NewAppModule(app.codec, *app.CapabilityKeeper, false),
 		crisis.NewAppModule(app.CrisisKeeper, skipGenesisInvariants, app.GetSubspace(crisistypes.ModuleName)), // always be last to make sure that it checks for all invariants and not only part of them
@@ -1374,6 +1489,9 @@ func (app *InjectiveApp) initManagers(oracleModule oracle.AppModule) {
 		// this line is used by starport scaffolding # stargate/app/appModule
 		wasm.NewAppModule(app.codec, &app.WasmKeeper, app.StakingKeeper, app.AccountKeeper, app.BankKeeper, app.MsgServiceRouter(), app.GetSubspace(wasmtypes.ModuleName)),
 		wasmx.NewAppModule(app.WasmxKeeper, app.AccountKeeper, app.BankKeeper, *app.ExchangeKeeper, app.GetSubspace(wasmxtypes.ModuleName)),
+		// EVM app modules
+		evm.NewAppModule(app.EvmKeeper, app.AccountKeeper, app.GetSubspace(evmtypes.ModuleName)),
+		erc20module.NewAppModule(app.ERC20Keeper),
 	)
 
 	// BasicModuleManager defines the module BasicManager is in charge of setting up basic,
@@ -1473,6 +1591,7 @@ func initGenesisOrder() []string {
 		ibcexported.ModuleName,
 		icatypes.ModuleName,
 		ibcfeetypes.ModuleName,
+		evmtypes.ModuleName,
 		genutiltypes.ModuleName,
 		evidencetypes.ModuleName,
 		ibctransfertypes.ModuleName,
@@ -1488,6 +1607,7 @@ func initGenesisOrder() []string {
 		auctiontypes.ModuleName,
 		oracletypes.ModuleName,
 		tokenfactorytypes.ModuleName,
+		erc20module.ModuleName,
 		txfees.ModuleName,
 		permissionsmodule.ModuleName,
 		insurancetypes.ModuleName,
@@ -1512,13 +1632,13 @@ func beginBlockerOrder() []string {
 	// NOTE: staking module is required if HistoricalEntries param > 0.
 	return []string{
 		genutiltypes.ModuleName,
+		authtypes.ModuleName,
 		vestingtypes.ModuleName,
 		govtypes.ModuleName,
 		auctiontypes.ModuleName,
 		peggytypes.ModuleName,
 		paramstypes.ModuleName,
 		insurancetypes.ModuleName,
-		authtypes.ModuleName,
 		crisistypes.ModuleName,
 		feegrant.ModuleName,
 		banktypes.ModuleName,
@@ -1530,6 +1650,7 @@ func beginBlockerOrder() []string {
 		minttypes.ModuleName,
 		distrtypes.ModuleName,
 		slashingtypes.ModuleName,
+		evmtypes.ModuleName,
 		evidencetypes.ModuleName,
 		stakingtypes.ModuleName,
 		ibcexported.ModuleName,
@@ -1541,6 +1662,7 @@ func beginBlockerOrder() []string {
 		oracletypes.ModuleName,
 		ocrtypes.ModuleName,
 		tokenfactorytypes.ModuleName,
+		erc20module.ModuleName,
 		permissionsmodule.ModuleName,
 		ibchookstypes.ModuleName,
 		wasmtypes.ModuleName,
@@ -1559,6 +1681,7 @@ func endBlockerOrder() []string {
 		authz.ModuleName,
 		ibctransfertypes.ModuleName,
 		consensustypes.ModuleName,
+		evmtypes.ModuleName,
 		oracletypes.ModuleName,
 		minttypes.ModuleName,
 		slashingtypes.ModuleName,
@@ -1579,6 +1702,7 @@ func endBlockerOrder() []string {
 		insurancetypes.ModuleName,
 		ocrtypes.ModuleName,
 		tokenfactorytypes.ModuleName,
+		erc20module.ModuleName,
 		permissionsmodule.ModuleName,
 		wasmtypes.ModuleName,
 		ibchookstypes.ModuleName,

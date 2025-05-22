@@ -166,10 +166,6 @@ func (m *CustomMessenger) DispatchMsg(ctx sdk.Context, contractAddr sdk.AccAddre
 		sdkMsg = contractMsg.LiquidatePosition
 	case contractMsg.InstantSpotMarketLaunch != nil:
 		sdkMsg = contractMsg.InstantSpotMarketLaunch
-	case contractMsg.InstantPerpetualMarketLaunch != nil:
-		sdkMsg = contractMsg.InstantPerpetualMarketLaunch
-	case contractMsg.InstantExpiryFuturesMarketLaunch != nil:
-		sdkMsg = contractMsg.InstantExpiryFuturesMarketLaunch
 	// wasmx messages
 	case contractMsg.UpdateContractMsg != nil:
 		sdkMsg = contractMsg.UpdateContractMsg

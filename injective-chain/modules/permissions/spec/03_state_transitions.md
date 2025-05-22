@@ -5,22 +5,11 @@ title: State Transitions
 
 # State Transitions
 
-This document describes the state transition operations pertaining to:
-
-- Create namespace
-- Delete namespace
-- Update namespace
-- Update namespace roles
-- Revoke namespace roles
-- Claim Voucher
-- Update params
-
 ## Create Namespace
-
-Namespaces can be created for implementing different roles and actions.
 
 ```protobuf
 message MsgCreateNamespace {
+  option (amino.name) = "permissions/MsgCreateNamespace";
   option (cosmos.msg.v1.signer) = "sender";
   string sender = 1 [ (gogoproto.moretags) = "yaml:\"sender\"" ];
 
@@ -30,138 +19,174 @@ message MsgCreateNamespace {
 // Namespace defines a permissions namespace
 message Namespace {
   string denom = 1; // tokenfactory denom to which this namespace applies to
-  string wasm_hook =
-      2; // address of smart contract to apply code-based restrictions
+  string contract_hook = 2; // address of smart contract to apply code-based restrictions
 
-  bool mints_paused = 3;
-  bool sends_paused = 4;
-  bool burns_paused = 5;
-
-  repeated Role role_permissions = 6; // permissions for each role
-
-  repeated AddressRoles address_roles = 7;
+  repeated Role role_permissions = 3; // permissions for each role
+  repeated ActorRoles actor_roles = 4; // roles for each actor
+  repeated RoleManager role_managers = 5; //  managers for each role
+  repeated PolicyStatus policy_statuses = 6; // status for each policy
+  repeated PolicyManagerCapability policy_manager_capabilities = 7; // capabilities for each manager for each policy
 }
 
-message AddressRoles {
-  string address = 1;
+// Role is only used for storage
+message Role {
+  string name = 1;
+  uint32 role_id = 2;
+  uint32 permissions = 3;
+}
+
+// AddressRoles defines roles for an actor
+message ActorRoles {
+  string actor = 1;
   repeated string roles = 2;
 }
 
-message Role {
-  string role = 1;
-  uint32 permissions = 2;
+// RoleManager defines roles for a manager address
+message RoleManager {
+  string manager = 1;
+  repeated string roles = 2;
 }
 
+message PolicyStatus {
+  Action action = 1;
+  bool is_disabled = 2;
+  bool is_sealed = 3;
+}
+
+message PolicyManagerCapability {
+  string manager = 1;
+  Action action = 2;
+  bool can_disable = 3;
+  bool can_seal = 4;
+}
+
+// each Action enum value should be a power of two
 enum Action {
+  // 0 is reserved for ACTION_UNSPECIFIED
   UNSPECIFIED = 0;
+  // 1 is reserved for MINT
   MINT = 1;
+  // 2 is reserved for RECEIVE
   RECEIVE = 2;
+  // 4 is reserved for BURN
   BURN = 4;
+  // 8 is reserved for SEND
   SEND = 8;
+  // 16 is reserved for SUPER_BURN
+  SUPER_BURN = 16;
+
+  //
+  // MANAGER ACTIONS BELOW
+  //
+
+  // 2^27 is reserved for MODIFY_POLICY_MANAGERS
+  MODIFY_POLICY_MANAGERS = 0x8000000; // 2^27 or 134217728
+  // 2^28 is reserved for MODIFY_CONTRACT_HOOK
+  MODIFY_CONTRACT_HOOK = 0x10000000; // 2^28 or 268435456
+  // 2^29 is reserved for MODIFY_ROLE_PERMISSIONS
+  MODIFY_ROLE_PERMISSIONS = 0x20000000; // 2^29 or 536870912
+  // 2^30 is reserved for MODIFY_ROLE_MANAGERS
+  MODIFY_ROLE_MANAGERS = 0x40000000; // 2^30 or 1073741824
 }
+
 ```
-
-**Steps**
-
-- Create a new denom
-- Create a `MsgCreateNamespace` message with `Denom`, `RolePermissions` and `AddressRoles`.
-  - To set the `permissions` to grant a given role, compute the bitwise OR of the `Action`s that the role is allowed to perform.
-    - For example, to configure a role to have the ability to receive, send and mint tokens, the `permissions` for that role would be 11 (1 + 2 + 8 = 11).
-- Validate the `MsgCreateNamespace` object.
-- Send the create namespace message.
-
-## Delete Namespace
-
-Deleting a namespace removes it and its associated roles and permissions.
-```protobuf
-message MsgDeleteNamespace {
-  option (cosmos.msg.v1.signer) = "sender";
-  string sender = 1 [ (gogoproto.moretags) = "yaml:\"sender\"" ];
-
-  string namespace_denom = 2;
-}
-```
-
-**Steps**
-
-- Create a `MsgDeleteNamespace` message with the namespace denom `NamespaceDenom` to be deleted.
-- Validate the `MsgDeleteNamespace` object.
-- Send the delete namespace message.
 
 ## Update Namespace
 
-Updating a namespace allows modifying its associated roles and permissions.
 ```protobuf
 message MsgUpdateNamespace {
+  option (amino.name) = "permissions/MsgUpdateNamespace";
   option (cosmos.msg.v1.signer) = "sender";
   string sender = 1 [ (gogoproto.moretags) = "yaml:\"sender\"" ];
 
-  string namespace_denom =
-      2; // namespace denom to which this updates are applied
+  string denom = 2; // denom whose namespace updates are to be applied
 
-  message MsgSetWasmHook { string new_value = 1; }
-  MsgSetWasmHook wasm_hook =
-      3; // address of smart contract to apply code-based restrictions
+  message SetContractHook { string new_value = 1; }
+  SetContractHook contract_hook = 3; // address of smart contract to apply code-based restrictions
 
-  message MsgSetMintsPaused { bool new_value = 1; }
-  MsgSetMintsPaused mints_paused = 4;
-
-  message MsgSetSendsPaused { bool new_value = 1; }
-  MsgSetSendsPaused sends_paused = 5;
-
-  message MsgSetBurnsPaused { bool new_value = 1; }
-  MsgSetBurnsPaused burns_paused = 6;
+  repeated Role role_permissions = 4; // role permissions to update
+  repeated RoleManager role_managers = 5; //  role managers to update
+  repeated PolicyStatus policy_statuses = 6; // policy statuses to update
+  repeated PolicyManagerCapability policy_manager_capabilities = 7; // policy manager capabilities to update
 }
+
+message Role {
+  string name = 1;
+  uint32 role_id = 2;
+  uint32 permissions = 3;
+}
+
+// RoleManager defines roles for a manager address
+message RoleManager {
+  string manager = 1;
+  repeated string roles = 2;
+}
+
+message PolicyStatus {
+  Action action = 1;
+  bool is_disabled = 2;
+  bool is_sealed = 3;
+}
+
+message PolicyManagerCapability {
+  string manager = 1;
+  Action action = 2;
+  bool can_disable = 3;
+  bool can_seal = 4;
+}
+
+// each Action enum value should be a power of two
+enum Action {
+  // 0 is reserved for ACTION_UNSPECIFIED
+  UNSPECIFIED = 0;
+  // 1 is reserved for MINT
+  MINT = 1;
+  // 2 is reserved for RECEIVE
+  RECEIVE = 2;
+  // 4 is reserved for BURN
+  BURN = 4;
+  // 8 is reserved for SEND
+  SEND = 8;
+  // 16 is reserved for SUPER_BURN
+  SUPER_BURN = 16;
+
+  //
+  // MANAGER ACTIONS BELOW
+  //
+
+  // 2^27 is reserved for MODIFY_POLICY_MANAGERS
+  MODIFY_POLICY_MANAGERS = 0x8000000; // 2^27 or 134217728
+  // 2^28 is reserved for MODIFY_CONTRACT_HOOK
+  MODIFY_CONTRACT_HOOK = 0x10000000; // 2^28 or 268435456
+  // 2^29 is reserved for MODIFY_ROLE_PERMISSIONS
+  MODIFY_ROLE_PERMISSIONS = 0x20000000; // 2^29 or 536870912
+  // 2^30 is reserved for MODIFY_ROLE_MANAGERS
+  MODIFY_ROLE_MANAGERS = 0x40000000; // 2^30 or 1073741824
+}
+
 ```
-**Steps**
 
-- Create a `MsgUpdateNamespace` message with `NamespaceDenom`, and the new values for `MintsPaused`, `BurnsPaused` and `SendsPaused`.
-- Validate the `MsgUpdateNamespace` object.
-- Send the update namespace message.
+## Update Actor Roles
 
-## Update Namespace Roles
+- Roles can be given or revoked from addresses with `MsgUpdateActorRoles`
 
-Updating namespace roles allows modifying the roles and their permissions within a namespace.
 ```protobuf
-message MsgUpdateNamespaceRoles {
+message MsgUpdateActorRoles {
+  option (amino.name) = "permissions/MsgUpdateActorRoles";
   option (cosmos.msg.v1.signer) = "sender";
   string sender = 1 [ (gogoproto.moretags) = "yaml:\"sender\"" ];
 
-  string namespace_denom =
-      2; // namespace denom to which this updates are applied
+  string denom = 2; // namespace denom to which this updates are applied
 
-  repeated Role role_permissions =
-      3; // new role definitions or updated permissions for existing roles
-  repeated AddressRoles address_roles =
-      4; // new addresses to add or new roles for existing addresses to
-  // overwrite current roles
+  repeated RoleActors role_actors_to_add = 3; // roles to add for given actors
+  repeated RoleActors role_actors_to_revoke = 5; // roles to revoke from given actors
+}
+
+message RoleActors {
+  string role = 1;
+  repeated string actors = 2;
 }
 ```
-**Steps**
-
-- Create a `MsgUpdateNamespaceRoles` message with the `NamespaceDenom`, the new `RolePermissions` and `AddressRoles`.
-- Validate the `MsgUpdateNamespaceRoles` object.
-- Send the update namespace roles message.
-
-## Revoke Namespace Roles
-
-Revoking namespace roles removes certain roles from an address within a namespace.
-```protobuf
-message MsgRevokeNamespaceRoles {
-  option (cosmos.msg.v1.signer) = "sender";
-  string sender = 1 [ (gogoproto.moretags) = "yaml:\"sender\"" ];
-
-  string namespace_denom =
-      2; // namespace denom to which this updates are applied
-  repeated AddressRoles address_roles_to_revoke =
-      3; // {"address" => array of roles to revoke from this address}
-}
-```
-**Steps**
-
-- Create a `MsgRevokeNamespaceRoles` message with the `NamespaceDenom` and `AddressRolesToRevoke`.
-- Validate the `MsgRevokeNamespaceRoles` object.
-- Send the revoke namespace roles message.
 
 ## Claim Voucher
 
@@ -172,27 +197,5 @@ message MsgClaimVoucher {
   string sender = 1 [ (gogoproto.moretags) = "yaml:\"sender\"" ];
 
   string denom = 2;
-}
-```
-
-## Update Params
-
-```protobuf
-message MsgUpdateParams {
-  option (cosmos.msg.v1.signer) = "authority";
-
-  // authority is the address of the governance account.
-  string authority = 1 [ (cosmos_proto.scalar) = "cosmos.AddressString" ];
-
-  // params defines the permissions parameters to update.
-  //
-  // NOTE: All parameters must be supplied.
-  Params params = 2 [ (gogoproto.nullable) = false ];
-}
-
-message Params {
-  option (gogoproto.equal) = true;
-
-  uint64 wasm_hook_query_max_gas = 1;
 }
 ```

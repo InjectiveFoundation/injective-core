@@ -24,6 +24,7 @@ const (
 	FlagSettlementTime           = "settlement-time"
 	FlagInitialMarginRatio       = "initial-margin-ratio"
 	FlagMaintenanceMarginRatio   = "maintenance-margin-ratio"
+	FlagReduceMarginRatio        = "reduce-margin-ratio"
 	FlagMakerFeeRate             = "maker-fee-rate"
 	FlagTakerFeeRate             = "taker-fee-rate"
 	FlagRelayerFeeShareRate      = "relayer-fee-share-rate"
@@ -57,4 +58,5 @@ const (
 	FlagSubscriptionMinIncentive = "min-incentive"
 	FlagFunds                    = "funds"
 	FlagExpedited                = "expedited"
+	FlagExpirationBlock          = "expiration-block"
 )

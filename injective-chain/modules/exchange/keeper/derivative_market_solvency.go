@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 )
 
 func IsMarketSolvent(
@@ -18,7 +19,7 @@ func IsMarketSolvent(
 
 func (k *Keeper) EnsureMarketSolvency(
 	ctx sdk.Context,
-	market DerivativeMarketI,
+	market DerivativeMarketInterface,
 	marketBalanceDelta math.LegacyDec,
 	shouldCancelMarketOrders bool,
 ) bool {
@@ -47,7 +48,7 @@ func (k *Keeper) EnsureMarketSolvency(
 // if regular settlement fails due to missing oracle price, we at least pause the market and cancel all orders
 func (k *Keeper) HandleFailedRegularSettlement(
 	ctx sdk.Context,
-	market DerivativeMarketI,
+	market DerivativeMarketInterface,
 	marketID common.Hash,
 	shouldCancelMarketOrders bool,
 	availableMarketFunds math.LegacyDec,
@@ -71,8 +72,7 @@ func (k *Keeper) HandleFailedRegularSettlement(
 		metrics.ReportFuncError(k.svcTags)
 	}
 
-	// nolint:errcheck //ignored on purpose
-	ctx.EventManager().EmitTypedEvent(&types.EventNotSettledMarketBalance{
+	k.EmitEvent(ctx, &v2.EventNotSettledMarketBalance{
 		MarketId: marketID.String(),
 		Amount:   availableMarketFunds.String(),
 	})

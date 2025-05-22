@@ -69,7 +69,7 @@ func CmdUnsafeETHPrivKey() *cobra.Command {
 				return errors.Wrap(err, "can not generate key")
 			}
 			k := "0x" + hex.EncodeToString(ethCrypto.FromECDSA(key))
-			println(k)
+			fmt.Println(k)
 			return nil
 		},
 	}
@@ -93,7 +93,7 @@ func CmdUnsafeETHAddr() *cobra.Command {
 				log.Fatal("error casting public key to ECDSA")
 			}
 			ethAddress := ethCrypto.PubkeyToAddress(*publicKeyECDSA).Hex()
-			println(ethAddress)
+			fmt.Println(ethAddress)
 			return nil
 		},
 	}

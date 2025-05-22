@@ -1,10 +1,12 @@
 package keeper
 
 import (
+	"fmt"
+
 	"cosmossdk.io/math"
 	"cosmossdk.io/store/prefix"
-	"fmt"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 	"github.com/InjectiveLabs/metrics"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -109,14 +111,14 @@ func (k *Keeper) IsMetadataInvariantValid(ctx sdk.Context, options ...MetadataIn
 // getAllSubaccountOrderbookMetadata is a helper method only used by tests to verify data integrity
 func (k *Keeper) getAllSubaccountOrderbookMetadata(
 	ctx sdk.Context,
-) map[common.Hash]map[bool]map[common.Hash]*types.SubaccountOrderbookMetadata {
+) map[common.Hash]map[bool]map[common.Hash]*v2.SubaccountOrderbookMetadata {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	store := k.getStore(ctx)
 
 	// marketID => isBuy => subaccountID => metadata
-	metadatas := make(map[common.Hash]map[bool]map[common.Hash]*types.SubaccountOrderbookMetadata)
+	metadatas := make(map[common.Hash]map[bool]map[common.Hash]*v2.SubaccountOrderbookMetadata)
 
 	markets := k.GetAllDerivativeAndBinaryOptionsMarkets(ctx)
 	for _, market := range markets {
@@ -128,7 +130,7 @@ func (k *Keeper) getAllSubaccountOrderbookMetadata(
 		iterator := subaccountStore.Iterator(nil, nil)
 
 		for ; iterator.Valid(); iterator.Next() {
-			var metadata types.SubaccountOrderbookMetadata
+			var metadata v2.SubaccountOrderbookMetadata
 			bz := iterator.Value()
 			k.cdc.MustUnmarshal(bz, &metadata)
 			if metadata.GetOrderSideCount() == 0 {
@@ -139,10 +141,10 @@ func (k *Keeper) getAllSubaccountOrderbookMetadata(
 			var ok bool
 
 			if _, ok = metadatas[marketID]; !ok {
-				metadatas[marketID] = make(map[bool]map[common.Hash]*types.SubaccountOrderbookMetadata)
+				metadatas[marketID] = make(map[bool]map[common.Hash]*v2.SubaccountOrderbookMetadata)
 			}
 			if _, ok = metadatas[marketID][isBuy]; !ok {
-				metadatas[marketID][isBuy] = make(map[common.Hash]*types.SubaccountOrderbookMetadata)
+				metadatas[marketID][isBuy] = make(map[common.Hash]*v2.SubaccountOrderbookMetadata)
 			}
 
 			metadatas[marketID][isBuy][subaccountID] = &metadata
@@ -157,14 +159,14 @@ func (k *Keeper) getAllSubaccountOrderbookMetadata(
 // getAllSubaccountMetadataFromLimitOrders is a helper method only used by tests to verify data integrity
 func (k *Keeper) getAllSubaccountMetadataFromLimitOrders(
 	ctx sdk.Context,
-) map[common.Hash]map[bool]map[common.Hash]*types.SubaccountOrderbookMetadata {
+) map[common.Hash]map[bool]map[common.Hash]*v2.SubaccountOrderbookMetadata {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	orderbooks := k.GetAllDerivativeAndBinaryOptionsLimitOrderbook(ctx)
 
 	// marketID => isBuy => subaccountID => metadata
-	metadatas := make(map[common.Hash]map[bool]map[common.Hash]*types.SubaccountOrderbookMetadata)
+	metadatas := make(map[common.Hash]map[bool]map[common.Hash]*v2.SubaccountOrderbookMetadata)
 
 	for _, orderbook := range orderbooks {
 		marketID := common.HexToHash(orderbook.MarketId)
@@ -172,20 +174,20 @@ func (k *Keeper) getAllSubaccountMetadataFromLimitOrders(
 		m := metadatas[marketID][isBuy]
 		for _, order := range orderbook.Orders {
 			subaccountID := order.SubaccountID()
-			var metadata *types.SubaccountOrderbookMetadata
+			var metadata *v2.SubaccountOrderbookMetadata
 			var ok bool
 
 			if _, ok = metadatas[marketID]; !ok {
-				metadatas[marketID] = make(map[bool]map[common.Hash]*types.SubaccountOrderbookMetadata)
+				metadatas[marketID] = make(map[bool]map[common.Hash]*v2.SubaccountOrderbookMetadata)
 			}
 
 			if _, ok = metadatas[marketID][isBuy]; !ok {
-				m = make(map[common.Hash]*types.SubaccountOrderbookMetadata)
+				m = make(map[common.Hash]*v2.SubaccountOrderbookMetadata)
 				metadatas[marketID][isBuy] = m
 			}
 
 			if metadata, ok = m[subaccountID]; !ok {
-				metadata = types.NewSubaccountOrderbookMetadata()
+				metadata = v2.NewSubaccountOrderbookMetadata()
 				m[subaccountID] = metadata
 			}
 			if order.IsVanilla() {
@@ -204,7 +206,7 @@ func (k *Keeper) getAllSubaccountMetadataFromLimitOrders(
 // getAllSubaccountMetadataFromSubaccountOrders is a helper method only used by tests to verify data integrity
 func (k *Keeper) getAllSubaccountMetadataFromSubaccountOrders(
 	ctx sdk.Context,
-) map[common.Hash]map[bool]map[common.Hash]*types.SubaccountOrderbookMetadata {
+) map[common.Hash]map[bool]map[common.Hash]*v2.SubaccountOrderbookMetadata {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
@@ -215,10 +217,10 @@ func (k *Keeper) getAllSubaccountMetadataFromSubaccountOrders(
 	defer iterator.Close()
 
 	// marketID => isBuy => subaccountID => metadata
-	metadatas := make(map[common.Hash]map[bool]map[common.Hash]*types.SubaccountOrderbookMetadata)
+	metadatas := make(map[common.Hash]map[bool]map[common.Hash]*v2.SubaccountOrderbookMetadata)
 
 	for ; iterator.Valid(); iterator.Next() {
-		var order types.SubaccountOrder
+		var order v2.SubaccountOrder
 		bz := iterator.Value()
 		k.cdc.MustUnmarshal(bz, &order)
 		key := iterator.Key()
@@ -226,16 +228,16 @@ func (k *Keeper) getAllSubaccountMetadataFromSubaccountOrders(
 		subaccountID := common.BytesToHash(key[common.HashLength : +2*common.HashLength])
 		isBuy := key[2*common.HashLength] == types.TrueByte
 
-		var metadata *types.SubaccountOrderbookMetadata
+		var metadata *v2.SubaccountOrderbookMetadata
 		var ok bool
 		if _, ok = metadatas[marketID]; !ok {
-			metadatas[marketID] = make(map[bool]map[common.Hash]*types.SubaccountOrderbookMetadata)
+			metadatas[marketID] = make(map[bool]map[common.Hash]*v2.SubaccountOrderbookMetadata)
 		}
 		if _, ok = metadatas[marketID][isBuy]; !ok {
-			metadatas[marketID][isBuy] = make(map[common.Hash]*types.SubaccountOrderbookMetadata)
+			metadatas[marketID][isBuy] = make(map[common.Hash]*v2.SubaccountOrderbookMetadata)
 		}
 		if metadata, ok = metadatas[marketID][isBuy][subaccountID]; !ok {
-			metadata = types.NewSubaccountOrderbookMetadata()
+			metadata = v2.NewSubaccountOrderbookMetadata()
 			metadatas[marketID][isBuy][subaccountID] = metadata
 		}
 		if order.IsVanilla() {

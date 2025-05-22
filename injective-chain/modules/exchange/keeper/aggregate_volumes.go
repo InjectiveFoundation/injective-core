@@ -8,26 +8,28 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/go-test/deep"
 
-	"github.com/InjectiveLabs/metrics"
-
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
+	"github.com/InjectiveLabs/metrics"
 )
 
 // GetSubaccountMarketAggregateVolume fetches the aggregate volume for a given subaccountID and marketID
 func (k *Keeper) GetSubaccountMarketAggregateVolume(
 	ctx sdk.Context,
 	subaccountID, marketID common.Hash,
-) types.VolumeRecord {
+) v2.VolumeRecord {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	var vc types.VolumeRecord
 	store := k.getStore(ctx)
 	bz := store.Get(types.GetSubaccountMarketVolumeKey(subaccountID, marketID))
 	if bz == nil {
-		return types.NewZeroVolumeRecord()
+		return v2.NewZeroVolumeRecord()
 	}
+
+	var vc v2.VolumeRecord
 	k.cdc.MustUnmarshal(bz, &vc)
+
 	return vc
 }
 
@@ -35,7 +37,7 @@ func (k *Keeper) GetSubaccountMarketAggregateVolume(
 func (k *Keeper) SetSubaccountMarketAggregateVolume(
 	ctx sdk.Context,
 	subaccountID, marketID common.Hash,
-	volume types.VolumeRecord,
+	volume v2.VolumeRecord,
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
@@ -51,7 +53,7 @@ func (k *Keeper) SetSubaccountMarketAggregateVolume(
 func (k *Keeper) IncrementSubaccountMarketAggregateVolume(
 	ctx sdk.Context,
 	subaccountID, marketID common.Hash,
-	volume types.VolumeRecord,
+	volume v2.VolumeRecord,
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
@@ -66,25 +68,25 @@ func (k *Keeper) IncrementSubaccountMarketAggregateVolume(
 }
 
 // GetAllSubaccountMarketAggregateVolumes gets all of the aggregate subaccount market volumes
-func (k *Keeper) GetAllSubaccountMarketAggregateVolumes(ctx sdk.Context) []*types.AggregateSubaccountVolumeRecord {
+func (k *Keeper) GetAllSubaccountMarketAggregateVolumes(ctx sdk.Context) []*v2.AggregateSubaccountVolumeRecord {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	volumes := make([]*types.AggregateSubaccountVolumeRecord, 0)
+	volumes := make([]*v2.AggregateSubaccountVolumeRecord, 0)
 
 	// subaccountID -> MarketVolume
-	volumeTracker := make(map[common.Hash][]*types.MarketVolume)
+	volumeTracker := make(map[common.Hash][]*v2.MarketVolume)
 	subaccountIDs := make([]common.Hash, 0)
 
-	appendVolumes := func(subaccountID, marketID common.Hash, totalVolume types.VolumeRecord) (stop bool) {
-		record := &types.MarketVolume{
+	appendVolumes := func(subaccountID, marketID common.Hash, totalVolume v2.VolumeRecord) (stop bool) {
+		record := &v2.MarketVolume{
 			MarketId: marketID.Hex(),
 			Volume:   totalVolume,
 		}
 
 		records, ok := volumeTracker[subaccountID]
 		if !ok {
-			volumeTracker[subaccountID] = []*types.MarketVolume{record}
+			volumeTracker[subaccountID] = []*v2.MarketVolume{record}
 			subaccountIDs = append(subaccountIDs, subaccountID)
 		} else {
 			volumeTracker[subaccountID] = append(records, record)
@@ -92,10 +94,10 @@ func (k *Keeper) GetAllSubaccountMarketAggregateVolumes(ctx sdk.Context) []*type
 		return false
 	}
 
-	k.iterateSubaccountMarketAggregateVolumes(ctx, appendVolumes)
+	k.IterateSubaccountMarketAggregateVolumes(ctx, appendVolumes)
 
 	for _, subaccountID := range subaccountIDs {
-		volumes = append(volumes, &types.AggregateSubaccountVolumeRecord{
+		volumes = append(volumes, &v2.AggregateSubaccountVolumeRecord{
 			SubaccountId:  subaccountID.Hex(),
 			MarketVolumes: volumeTracker[subaccountID],
 		})
@@ -105,13 +107,13 @@ func (k *Keeper) GetAllSubaccountMarketAggregateVolumes(ctx sdk.Context) []*type
 }
 
 // GetAllComputedMarketAggregateVolumes gets all of the aggregate subaccount market volumes
-func (k *Keeper) GetAllComputedMarketAggregateVolumes(ctx sdk.Context) map[common.Hash]types.VolumeRecord {
+func (k *Keeper) GetAllComputedMarketAggregateVolumes(ctx sdk.Context) map[common.Hash]v2.VolumeRecord {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	marketVolumes := make(map[common.Hash]types.VolumeRecord)
+	marketVolumes := make(map[common.Hash]v2.VolumeRecord)
 
-	addVolume := func(_, marketID common.Hash, volumeRecord types.VolumeRecord) (stop bool) {
+	addVolume := func(_, marketID common.Hash, volumeRecord v2.VolumeRecord) (stop bool) {
 		if volumeRecord.IsZero() {
 			return false
 		}
@@ -125,31 +127,29 @@ func (k *Keeper) GetAllComputedMarketAggregateVolumes(ctx sdk.Context) map[commo
 		return false
 	}
 
-	k.iterateSubaccountMarketAggregateVolumes(ctx, addVolume)
+	k.IterateSubaccountMarketAggregateVolumes(ctx, addVolume)
 	return marketVolumes
 }
 
-// iterateSubaccountMarketAggregateVolumes iterates over all of the aggregate subaccount market volumes
-func (k *Keeper) iterateSubaccountMarketAggregateVolumes(
+// IterateSubaccountMarketAggregateVolumes iterates over all of the aggregate subaccount market volumes
+func (k *Keeper) IterateSubaccountMarketAggregateVolumes(
 	ctx sdk.Context,
-	process func(subaccountID, marketID common.Hash, volume types.VolumeRecord) (stop bool),
+	process func(subaccountID, marketID common.Hash, volume v2.VolumeRecord) (stop bool),
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	store := k.getStore(ctx)
-
 	volumeStore := prefix.NewStore(store, types.SubaccountMarketVolumePrefix)
-	iterator := volumeStore.Iterator(nil, nil)
-	defer iterator.Close()
+	iter := volumeStore.Iterator(nil, nil)
+	defer iter.Close()
 
-	for ; iterator.Valid(); iterator.Next() {
-		subaccountID := common.BytesToHash(iterator.Key()[:common.HashLength])
-		marketID := common.BytesToHash(iterator.Key()[common.HashLength:])
+	for ; iter.Valid(); iter.Next() {
+		subaccountID := common.BytesToHash(iter.Key()[:common.HashLength])
+		marketID := common.BytesToHash(iter.Key()[common.HashLength:])
 
-		bz := iterator.Value()
-		var volumes types.VolumeRecord
-		k.cdc.MustUnmarshal(bz, &volumes)
+		var volumes v2.VolumeRecord
+		k.cdc.MustUnmarshal(iter.Value(), &volumes)
 		if process(subaccountID, marketID, volumes) {
 			return
 		}
@@ -157,21 +157,24 @@ func (k *Keeper) iterateSubaccountMarketAggregateVolumes(
 }
 
 // GetAllSubaccountMarketAggregateVolumesBySubaccount gets all the aggregate volumes for the subaccountID for all markets
-func (k *Keeper) GetAllSubaccountMarketAggregateVolumesBySubaccount(ctx sdk.Context, subaccountID common.Hash) []*types.MarketVolume {
+func (k *Keeper) GetAllSubaccountMarketAggregateVolumesBySubaccount(ctx sdk.Context, subaccountID common.Hash) []*v2.MarketVolume {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	volumes := make([]*types.MarketVolume, 0)
+	volumes := make([]*v2.MarketVolume, 0)
+	k.iterateSubaccountMarketAggregateVolumesBySubaccount(
+		ctx,
+		subaccountID,
+		func(marketID common.Hash, totalVolume v2.VolumeRecord) (stop bool) {
+			volumes = append(volumes, &v2.MarketVolume{
+				MarketId: marketID.Hex(),
+				Volume:   totalVolume,
+			},
+			)
 
-	appendVolumes := func(marketID common.Hash, totalVolume types.VolumeRecord) (stop bool) {
-		volumes = append(volumes, &types.MarketVolume{
-			MarketId: marketID.Hex(),
-			Volume:   totalVolume,
+			return false
 		})
-		return false
-	}
 
-	k.iterateSubaccountMarketAggregateVolumesBySubaccount(ctx, subaccountID, appendVolumes)
 	return volumes
 }
 
@@ -179,23 +182,20 @@ func (k *Keeper) GetAllSubaccountMarketAggregateVolumesBySubaccount(ctx sdk.Cont
 func (k *Keeper) iterateSubaccountMarketAggregateVolumesBySubaccount(
 	ctx sdk.Context,
 	subaccountID common.Hash,
-	process func(marketID common.Hash, volume types.VolumeRecord) (stop bool),
+	process func(marketID common.Hash, volume v2.VolumeRecord) (stop bool),
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	store := k.getStore(ctx)
+	volumeStore := prefix.NewStore(k.getStore(ctx), append(types.SubaccountMarketVolumePrefix, subaccountID.Bytes()...))
+	iter := volumeStore.Iterator(nil, nil)
+	defer iter.Close()
 
-	volumeStore := prefix.NewStore(store, append(types.SubaccountMarketVolumePrefix, subaccountID.Bytes()...))
-	iterator := volumeStore.Iterator(nil, nil)
-	defer iterator.Close()
+	for ; iter.Valid(); iter.Next() {
+		marketID := common.BytesToHash(iter.Key())
+		var volumes v2.VolumeRecord
+		k.cdc.MustUnmarshal(iter.Value(), &volumes)
 
-	for ; iterator.Valid(); iterator.Next() {
-		marketID := common.BytesToHash(iterator.Key())
-
-		bz := iterator.Value()
-		var volumes types.VolumeRecord
-		k.cdc.MustUnmarshal(bz, &volumes)
 		if process(marketID, volumes) {
 			return
 		}
@@ -205,15 +205,15 @@ func (k *Keeper) iterateSubaccountMarketAggregateVolumesBySubaccount(
 // GetAllSubaccountMarketAggregateVolumesByAccAddress gets all the aggregate volumes for all associated subaccounts for
 // the accAddress in each market. The volume reported for a given marketID reflects the sum of all the volumes over all the
 // subaccounts associated with the accAddress in the market.
-func (k *Keeper) GetAllSubaccountMarketAggregateVolumesByAccAddress(ctx sdk.Context, accAddress sdk.AccAddress) []*types.MarketVolume {
+func (k *Keeper) GetAllSubaccountMarketAggregateVolumesByAccAddress(ctx sdk.Context, accAddress sdk.AccAddress) []*v2.MarketVolume {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	// marketID => volume
-	totalVolumes := make(map[common.Hash]types.VolumeRecord)
+	totalVolumes := make(map[common.Hash]v2.VolumeRecord)
 	marketIDs := make([]common.Hash, 0)
 
-	updateVolume := func(subaccountID, marketID common.Hash, volume types.VolumeRecord) (stop bool) {
+	updateVolume := func(_, marketID common.Hash, volume v2.VolumeRecord) (stop bool) {
 		if oldVolume, found := totalVolumes[marketID]; !found {
 			totalVolumes[marketID] = volume
 			marketIDs = append(marketIDs, marketID)
@@ -222,15 +222,17 @@ func (k *Keeper) GetAllSubaccountMarketAggregateVolumesByAccAddress(ctx sdk.Cont
 		}
 		return false
 	}
+
 	k.iterateSubaccountMarketAggregateVolumesByAccAddress(ctx, accAddress, updateVolume)
 
-	volumes := make([]*types.MarketVolume, 0, len(marketIDs))
+	volumes := make([]*v2.MarketVolume, 0, len(marketIDs))
 	for _, marketID := range marketIDs {
-		volumes = append(volumes, &types.MarketVolume{
+		volumes = append(volumes, &v2.MarketVolume{
 			MarketId: marketID.Hex(),
 			Volume:   totalVolumes[marketID],
 		})
 	}
+
 	return volumes
 }
 
@@ -238,7 +240,7 @@ func (k *Keeper) GetAllSubaccountMarketAggregateVolumesByAccAddress(ctx sdk.Cont
 func (k *Keeper) iterateSubaccountMarketAggregateVolumesByAccAddress(
 	ctx sdk.Context,
 	accAddress sdk.AccAddress,
-	process func(subaccountID, marketID common.Hash, volume types.VolumeRecord) (stop bool),
+	process func(subaccountID, marketID common.Hash, volume v2.VolumeRecord) (stop bool),
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
@@ -254,7 +256,7 @@ func (k *Keeper) iterateSubaccountMarketAggregateVolumesByAccAddress(
 		subaccountID := common.BytesToHash(append(accAddress.Bytes(), iterator.Key()[:12]...))
 		marketID := common.BytesToHash(iterator.Key()[12:])
 		bz := iterator.Value()
-		var volumes types.VolumeRecord
+		var volumes v2.VolumeRecord
 		k.cdc.MustUnmarshal(bz, &volumes)
 		if process(subaccountID, marketID, volumes) {
 			return
@@ -266,18 +268,19 @@ func (k *Keeper) iterateSubaccountMarketAggregateVolumesByAccAddress(
 func (k *Keeper) GetMarketAggregateVolume(
 	ctx sdk.Context,
 	marketID common.Hash,
-) types.VolumeRecord {
+) v2.VolumeRecord {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	store := k.getStore(ctx)
 	bz := store.Get(types.GetMarketVolumeKey(marketID))
-	var vc types.VolumeRecord
 	if bz == nil {
-		return types.NewZeroVolumeRecord()
+		return v2.NewZeroVolumeRecord()
 	}
 
+	var vc v2.VolumeRecord
 	k.cdc.MustUnmarshal(bz, &vc)
+
 	return vc
 }
 
@@ -285,7 +288,7 @@ func (k *Keeper) GetMarketAggregateVolume(
 func (k *Keeper) SetMarketAggregateVolume(
 	ctx sdk.Context,
 	marketID common.Hash,
-	volumes types.VolumeRecord,
+	volumes v2.VolumeRecord,
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
@@ -302,7 +305,7 @@ func (k *Keeper) SetMarketAggregateVolume(
 func (k *Keeper) IncrementMarketAggregateVolume(
 	ctx sdk.Context,
 	marketID common.Hash,
-	volume types.VolumeRecord,
+	volume v2.VolumeRecord,
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
@@ -317,34 +320,32 @@ func (k *Keeper) IncrementMarketAggregateVolume(
 }
 
 // GetAllMarketAggregateVolumes gets all the aggregate volumes for all markets
-func (k *Keeper) GetAllMarketAggregateVolumes(ctx sdk.Context) []*types.MarketVolume {
+func (k *Keeper) GetAllMarketAggregateVolumes(ctx sdk.Context) []*v2.MarketVolume {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	volumes := make([]*types.MarketVolume, 0)
-
-	appendVolumes := func(marketID common.Hash, totalVolume types.VolumeRecord) (stop bool) {
-		volumes = append(volumes, &types.MarketVolume{
+	volumes := make([]*v2.MarketVolume, 0)
+	k.iterateMarketAggregateVolumes(ctx, func(marketID common.Hash, totalVolume v2.VolumeRecord) (stop bool) {
+		volumes = append(volumes, &v2.MarketVolume{
 			MarketId: marketID.Hex(),
 			Volume:   totalVolume,
 		})
-		return false
-	}
 
-	k.iterateMarketAggregateVolumes(ctx, appendVolumes)
+		return false
+	})
+
 	return volumes
 }
 
 // iterateMarketAggregateVolumes iterates over the aggregate volumes for all markets
 func (k *Keeper) iterateMarketAggregateVolumes(
 	ctx sdk.Context,
-	process func(marketID common.Hash, volume types.VolumeRecord) (stop bool),
+	process func(marketID common.Hash, volume v2.VolumeRecord) (stop bool),
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	store := k.getStore(ctx)
-
 	volumeStore := prefix.NewStore(store, types.MarketVolumePrefix)
 	iterator := volumeStore.Iterator(nil, nil)
 	defer iterator.Close()
@@ -352,8 +353,10 @@ func (k *Keeper) iterateMarketAggregateVolumes(
 	for ; iterator.Valid(); iterator.Next() {
 		marketID := common.BytesToHash(iterator.Key())
 		bz := iterator.Value()
-		var volumes types.VolumeRecord
+
+		var volumes v2.VolumeRecord
 		k.cdc.MustUnmarshal(bz, &volumes)
+
 		if process(marketID, volumes) {
 			return
 		}
@@ -363,7 +366,7 @@ func (k *Keeper) iterateMarketAggregateVolumes(
 // IsMarketAggregateVolumeValid should only be used by tests to verify data integrity
 func (k *Keeper) IsMarketAggregateVolumeValid(ctx sdk.Context) bool {
 	aggregateVolumesList := k.GetAllMarketAggregateVolumes(ctx)
-	aggregateVolumes := make(map[common.Hash]types.VolumeRecord)
+	aggregateVolumes := make(map[common.Hash]v2.VolumeRecord)
 
 	for _, volume := range aggregateVolumesList {
 		aggregateVolumes[common.HexToHash(volume.MarketId)] = volume.Volume

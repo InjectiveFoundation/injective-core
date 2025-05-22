@@ -39,7 +39,7 @@ func queryRunE[querier any](newQueryClientFn func(grpc.ClientConn) querier, msg 
 		}
 		queryClient := newQueryClientFn(clientCtx)
 
-		err = parseFieldsFromFlagsAndArgs(msg, flagsMap, argsMap, cmd.Flags(), args, clientCtx)
+		err = ParseFieldsFromFlagsAndArgs(msg, flagsMap, argsMap, cmd.Flags(), args, clientCtx)
 		if err != nil {
 			return err
 		}

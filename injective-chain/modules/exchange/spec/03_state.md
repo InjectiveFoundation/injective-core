@@ -592,3 +592,39 @@ enum ExecutionType {
   LimitMatchNewOrder = 4;
 }
 ```
+
+## GrantAuthorization
+
+`GrantAuthorization` is used to track the grantee's address and amount of the granted stake that has been authorized by the granter for trading fee discounts.
+
+```protobuf
+type GrantAuthorization struct {
+  Grantee string             
+  Amount  math.Int
+}
+
+```
+
+## ActiveGrant
+
+`ActiveGrant` is used to track the granter's address and amount of the granted stake (for trading fee discounts) in the grant that has been activated by the grantee.
+
+```protobuf
+type ActiveGrant struct {
+  Granter string             
+  Amount  math.Int
+}
+
+```
+
+## EffectiveGrant
+
+`EffectiveGrant` is used to track the total amount of stake a granter has authorized in stake grants for trading fee discounts.
+
+```protobuf
+type EffectiveGrant struct {
+  Granter         string               
+  NetGrantedStake math.Int 
+  IsValid         bool                  
+}
+```

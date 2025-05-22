@@ -2,7 +2,6 @@ package keeper
 
 import (
 	"cosmossdk.io/math"
-
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
@@ -39,7 +38,6 @@ func (k *Keeper) getTradeDataAndIncrementVolumeContribution(
 	feeDiscountConfig *FeeDiscountConfig,
 	isMaker bool,
 ) *tradeFeeData {
-
 	discountedTradeFeeRate := k.FetchAndUpdateDiscountedTradingFeeRate(ctx, tradeFeeRate, isMaker, types.SubaccountIDToSdkAddress(subaccountID), feeDiscountConfig)
 
 	if fillQuantity.IsZero() {

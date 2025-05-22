@@ -51,6 +51,7 @@ linters:
         text: ALL_CAPS
     paths:
       - scripts/align_deps.go
+      - injective-chain/app/upgrades/v1.16.0-beta.2/data
       - injective-chain/modules/peggy/testpeggy
       - injective-chain/modules/exchange/testexchange
       - injective-chain/modules/exchange/client/testutil

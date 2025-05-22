@@ -5,9 +5,9 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/InjectiveLabs/metrics"
-
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
+	"github.com/InjectiveLabs/metrics"
 )
 
 // CheckAndSetFeeDiscountAccountActivityIndicator sets the transient active account indicator if applicable for fee discount for the given market
@@ -47,7 +47,7 @@ func (k *Keeper) CheckAndSetFeeDiscountAccountActivityIndicator(
 	}
 }
 
-func (k *Keeper) SetFeeDiscountMarketQualificationForAllQualifyingMarkets(ctx sdk.Context, schedule *types.FeeDiscountSchedule) {
+func (k *Keeper) SetFeeDiscountMarketQualificationForAllQualifyingMarkets(ctx sdk.Context, schedule *v2.FeeDiscountSchedule) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 

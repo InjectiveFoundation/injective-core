@@ -35,8 +35,8 @@ func GetDynamicGasPrice(
 
 // TxFeesParams represents the parameters of the txfees module.
 type TxFeesParams struct {
-	MaxGasWantedPerTx                    int    `json:"max_gas_wanted_per_tx,string"`
-	HighGasTxThreshold                   int    `json:"high_gas_tx_threshold,string"`
+	MaxGasWantedPerTx                    uint64 `json:"max_gas_wanted_per_tx,string"`
+	HighGasTxThreshold                   string `json:"high_gas_tx_threshold"`
 	MinGasPriceForHighGasTx              string `json:"min_gas_price_for_high_gas_tx"`
 	Mempool1559Enabled                   bool   `json:"mempool1559_enabled"`
 	MinGasPrice                          string `json:"min_gas_price"`

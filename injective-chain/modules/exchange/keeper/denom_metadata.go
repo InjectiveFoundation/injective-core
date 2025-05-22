@@ -7,6 +7,7 @@ import (
 	"github.com/InjectiveLabs/metrics"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 )
 
 // GetDenomDecimals returns the decimals of the given denom.
@@ -52,37 +53,35 @@ func (k *Keeper) DeleteDenomDecimals(ctx sdk.Context, denom string) {
 }
 
 // GetAllDenomDecimals returns all denom decimals
-func (k *Keeper) GetAllDenomDecimals(ctx sdk.Context) []types.DenomDecimals {
+func (k *Keeper) GetAllDenomDecimals(ctx sdk.Context) []v2.DenomDecimals {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	denomDecimals := make([]types.DenomDecimals, 0)
-	appendDenomDecimal := func(p types.DenomDecimals) (stop bool) {
+	denomDecimals := make([]v2.DenomDecimals, 0)
+	k.IterateDenomDecimals(ctx, func(p v2.DenomDecimals) (stop bool) {
 		denomDecimals = append(denomDecimals, p)
 		return false
-	}
+	})
 
-	k.IterateDenomDecimals(ctx, nil, appendDenomDecimal)
 	return denomDecimals
 }
 
 // IterateDenomDecimals iterates over denom decimals calling process on each denom decimal.
-func (k *Keeper) IterateDenomDecimals(ctx sdk.Context, isEnabled *bool, process func(denomDecimal types.DenomDecimals) (stop bool)) {
+func (k *Keeper) IterateDenomDecimals(ctx sdk.Context, process func(denomDecimal v2.DenomDecimals) (stop bool)) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	store := k.getStore(ctx)
 	denomDecimalStore := prefix.NewStore(store, types.DenomDecimalsPrefix)
 
-	iterator := denomDecimalStore.Iterator(nil, nil)
-	defer iterator.Close()
+	iter := denomDecimalStore.Iterator(nil, nil)
+	defer iter.Close()
 
-	for ; iterator.Valid(); iterator.Next() {
-		bz := iterator.Value()
-		decimals := sdk.BigEndianToUint64(bz)
-		denom := string(iterator.Key())
+	for ; iter.Valid(); iter.Next() {
+		denom := string(iter.Key())
+		decimals := sdk.BigEndianToUint64(iter.Value())
 
-		denomDecimals := types.DenomDecimals{
+		denomDecimals := v2.DenomDecimals{
 			Denom:    denom,
 			Decimals: decimals,
 		}

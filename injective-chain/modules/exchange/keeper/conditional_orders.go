@@ -12,12 +12,13 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 )
 
 // CancelAllConditionalDerivativeOrders cancels all resting conditional derivative orders for a given market.
 func (k *Keeper) CancelAllConditionalDerivativeOrders(
 	ctx sdk.Context,
-	market DerivativeMarketI,
+	market DerivativeMarketInterface,
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
@@ -39,68 +40,50 @@ func (k *Keeper) CancelAllConditionalDerivativeOrders(
 	}
 }
 
-func (k *Keeper) CancelAllConditionalDerivativeOrdersBySubaccountIDAndMarket(ctx sdk.Context, market DerivativeMarketI, subaccountID common.Hash, cancelReduceOnly, cancelVanilla bool) {
+func (k *Keeper) CancelAllConditionalDerivativeOrdersBySubaccountIDAndMarket(
+	ctx sdk.Context,
+	market DerivativeMarketInterface,
+	subaccountID common.Hash,
+) {
 	marketID := market.MarketID()
 
-	shouldCancel := func(isMarket bool, isTriggerPriceHigher bool, hash common.Hash) bool {
-		if cancelReduceOnly && cancelVanilla {
-			return true
-		}
-		if isMarket {
-			order, _ := k.GetConditionalDerivativeMarketOrderBySubaccountIDAndHash(ctx, marketID, &isTriggerPriceHigher, subaccountID, hash)
-			if order.IsVanilla() && !cancelVanilla || order.IsReduceOnly() && !cancelReduceOnly {
-				return false
-			}
-		} else {
-			order, _ := k.GetConditionalDerivativeLimitOrderBySubaccountIDAndHash(ctx, marketID, &isTriggerPriceHigher, subaccountID, hash)
-			if order.IsVanilla() && !cancelVanilla || order.IsReduceOnly() && !cancelReduceOnly {
-				return false
-			}
-		}
-		return true
-	}
+	higherMarketOrders := k.GetAllConditionalOrderHashesBySubaccountAndMarket(ctx, marketID, true, true, subaccountID)
+	lowerMarketOrders := k.GetAllConditionalOrderHashesBySubaccountAndMarket(ctx, marketID, false, true, subaccountID)
+	higherLimitOrders := k.GetAllConditionalOrderHashesBySubaccountAndMarket(ctx, marketID, true, false, subaccountID)
+	lowerLimitOrders := k.GetAllConditionalOrderHashesBySubaccountAndMarket(ctx, marketID, false, false, subaccountID)
 
-	higherMarketOrders := k.GetAllConditionalOrderHashesBySubaccountAndMarket(ctx, marketID, true, true, market.GetMarketType(), subaccountID)
-	lowerMarketOrders := k.GetAllConditionalOrderHashesBySubaccountAndMarket(ctx, marketID, false, true, market.GetMarketType(), subaccountID)
-	higherLimitOrders := k.GetAllConditionalOrderHashesBySubaccountAndMarket(ctx, marketID, true, false, market.GetMarketType(), subaccountID)
-	lowerLimitOrders := k.GetAllConditionalOrderHashesBySubaccountAndMarket(ctx, marketID, false, false, market.GetMarketType(), subaccountID)
+	k.cancelConditionalDerivativeMarketOrders(ctx, market, subaccountID, higherMarketOrders, true)
+	k.cancelConditionalDerivativeMarketOrders(ctx, market, subaccountID, lowerMarketOrders, false)
+	k.cancelConditionalDerivativeLimitOrders(ctx, market, subaccountID, higherLimitOrders, true)
+	k.cancelConditionalDerivativeLimitOrders(ctx, market, subaccountID, lowerLimitOrders, false)
+}
 
-	for _, hash := range higherMarketOrders {
-		isTriggerPriceHigher := true
-		if !shouldCancel(true, isTriggerPriceHigher, hash) {
-			continue
-		}
-		if err := k.CancelConditionalDerivativeMarketOrder(ctx, market, subaccountID, &isTriggerPriceHigher, hash); err != nil {
+func (k *Keeper) cancelConditionalDerivativeMarketOrders(
+	ctx sdk.Context,
+	market DerivativeMarketInterface,
+	subaccountID common.Hash,
+	orderHashes []common.Hash,
+	isTriggerPriceHigher bool,
+) {
+	for _, hash := range orderHashes {
+		triggerPriceHigher := isTriggerPriceHigher
+		if err := k.CancelConditionalDerivativeMarketOrder(ctx, market, subaccountID, &triggerPriceHigher, hash); err != nil {
 			metrics.ReportFuncError(k.svcTags)
 			continue
 		}
 	}
-	for _, hash := range lowerMarketOrders {
-		isTriggerPriceHigher := false
-		if !shouldCancel(true, isTriggerPriceHigher, hash) {
-			continue
-		}
-		if err := k.CancelConditionalDerivativeMarketOrder(ctx, market, subaccountID, &isTriggerPriceHigher, hash); err != nil {
-			metrics.ReportFuncError(k.svcTags)
-			continue
-		}
-	}
-	for _, hash := range higherLimitOrders {
-		isTriggerPriceHigher := true
-		if !shouldCancel(false, isTriggerPriceHigher, hash) {
-			continue
-		}
-		if err := k.CancelConditionalDerivativeLimitOrder(ctx, market, subaccountID, &isTriggerPriceHigher, hash); err != nil {
-			metrics.ReportFuncError(k.svcTags)
-			continue
-		}
-	}
-	for _, hash := range lowerLimitOrders {
-		isTriggerPriceHigher := false
-		if !shouldCancel(false, isTriggerPriceHigher, hash) {
-			continue
-		}
-		if err := k.CancelConditionalDerivativeLimitOrder(ctx, market, subaccountID, &isTriggerPriceHigher, hash); err != nil {
+}
+
+func (k *Keeper) cancelConditionalDerivativeLimitOrders(
+	ctx sdk.Context,
+	market DerivativeMarketInterface,
+	subaccountID common.Hash,
+	orderHashes []common.Hash,
+	isTriggerPriceHigher bool,
+) {
+	for _, hash := range orderHashes {
+		triggerPriceHigher := isTriggerPriceHigher
+		if err := k.CancelConditionalDerivativeLimitOrder(ctx, market, subaccountID, &triggerPriceHigher, hash); err != nil {
 			metrics.ReportFuncError(k.svcTags)
 			continue
 		}
@@ -113,25 +96,31 @@ func (k *Keeper) GetAllConditionalOrderHashesBySubaccountAndMarket(
 	marketID common.Hash,
 	isTriggerPriceHigher bool,
 	isMarketOrders bool,
-	marketType types.MarketType,
 	subaccountID common.Hash,
 ) (orderHashes []common.Hash) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	orderHashes = make([]common.Hash, 0)
-	appendOrderHash := func(orderHash common.Hash) (stop bool) {
-		orderHashes = append(orderHashes, orderHash)
-		return false
-	}
-	k.IterateConditionalOrdersBySubaccount(ctx, marketID, subaccountID, isTriggerPriceHigher, isMarketOrders, marketType, appendOrderHash)
+	k.IterateConditionalOrdersBySubaccount(
+		ctx,
+		marketID,
+		subaccountID,
+		isTriggerPriceHigher,
+		isMarketOrders,
+		func(orderHash common.Hash) (stop bool) {
+			orderHashes = append(orderHashes, orderHash)
+			return false
+		},
+	)
+
 	return orderHashes
 }
 
 // CancelConditionalDerivativeMarketOrder cancels the conditional derivative market order
 func (k *Keeper) CancelConditionalDerivativeMarketOrder(
 	ctx sdk.Context,
-	market DerivativeMarketI,
+	market MarketInterface,
 	subaccountID common.Hash,
 	isTriggerPriceHigher *bool,
 	orderHash common.Hash,
@@ -141,16 +130,23 @@ func (k *Keeper) CancelConditionalDerivativeMarketOrder(
 
 	marketID := market.MarketID()
 
-	order, direction := k.GetConditionalDerivativeMarketOrderBySubaccountIDAndHash(ctx, marketID, isTriggerPriceHigher, subaccountID, orderHash)
+	order, direction := k.GetConditionalDerivativeMarketOrderBySubaccountIDAndHash(
+		ctx, marketID, isTriggerPriceHigher, subaccountID, orderHash)
 	if order == nil {
-		k.Logger(ctx).Debug("Conditional Derivative Market Order doesn't exist to cancel", "marketId", marketID, "subaccountID", subaccountID, "orderHash", orderHash.Hex())
+		k.Logger(ctx).Debug(
+			"Conditional Derivative Market Order doesn't exist to cancel",
+			"marketId", marketID,
+			"subaccountID", subaccountID,
+			"orderHash", orderHash.Hex(),
+		)
 		metrics.ReportFuncError(k.svcTags)
 		return errors.Wrap(types.ErrOrderDoesntExist, "Conditional Derivative Market Order doesn't exist")
 	}
 
 	if order.IsVanilla() {
 		refundAmount := order.GetCancelRefundAmount()
-		k.incrementAvailableBalanceOrBank(ctx, order.SubaccountID(), market.GetQuoteDenom(), refundAmount)
+		chainFormatRefundAmount := market.NotionalToChainFormat(refundAmount)
+		k.incrementAvailableBalanceOrBank(ctx, order.SubaccountID(), market.GetQuoteDenom(), chainFormatRefundAmount)
 	}
 
 	// 2. Delete the order state from ordersStore and ordersIndexStore
@@ -165,8 +161,7 @@ func (k *Keeper) CancelConditionalDerivativeMarketOrder(
 	}
 	k.SetSubaccountOrderbookMetadata(ctx, marketID, subaccountID, order.IsBuy(), metadata)
 
-	// nolint:errcheck //ignored on purpose
-	ctx.EventManager().EmitTypedEvent(&types.EventCancelConditionalDerivativeOrder{
+	k.EmitEvent(ctx, &v2.EventCancelConditionalDerivativeOrder{
 		MarketId:      marketID.Hex(),
 		IsLimitCancel: false,
 		MarketOrder:   order,
@@ -178,7 +173,7 @@ func (k *Keeper) CancelConditionalDerivativeMarketOrder(
 // CancelConditionalDerivativeLimitOrder cancels the conditional derivative limit order
 func (k *Keeper) CancelConditionalDerivativeLimitOrder(
 	ctx sdk.Context,
-	market DerivativeMarketI,
+	market MarketInterface,
 	subaccountID common.Hash,
 	isTriggerPriceHigher *bool,
 	orderHash common.Hash,
@@ -190,13 +185,19 @@ func (k *Keeper) CancelConditionalDerivativeLimitOrder(
 
 	order, direction := k.GetConditionalDerivativeLimitOrderBySubaccountIDAndHash(ctx, marketID, isTriggerPriceHigher, subaccountID, orderHash)
 	if order == nil {
-		k.Logger(ctx).Debug("Conditional Derivative Limit Order doesn't exist to cancel", "marketId", marketID, "subaccountID", subaccountID, "orderHash", orderHash)
+		k.Logger(ctx).Debug(
+			"Conditional Derivative Limit Order doesn't exist to cancel",
+			"marketId", marketID,
+			"subaccountID", subaccountID,
+			"orderHash", orderHash.Hex(),
+		)
 		metrics.ReportFuncError(k.svcTags)
 		return errors.Wrap(types.ErrOrderDoesntExist, "Conditional Derivative Limit Order doesn't exist")
 	}
 
 	refundAmount := order.GetCancelRefundAmount(market.GetTakerFeeRate())
-	k.incrementAvailableBalanceOrBank(ctx, subaccountID, market.GetQuoteDenom(), refundAmount)
+	chainFormatRefundAmount := market.NotionalToChainFormat(refundAmount)
+	k.incrementAvailableBalanceOrBank(ctx, subaccountID, market.GetQuoteDenom(), chainFormatRefundAmount)
 
 	// 2. Delete the order state from ordersStore and ordersIndexStore
 	k.DeleteConditionalDerivativeOrder(ctx, true, marketID, order.SubaccountID(), direction, *order.TriggerPrice, order.Hash(), order.Cid())
@@ -210,8 +211,7 @@ func (k *Keeper) CancelConditionalDerivativeLimitOrder(
 	}
 	k.SetSubaccountOrderbookMetadata(ctx, marketID, subaccountID, order.IsBuy(), metadata)
 
-	// nolint:errcheck //ignored on purpose
-	ctx.EventManager().EmitTypedEvent(&types.EventCancelConditionalDerivativeOrder{
+	k.EmitEvent(ctx, &v2.EventCancelConditionalDerivativeOrder{
 		MarketId:      marketID.Hex(),
 		IsLimitCancel: true,
 		LimitOrder:    order,
@@ -220,10 +220,9 @@ func (k *Keeper) CancelConditionalDerivativeLimitOrder(
 	return nil
 }
 
-func (k *Keeper) SetConditionalDerivativeMarketOrderWithMetadata(
+func (k *Keeper) SetConditionalDerivativeMarketOrder(
 	ctx sdk.Context,
-	order *types.DerivativeMarketOrder,
-	metadata *types.SubaccountOrderbookMetadata,
+	order *v2.DerivativeMarketOrder,
 	marketID common.Hash,
 	markPrice math.LegacyDec,
 ) {
@@ -249,6 +248,24 @@ func (k *Keeper) SetConditionalDerivativeMarketOrderWithMetadata(
 	ordersStore.Set(priceKey, orderBz)
 
 	k.setCid(ctx, false, subaccountID, order.OrderInfo.Cid, marketID, order.IsBuy(), orderHash)
+}
+
+func (k *Keeper) SetConditionalDerivativeMarketOrderWithMetadata(
+	ctx sdk.Context,
+	order *v2.DerivativeMarketOrder,
+	metadata *v2.SubaccountOrderbookMetadata,
+	marketID common.Hash,
+	markPrice math.LegacyDec,
+) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
+	var (
+		subaccountID         = order.SubaccountID()
+		isTriggerPriceHigher = order.TriggerPrice.GT(markPrice)
+	)
+
+	k.SetConditionalDerivativeMarketOrder(ctx, order, marketID, markPrice)
 
 	if metadata == nil {
 		metadata = k.GetSubaccountOrderbookMetadata(ctx, marketID, subaccountID, isTriggerPriceHigher)
@@ -261,21 +278,19 @@ func (k *Keeper) SetConditionalDerivativeMarketOrderWithMetadata(
 	}
 	k.SetSubaccountOrderbookMetadata(ctx, marketID, subaccountID, order.IsBuy(), metadata)
 
-	newOrderEvent := &types.EventNewConditionalDerivativeOrder{
+	newOrderEvent := &v2.EventNewConditionalDerivativeOrder{
 		MarketId: marketID.Hex(),
 		Order:    order.ToDerivativeOrder(marketID.String()),
 		Hash:     order.OrderHash,
 		IsMarket: true,
 	}
 
-	// nolint:errcheck //ignored on purpose
-	ctx.EventManager().EmitTypedEvent(newOrderEvent)
+	k.EmitEvent(ctx, newOrderEvent)
 }
 
-func (k *Keeper) SetConditionalDerivativeLimitOrderWithMetadata(
+func (k *Keeper) SetConditionalDerivativeLimitOrder(
 	ctx sdk.Context,
-	order *types.DerivativeLimitOrder,
-	metadata *types.SubaccountOrderbookMetadata,
+	order *v2.DerivativeLimitOrder,
 	marketID common.Hash,
 	markPrice math.LegacyDec,
 ) {
@@ -301,6 +316,24 @@ func (k *Keeper) SetConditionalDerivativeLimitOrderWithMetadata(
 	ordersStore.Set(priceKey, orderBz)
 
 	k.setCid(ctx, false, subaccountID, order.OrderInfo.Cid, marketID, order.IsBuy(), orderHash)
+}
+
+func (k *Keeper) SetConditionalDerivativeLimitOrderWithMetadata(
+	ctx sdk.Context,
+	order *v2.DerivativeLimitOrder,
+	metadata *v2.SubaccountOrderbookMetadata,
+	marketID common.Hash,
+	markPrice math.LegacyDec,
+) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
+	var (
+		subaccountID         = order.SubaccountID()
+		isTriggerPriceHigher = order.TriggerPrice.GT(markPrice)
+	)
+
+	k.SetConditionalDerivativeLimitOrder(ctx, order, marketID, markPrice)
 
 	if metadata == nil {
 		metadata = k.GetSubaccountOrderbookMetadata(ctx, marketID, subaccountID, isTriggerPriceHigher)
@@ -313,15 +346,14 @@ func (k *Keeper) SetConditionalDerivativeLimitOrderWithMetadata(
 	}
 	k.SetSubaccountOrderbookMetadata(ctx, marketID, subaccountID, order.IsBuy(), metadata)
 
-	newOrderEvent := &types.EventNewConditionalDerivativeOrder{
+	newOrderEvent := &v2.EventNewConditionalDerivativeOrder{
 		MarketId: marketID.Hex(),
 		Order:    order.ToDerivativeOrder(marketID.String()),
 		Hash:     order.OrderHash,
 		IsMarket: false,
 	}
 
-	// nolint:errcheck //ignored on purpose
-	ctx.EventManager().EmitTypedEvent(newOrderEvent)
+	k.EmitEvent(ctx, newOrderEvent)
 }
 
 // DeleteConditionalDerivativeOrder deletes the conditional derivative order (market or limit).
@@ -354,7 +386,7 @@ func (k *Keeper) DeleteConditionalDerivativeOrder(
 	priceKey := types.GetOrderByPriceKeyPrefix(marketID, isTriggerPriceHigher, triggerPrice, orderHash)
 	subaccountIndexKey := types.GetLimitOrderIndexKey(marketID, isTriggerPriceHigher, subaccountID, orderHash)
 
-	// delete main spot order store
+	// delete main derivative order store
 	ordersStore.Delete(priceKey)
 
 	// delete from subaccount index key store
@@ -371,7 +403,7 @@ func (k *Keeper) GetConditionalDerivativeLimitOrderBySubaccountIDAndHash(
 	isTriggerPriceHigher *bool,
 	subaccountID common.Hash,
 	orderHash common.Hash,
-) (order *types.DerivativeLimitOrder, direction bool) {
+) (order *v2.DerivativeLimitOrder, direction bool) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
@@ -393,8 +425,9 @@ func (k *Keeper) GetConditionalDerivativeLimitOrderBySubaccountIDAndHash(
 		return nil, false
 	}
 
-	var orderObj types.DerivativeLimitOrder
+	var orderObj v2.DerivativeLimitOrder
 	k.cdc.MustUnmarshal(orderBz, &orderObj)
+
 	return &orderObj, direction
 }
 
@@ -405,7 +438,7 @@ func (k *Keeper) GetConditionalDerivativeMarketOrderBySubaccountIDAndHash(
 	isTriggerPriceHigher *bool,
 	subaccountID common.Hash,
 	orderHash common.Hash,
-) (order *types.DerivativeMarketOrder, direction bool) {
+) (order *v2.DerivativeMarketOrder, direction bool) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
@@ -427,24 +460,23 @@ func (k *Keeper) GetConditionalDerivativeMarketOrderBySubaccountIDAndHash(
 		return nil, false
 	}
 
-	var orderObj types.DerivativeMarketOrder
+	var orderObj v2.DerivativeMarketOrder
 	k.cdc.MustUnmarshal(orderBz, &orderObj)
 	return &orderObj, direction
 }
 
 // GetAllConditionalDerivativeOrderbooks returns all conditional orderbooks for all derivative markets.
-func (k *Keeper) GetAllConditionalDerivativeOrderbooks(ctx sdk.Context) []*types.ConditionalDerivativeOrderBook {
+func (k *Keeper) GetAllConditionalDerivativeOrderbooks(ctx sdk.Context) []*v2.ConditionalDerivativeOrderBook {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	markets := k.GetAllDerivativeMarkets(ctx)
-	orderbooks := make([]*types.ConditionalDerivativeOrderBook, 0, len(markets))
+	orderbooks := make([]*v2.ConditionalDerivativeOrderBook, 0, len(markets))
 
 	for _, market := range markets {
 		marketID := market.MarketID()
 
 		orderbook := k.GetAllConditionalDerivativeOrdersUpToMarkPrice(ctx, marketID, nil)
-
 		if orderbook.IsEmpty() {
 			continue
 		}
@@ -459,7 +491,7 @@ func (k *Keeper) GetAllConditionalDerivativeOrdersUpToMarkPrice(
 	ctx sdk.Context,
 	marketID common.Hash,
 	markPrice *math.LegacyDec,
-) *types.ConditionalDerivativeOrderBook {
+) *v2.ConditionalDerivativeOrderBook {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
@@ -468,13 +500,14 @@ func (k *Keeper) GetAllConditionalDerivativeOrdersUpToMarkPrice(
 
 	// filter further here if PO mode and order crosses TOB
 
-	orderbook := &types.ConditionalDerivativeOrderBook{
+	orderbook := &v2.ConditionalDerivativeOrderBook{
 		MarketId:         marketID.String(),
 		LimitBuyOrders:   limitBuyOrders,
 		MarketBuyOrders:  marketBuyOrders,
 		LimitSellOrders:  limitSellOrders,
 		MarketSellOrders: marketSellOrders,
 	}
+
 	return orderbook
 }
 
@@ -482,19 +515,14 @@ func (k *Keeper) GetAllConditionalDerivativeMarketOrdersInMarketUpToPrice(
 	ctx sdk.Context,
 	marketID common.Hash,
 	triggerPrice *math.LegacyDec,
-) (marketBuyOrders, marketSellOrders []*types.DerivativeMarketOrder) {
-
-	marketBuyOrders = make([]*types.DerivativeMarketOrder, 0)
-	marketSellOrders = make([]*types.DerivativeMarketOrder, 0)
+) (marketBuyOrders, marketSellOrders []*v2.DerivativeMarketOrder) {
+	marketBuyOrders = make([]*v2.DerivativeMarketOrder, 0)
+	marketSellOrders = make([]*v2.DerivativeMarketOrder, 0)
 
 	store := k.getStore(ctx)
-
 	appendMarketOrder := func(orderKey []byte) (stop bool) {
-
-		bz := store.Get(orderKey)
-		// Unmarshal order
-		var order types.DerivativeMarketOrder
-		k.cdc.MustUnmarshal(bz, &order)
+		var order v2.DerivativeMarketOrder
+		k.cdc.MustUnmarshal(store.Get(orderKey), &order)
 
 		if order.IsBuy() {
 			marketBuyOrders = append(marketBuyOrders, &order)
@@ -515,12 +543,12 @@ func (k *Keeper) GetAllConditionalDerivativeLimitOrdersInMarketUpToPrice(
 	ctx sdk.Context,
 	marketID common.Hash,
 	triggerPrice *math.LegacyDec,
-) (limitBuyOrders, limitSellOrders []*types.DerivativeLimitOrder) {
+) (limitBuyOrders, limitSellOrders []*v2.DerivativeLimitOrder) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	limitBuyOrders = make([]*types.DerivativeLimitOrder, 0)
-	limitSellOrders = make([]*types.DerivativeLimitOrder, 0)
+	limitBuyOrders = make([]*v2.DerivativeLimitOrder, 0)
+	limitSellOrders = make([]*v2.DerivativeLimitOrder, 0)
 
 	store := k.getStore(ctx)
 
@@ -528,7 +556,7 @@ func (k *Keeper) GetAllConditionalDerivativeLimitOrdersInMarketUpToPrice(
 
 		bz := store.Get(orderKey)
 		// Unmarshal order
-		var order types.DerivativeLimitOrder
+		var order v2.DerivativeLimitOrder
 		k.cdc.MustUnmarshal(bz, &order)
 
 		if order.IsBuy() {
@@ -607,10 +635,17 @@ func (k *Keeper) HasSubaccountAlreadyPlacedConditionalMarketOrderInDirection(
 ) bool {
 	// TODO: extract into HasConditionalMarketOrder
 	var existingOrderHash *common.Hash
-	k.IterateConditionalOrdersBySubaccount(ctx, marketID, subaccountID, isTriggerPriceHigher, true, marketType, func(orderHash common.Hash) (stop bool) {
-		existingOrderHash = &orderHash
-		return true
-	})
+	k.IterateConditionalOrdersBySubaccount(
+		ctx,
+		marketID,
+		subaccountID,
+		isTriggerPriceHigher,
+		true,
+		func(orderHash common.Hash) (stop bool) {
+			existingOrderHash = &orderHash
+			return true
+		},
+	)
 
 	return existingOrderHash != nil
 }
@@ -622,7 +657,6 @@ func (k *Keeper) IterateConditionalOrdersBySubaccount(
 	subaccountID common.Hash,
 	isTriggerPriceHigher bool,
 	isMarketOrders bool,
-	marketType types.MarketType,
 	process func(orderHash common.Hash) (stop bool),
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
@@ -633,19 +667,12 @@ func (k *Keeper) IterateConditionalOrdersBySubaccount(
 		ordersPrefix []byte
 	)
 
-	if marketType == types.MarketType_Spot {
-		if isMarketOrders {
-			ordersPrefix = types.SpotConditionalMarketOrdersIndexPrefix
-		} else {
-			ordersPrefix = types.SpotConditionalLimitOrdersIndexPrefix
-		}
+	if isMarketOrders {
+		ordersPrefix = types.DerivativeConditionalMarketOrdersIndexPrefix
 	} else {
-		if isMarketOrders {
-			ordersPrefix = types.DerivativeConditionalMarketOrdersIndexPrefix
-		} else {
-			ordersPrefix = types.DerivativeConditionalLimitOrdersIndexPrefix
-		}
+		ordersPrefix = types.DerivativeConditionalLimitOrdersIndexPrefix
 	}
+
 	ordersPrefix = append(ordersPrefix, types.GetLimitOrderIndexSubaccountPrefix(marketID, isTriggerPriceHigher, subaccountID)...)
 
 	store := k.getStore(ctx)
@@ -669,15 +696,15 @@ func (k *Keeper) IterateConditionalOrdersBySubaccount(
 }
 
 // GetAllTriggeredConditionalOrders returns all conditional orders triggered in this block of each type for every market
-func (k *Keeper) GetAllTriggeredConditionalOrders(ctx sdk.Context) ([]*types.TriggeredOrdersInMarket, map[common.Hash]*types.DerivativeMarket) {
+func (k *Keeper) GetAllTriggeredConditionalOrders(ctx sdk.Context) ([]*v2.TriggeredOrdersInMarket, map[common.Hash]*v2.DerivativeMarket) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	markets := k.GetAllActiveDerivativeMarkets(ctx)
 
 	// TODO: refactor cache to separate type later for other markets
-	derivativeMarketCache := make(map[common.Hash]*types.DerivativeMarket, len(markets))
-	marketTriggeredOrders := make([]*types.TriggeredOrdersInMarket, len(markets))
+	derivativeMarketCache := make(map[common.Hash]*v2.DerivativeMarket, len(markets))
+	marketTriggeredOrders := make([]*v2.TriggeredOrdersInMarket, len(markets))
 
 	wg := new(sync.WaitGroup)
 	mux := new(sync.Mutex)
@@ -692,27 +719,10 @@ func (k *Keeper) GetAllTriggeredConditionalOrders(ctx sdk.Context) ([]*types.Tri
 
 		wg.Add(1)
 
-		go func(idx int, market *types.DerivativeMarket) {
+		go func(idx int, market *v2.DerivativeMarket) {
 			defer wg.Done()
-			marketID := market.MarketID()
-
-			markPrice, _ := k.GetDerivativeMarketPrice(ctx, market.OracleBase, market.OracleQuote, market.OracleScaleFactor, market.OracleType)
-			if markPrice == nil || markPrice.IsNil() {
-				return
-			}
-
-			orderbook := k.GetAllConditionalDerivativeOrdersUpToMarkPrice(ctx, marketID, markPrice)
-
-			triggeredOrders := &types.TriggeredOrdersInMarket{
-				Market:             market,
-				MarkPrice:          *markPrice,
-				MarketOrders:       orderbook.GetMarketOrders(),
-				LimitOrders:        orderbook.GetLimitOrders(),
-				HasLimitBuyOrders:  orderbook.HasLimitBuyOrders(),
-				HasLimitSellOrders: orderbook.HasLimitSellOrders(),
-			}
-
-			if len(triggeredOrders.MarketOrders) == 0 && len(triggeredOrders.LimitOrders) == 0 {
+			triggeredOrders := k.processMarketForTriggeredOrders(ctx, market)
+			if triggeredOrders == nil {
 				return
 			}
 
@@ -726,25 +736,59 @@ func (k *Keeper) GetAllTriggeredConditionalOrders(ctx sdk.Context) ([]*types.Tri
 	return FilterNotNull(marketTriggeredOrders), derivativeMarketCache
 }
 
-func (k *Keeper) TriggerConditionalDerivativeMarketOrder(ctx sdk.Context, market DerivativeMarketI, markPrice math.LegacyDec, marketOrder *types.DerivativeMarketOrder, skipCancel bool) error {
+func (k *Keeper) processMarketForTriggeredOrders(ctx sdk.Context, market *v2.DerivativeMarket) *v2.TriggeredOrdersInMarket {
+	marketID := market.MarketID()
+
+	markPrice, _ := k.GetDerivativeMarketPrice(ctx, market.OracleBase, market.OracleQuote, market.OracleScaleFactor, market.OracleType)
+	if markPrice == nil || markPrice.IsNil() {
+		return nil
+	}
+
+	orderbook := k.GetAllConditionalDerivativeOrdersUpToMarkPrice(ctx, marketID, markPrice)
+
+	triggeredOrders := &v2.TriggeredOrdersInMarket{
+		Market:             market,
+		MarkPrice:          *markPrice,
+		MarketOrders:       orderbook.GetMarketOrders(),
+		LimitOrders:        orderbook.GetLimitOrders(),
+		HasLimitBuyOrders:  orderbook.HasLimitBuyOrders(),
+		HasLimitSellOrders: orderbook.HasLimitSellOrders(),
+	}
+
+	if len(triggeredOrders.MarketOrders) == 0 && len(triggeredOrders.LimitOrders) == 0 {
+		return nil
+	}
+
+	return triggeredOrders
+}
+
+func (k *Keeper) TriggerConditionalDerivativeMarketOrder(
+	ctx sdk.Context,
+	market DerivativeMarketInterface,
+	markPrice math.LegacyDec,
+	marketOrder *v2.DerivativeMarketOrder,
+) error {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	if !skipCancel {
-		if err := k.CancelConditionalDerivativeMarketOrder(ctx, market, marketOrder.OrderInfo.SubaccountID(), nil, marketOrder.Hash()); err != nil {
-			return err
-		}
-	}
+	// skipCancel parameter was removed since the function was always called with skipCancel = true
+	// if !skipCancel {
+	// 	if err := k.CancelConditionalDerivativeMarketOrder(
+	// 		ctx, market, marketOrder.OrderInfo.SubaccountID(), nil, marketOrder.Hash(),
+	// 	); err != nil {
+	// 		return err
+	// 	}
+	// }
 
 	marketID := market.MarketID()
 
 	senderAddr := types.SubaccountIDToSdkAddress(marketOrder.OrderInfo.SubaccountID())
-	orderType := types.OrderType_BUY
+	orderType := v2.OrderType_BUY
 	if !marketOrder.IsBuy() {
-		orderType = types.OrderType_SELL
+		orderType = v2.OrderType_SELL
 	}
 
-	order := types.DerivativeOrder{
+	order := v2.DerivativeOrder{
 		MarketId:     marketID.Hex(),
 		OrderInfo:    marketOrder.OrderInfo,
 		OrderType:    orderType,
@@ -752,7 +796,7 @@ func (k *Keeper) TriggerConditionalDerivativeMarketOrder(ctx sdk.Context, market
 		TriggerPrice: nil,
 	}
 
-	orderMsg := types.MsgCreateDerivativeMarketOrder{
+	orderMsg := v2.MsgCreateDerivativeMarketOrder{
 		Sender: senderAddr.String(),
 		Order:  order,
 	}
@@ -765,8 +809,7 @@ func (k *Keeper) TriggerConditionalDerivativeMarketOrder(ctx sdk.Context, market
 	if err != nil {
 		return err
 	}
-	// nolint:errcheck //ignored on purpose
-	ctx.EventManager().EmitTypedEvent(&types.EventConditionalDerivativeOrderTrigger{
+	k.EmitEvent(ctx, &v2.EventConditionalDerivativeOrderTrigger{
 		MarketId:           marketID.Bytes(),
 		IsLimitTrigger:     false,
 		TriggeredOrderHash: marketOrder.OrderHash,
@@ -778,9 +821,9 @@ func (k *Keeper) TriggerConditionalDerivativeMarketOrder(ctx sdk.Context, market
 
 func (k *Keeper) TriggerConditionalDerivativeLimitOrder(
 	ctx sdk.Context,
-	market DerivativeMarketI,
+	market DerivativeMarketInterface,
 	markPrice math.LegacyDec,
-	limitOrder *types.DerivativeLimitOrder,
+	limitOrder *v2.DerivativeLimitOrder,
 	skipCancel bool,
 ) error {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
@@ -795,12 +838,12 @@ func (k *Keeper) TriggerConditionalDerivativeLimitOrder(
 	marketID := market.MarketID()
 
 	senderAddr := types.SubaccountIDToSdkAddress(limitOrder.OrderInfo.SubaccountID())
-	orderType := types.OrderType_BUY
+	orderType := v2.OrderType_BUY
 	if !limitOrder.IsBuy() {
-		orderType = types.OrderType_SELL
+		orderType = v2.OrderType_SELL
 	}
 
-	order := types.DerivativeOrder{
+	order := v2.DerivativeOrder{
 		MarketId:     marketID.Hex(),
 		OrderInfo:    limitOrder.OrderInfo,
 		OrderType:    orderType,
@@ -808,7 +851,7 @@ func (k *Keeper) TriggerConditionalDerivativeLimitOrder(
 		TriggerPrice: nil,
 	}
 
-	orderMsg := types.MsgCreateDerivativeLimitOrder{
+	orderMsg := v2.MsgCreateDerivativeLimitOrder{
 		Sender: senderAddr.String(),
 		Order:  order,
 	}
@@ -821,8 +864,7 @@ func (k *Keeper) TriggerConditionalDerivativeLimitOrder(
 		return err
 	}
 
-	// nolint:errcheck //ignored on purpose
-	ctx.EventManager().EmitTypedEvent(&types.EventConditionalDerivativeOrderTrigger{
+	k.EmitEvent(ctx, &v2.EventConditionalDerivativeOrderTrigger{
 		MarketId:           marketID.Bytes(),
 		IsLimitTrigger:     true,
 		TriggeredOrderHash: limitOrder.OrderHash,
@@ -854,7 +896,9 @@ func (k *Keeper) removeConditionalOrderInvalidationFlag(ctx sdk.Context, marketI
 	flagsStore.Delete(key)
 }
 
-func (k *Keeper) IterateInvalidConditionalOrderFlags(ctx sdk.Context, process func(marketID, subaccountID common.Hash, isBuy bool) (stop bool)) {
+func (k *Keeper) IterateInvalidConditionalOrderFlags(
+	ctx sdk.Context, process func(marketID, subaccountID common.Hash, isBuy bool) (stop bool),
+) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
@@ -862,11 +906,14 @@ func (k *Keeper) IterateInvalidConditionalOrderFlags(ctx sdk.Context, process fu
 	flagsStore := prefix.NewStore(store, types.ConditionalOrderInvalidationFlagPrefix)
 
 	iterator := flagsStore.Iterator(nil, nil)
-
-	defer iterator.Close()
-
+	keys := [][]byte{}
 	for ; iterator.Valid(); iterator.Next() {
-		marketID, subaccountID, isBuy := types.ParseMarketIDSubaccountIDDirectionSuffix(iterator.Key())
+		keys = append(keys, iterator.Key())
+	}
+	iterator.Close()
+
+	for _, key := range keys {
+		marketID, subaccountID, isBuy := types.ParseMarketIDSubaccountIDDirectionSuffix(key)
 		if process(marketID, subaccountID, isBuy) {
 			return
 		}
@@ -879,7 +926,7 @@ func (k *Keeper) InvalidateConditionalOrdersIfNoMarginLocked(
 	marketID, subaccountID common.Hash,
 	hasPositionBeenJustDeleted bool,
 	invalidMetadataIsBuy *bool,
-	marketCache map[common.Hash]*types.DerivativeMarket,
+	marketCache map[common.Hash]*v2.DerivativeMarket,
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
@@ -901,7 +948,10 @@ func (k *Keeper) InvalidateConditionalOrdersIfNoMarginLocked(
 		metadataSell := k.GetSubaccountOrderbookMetadata(ctx, marketID, subaccountID, false)
 
 		hasNoReduceOnlyConditionals := (metadataBuy.ReduceOnlyConditionalOrderCount + metadataSell.ReduceOnlyConditionalOrderCount) == 0
-		hasVanillaOrders := (metadataBuy.VanillaLimitOrderCount + metadataBuy.VanillaConditionalOrderCount + metadataSell.VanillaLimitOrderCount + metadataSell.VanillaConditionalOrderCount) > 0
+		hasVanillaOrders := (metadataBuy.VanillaLimitOrderCount +
+			metadataBuy.VanillaConditionalOrderCount +
+			metadataSell.VanillaLimitOrderCount +
+			metadataSell.VanillaConditionalOrderCount) > 0
 
 		// skip invalidation if margin is locked OR no conditionals exist
 		if hasNoReduceOnlyConditionals || hasVanillaOrders {
@@ -909,7 +959,7 @@ func (k *Keeper) InvalidateConditionalOrdersIfNoMarginLocked(
 		}
 	}
 
-	var market DerivativeMarketI
+	var market DerivativeMarketInterface
 
 	if marketCache != nil {
 		m, ok := marketCache[marketID]
@@ -923,20 +973,20 @@ func (k *Keeper) InvalidateConditionalOrdersIfNoMarginLocked(
 	}
 
 	// no position and no vanilla orders on both sides => cancel all conditional orders
-	k.CancelAllConditionalDerivativeOrdersBySubaccountIDAndMarket(ctx, market, subaccountID, true, true)
+	k.CancelAllConditionalDerivativeOrdersBySubaccountIDAndMarket(ctx, market, subaccountID)
 }
 
 func (k *Keeper) GetAllSubaccountConditionalOrders(
 	ctx sdk.Context,
 	marketID common.Hash,
-	subaccountID common.Hash) []*types.TrimmedDerivativeConditionalOrder {
+	subaccountID common.Hash) []*v2.TrimmedDerivativeConditionalOrder {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	var trimmedMarketOrder = func(orderHash common.Hash, isTriggerPriceHigher bool) *types.TrimmedDerivativeConditionalOrder {
+	trimmedMarketOrder := func(orderHash common.Hash, isTriggerPriceHigher bool) *v2.TrimmedDerivativeConditionalOrder {
 		order, _ := k.GetConditionalDerivativeMarketOrderBySubaccountIDAndHash(ctx, marketID, &isTriggerPriceHigher, subaccountID, orderHash)
 		if order != nil && order.TriggerPrice != nil {
-			return &types.TrimmedDerivativeConditionalOrder{
+			return &v2.TrimmedDerivativeConditionalOrder{
 				Price:        order.Price(),
 				Quantity:     order.Quantity(),
 				Margin:       order.GetMargin(),
@@ -950,10 +1000,11 @@ func (k *Keeper) GetAllSubaccountConditionalOrders(
 			return nil
 		}
 	}
-	var trimmedLimitOrder = func(orderHash common.Hash, isTriggerPriceHigher bool) *types.TrimmedDerivativeConditionalOrder {
+
+	trimmedLimitOrder := func(orderHash common.Hash, isTriggerPriceHigher bool) *v2.TrimmedDerivativeConditionalOrder {
 		order, _ := k.GetConditionalDerivativeLimitOrderBySubaccountIDAndHash(ctx, marketID, &isTriggerPriceHigher, subaccountID, orderHash)
 		if order != nil && order.TriggerPrice != nil {
-			return &types.TrimmedDerivativeConditionalOrder{
+			return &v2.TrimmedDerivativeConditionalOrder{
 				Price:        order.Price(),
 				Quantity:     order.GetQuantity(),
 				Margin:       order.GetMargin(),
@@ -968,19 +1019,30 @@ func (k *Keeper) GetAllSubaccountConditionalOrders(
 		}
 	}
 
-	orders := make([]*types.TrimmedDerivativeConditionalOrder, 0)
-
-	for _, hash := range k.GetAllConditionalOrderHashesBySubaccountAndMarket(ctx, marketID, true, true, types.MarketType_Perpetual, subaccountID) {
+	orders := make([]*v2.TrimmedDerivativeConditionalOrder, 0)
+	for _, hash := range k.GetAllConditionalOrderHashesBySubaccountAndMarket(
+		ctx, marketID, true, true, subaccountID,
+	) {
 		orders = append(orders, trimmedMarketOrder(hash, true))
 	}
-	for _, hash := range k.GetAllConditionalOrderHashesBySubaccountAndMarket(ctx, marketID, false, true, types.MarketType_Perpetual, subaccountID) {
+
+	for _, hash := range k.GetAllConditionalOrderHashesBySubaccountAndMarket(
+		ctx, marketID, false, true, subaccountID,
+	) {
 		orders = append(orders, trimmedMarketOrder(hash, false))
 	}
-	for _, hash := range k.GetAllConditionalOrderHashesBySubaccountAndMarket(ctx, marketID, true, false, types.MarketType_Perpetual, subaccountID) {
+
+	for _, hash := range k.GetAllConditionalOrderHashesBySubaccountAndMarket(
+		ctx, marketID, true, false, subaccountID,
+	) {
 		orders = append(orders, trimmedLimitOrder(hash, true))
 	}
-	for _, hash := range k.GetAllConditionalOrderHashesBySubaccountAndMarket(ctx, marketID, false, false, types.MarketType_Perpetual, subaccountID) {
+
+	for _, hash := range k.GetAllConditionalOrderHashesBySubaccountAndMarket(
+		ctx, marketID, false, false, subaccountID,
+	) {
 		orders = append(orders, trimmedLimitOrder(hash, false))
 	}
+
 	return orders
 }

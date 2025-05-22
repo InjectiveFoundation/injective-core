@@ -6,6 +6,7 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 )
 
 func (k *Keeper) checkDenomMinNotional(ctx sdk.Context, sender sdk.AccAddress, denom string, minNotional math.LegacyDec) error {
@@ -63,8 +64,8 @@ func (k *Keeper) HasMinNotionalForDenom(ctx sdk.Context, denom string) bool {
 	return store.Has(key)
 }
 
-func (k *Keeper) GetAllDenomMinNotionals(ctx sdk.Context) []*types.DenomMinNotional {
-	minNotionals := make([]*types.DenomMinNotional, 0)
+func (k *Keeper) GetAllDenomMinNotionals(ctx sdk.Context) []*v2.DenomMinNotional {
+	minNotionals := make([]*v2.DenomMinNotional, 0)
 
 	store := prefix.NewStore(ctx.KVStore(k.storeKey), types.DenomMinNotionalPrefix)
 
@@ -75,7 +76,7 @@ func (k *Keeper) GetAllDenomMinNotionals(ctx sdk.Context) []*types.DenomMinNotio
 		denom := string(iterator.Key())
 		minNotional := types.UnsignedDecBytesToDec(iterator.Value())
 
-		minNotionals = append(minNotionals, &types.DenomMinNotional{
+		minNotionals = append(minNotionals, &v2.DenomMinNotional{
 			Denom:       denom,
 			MinNotional: minNotional,
 		})

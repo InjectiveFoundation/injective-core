@@ -9,9 +9,10 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 )
 
-type MarketI interface {
+type MarketInterface interface {
 	MarketID() common.Hash
 	GetMarketType() types.MarketType
 	GetMinPriceTickSize() math.LegacyDec
@@ -23,14 +24,21 @@ type MarketI interface {
 	GetRelayerFeeShareRate() math.LegacyDec
 	GetQuoteDenom() string
 	StatusSupportsOrderCancellations() bool
-	GetMarketStatus() types.MarketStatus
+	GetMarketStatus() v2.MarketStatus
+	PriceFromChainFormat(price math.LegacyDec) math.LegacyDec
+	QuantityFromChainFormat(quantity math.LegacyDec) math.LegacyDec
+	NotionalFromChainFormat(notional math.LegacyDec) math.LegacyDec
+	PriceToChainFormat(humanReadableValue math.LegacyDec) math.LegacyDec
+	QuantityToChainFormat(humanReadableValue math.LegacyDec) math.LegacyDec
+	NotionalToChainFormat(humanReadableValue math.LegacyDec) math.LegacyDec
 }
 
-type DerivativeMarketI interface {
-	MarketI
+type DerivativeMarketInterface interface {
+	MarketInterface
 	GetIsPerpetual() bool
 	GetInitialMarginRatio() math.LegacyDec
 	GetOracleScaleFactor() uint32
+	GetQuoteDecimals() uint32
 }
 
 type MarketIDQuoteDenomMakerFee struct {
@@ -40,20 +48,20 @@ type MarketIDQuoteDenomMakerFee struct {
 }
 
 // MarketFilter can be used to filter out markets from a list by returning false
-type MarketFilter func(MarketI) bool
+type MarketFilter func(MarketInterface) bool
 
 // AllMarketFilter allows all markets
-func AllMarketFilter(_ MarketI) bool {
+func AllMarketFilter(_ MarketInterface) bool {
 	return true
 }
 
 // StatusMarketFilter filters the markets by their status
-func StatusMarketFilter(status ...types.MarketStatus) MarketFilter {
-	m := make(map[types.MarketStatus]struct{}, len(status))
+func StatusMarketFilter(status ...v2.MarketStatus) MarketFilter {
+	m := make(map[v2.MarketStatus]struct{}, len(status))
 	for _, s := range status {
 		m[s] = struct{}{}
 	}
-	return func(market MarketI) bool {
+	return func(market MarketInterface) bool {
 		_, found := m[market.GetMarketStatus()]
 		return found
 	}
@@ -65,7 +73,7 @@ func MarketIDMarketFilter(marketIDs ...string) MarketFilter {
 	for _, id := range marketIDs {
 		m[common.HexToHash(id)] = struct{}{}
 	}
-	return func(market MarketI) bool {
+	return func(market MarketInterface) bool {
 		_, found := m[market.MarketID()]
 		return found
 	}
@@ -73,7 +81,7 @@ func MarketIDMarketFilter(marketIDs ...string) MarketFilter {
 
 // ChainMarketFilter can be used to chain multiple market filters
 func ChainMarketFilter(filters ...MarketFilter) MarketFilter {
-	return func(market MarketI) bool {
+	return func(market MarketInterface) bool {
 		// allow the market only if all the filters pass
 		for _, f := range filters {
 			if !f(market) {
@@ -84,20 +92,20 @@ func ChainMarketFilter(filters ...MarketFilter) MarketFilter {
 	}
 }
 
-func RemoveMarketsByIDs(markets []MarketI, marketIDsToRemove []string) []MarketI {
+func RemoveMarketsByIDs(markets []MarketInterface, marketIDsToRemove []string) []MarketInterface {
 	marketIdMap := make(map[string]bool)
 	for _, id := range marketIDsToRemove {
 		marketIdMap[id] = true
 	}
 
-	return FilterMarkets(markets, func(m MarketI) bool {
+	return FilterMarkets(markets, func(m MarketInterface) bool {
 		_, exists := marketIdMap[m.MarketID().Hex()]
 		return !exists
 	})
 }
 
-func FilterMarkets(markets []MarketI, filterFunc MarketFilter) []MarketI {
-	var filtered []MarketI
+func FilterMarkets(markets []MarketInterface, filterFunc MarketFilter) []MarketInterface {
+	var filtered []MarketInterface
 
 	for _, market := range markets {
 		if filterFunc(market) {
@@ -108,35 +116,35 @@ func FilterMarkets(markets []MarketI, filterFunc MarketFilter) []MarketI {
 	return filtered
 }
 
-func ConvertSpotMarkets(markets []*types.SpotMarket) []MarketI {
-	converted := make([]MarketI, 0, len(markets))
+func ConvertSpotMarketsToMarketInterface(markets []*v2.SpotMarket) []MarketInterface {
+	converted := make([]MarketInterface, 0, len(markets))
 	for _, market := range markets {
 		converted = append(converted, market)
 	}
 	return converted
 }
 
-func ConvertDerivativeMarkets(markets []*types.DerivativeMarket) []MarketI {
-	converted := make([]MarketI, 0, len(markets))
+func ConvertDerivativeMarketsToMarketInterface(markets []*v2.DerivativeMarket) []MarketInterface {
+	converted := make([]MarketInterface, 0, len(markets))
 	for _, market := range markets {
 		converted = append(converted, market)
 	}
 	return converted
 }
 
-func ConvertBinaryOptionsMarkets(markets []*types.BinaryOptionsMarket) []MarketI {
-	converted := make([]MarketI, 0, len(markets))
+func ConvertBinaryOptionsMarketsToMarketInterface(markets []*v2.BinaryOptionsMarket) []MarketInterface {
+	converted := make([]MarketInterface, 0, len(markets))
 	for _, market := range markets {
 		converted = append(converted, market)
 	}
 	return converted
 }
 
-func (k *Keeper) FindDerivativeAndBinaryOptionsMarkets(ctx sdk.Context, filter MarketFilter) []DerivativeMarketI {
+func (k *Keeper) FindDerivativeAndBinaryOptionsMarkets(ctx sdk.Context, filter MarketFilter) []DerivativeMarketInterface {
 	derivativeMarkets := k.FindDerivativeMarkets(ctx, filter)
 	binaryOptionsMarkets := k.FindBinaryOptionsMarkets(ctx, filter)
 
-	markets := make([]DerivativeMarketI, 0, len(derivativeMarkets)+len(binaryOptionsMarkets))
+	markets := make([]DerivativeMarketInterface, 0, len(derivativeMarkets)+len(binaryOptionsMarkets))
 	for _, m := range derivativeMarkets {
 		markets = append(markets, m)
 	}
@@ -147,14 +155,15 @@ func (k *Keeper) FindDerivativeAndBinaryOptionsMarkets(ctx sdk.Context, filter M
 	return markets
 }
 
-func (k *Keeper) GetAllDerivativeAndBinaryOptionsMarkets(ctx sdk.Context) []DerivativeMarketI {
+func (k *Keeper) GetAllDerivativeAndBinaryOptionsMarkets(ctx sdk.Context) []DerivativeMarketInterface {
 	derivativeMarkets := k.GetAllDerivativeMarkets(ctx)
 	binaryOptionsMarkets := k.GetAllBinaryOptionsMarkets(ctx)
 
-	markets := make([]DerivativeMarketI, 0, len(derivativeMarkets)+len(binaryOptionsMarkets))
+	markets := make([]DerivativeMarketInterface, 0, len(derivativeMarkets)+len(binaryOptionsMarkets))
 	for _, m := range derivativeMarkets {
 		markets = append(markets, m)
 	}
+
 	for _, m := range binaryOptionsMarkets {
 		markets = append(markets, m)
 	}
@@ -162,7 +171,7 @@ func (k *Keeper) GetAllDerivativeAndBinaryOptionsMarkets(ctx sdk.Context) []Deri
 	return markets
 }
 
-func (k *Keeper) GetDerivativeOrBinaryOptionsMarket(ctx sdk.Context, marketID common.Hash, isEnabled *bool) DerivativeMarketI {
+func (k *Keeper) GetDerivativeOrBinaryOptionsMarket(ctx sdk.Context, marketID common.Hash, isEnabled *bool) DerivativeMarketInterface {
 	isEnabledToCheck := true
 
 	shouldOnlyCheckOneStatus := isEnabled != nil
@@ -199,34 +208,42 @@ func (k *Keeper) GetDerivativeOrBinaryOptionsMarket(ctx sdk.Context, marketID co
 }
 
 // DemolishOrPauseGenericMarket sets the market status to demolished for binary option markets or paused for derivative markets
-func (k *Keeper) DemolishOrPauseGenericMarket(ctx sdk.Context, market DerivativeMarketI) error {
+func (k *Keeper) DemolishOrPauseGenericMarket(ctx sdk.Context, market DerivativeMarketInterface) error {
 	switch market.GetMarketType() {
 	case types.MarketType_BinaryOption:
-		boMarket, ok := market.(*types.BinaryOptionsMarket)
+		boMarket, ok := market.(*v2.BinaryOptionsMarket)
 		if !ok {
 			metrics.ReportFuncError(k.svcTags)
 			return errors.Wrapf(types.ErrBinaryOptionsMarketNotFound, "binary options market conversion in settlement failed")
 		}
 
-		boMarket.Status = types.MarketStatus_Demolished
+		boMarket.Status = v2.MarketStatus_Demolished
 		k.SetBinaryOptionsMarket(ctx, boMarket)
 	default:
-		derivativeMarket, ok := market.(*types.DerivativeMarket)
+		derivativeMarket, ok := market.(*v2.DerivativeMarket)
 		if !ok {
 			metrics.ReportFuncError(k.svcTags)
 			return errors.Wrapf(types.ErrDerivativeMarketNotFound, "derivative market conversion in settlement failed")
 		}
 
-		derivativeMarket.Status = types.MarketStatus_Paused
+		derivativeMarket.Status = v2.MarketStatus_Paused
 		k.SetDerivativeMarket(ctx, derivativeMarket)
 	}
 	return nil
 }
 
-func (k *Keeper) GetDerivativeOrBinaryOptionsMarketWithMarkPrice(ctx sdk.Context, marketID common.Hash, isEnabled bool) (DerivativeMarketI, math.LegacyDec) {
+func (k *Keeper) GetDerivativeOrBinaryOptionsMarketWithMarkPrice(
+	ctx sdk.Context, marketID common.Hash, isEnabled bool,
+) (DerivativeMarketInterface, math.LegacyDec) {
 	derivativeMarket := k.GetDerivativeMarket(ctx, marketID, isEnabled)
 	if derivativeMarket != nil {
-		price, err := k.GetDerivativeMarketPrice(ctx, derivativeMarket.OracleBase, derivativeMarket.OracleQuote, derivativeMarket.OracleScaleFactor, derivativeMarket.OracleType)
+		price, err := k.GetDerivativeMarketPrice(
+			ctx,
+			derivativeMarket.OracleBase,
+			derivativeMarket.OracleQuote,
+			derivativeMarket.OracleScaleFactor,
+			derivativeMarket.OracleType,
+		)
 		if err != nil {
 			return nil, math.LegacyDec{}
 		}
@@ -291,7 +308,7 @@ func (k *Keeper) GetMarketAtomicExecutionFeeMultiplier(ctx sdk.Context, marketId
 
 	bz := takerFeeStore.Get(marketId.Bytes())
 	if bz != nil {
-		var multiplier types.MarketFeeMultiplier
+		var multiplier v2.MarketFeeMultiplier
 		k.cdc.MustUnmarshal(bz, &multiplier)
 		return multiplier.FeeMultiplier
 	}
@@ -299,28 +316,27 @@ func (k *Keeper) GetMarketAtomicExecutionFeeMultiplier(ctx sdk.Context, marketId
 	return k.GetDefaultAtomicMarketOrderFeeMultiplier(ctx, marketType)
 }
 
-func (k *Keeper) GetAllMarketAtomicExecutionFeeMultipliers(ctx sdk.Context) []*types.MarketFeeMultiplier {
+func (k *Keeper) GetAllMarketAtomicExecutionFeeMultipliers(ctx sdk.Context) []*v2.MarketFeeMultiplier {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	store := k.getStore(ctx)
 	takerFeeStore := prefix.NewStore(store, types.AtomicMarketOrderTakerFeeMultiplierKey)
 
-	iterator := takerFeeStore.Iterator(nil, nil)
-	defer iterator.Close()
-	multipliers := make([]*types.MarketFeeMultiplier, 0)
+	iter := takerFeeStore.Iterator(nil, nil)
+	defer iter.Close()
 
-	for ; iterator.Valid(); iterator.Next() {
-		var multiplier types.MarketFeeMultiplier
-		bz := iterator.Value()
-		k.cdc.MustUnmarshal(bz, &multiplier)
+	multipliers := make([]*v2.MarketFeeMultiplier, 0)
+	for ; iter.Valid(); iter.Next() {
+		var multiplier v2.MarketFeeMultiplier
+		k.cdc.MustUnmarshal(iter.Value(), &multiplier)
 		multipliers = append(multipliers, &multiplier)
 	}
 
 	return multipliers
 }
 
-func (k *Keeper) SetAtomicMarketOrderFeeMultipliers(ctx sdk.Context, marketFeeMultipliers []*types.MarketFeeMultiplier) {
+func (k *Keeper) SetAtomicMarketOrderFeeMultipliers(ctx sdk.Context, marketFeeMultipliers []*v2.MarketFeeMultiplier) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
@@ -352,4 +368,135 @@ func (k *Keeper) GetMarketType(ctx sdk.Context, marketID common.Hash, isEnabled 
 	}
 
 	return nil, types.ErrMarketInvalid.Wrapf("Market with id: %v doesn't exist or is not active", marketID)
+}
+
+// AppendDerivativeOrderExpirations stores a derivative limit order in the expiration store
+func (k *Keeper) AppendOrderExpirations(
+	ctx sdk.Context,
+	marketID common.Hash,
+	expirationBlock int64,
+	order *v2.OrderData,
+) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
+	store := k.getStore(ctx)
+	expirationStore := prefix.NewStore(store, types.GetOrderExpirationPrefix(expirationBlock, marketID))
+
+	bz := k.cdc.MustMarshal(order)
+	expirationStore.Set(common.HexToHash(order.OrderHash).Bytes(), bz)
+
+	expirationMarketsStore := prefix.NewStore(store, types.GetOrderExpirationMarketPrefix(expirationBlock))
+	expirationMarketsStore.Set(marketID.Bytes(), []byte{types.TrueByte})
+}
+
+func (k *Keeper) DeleteMarketWithOrderExpirations(
+	ctx sdk.Context,
+	marketID common.Hash,
+	expirationBlock int64,
+) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
+	store := k.getStore(ctx)
+	expirationMarketsStore := prefix.NewStore(store, types.GetOrderExpirationMarketPrefix(expirationBlock))
+	expirationMarketsStore.Delete(marketID.Bytes())
+}
+
+func (k *Keeper) DeleteOrderExpiration(
+	ctx sdk.Context,
+	marketID common.Hash,
+	expirationBlock int64,
+	orderHash common.Hash,
+) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
+	store := k.getStore(ctx)
+	expirationStore := prefix.NewStore(store, types.GetOrderExpirationPrefix(expirationBlock, marketID))
+	expirationStore.Delete(orderHash.Bytes())
+}
+
+// GetMarketsWithOrderExpirations retrieves all markets with orders expiring at a given block
+func (k *Keeper) GetMarketsWithOrderExpirations(
+	ctx sdk.Context,
+	expirationBlock int64,
+) []common.Hash {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
+	store := k.getStore(ctx)
+	expirationMarketsStore := prefix.NewStore(store, types.GetOrderExpirationMarketPrefix(expirationBlock))
+
+	markets := make([]common.Hash, 0)
+	iterator := expirationMarketsStore.Iterator(nil, nil)
+	defer iterator.Close()
+
+	for ; iterator.Valid(); iterator.Next() {
+		marketID := common.BytesToHash(iterator.Key())
+		markets = append(markets, marketID)
+	}
+
+	return markets
+}
+
+// GetOrdersByExpiration retrieves all derivative limit orders expiring at a specific block for a market
+func (k *Keeper) GetOrdersByExpiration(
+	ctx sdk.Context,
+	marketID common.Hash,
+	expirationBlock int64,
+) ([]*v2.OrderData, error) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
+	orders := make([]*v2.OrderData, 0)
+	store := k.getStore(ctx)
+
+	expirationStore := prefix.NewStore(store, types.GetOrderExpirationPrefix(expirationBlock, marketID))
+
+	iterator := expirationStore.Iterator(nil, nil)
+	defer iterator.Close()
+
+	for ; iterator.Valid(); iterator.Next() {
+		bz := iterator.Value()
+		if bz == nil {
+			continue
+		}
+
+		var order v2.OrderData
+		if err := k.cdc.Unmarshal(bz, &order); err != nil {
+			return nil, err
+		}
+
+		orders = append(orders, &order)
+	}
+
+	return orders, nil
+}
+
+func (k *Keeper) handleExchangeEnableProposal(ctx sdk.Context, p *v2.ExchangeEnableProposal) error {
+	if err := p.ValidateBasic(); err != nil {
+		return err
+	}
+
+	switch p.ExchangeType {
+	case v2.ExchangeType_SPOT:
+		k.SetSpotExchangeEnabled(ctx)
+	case v2.ExchangeType_DERIVATIVES:
+		k.SetDerivativesExchangeEnabled(ctx)
+	}
+	return nil
+}
+
+func (k *Keeper) handleAtomicMarketOrderFeeMultiplierScheduleProposal(
+	ctx sdk.Context, p *v2.AtomicMarketOrderFeeMultiplierScheduleProposal,
+) error {
+	if err := p.ValidateBasic(); err != nil {
+		return err
+	}
+	k.SetAtomicMarketOrderFeeMultipliers(ctx, p.MarketFeeMultipliers)
+	k.EmitEvent(ctx, &v2.EventAtomicMarketOrderFeeMultipliersUpdated{
+		MarketFeeMultipliers: p.MarketFeeMultipliers,
+	})
+	return nil
 }

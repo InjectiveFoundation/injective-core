@@ -11,3 +11,5 @@ The `permissions` module allows managing certain prefixed actions and roles for 
 1. [Concepts](./01_concepts.md)
 2. [State](./02_state.md)
 3. [State Transitions](./03_state_transitions.md)
+4. [How to Launch Permissioned Assets](./04_launch_permissioned_asset.md)
+5. [Error Codes](./99_errors.md)

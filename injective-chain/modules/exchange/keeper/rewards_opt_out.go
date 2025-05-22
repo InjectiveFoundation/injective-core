@@ -2,10 +2,9 @@ package keeper
 
 import (
 	"cosmossdk.io/store/prefix"
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 	"github.com/InjectiveLabs/metrics"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 )
 
 // GetIsOptedOutOfRewards returns if the account is opted out of rewards
@@ -45,15 +44,14 @@ func (k *Keeper) GetAllOptedOutRewardAccounts(ctx sdk.Context) []string {
 	defer doneFn()
 
 	registeredDMMs := make([]string, 0)
-	appendDMMs := func(account sdk.AccAddress, isRegisteredDMM bool) (stop bool) {
+	k.iterateOptedOutRewardAccounts(ctx, func(account sdk.AccAddress, isRegisteredDMM bool) (stop bool) {
 		if isRegisteredDMM {
 			registeredDMMs = append(registeredDMMs, account.String())
 		}
 
 		return false
-	}
+	})
 
-	k.iterateOptedOutRewardAccounts(ctx, appendDMMs)
 	return registeredDMMs
 }
 

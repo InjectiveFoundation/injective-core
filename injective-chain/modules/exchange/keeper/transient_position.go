@@ -9,16 +9,16 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/InjectiveLabs/metrics"
-
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
+	"github.com/InjectiveLabs/metrics"
 )
 
 // SetTransientPosition sets a subaccount's position in the transient store for a given denom.
 func (k *Keeper) SetTransientPosition(
 	ctx sdk.Context,
 	marketID, subaccountID common.Hash,
-	position *types.Position,
+	position *v2.Position,
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
@@ -44,17 +44,17 @@ func (k *Keeper) EmitAllTransientPositionUpdates(
 	defer iterator.Close()
 
 	// marketID => subaccountID => position
-	positions := make(map[common.Hash]map[common.Hash]*types.Position)
+	positions := make(map[common.Hash]map[common.Hash]*v2.Position)
 
 	for ; iterator.Valid(); iterator.Next() {
-		var position types.Position
+		var position v2.Position
 		bz := iterator.Value()
 		k.cdc.MustUnmarshal(bz, &position)
 
 		marketID, subaccountID := types.ParsePositionTransientStoreKey(iterator.Key())
 
 		if _, ok := positions[marketID]; !ok {
-			positions[marketID] = make(map[common.Hash]*types.Position)
+			positions[marketID] = make(map[common.Hash]*v2.Position)
 		}
 		positions[marketID][subaccountID] = &position
 	}
@@ -78,16 +78,15 @@ func (k *Keeper) EmitAllTransientPositionUpdates(
 				return bytes.Compare(subaccountIDs[i].Bytes(), subaccountIDs[j].Bytes()) < 0
 			})
 
-			marketPositions := make([]*types.SubaccountPosition, len(subaccountIDs))
+			marketPositions := make([]*v2.SubaccountPosition, len(subaccountIDs))
 			for idx, subaccountID := range subaccountIDs {
-				marketPositions[idx] = &types.SubaccountPosition{
+				marketPositions[idx] = &v2.SubaccountPosition{
 					Position:     positions[marketID][subaccountID],
 					SubaccountId: subaccountID.Bytes(),
 				}
 			}
 
-			// nolint:errcheck //ignored on purpose
-			ctx.EventManager().EmitTypedEvent(&types.EventBatchDerivativePosition{
+			k.EmitEvent(ctx, &v2.EventBatchDerivativePosition{
 				MarketId:  marketID.Hex(),
 				Positions: marketPositions,
 			})

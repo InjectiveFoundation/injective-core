@@ -7,6 +7,7 @@ import (
 	"github.com/InjectiveLabs/metrics"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 )
 
 // GetSpotMarketInstantListingFee returns the spot market instant listing fee
@@ -81,6 +82,14 @@ func (k *Keeper) GetDefaultMaintenanceMarginRatio(ctx sdk.Context) math.LegacyDe
 	return k.GetParams(ctx).DefaultMaintenanceMarginRatio
 }
 
+// GetDefaultReduceMarginRatio returns the default maintenance margin ratio
+func (k *Keeper) GetDefaultReduceMarginRatio(ctx sdk.Context) math.LegacyDec {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
+	return k.GetParams(ctx).DefaultReduceMarginRatio
+}
+
 // GetDefaultFundingInterval returns the default funding interval
 func (k *Keeper) GetDefaultFundingInterval(ctx sdk.Context) int64 {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
@@ -138,7 +147,7 @@ func (k *Keeper) GetLiquidatorRewardShareRate(ctx sdk.Context) math.LegacyDec {
 }
 
 // GetAtomicMarketOrderAccessLevel returns the atomic market order access level
-func (k *Keeper) GetAtomicMarketOrderAccessLevel(ctx sdk.Context) types.AtomicMarketOrderAccessLevel {
+func (k *Keeper) GetAtomicMarketOrderAccessLevel(ctx sdk.Context) v2.AtomicMarketOrderAccessLevel {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
@@ -188,24 +197,24 @@ func (k *Keeper) GetIsInstantDerivativeMarketLaunchEnabled(ctx sdk.Context) bool
 }
 
 // GetParams returns the total set of exchange parameters.
-func (k *Keeper) GetParams(ctx sdk.Context) types.Params {
+func (k *Keeper) GetParams(ctx sdk.Context) v2.Params {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	store := k.getStore(ctx)
 	bz := store.Get(types.ParamsKey)
 	if bz == nil {
-		return types.Params{}
+		return v2.Params{}
 	}
 
-	var params types.Params
+	var params v2.Params
 	k.cdc.MustUnmarshal(bz, &params)
 
 	return params
 }
 
 // SetParams set the params
-func (k *Keeper) SetParams(ctx sdk.Context, params types.Params) {
+func (k *Keeper) SetParams(ctx sdk.Context, params v2.Params) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 

@@ -31,10 +31,10 @@ var (
 )
 
 // Route implements the sdk.Msg interface. It should return the name of the module
-func (msg MsgUpdateParams) Route() string { return RouterKey }
+func (MsgUpdateParams) Route() string { return RouterKey }
 
 // Type implements the sdk.Msg interface. It should return the action.
-func (msg MsgUpdateParams) Type() string { return TypeMsgUpdateParams }
+func (MsgUpdateParams) Type() string { return TypeMsgUpdateParams }
 
 // ValidateBasic implements the sdk.Msg interface for MsgUpdateParams.
 func (msg MsgUpdateParams) ValidateBasic() error {
@@ -42,11 +42,7 @@ func (msg MsgUpdateParams) ValidateBasic() error {
 		return errors.Wrap(err, "invalid authority address")
 	}
 
-	if err := msg.Params.Validate(); err != nil {
-		return err
-	}
-
-	return nil
+	return msg.Params.Validate()
 }
 
 // GetSignBytes implements the sdk.Msg interface. It encodes the message for signing
@@ -65,10 +61,10 @@ func (msg MsgUpdateParams) GetSigners() []sdk.AccAddress {
 }
 
 // Route implements the sdk.Msg interface. It should return the name of the module
-func (msg MsgCreateFeed) Route() string { return RouterKey }
+func (MsgCreateFeed) Route() string { return RouterKey }
 
 // Type implements the sdk.Msg interface. It should return the action.
-func (msg MsgCreateFeed) Type() string { return TypeMsgCreateFeed }
+func (MsgCreateFeed) Type() string { return TypeMsgCreateFeed }
 
 // ValidateBasic implements the sdk.Msg interface for MsgCreateFeed.
 func (msg MsgCreateFeed) ValidateBasic() error {
@@ -76,11 +72,7 @@ func (msg MsgCreateFeed) ValidateBasic() error {
 		return errors.Wrap(sdkerrors.ErrInvalidAddress, msg.Sender)
 	}
 
-	if err := msg.Config.ValidateBasic(); err != nil {
-		return err
-	}
-
-	return nil
+	return msg.Config.ValidateBasic()
 }
 
 // GetSignBytes implements the sdk.Msg interface. It encodes the message for signing
@@ -99,10 +91,10 @@ func (msg MsgCreateFeed) GetSigners() []sdk.AccAddress {
 }
 
 // Route implements the sdk.Msg interface. It should return the name of the module
-func (msg MsgUpdateFeed) Route() string { return RouterKey }
+func (MsgUpdateFeed) Route() string { return RouterKey }
 
 // Type implements the sdk.Msg interface. It should return the action.
-func (msg MsgUpdateFeed) Type() string { return TypeMsgUpdateFeed }
+func (MsgUpdateFeed) Type() string { return TypeMsgUpdateFeed }
 
 // ValidateBasic implements the sdk.Msg interface for MsgUpdateFeed.
 func (msg MsgUpdateFeed) ValidateBasic() error {
@@ -123,9 +115,8 @@ func (msg MsgUpdateFeed) ValidateBasic() error {
 
 		if _, ok := seenTransmitters[addr.String()]; ok {
 			return ErrRepeatedAddress
-		} else {
-			seenTransmitters[addr.String()] = struct{}{}
 		}
+		seenTransmitters[addr.String()] = struct{}{}
 	}
 
 	seenSigners := make(map[string]struct{}, len(msg.Signers))
@@ -189,10 +180,10 @@ func (msg MsgUpdateFeed) GetSigners() []sdk.AccAddress {
 }
 
 // Route implements the sdk.Msg interface. It should return the name of the module
-func (msg MsgTransmit) Route() string { return RouterKey }
+func (MsgTransmit) Route() string { return RouterKey }
 
 // Type implements the sdk.Msg interface. It should return the action.
-func (msg MsgTransmit) Type() string { return TypeMsgTransmit }
+func (MsgTransmit) Type() string { return TypeMsgTransmit }
 
 // ValidateBasic implements the sdk.Msg interface for MsgTransmit.
 func (msg MsgTransmit) ValidateBasic() error {
@@ -348,9 +339,8 @@ func (msg MsgSetPayees) ValidateBasic() error {
 
 		if _, ok := seenTransmitters[addr.String()]; ok {
 			return ErrRepeatedAddress
-		} else {
-			seenTransmitters[addr.String()] = struct{}{}
 		}
+		seenTransmitters[addr.String()] = struct{}{}
 	}
 
 	seenPayees := make(map[string]struct{}, len(msg.Payees))

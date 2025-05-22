@@ -441,3 +441,36 @@ type MsgBatchUpdateOrders struct {
 - `DerivativeOrdersToCancel` field describes specific derivative orders the sender wants to cancel.
 - `SpotOrdersToCreate` field describes spot orders the sender wants to create.
 - `DerivativeOrdersToCreate` field describes derivative orders the sender wants to create.
+
+## Msg/AuthorizeStakeGrants
+
+`MsgAuthorizeStakeGrants` is a message used to grant another address with staked INJ balance for fee discount purposes. It can also be used to revoke/remove grants if the amount granted is set to 0.
+
+```go
+type MsgAuthorizeStakeGrants struct {
+	Sender  string 
+	Grants  []*GrantAuthorization 
+}
+```
+
+**Fields description**
+
+- `Sender` describes the creator of this msg.
+- `Grants` describes a list of grantees' addresses and grant amounts
+
+
+## Msg/ActivateStakeGrant
+
+`MsgActivateStakeGrant` is a message used to select/activate a stake grant for fee discount purposes.
+
+```go
+type MsgActivateStakeGrant struct {
+	Sender  string 
+	Granter string 
+}
+```
+
+**Fields description**
+
+- `Sender` describes the creator of this msg.
+- `Granter` describes the address of the granter.

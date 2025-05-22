@@ -38,7 +38,12 @@ func (k *Keeper) BuildOutgoingTXBatch(ctx sdk.Context, contractAddress common.Ad
 	if lastBatch != nil {
 		// this traverses the current tx pool for this token type and determines what
 		// fees a hypothetical batch would have if created
-		currentFees := k.GetBatchFeesByTokenType(ctx, contractAddress)
+		currentFees, err := k.GetBatchFeesByTokenType(ctx, contractAddress)
+		if err != nil {
+			metrics.ReportFuncError(k.svcTags)
+			return nil, err
+		}
+
 		if currentFees == nil {
 			metrics.ReportFuncError(k.svcTags)
 			return nil, errors.Wrap(types.ErrInvalid, "error getting fees from tx pool")

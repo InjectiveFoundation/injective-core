@@ -55,7 +55,7 @@ func (k *Keeper) CurrentAuctionBasket(c context.Context, _ *types.QueryCurrentAu
 	closingTime := k.GetEndingTimeStamp(ctx)
 	res := &types.QueryCurrentAuctionBasketResponse{
 		AuctionRound:       k.GetAuctionRound(ctx),
-		AuctionClosingTime: closingTime,
+		AuctionClosingTime: uint64(closingTime),
 		HighestBidAmount:   lastBid.Amount.Amount,
 		HighestBidder:      lastBid.Bidder,
 		Amount:             sdk.NewCoins(currentBasketCoins...),

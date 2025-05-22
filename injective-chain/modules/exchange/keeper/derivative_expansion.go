@@ -4,12 +4,12 @@ import (
 	"cosmossdk.io/math"
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 )
 
 type DerivativeOrderStateExpansion struct {
 	SubaccountID       common.Hash
-	PositionDelta      *types.PositionDelta
+	PositionDelta      *v2.PositionDelta
 	Payout             math.LegacyDec
 	Pnl                math.LegacyDec
 	MarketBalanceDelta math.LegacyDec
@@ -21,8 +21,8 @@ type DerivativeOrderStateExpansion struct {
 	TradingRewardPoints    math.LegacyDec
 	FeeRecipientReward     math.LegacyDec
 	FeeRecipient           common.Address
-	LimitOrderFilledDelta  *types.DerivativeLimitOrderDelta
-	MarketOrderFilledDelta *types.DerivativeMarketOrderDelta
+	LimitOrderFilledDelta  *v2.DerivativeLimitOrderDelta
+	MarketOrderFilledDelta *v2.DerivativeMarketOrderDelta
 	OrderHash              common.Hash
 	Cid                    string
 }

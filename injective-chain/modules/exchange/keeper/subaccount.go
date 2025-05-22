@@ -13,13 +13,14 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 )
 
 // IncrementSubaccountTradeNonce increments the subaccount's trade nonce and returns the new subaccount trade nonce.
 func (k *Keeper) IncrementSubaccountTradeNonce(
 	ctx sdk.Context,
 	subaccountID common.Hash,
-) *types.SubaccountTradeNonce {
+) *v2.SubaccountTradeNonce {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
@@ -34,7 +35,7 @@ func (k *Keeper) IncrementSubaccountTradeNonce(
 func (k *Keeper) GetSubaccountTradeNonce(
 	ctx sdk.Context,
 	subaccountID common.Hash,
-) *types.SubaccountTradeNonce {
+) *v2.SubaccountTradeNonce {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
@@ -42,11 +43,12 @@ func (k *Keeper) GetSubaccountTradeNonce(
 	key := types.GetSubaccountTradeNonceKey(subaccountID)
 	bz := store.Get(key)
 	if bz == nil {
-		return &types.SubaccountTradeNonce{Nonce: 0}
+		return &v2.SubaccountTradeNonce{Nonce: 0}
 	}
 
-	var nonce types.SubaccountTradeNonce
+	var nonce v2.SubaccountTradeNonce
 	k.cdc.MustUnmarshal(bz, &nonce)
+
 	return &nonce
 }
 
@@ -54,7 +56,7 @@ func (k *Keeper) GetSubaccountTradeNonce(
 func (k *Keeper) SetSubaccountTradeNonce(
 	ctx sdk.Context,
 	subaccountID common.Hash,
-	subaccountTradeNonce *types.SubaccountTradeNonce,
+	subaccountTradeNonce *v2.SubaccountTradeNonce,
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
@@ -68,26 +70,26 @@ func (k *Keeper) SetSubaccountTradeNonce(
 // GetAllSubaccountTradeNonces gets all of trade nonces for all of the subaccounts.
 func (k *Keeper) GetAllSubaccountTradeNonces(
 	ctx sdk.Context,
-) []types.SubaccountNonce {
+) []v2.SubaccountNonce {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	store := k.getStore(ctx)
 	nonceStore := prefix.NewStore(store, types.SubaccountTradeNoncePrefix)
 
-	iterator := nonceStore.Iterator(nil, nil)
-	defer iterator.Close()
+	iter := nonceStore.Iterator(nil, nil)
+	defer iter.Close()
 
-	subaccountNonces := make([]types.SubaccountNonce, 0)
-	for ; iterator.Valid(); iterator.Next() {
-		keybz := iterator.Key()
+	subaccountNonces := make([]v2.SubaccountNonce, 0)
+	for ; iter.Valid(); iter.Next() {
+		keybz := iter.Key()
 		subaccountID := common.BytesToHash(keybz[:common.HashLength])
 
-		var subaccountTradeNonce types.SubaccountTradeNonce
-		bz := iterator.Value()
+		var subaccountTradeNonce v2.SubaccountTradeNonce
+		bz := iter.Value()
 		k.cdc.MustUnmarshal(bz, &subaccountTradeNonce)
 
-		subaccountNonces = append(subaccountNonces, types.SubaccountNonce{
+		subaccountNonces = append(subaccountNonces, v2.SubaccountNonce{
 			SubaccountId:         subaccountID.Hex(),
 			SubaccountTradeNonce: subaccountTradeNonce,
 		})
@@ -101,20 +103,21 @@ func (k *Keeper) GetSubaccountOrderbookMetadata(
 	marketID common.Hash,
 	subaccountID common.Hash,
 	isBuy bool,
-) *types.SubaccountOrderbookMetadata {
+) *v2.SubaccountOrderbookMetadata {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	store := k.getStore(ctx)
-
 	key := types.GetSubaccountOrderbookMetadataKey(marketID, subaccountID, isBuy)
+
 	bz := store.Get(key)
 	if bz == nil {
-		return types.NewSubaccountOrderbookMetadata()
+		return v2.NewSubaccountOrderbookMetadata()
 	}
 
-	var metadata types.SubaccountOrderbookMetadata
+	var metadata v2.SubaccountOrderbookMetadata
 	k.cdc.MustUnmarshal(bz, &metadata)
+
 	return &metadata
 }
 
@@ -122,7 +125,7 @@ func (k *Keeper) UpdateSubaccountOrderbookMetadataFromOrderCancel(
 	ctx sdk.Context,
 	marketID common.Hash,
 	subaccountID common.Hash,
-	order *types.DerivativeLimitOrder,
+	order *v2.DerivativeLimitOrder,
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
@@ -144,7 +147,7 @@ func (k *Keeper) SetSubaccountOrderbookMetadata(
 	marketID common.Hash,
 	subaccountID common.Hash,
 	isBuy bool,
-	metadata *types.SubaccountOrderbookMetadata,
+	metadata *v2.SubaccountOrderbookMetadata,
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
@@ -166,7 +169,7 @@ func (k *Keeper) applySubaccountOrderbookMetadataDeltas(
 	ctx sdk.Context,
 	marketID common.Hash,
 	isBuy bool,
-	deltas map[common.Hash]*types.SubaccountOrderbookMetadata,
+	deltas map[common.Hash]*v2.SubaccountOrderbookMetadata,
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
@@ -199,7 +202,7 @@ func (k *Keeper) SetSubaccountOrder(
 	subaccountID common.Hash,
 	isBuy bool,
 	orderHash common.Hash,
-	subaccountOrder *types.SubaccountOrder,
+	subaccountOrder *v2.SubaccountOrder,
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
@@ -212,21 +215,21 @@ func (k *Keeper) SetSubaccountOrder(
 
 func NewSubaccountOrderResults() *SubaccountOrderResults {
 	return &SubaccountOrderResults{
-		ReduceOnlyOrders: make([]*types.SubaccountOrderData, 0),
-		VanillaOrders:    make([]*types.SubaccountOrderData, 0),
+		ReduceOnlyOrders: make([]*v2.SubaccountOrderData, 0),
+		VanillaOrders:    make([]*v2.SubaccountOrderData, 0),
 		metadata:         NewSubaccountOrderMetadata(),
 	}
 }
 
 type SubaccountOrderResults struct {
-	ReduceOnlyOrders    []*types.SubaccountOrderData
-	VanillaOrders       []*types.SubaccountOrderData
+	ReduceOnlyOrders    []*v2.SubaccountOrderData
+	VanillaOrders       []*v2.SubaccountOrderData
 	metadata            *SubaccountOrderMetadata
 	LastFoundOrderPrice *math.LegacyDec
 	LastFoundOrderHash  *common.Hash
 }
 
-func (r *SubaccountOrderResults) AddSubaccountOrder(d *types.SubaccountOrderData) {
+func (r *SubaccountOrderResults) AddSubaccountOrder(d *v2.SubaccountOrderData) {
 	if d.Order.IsReduceOnly {
 		r.ReduceOnlyOrders = append(r.ReduceOnlyOrders, d)
 		r.metadata.CumulativeEOBReduceOnlyQuantity = r.metadata.CumulativeEOBReduceOnlyQuantity.Add(d.Order.Quantity)
@@ -280,14 +283,14 @@ func (k *Keeper) GetEqualOrBetterPricedSubaccountOrderResults(
 	price := order.GetPrice()
 	results := NewSubaccountOrderResults()
 
-	processOrder := func(order *types.SubaccountOrder, orderHash common.Hash) (stop bool) {
+	processOrder := func(order *v2.SubaccountOrder, orderHash common.Hash) (stop bool) {
 		if isBuy && order.Price.LT(price) || !isBuy && order.Price.GT(price) {
 			return true
 		}
 		results.LastFoundOrderHash = &orderHash
 		results.LastFoundOrderPrice = &order.Price
 
-		results.AddSubaccountOrder(&types.SubaccountOrderData{
+		results.AddSubaccountOrder(&v2.SubaccountOrderData{
 			Order:     order,
 			OrderHash: orderHash.Bytes(),
 		})
@@ -311,20 +314,20 @@ func (k *Keeper) GetWorstROAndAllBetterPricedSubaccountOrders(
 	totalROQuantity math.LegacyDec,
 	isBuy bool,
 	eobResults *SubaccountOrderResults,
-) (worstROandBetterOrders []*types.SubaccountOrderData, totalQuantityFromWorstRO math.LegacyDec) {
+) (worstROandBetterOrders []*v2.SubaccountOrderData, totalQuantityFromWorstRO math.LegacyDec) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	foundROQuantity := eobResults.GetCumulativeEOBReduceOnlyQuantity()
 	totalQuantityFromWorstRO = eobResults.GetCumulativeEOBReduceOnlyQuantity().Add(eobResults.GetCumulativeEOBVanillaQuantity())
 
-	worstROandBetterOrders = make([]*types.SubaccountOrderData, 0, len(eobResults.VanillaOrders)+len(eobResults.ReduceOnlyOrders))
+	worstROandBetterOrders = make([]*v2.SubaccountOrderData, 0, len(eobResults.VanillaOrders)+len(eobResults.ReduceOnlyOrders))
 	worstROandBetterOrders = append(worstROandBetterOrders, eobResults.VanillaOrders...)
 	worstROandBetterOrders = append(worstROandBetterOrders, eobResults.ReduceOnlyOrders...)
 
 	worstROPrice := math.LegacyZeroDec()
 
-	processOrder := func(order *types.SubaccountOrder, orderHash common.Hash) (stop bool) {
+	processOrder := func(order *v2.SubaccountOrder, orderHash common.Hash) (stop bool) {
 		if foundROQuantity.GTE(totalROQuantity) {
 			doesVanillaWithSameWorstROPriceExist := order.Price.Equal(worstROPrice)
 
@@ -335,7 +338,7 @@ func (k *Keeper) GetWorstROAndAllBetterPricedSubaccountOrders(
 		}
 
 		totalQuantityFromWorstRO = totalQuantityFromWorstRO.Add(order.Quantity)
-		worstROandBetterOrders = append(worstROandBetterOrders, &types.SubaccountOrderData{
+		worstROandBetterOrders = append(worstROandBetterOrders, &v2.SubaccountOrderData{
 			Order:     order,
 			OrderHash: orderHash.Bytes(),
 		})
@@ -376,21 +379,27 @@ func (k *Keeper) GetSubaccountOrders(
 	subaccountID common.Hash,
 	isBuy bool,
 	isStartingIterationFromBestPrice bool,
-) (orders []*types.SubaccountOrderData) {
+) []*v2.SubaccountOrderData {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	orders = make([]*types.SubaccountOrderData, 0)
+	orders := make([]*v2.SubaccountOrderData, 0)
+	k.IterateSubaccountOrders(
+		ctx,
+		marketID,
+		subaccountID,
+		isBuy,
+		isStartingIterationFromBestPrice,
+		func(order *v2.SubaccountOrder, orderHash common.Hash) (stop bool) {
+			orders = append(orders, &v2.SubaccountOrderData{
+				Order:     order,
+				OrderHash: orderHash.Bytes(),
+			})
 
-	processOrder := func(order *types.SubaccountOrder, orderHash common.Hash) (stop bool) {
-		orders = append(orders, &types.SubaccountOrderData{
-			Order:     order,
-			OrderHash: orderHash.Bytes(),
-		})
-		return false
-	}
+			return false
+		},
+	)
 
-	k.IterateSubaccountOrders(ctx, marketID, subaccountID, isBuy, isStartingIterationFromBestPrice, processOrder)
 	return orders
 }
 
@@ -401,11 +410,11 @@ func (k *Keeper) GetWorstReduceOnlySubaccountOrdersUpToCount(
 	subaccountID common.Hash,
 	isBuy bool,
 	totalROCount *uint32,
-) (orders []*types.SubaccountOrderData, totalQuantity math.LegacyDec) {
+) (orders []*v2.SubaccountOrderData, totalQuantity math.LegacyDec) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	orders = make([]*types.SubaccountOrderData, 0)
+	orders = make([]*v2.SubaccountOrderData, 0)
 	totalQuantity = math.LegacyZeroDec()
 
 	remainingROCount := types.MaxDerivativeOrderSideCount
@@ -413,13 +422,13 @@ func (k *Keeper) GetWorstReduceOnlySubaccountOrdersUpToCount(
 		remainingROCount = *totalROCount
 	}
 
-	processOrder := func(order *types.SubaccountOrder, orderHash common.Hash) (stop bool) {
+	processOrder := func(order *v2.SubaccountOrder, orderHash common.Hash) (stop bool) {
 		if remainingROCount == 0 {
 			return true
 		}
 
 		if order.IsReduceOnly {
-			orders = append(orders, &types.SubaccountOrderData{
+			orders = append(orders, &v2.SubaccountOrderData{
 				Order:     order,
 				OrderHash: orderHash.Bytes(),
 			})
@@ -443,7 +452,7 @@ func (k *Keeper) IterateSubaccountOrders(
 	subaccountID common.Hash,
 	isBuy bool,
 	isStartingIterationFromBestPrice bool,
-	process func(order *types.SubaccountOrder, orderHash common.Hash) (stop bool),
+	process func(order *v2.SubaccountOrder, orderHash common.Hash) (stop bool),
 ) {
 	k.IterateSubaccountOrdersStartingFromOrder(ctx, marketID, subaccountID, isBuy, isStartingIterationFromBestPrice, nil, process)
 }
@@ -459,7 +468,7 @@ func (k *Keeper) IterateSubaccountOrdersStartingFromOrder(
 	isBuy bool,
 	isStartingIterationFromBestPrice bool,
 	startFromInfix []byte, // if set will start iteration from this element, else from the first
-	process func(order *types.SubaccountOrder, orderHash common.Hash) (stop bool),
+	process func(order *v2.SubaccountOrder, orderHash common.Hash) (stop bool),
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
@@ -468,29 +477,29 @@ func (k *Keeper) IterateSubaccountOrdersStartingFromOrder(
 	prefixKey := types.GetSubaccountOrderPrefixByMarketSubaccountDirection(marketID, subaccountID, isBuy)
 	ordersStore := prefix.NewStore(store, prefixKey)
 
-	var iterator storetypes.Iterator
+	var iter storetypes.Iterator
 
 	if isBuy && isStartingIterationFromBestPrice || !isBuy && !isStartingIterationFromBestPrice {
 		var endInfix []byte
 		if startFromInfix != nil {
 			endInfix = SubtractBitFromPrefix(startFromInfix) // startFrom is infix of the last found order, so we need to move before it
 		}
-		iterator = ordersStore.ReverseIterator(nil, endInfix)
+		iter = ordersStore.ReverseIterator(nil, endInfix)
 	} else if !isBuy && isStartingIterationFromBestPrice || isBuy && !isStartingIterationFromBestPrice {
 		var startInfix []byte
 		if startFromInfix != nil {
 			startInfix = AddBitToPrefix(startFromInfix) // startFrom is infix of the last found order, so we need to move beyond it
 		}
-		iterator = ordersStore.Iterator(startInfix, nil)
+		iter = ordersStore.Iterator(startInfix, nil)
 	}
 
-	defer iterator.Close()
+	defer iter.Close()
 
-	for ; iterator.Valid(); iterator.Next() {
-		var order types.SubaccountOrder
-		bz := iterator.Value()
-		k.cdc.MustUnmarshal(bz, &order)
-		key := iterator.Key()
+	for ; iter.Valid(); iter.Next() {
+		var order v2.SubaccountOrder
+		k.cdc.MustUnmarshal(iter.Value(), &order)
+
+		key := iter.Key()
 		orderHash := common.BytesToHash(key[len(key)-common.HashLength:])
 		if process(&order, orderHash) {
 			return
@@ -503,26 +512,32 @@ func (k *Keeper) CancelReduceOnlySubaccountOrders(
 	marketID common.Hash,
 	subaccountID common.Hash,
 	isBuy bool,
-	orderData []*types.SubaccountOrderData,
-) (orders []*types.DerivativeLimitOrder, cumulativeReduceOnlyQuantityToCancel math.LegacyDec) {
+	orderData []*v2.SubaccountOrderData,
+) (orders []*v2.DerivativeLimitOrder, cumulativeReduceOnlyQuantityToCancel math.LegacyDec) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	orders = make([]*types.DerivativeLimitOrder, 0, len(orderData))
+	orders = make([]*v2.DerivativeLimitOrder, 0, len(orderData))
 	cumulativeReduceOnlyQuantityToCancel = math.LegacyZeroDec()
 	for _, o := range orderData {
 		// 1. Add back the margin hold to available balance
 		order := k.DeleteDerivativeLimitOrderByFields(ctx, marketID, subaccountID, o.Order.Price, isBuy, common.BytesToHash(o.OrderHash))
 		if order == nil {
-			message := errors.Newf("DeleteDerivativeLimitOrderByFields returned nil order for order price: %v, hash: %v", o.Order.Price, common.BytesToHash(o.OrderHash).Hex())
-			_ = ctx.EventManager().EmitTypedEvent(types.NewEventOrderCancelFail(marketID, subaccountID, common.Bytes2Hex(o.OrderHash), order.Cid(), message))
+			message := errors.Newf(
+				"DeleteDerivativeLimitOrderByFields returned nil order for order price: %v, hash: %v",
+				o.Order.Price,
+				common.BytesToHash(o.OrderHash).Hex(),
+			)
+			k.EmitEvent(
+				ctx,
+				v2.NewEventOrderCancelFail(marketID, subaccountID, common.Bytes2Hex(o.OrderHash), order.Cid(), message),
+			)
 			panic(message)
 		}
 
 		cumulativeReduceOnlyQuantityToCancel = cumulativeReduceOnlyQuantityToCancel.Add(order.Fillable)
 		orders = append(orders, order)
-		// nolint:errcheck //ignored on purpose
-		ctx.EventManager().EmitTypedEvent(&types.EventCancelDerivativeOrder{
+		k.EmitEvent(ctx, &v2.EventCancelDerivativeOrder{
 			MarketId:      marketID.Hex(),
 			IsLimitCancel: true,
 			LimitOrder:    order,

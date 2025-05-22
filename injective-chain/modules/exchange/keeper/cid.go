@@ -2,11 +2,10 @@ package keeper
 
 import (
 	storetypes "cosmossdk.io/store/types"
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 	"github.com/InjectiveLabs/metrics"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
-
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 )
 
 func (k *Keeper) setCid(

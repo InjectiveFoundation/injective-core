@@ -77,11 +77,7 @@ func shouldSkipSigner(
 	signerData signerextraction.SignerData,
 ) bool {
 	// dont account for fee payer's tier if there are multiple signers which can be EIP-712 relayer
-	if bytes.Equal(feeTx.FeePayer(), signerData.Signer) {
-		return true
-	}
-
-	return false
+	return bytes.Equal(feeTx.FeePayer(), signerData.Signer)
 }
 
 func (p *ExchangeTxPriority) processSigner(

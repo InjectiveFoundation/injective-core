@@ -1,0 +1,568 @@
+{
+  "state": {
+    "band_ibc_latest_client_id": "0",
+    "band_ibc_latest_request_id": "1",
+    "band_ibc_oracle_requests": [
+      {
+        "ask_count": "1",
+        "execute_gas": "4000000",
+        "fee_limit": [{ "amount": "1000", "denom": "uband" }],
+        "min_count": "1",
+        "oracle_script_id": "23",
+        "prepare_gas": "200000",
+        "request_id": "1",
+        "symbols": ["BTC", "ETH", "USDT"]
+      }
+    ],
+    "band_ibc_params": {
+      "band_ibc_enabled": true,
+      "ibc_port_id": "oracle",
+      "ibc_request_interval": "10",
+      "ibc_source_channel": "channel-0",
+      "ibc_version": "bandchain-1"
+    },
+    "band_ibc_price_states": [],
+    "band_price_states": [],
+    "band_relayers": [
+      "inj128jwakuw3wrq6ye7m4p64wrzc5rfl8tvwzc6s8",
+      "inj1hkhdaj2a2clmq5jq6mspsggqs32vynpk228q3r"
+    ],
+    "calldata_records": [],
+    "chainlink_price_states": [],
+    "coinbase_price_states": [
+      {
+        "key": "BAT",
+        "kind": "prices",
+        "price_state": {
+          "cumulative_price": "0.000000000000000000",
+          "price": "0.640199000000000000",
+          "timestamp": "1658856407"
+        },
+        "timestamp": "1632748140",
+        "value": "640199"
+      },
+      {
+        "key": "BTC",
+        "kind": "prices",
+        "price_state": {
+          "cumulative_price": "0.000000000000000000",
+          "price": "43602.100000000000000000",
+          "timestamp": "1658856407"
+        },
+        "timestamp": "1632748140",
+        "value": "43602100000"
+      },
+      {
+        "key": "COMP",
+        "kind": "prices",
+        "price_state": {
+          "cumulative_price": "0.000000000000000000",
+          "price": "359.365000000000000000",
+          "timestamp": "1658856407"
+        },
+        "timestamp": "1632748140",
+        "value": "359365000"
+      },
+      {
+        "key": "DAI",
+        "kind": "prices",
+        "price_state": {
+          "cumulative_price": "0.000000000000000000",
+          "price": "1.000329000000000000",
+          "timestamp": "1658856407"
+        },
+        "timestamp": "1632747540",
+        "value": "1000329"
+      },
+      {
+        "key": "ETH",
+        "kind": "prices",
+        "price_state": {
+          "cumulative_price": "0.000000000000000000",
+          "price": "3082.780000000000000000",
+          "timestamp": "1658856407"
+        },
+        "timestamp": "1632748140",
+        "value": "3082780000"
+      },
+      {
+        "key": "GRT",
+        "kind": "prices",
+        "price_state": {
+          "cumulative_price": "0.000000000000000000",
+          "price": "0.703249000000000000",
+          "timestamp": "1658856407"
+        },
+        "timestamp": "1632748140",
+        "value": "703249"
+      },
+      {
+        "key": "KNC",
+        "kind": "prices",
+        "price_state": {
+          "cumulative_price": "0.000000000000000000",
+          "price": "1.488500000000000000",
+          "timestamp": "1658856407"
+        },
+        "timestamp": "1632748140",
+        "value": "1488500"
+      },
+      {
+        "key": "LINK",
+        "kind": "prices",
+        "price_state": {
+          "cumulative_price": "0.000000000000000000",
+          "price": "24.207344000000000000",
+          "timestamp": "1658856407"
+        },
+        "timestamp": "1632748140",
+        "value": "24207344"
+      },
+      {
+        "key": "REP",
+        "kind": "prices",
+        "price_state": {
+          "cumulative_price": "0.000000000000000000",
+          "price": "22.820000000000000000",
+          "timestamp": "1658856407"
+        },
+        "timestamp": "1632747780",
+        "value": "22820000"
+      },
+      {
+        "key": "SNX",
+        "kind": "prices",
+        "price_state": {
+          "cumulative_price": "0.000000000000000000",
+          "price": "10.392100000000000000",
+          "timestamp": "1658856407"
+        },
+        "timestamp": "1632748140",
+        "value": "10392100"
+      },
+      {
+        "key": "UNI",
+        "kind": "prices",
+        "price_state": {
+          "cumulative_price": "0.000000000000000000",
+          "price": "24.332700000000000000",
+          "timestamp": "1658856407"
+        },
+        "timestamp": "1632748140",
+        "value": "24332700"
+      },
+      {
+        "key": "XTZ",
+        "kind": "prices",
+        "price_state": {
+          "cumulative_price": "0.000000000000000000",
+          "price": "6.389400000000000000",
+          "timestamp": "1658856407"
+        },
+        "timestamp": "1632748140",
+        "value": "6389400"
+      },
+      {
+        "key": "ZRX",
+        "kind": "prices",
+        "price_state": {
+          "cumulative_price": "0.000000000000000000",
+          "price": "0.915658000000000000",
+          "timestamp": "1658856407"
+        },
+        "timestamp": "1632748140",
+        "value": "915658"
+      }
+    ],
+    "historical_price_records": [
+      {
+        "latest_price_records": [
+          { "price": "0.640199000000000000", "timestamp": "1658856407" }
+        ],
+        "oracle": "Coinbase",
+        "symbol_id": "BAT"
+      },
+      {
+        "latest_price_records": [
+          { "price": "43602.100000000000000000", "timestamp": "1658856407" }
+        ],
+        "oracle": "Coinbase",
+        "symbol_id": "BTC"
+      },
+      {
+        "latest_price_records": [
+          { "price": "359.365000000000000000", "timestamp": "1658856407" }
+        ],
+        "oracle": "Coinbase",
+        "symbol_id": "COMP"
+      },
+      {
+        "latest_price_records": [
+          { "price": "1.000329000000000000", "timestamp": "1658856407" }
+        ],
+        "oracle": "Coinbase",
+        "symbol_id": "DAI"
+      },
+      {
+        "latest_price_records": [
+          { "price": "3082.780000000000000000", "timestamp": "1658856407" }
+        ],
+        "oracle": "Coinbase",
+        "symbol_id": "ETH"
+      },
+      {
+        "latest_price_records": [
+          { "price": "0.703249000000000000", "timestamp": "1658856407" }
+        ],
+        "oracle": "Coinbase",
+        "symbol_id": "GRT"
+      },
+      {
+        "latest_price_records": [
+          { "price": "1.488500000000000000", "timestamp": "1658856407" }
+        ],
+        "oracle": "Coinbase",
+        "symbol_id": "KNC"
+      },
+      {
+        "latest_price_records": [
+          { "price": "24.207344000000000000", "timestamp": "1658856407" }
+        ],
+        "oracle": "Coinbase",
+        "symbol_id": "LINK"
+      },
+      {
+        "latest_price_records": [
+          { "price": "22.820000000000000000", "timestamp": "1658856407" }
+        ],
+        "oracle": "Coinbase",
+        "symbol_id": "REP"
+      },
+      {
+        "latest_price_records": [
+          { "price": "10.392100000000000000", "timestamp": "1658856407" }
+        ],
+        "oracle": "Coinbase",
+        "symbol_id": "SNX"
+      },
+      {
+        "latest_price_records": [
+          { "price": "24.332700000000000000", "timestamp": "1658856407" }
+        ],
+        "oracle": "Coinbase",
+        "symbol_id": "UNI"
+      },
+      {
+        "latest_price_records": [
+          { "price": "6.389400000000000000", "timestamp": "1658856407" }
+        ],
+        "oracle": "Coinbase",
+        "symbol_id": "XTZ"
+      },
+      {
+        "latest_price_records": [
+          { "price": "0.915658000000000000", "timestamp": "1658856407" }
+        ],
+        "oracle": "Coinbase",
+        "symbol_id": "ZRX"
+      },
+      {
+        "latest_price_records": [
+          { "price": "1.461000000000000000", "timestamp": "1658856394" },
+          { "price": "1.451000000000000000", "timestamp": "1658856409" },
+          { "price": "1.471000000000000000", "timestamp": "1658856432" },
+          { "price": "1.461000000000000000", "timestamp": "1658856588" },
+          { "price": "1.464000000000000000", "timestamp": "1658856592" },
+          { "price": "1.468000000000000000", "timestamp": "1658856612" },
+          { "price": "1.461000000000000000", "timestamp": "1658856619" }
+        ],
+        "oracle": "PriceFeed",
+        "symbol_id": "INJ/USDT"
+      },
+      {
+        "latest_price_records": [
+          { "price": "0.690000000000000000", "timestamp": "1658856381" }
+        ],
+        "oracle": "Provider",
+        "symbol_id": "ufc@@@/UFC KHABIB vs KATTAR 2023"
+      }
+    ],
+    "params": {
+      "pyth_contract": "inj1z60tg0tekdzcasenhuuwq3htjcd5slmgf7gpez"
+    },
+    "price_feed_price_states": [
+      {
+        "base": "KAVA",
+        "price_state": {
+          "price": "86.600000000000000000",
+          "cumulative_price": "909774653.277775873306270000",
+          "timestamp": "1659041776"
+        },
+        "quote": "USDT",
+        "relayers": [
+          "inj128jwakuw3wrq6ye7m4p64wrzc5rfl8tvwzc6s8",
+          "inj1hkhdaj2a2clmq5jq6mspsggqs32vynpk228q3r"
+        ]
+      },
+      {
+        "base": "UNI",
+        "price_state": {
+          "price": "86.600000000000000000",
+          "cumulative_price": "909774653.277775873306270000",
+          "timestamp": "1659041776"
+        },
+        "quote": "USDT",
+        "relayers": [
+          "inj128jwakuw3wrq6ye7m4p64wrzc5rfl8tvwzc6s8",
+          "inj1hkhdaj2a2clmq5jq6mspsggqs32vynpk228q3r"
+        ]
+      },
+      {
+        "base": "YFI",
+        "price_state": {
+          "price": "86.600000000000000000",
+          "cumulative_price": "909774653.277775873306270000",
+          "timestamp": "1659041776"
+        },
+        "quote": "USDT",
+        "relayers": [
+          "inj128jwakuw3wrq6ye7m4p64wrzc5rfl8tvwzc6s8",
+          "inj1hkhdaj2a2clmq5jq6mspsggqs32vynpk228q3r"
+        ]
+      },
+      {
+        "base": "INJ",
+        "price_state": {
+          "cumulative_price": "497.600000000000000000",
+          "price": "1.461000000000000000",
+          "timestamp": "1658856619"
+        },
+        "quote": "USDT",
+        "relayers": [
+          "inj128jwakuw3wrq6ye7m4p64wrzc5rfl8tvwzc6s8",
+          "inj14au322k9munkmx5wrchz9q30juf5wjgz2cfqku",
+          "inj1hkhdaj2a2clmq5jq6mspsggqs32vynpk228q3r"
+        ]
+      },
+      {
+        "base": "ATOM",
+        "price_state": {
+          "cumulative_price": "1497.600000000000000000",
+          "price": "14.61000000000000000",
+          "timestamp": "1658856619"
+        },
+        "quote": "USDT",
+        "relayers": [
+          "inj128jwakuw3wrq6ye7m4p64wrzc5rfl8tvwzc6s8",
+          "inj14au322k9munkmx5wrchz9q30juf5wjgz2cfqku",
+          "inj1hkhdaj2a2clmq5jq6mspsggqs32vynpk228q3r"
+        ]
+      },      
+      {
+        "base": "KP3R",
+        "price_state": {
+          "price": "86.600000000000000000",
+          "cumulative_price": "909774653.277775873306270000",
+          "timestamp": "1659041776"
+        },
+        "quote": "USDT",
+        "relayers": [
+          "inj128jwakuw3wrq6ye7m4p64wrzc5rfl8tvwzc6s8",
+          "inj1hkhdaj2a2clmq5jq6mspsggqs32vynpk228q3r"
+        ]
+      },
+      {
+        "base": "ALPHA",
+        "price_state": {
+          "price": "86.600000000000000000",
+          "cumulative_price": "909774653.277775873306270000",
+          "timestamp": "1659041776"
+        },
+        "quote": "USDT",
+        "relayers": [
+          "inj128jwakuw3wrq6ye7m4p64wrzc5rfl8tvwzc6s8",
+          "inj1hkhdaj2a2clmq5jq6mspsggqs32vynpk228q3r"
+        ]
+      },
+      {
+        "base": "GRT",
+        "price_state": {
+          "price": "86.600000000000000000",
+          "cumulative_price": "909774653.277775873306270000",
+          "timestamp": "1659041776"
+        },
+        "quote": "USDT",
+        "relayers": [
+          "inj128jwakuw3wrq6ye7m4p64wrzc5rfl8tvwzc6s8",
+          "inj1hkhdaj2a2clmq5jq6mspsggqs32vynpk228q3r"
+        ]
+      },
+      {
+        "base": "ETH",
+        "price_state": {
+          "price": "1886.600000000000000000",
+          "cumulative_price": "909774653.277775873306270000",
+          "timestamp": "1659041776"
+        },
+        "quote": "USDT",
+        "relayers": [
+          "inj128jwakuw3wrq6ye7m4p64wrzc5rfl8tvwzc6s8",
+          "inj1hkhdaj2a2clmq5jq6mspsggqs32vynpk228q3r"
+        ]
+      },
+      {
+        "base": "BNB",
+        "price_state": {
+          "price": "86.600000000000000000",
+          "cumulative_price": "909774653.277775873306270000",
+          "timestamp": "1659041776"
+        },
+        "quote": "USDT",
+        "relayers": [
+          "inj128jwakuw3wrq6ye7m4p64wrzc5rfl8tvwzc6s8",
+          "inj1hkhdaj2a2clmq5jq6mspsggqs32vynpk228q3r"
+        ]
+      },
+      {
+        "base": "DOT",
+        "price_state": {
+          "price": "86.600000000000000000",
+          "cumulative_price": "909774653.277775873306270000",
+          "timestamp": "1659041776"
+        },
+        "quote": "USDT",
+        "relayers": [
+          "inj128jwakuw3wrq6ye7m4p64wrzc5rfl8tvwzc6s8",
+          "inj1hkhdaj2a2clmq5jq6mspsggqs32vynpk228q3r"
+        ]
+      },
+      {
+        "base": "EGLD",
+        "price_state": {
+          "price": "86.600000000000000000",
+          "cumulative_price": "909774653.277775873306270000",
+          "timestamp": "1659041776"
+        },
+        "quote": "USDT",
+        "relayers": [
+          "inj128jwakuw3wrq6ye7m4p64wrzc5rfl8tvwzc6s8",
+          "inj1hkhdaj2a2clmq5jq6mspsggqs32vynpk228q3r"
+        ]
+      },
+      {
+        "base": "BTC",
+        "price_state": {
+          "price": "27886.600000000000000000",
+          "cumulative_price": "909774653.277775873306270000",
+          "timestamp": "1659041776"
+        },
+        "quote": "USDT",
+        "relayers": [
+          "inj128jwakuw3wrq6ye7m4p64wrzc5rfl8tvwzc6s8",
+          "inj1hkhdaj2a2clmq5jq6mspsggqs32vynpk228q3r"
+        ]
+      },
+      {
+        "base": "LINK",
+        "price_state": {
+          "price": "86.600000000000000000",
+          "cumulative_price": "909774653.277775873306270000",
+          "timestamp": "1659041776"
+        },
+        "quote": "USDT",
+        "relayers": [
+          "inj128jwakuw3wrq6ye7m4p64wrzc5rfl8tvwzc6s8",
+          "inj1hkhdaj2a2clmq5jq6mspsggqs32vynpk228q3r"
+        ]
+      },
+      {
+        "base": "APE",
+        "price_state": {
+          "price": "86.600000000000000000",
+          "cumulative_price": "909774653.277775873306270000",
+          "timestamp": "1659041776"
+        },
+        "quote": "USDT",
+        "relayers": [
+          "inj128jwakuw3wrq6ye7m4p64wrzc5rfl8tvwzc6s8",
+          "inj1hkhdaj2a2clmq5jq6mspsggqs32vynpk228q3r"
+        ]
+      },      
+      {
+        "base": "BONK",
+        "price_state": {
+          "cumulative_price": "1.600000000000000000",
+          "price": "0.000001125",
+          "timestamp": "1658856619"
+        },
+        "quote": "USDT",
+        "relayers": [
+          "inj128jwakuw3wrq6ye7m4p64wrzc5rfl8tvwzc6s8",
+          "inj14au322k9munkmx5wrchz9q30juf5wjgz2cfqku",
+          "inj1hkhdaj2a2clmq5jq6mspsggqs32vynpk228q3r"
+        ]
+      },
+      {
+        "base": "USDC",
+        "price_state": {
+          "cumulative_price": "0.000000000000000000",
+          "price": "1.0",
+          "timestamp": "1658856619"
+        },
+        "quote": "USDT",
+        "relayers": [
+          "inj128jwakuw3wrq6ye7m4p64wrzc5rfl8tvwzc6s8",
+          "inj14au322k9munkmx5wrchz9q30juf5wjgz2cfqku",
+          "inj1hkhdaj2a2clmq5jq6mspsggqs32vynpk228q3r"
+        ]
+      }
+    ],
+    "pyth_price_states": [
+      {
+        "price_id": "0xcb1743d0e3e3eace7e84b8230dc082829813e3ab04e91b503c08e9a441c0ea8b",
+        "ema_price": "4.464995300000000000",
+        "ema_conf": "0.002355160000000000",
+        "conf": "0.002108470000000000",
+        "publish_time": "1681382865",
+        "price_state": {
+          "price": "4.474000000000000000",
+          "cumulative_price": "10609605.920616270000000000",
+          "timestamp": "1681382868"
+        }
+      },
+      {
+        "price_id": "0x1fc18861232290221461220bd4e2acd1dcdfbc89c84092c93c18bdc7756c1588",
+        "ema_price": "1.000924890000000000",
+        "ema_conf": "0.000226360000000000",
+        "conf": "0.000235830000000000",
+        "publish_time": "1681382865",
+        "price_state": {
+          "price": "1.001034610000000000",
+          "cumulative_price": "2570186.172251090000000000",
+          "timestamp": "1681382868"
+        }
+      }
+    ],
+    "provider_states": [
+      {
+        "provider_info": {
+          "provider": "ufc",
+          "relayers": [
+            "inj14au322k9munkmx5wrchz9q30juf5wjgz2cfqku",
+            "inj128jwakuw3wrq6ye7m4p64wrzc5rfl8tvwzc6s8"
+          ]
+        },
+        "provider_price_states": [
+          {
+            "state": {
+              "cumulative_price": "0.000000000000000000",
+              "price": "0.690000000000000000",
+              "timestamp": "1658856381"
+            },
+            "symbol": "UFC KHABIB vs KATTAR 2023"
+          }
+        ]
+      }
+    ]
+  }
+}

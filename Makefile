@@ -1,18 +1,23 @@
-APP_VERSION = $(shell git describe --abbrev=0 --tags)
+APP_VERSION = $(shell git describe --tags --match "v*")
 GIT_COMMIT = $(shell git rev-parse --short HEAD)
 BUILD_DATE = $(shell date -u "+%Y%m%d-%H%M")
 COSMOS_VERSION_PKG = github.com/cosmos/cosmos-sdk/version
 COSMOS_VERSION_NAME = injective
-VERSION_PKG = github.com/InjectiveLabs/injective-core/version
+INJECTIVED_VERSION_PKG = github.com/InjectiveLabs/injective-core/version
+PEGGO_VERSION_PKG = github.com/InjectiveLabs/injective-core/peggo/orchestrator/version
 IMAGE_NAME := injectivelabs/injective-core
+GOPROXY ?= https://goproxy.injective.dev,direct
 LEDGER_ENABLED ?= true
 
 ifeq ($(DO_COVERAGE),true)
-coverage_flags = -coverpkg=`cat pkgs.txt`
+coverage_flags_injectived = -coverpkg=`cat pkgs-injectived.txt`
+coverage_flags_peggo = -coverpkg=`cat pkgs-peggo.txt`
 else ifeq ($(DO_COVERAGE),yes)
-coverage_flags = -coverpkg=`cat pkgs.txt`
+coverage_flags_injectived = -coverpkg=`cat pkgs-injectived.txt`
+coverage_flags_peggo = -coverpkg=`cat pkgs-peggo.txt`
 else
-coverage_flags =
+coverage_flags_injectived =
+coverage_flags_peggo =
 endif
 
 # process build tags
@@ -64,44 +69,60 @@ push:
 	docker push $(IMAGE_NAME):$(GIT_COMMIT)
 	docker push $(IMAGE_NAME):latest
 
-pkgs.txt:
-	go list \
+pkgs-injectived.txt:
+	@go list \
 		-f '{{if not .Standard}}{{.ImportPath}}{{end}}' \
-		-deps ./cmd/... | \
+		-deps ./cmd/injectived | \
 	grep -E '^(cosmossdk\.io/|github\.com/bandprotocol/|github\.com/cometbft/|github\.com/cosmos/|github\.com/CosmWasm/|github\.com/ethereum/|github\.com/InjectiveLabs/)' | \
-	paste -d "," -s - > pkgs.txt
+	paste -d "," -s - > pkgs-injectived.txt
 
+pkgs-peggo.txt:
+	@go list \
+		-f '{{if not .Standard}}{{.ImportPath}}{{end}}' \
+		-deps ./cmd/peggo | \
+	grep -E '^(cosmossdk\.io/|github\.com/bandprotocol/|github\.com/cometbft/|github\.com/cosmos/|github\.com/CosmWasm/|github\.com/ethereum/|github\.com/InjectiveLabs/)' | \
+	paste -d "," -s - > pkgs-peggo.txt
+
+install-injectived: export VERSION_FLAGS="-X $(INJECTIVED_VERSION_PKG).AppVersion=$(APP_VERSION) -X $(INJECTIVED_VERSION_PKG).GitCommit=$(GIT_COMMIT) -X $(INJECTIVED_VERSION_PKG).BuildDate=$(BUILD_DATE) -X $(COSMOS_VERSION_PKG).Version=$(APP_VERSION) -X $(COSMOS_VERSION_PKG).Name=$(COSMOS_VERSION_NAME) -X $(COSMOS_VERSION_PKG).AppName=injectived -X $(COSMOS_VERSION_PKG).Commit=$(GIT_COMMIT)"
+install-injectived:
+	@echo "Installing injectived..."
+	go install -tags $(build_tags_comma_sep) -ldflags $(VERSION_FLAGS) $(coverage_flags_injectived) ./cmd/injectived
+
+install-peggo: export VERSION_FLAGS="-X $(PEGGO_VERSION_PKG).AppVersion=$(APP_VERSION) -X $(PEGGO_VERSION_PKG).GitCommit=$(GIT_COMMIT) -X $(PEGGO_VERSION_PKG).BuildDate=$(BUILD_DATE) -X $(COSMOS_VERSION_PKG).Version=$(APP_VERSION) -X $(COSMOS_VERSION_PKG).Name=$(COSMOS_VERSION_NAME) -X $(COSMOS_VERSION_PKG).AppName=peggo -X $(COSMOS_VERSION_PKG).Commit=$(GIT_COMMIT)"
+install-peggo:
+	@echo "Installing peggo..."
+	go install -ldflags $(VERSION_FLAGS) $(coverage_flags_peggo) ./cmd/peggo
+
+# install is used for local development
+# doesn't support DO_COVERAGE, but enforces git hooks
+# for DO_COVERAGE, use install-ci that pre-fills pkgs-*.txt
 install: init
-install: export GOPROXY=direct
-install: export VERSION_FLAGS="-X $(VERSION_PKG).AppVersion=$(APP_VERSION) -X $(VERSION_PKG).GitCommit=$(GIT_COMMIT)  -X $(VERSION_PKG).BuildDate=$(BUILD_DATE) -X $(COSMOS_VERSION_PKG).Version=$(APP_VERSION) -X $(COSMOS_VERSION_PKG).Name=$(COSMOS_VERSION_NAME) -X $(COSMOS_VERSION_PKG).AppName=injectived -X $(COSMOS_VERSION_PKG).Commit=$(GIT_COMMIT)"
+install: install-injectived install-peggo
 install:
-	go install -tags $(build_tags_comma_sep) $(BUILD_FLAGS) -ldflags $(VERSION_FLAGS) ./cmd/...
+	@echo "Installed injectived and peggo"
 
-install-ci: pkgs.txt
-install-ci: export GOPROXY=https://goproxy.injective.dev,direct 
-install-ci: export VERSION_FLAGS="-X $(VERSION_PKG).AppVersion=$(APP_VERSION) -X $(VERSION_PKG).GitCommit=$(GIT_COMMIT)  -X $(VERSION_PKG).BuildDate=$(BUILD_DATE) -X $(COSMOS_VERSION_PKG).Version=$(APP_VERSION) -X $(COSMOS_VERSION_PKG).Name=$(COSMOS_VERSION_NAME) -X $(COSMOS_VERSION_PKG).AppName=injectived -X $(COSMOS_VERSION_PKG).Commit=$(GIT_COMMIT)"
+# install-ci is used for the CI pipeline
+# pre-fills pkgs-*.txt for DO_COVERAGE
+install-ci: pkgs-injectived.txt pkgs-peggo.txt
+install-ci: install-injectived install-peggo
 install-ci:
-	go install -tags $(build_tags_comma_sep) $(BUILD_FLAGS) -ldflags $(VERSION_FLAGS) $(coverage_flags) ./cmd/...
-	rm pkgs.txt
+	@echo "Installed injectived and peggo"
+	@rm pkgs-injectived.txt pkgs-peggo.txt
 
-.PHONY: init install image push gen lint lint-last-commit test mock cover
+.PHONY: init install install-ci install-injectived install-peggo
+.PHONY: image push gen lint lint-last-commit test mock cover
 
-mock: export GOPROXY=direct
 mock: tests/mocks.go
-	go install github.com/golang/mock/mockgen
+	go install github.com/golang/mock/mockgen@latest
 	go generate ./tests/...
 
 PKGS_TO_COVER := $(shell go list ./injective-chain/modules/exchange | paste -sd "," -)
-
-deploy:
-	./deploy_contracts.sh
 
 ###############################################################################
 ###                                   testing                               ###
 ###############################################################################
 test: ictest-all test-unit
 
-test-unit: export GOPROXY=direct
 test-unit:
 	go install github.com/onsi/ginkgo/ginkgo@latest
 	ginkgo -r --race --randomizeSuites --randomizeAllSpecs --coverpkg=$(PKGS_TO_COVER) ./...
@@ -109,11 +130,8 @@ test-unit:
 test-fuzz: # use old clang linker on macOS https://github.com/golang/go/issues/65169
 	go test -fuzz FuzzTest ./injective-chain/modules/exchange/testexchange/fuzztesting -ldflags=-extldflags=-Wl,-ld_classic
 
-test-erc20bridge:
-	go test -v ./injective-chain/modules/erc20bridge/...
-
 test-exchange:
-	go test -v ./injective-chain/modules/exchange/...
+	go test -race -v ./injective-chain/modules/exchange/...
 
 test-rpc:
 	MODE="rpc" go test -v ./tests/...
@@ -121,7 +139,7 @@ test-rpc:
 cover:
 	go tool cover -html=tests/injective-chain/modules/exchange/exchange.coverprofile
 
-.PHONY: test test-unit test-fuzz test-erc20bridge test-exchange test-rpc
+.PHONY: test test-unit test-fuzz test-exchange test-rpc
 
 # TODO: add runsim and benchmarking
 
@@ -136,93 +154,80 @@ rm-ic-coverage:
 	rm -rf interchaintest/coverage
 
 ictest-all: rm-testcache rm-ic-coverage
-	cd interchaintest && go test -v -run ./...
+	cd interchaintest && go test -timeout 60m -v -run ./...
 
 ictest-basic: rm-testcache
 	rm -rf interchaintest/coverage/TestBasicInjectiveStart
-	cd interchaintest && go test -race -v -run TestBasicInjectiveStart .
+	cd interchaintest && go test -v -run TestBasicInjectiveStart .
 	./scripts/coverage-html.sh interchaintest/coverage/TestBasicInjectiveStart
 
 ictest-upgrade: rm-testcache
 	rm -rf interchaintest/coverage/TestInjectiveUpgradeHandler
-	cd interchaintest && go test -race -v -run TestInjectiveUpgradeHandler .
+	cd interchaintest && go test -v -run TestInjectiveUpgradeHandler .
 	./scripts/coverage-html.sh interchaintest/coverage/TestInjectiveUpgradeHandler
 
+.PHONY: rm-testcache ictest-all ictest-basic ictest-upgrade ictest-evm
 ictest-dynamic-fee: rm-testcache
 	rm -rf interchaintest/coverage/TestDynamicFee
-	cd interchaintest && go test -race -v -run Test_DynamicFee_FeeIncreases .
+	cd interchaintest && go test -v -run Test_DynamicFee_FeeIncreases .
 	./scripts/coverage-html.sh interchaintest/coverage/TestDynamicFee
 
 ictest-ibchooks: rm-testcache
 	rm -rf interchaintest/coverage/TestInjectiveIBCHooks
-	cd interchaintest && go test -race -v -run TestInjectiveIBCHooks .
+	cd interchaintest && go test -v -run TestInjectiveIBCHooks .
 	./scripts/coverage-html.sh interchaintest/coverage/TestInjectiveIBCHooks
 
 ictest-permissions-wasm-hook: rm-testcache
 	rm -rf interchaintest/coverage/TestPermissionedDenomWasmHookCall
-	cd interchaintest && go test -race -v -run TestPermissionedDenomWasmHookCall .
+	cd interchaintest && go test -v -run TestPermissionedDenomWasmHookCall .
 	./scripts/coverage-html.sh interchaintest/coverage/TestPermissionedDenomWasmHookCall
 
 ictest-pfm: rm-testcache
 	rm -rf interchaintest/coverage/TestPacketForwardMiddleware
-	cd interchaintest && go test -race -v -run TestPacketForwardMiddleware .
+	cd interchaintest && go test -v -run TestPacketForwardMiddleware .
 	./scripts/coverage-html.sh interchaintest/coverage/TestPacketForwardMiddleware
 
 ictest-lanes: rm-testcache
 	rm -rf interchaintest/coverage/TestLanes
-	cd interchaintest && go test -race -v -run MempoolLanes .
+	cd interchaintest && go test -v -run MempoolLanes .
 	./scripts/coverage-html.sh interchaintest/coverage/TestLanes
 
 ictest-fixed-gas: rm-testcache
 	rm -rf interchaintest/coverage/Test_FixedGas_HappyPath
-	cd interchaintest && go test -race -v -run Test_FixedGas_HappyPath .
+	cd interchaintest && go test -v -run Test_FixedGas_HappyPath .
 	./scripts/coverage-html.sh interchaintest/coverage/Test_FixedGas_HappyPath
 
 ictest-fixed-gas-regression: rm-testcache
 	rm -rf interchaintest/coverage/Test_FixedGas_Regression
-	cd interchaintest && go test -race -v -run Test_FixedGas_Regression .
+	cd interchaintest && go test -v -run Test_FixedGas_Regression .
 	./scripts/coverage-html.sh interchaintest/coverage/Test_FixedGas_Regression
+
+ictest-peggo: rm-testcache
+	rm -rf interchaintest/coverage/Test_Peggo_Basic
+	cd interchaintest && go test -timeout 30m -v -run Test_Peggo_Basic .
+	./scripts/coverage-html.sh interchaintest/coverage/Test_Peggo_Basic
+
+ictest-peggo-ibc: rm-testcache
+	rm -rf interchaintest/coverage/Test_Peggo_IBCDenomDeployed
+	cd interchaintest && go test -timeout 30m -v -run Test_Peggo_IBCDenomDeployed .
+	./scripts/coverage-html.sh interchaintest/coverage/Test_Peggo_IBCDenomDeployed
+
+ictest-evm: rm-testcache
+	rm -rf interchaintest/coverage/TestInjectiveEvm
+	cd interchaintest && go test -race -v -run TestInjectiveEvm .
+	./scripts/coverage-html.sh interchaintest/coverage/TestInjectiveEvm
 
 .PHONY: rm-testcache rm-ic-coverage
 .PHONY: ictest-all ictest-basic ictest-upgrade ictest-ibchooks ictest-permissions-wasm-hook ictest-pfm ictest-lanes
-.PHONY: ictest-fixed-gas ictest-fixed-gas-regression
+.PHONY: ictest-fixed-gas ictest-fixed-gas-regression ictest-peggo ictest-peggo-ibc
 
 ###############################################################################
 
-lint: export GOPROXY=direct
 lint:
 	golangci-lint run --timeout=15m --new-from-rev=master
 
-lint-last-commit: export GOPROXY=direct
 lint-last-commit:
-	golangci-lint run --timeout=15m -v --new-from-rev=HEAD~
-
-build-release-%: export TARGET=$*
-build-release-%: export DOCKER_BUILDKIT=1
-build-release-%: export VERSION_FLAGS="-X $(VERSION_PKG).AppVersion=$(APP_VERSION) -X $(VERSION_PKG).GitCommit=$(GIT_COMMIT) -X $(VERSION_PKG).BuildDate=$(BUILD_DATE)"
-build-release-%:
-	docker build \
-		--build-arg LDFLAGS=$(VERSION_FLAGS) \
-		--build-arg PKG=github.com/InjectiveLabs/injective-core/cmd/$(TARGET) \
-		--ssh=default -t $(TARGET)-release -f Dockerfile.release .
-
-prepare-release-%: export TARGET=$*
-prepare-release-%:
-	mkdir -p dist/$(TARGET)_linux_amd64/
-	mkdir -p dist/$(TARGET)_darwin_amd64/
-	mkdir -p dist/$(TARGET)_windows_amd64/
-	#
-	docker create --name tmp_$(TARGET) $(TARGET)-release bash
-	#
-	docker cp tmp_$(TARGET):/root/go/bin/$(TARGET)-linux-amd64 dist/$(TARGET)_linux_amd64/$(TARGET)
-	docker cp tmp_$(TARGET):/root/go/bin/$(TARGET)-darwin-amd64 dist/$(TARGET)_darwin_amd64/$(TARGET)
-	docker cp tmp_$(TARGET):/root/go/bin/$(TARGET)-windows-amd64 dist/$(TARGET)_windows_amd64/$(TARGET).exe
-	#
-	docker rm tmp_$(TARGET)
-
-mongo:
-	mkdir -p ./var/mongo
-	mongod --dbpath ./var/mongo
+	golangci-lint run --timeout=15m --new-from-rev=HEAD~
 
 ###############################################################################
 ###                                Protobuf                                 ###
@@ -257,6 +262,13 @@ grpc-ui:
 	grpcui -plaintext -protoset ./injectived.protoset localhost:9900
 
 .PHONY: proto proto-gen proto-lint proto-check-breaking proto-update-deps
+
+###############################################################################
+###                           Precompiles Bindings                          ###
+###############################################################################
+
+precompiles-bindings:
+	./scripts/precompiles-bindings.sh
 
 ###############################################################################
 ###                              Documentation                              ###

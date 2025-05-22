@@ -4,16 +4,16 @@ import (
 	"cosmossdk.io/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"github.com/InjectiveLabs/metrics"
-
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
+	"github.com/InjectiveLabs/metrics"
 )
 
 // GetFeeDiscountAccountTierInfo fetches the account's fee discount Tier and TTL info
 func (k *Keeper) GetFeeDiscountAccountTierInfo(
 	ctx sdk.Context,
 	account sdk.AccAddress,
-) *types.FeeDiscountTierTTL {
+) *v2.FeeDiscountTierTTL {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
@@ -23,8 +23,9 @@ func (k *Keeper) GetFeeDiscountAccountTierInfo(
 		return nil
 	}
 
-	var accountTierTTL types.FeeDiscountTierTTL
+	var accountTierTTL v2.FeeDiscountTierTTL
 	k.cdc.MustUnmarshal(bz, &accountTierTTL)
+
 	return &accountTierTTL
 }
 
@@ -44,7 +45,7 @@ func (k *Keeper) DeleteFeeDiscountAccountTierInfo(
 func (k *Keeper) SetFeeDiscountAccountTierInfo(
 	ctx sdk.Context,
 	account sdk.AccAddress,
-	tierTTL *types.FeeDiscountTierTTL,
+	tierTTL *v2.FeeDiscountTierTTL,
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
@@ -69,43 +70,39 @@ func (k *Keeper) DeleteAllFeeDiscountAccountTierInfo(ctx sdk.Context) {
 }
 
 // GetAllFeeDiscountAccountTierInfo gets all accounts' fee discount Tier and TTL info
-func (k *Keeper) GetAllFeeDiscountAccountTierInfo(ctx sdk.Context) []*types.FeeDiscountAccountTierTTL {
+func (k *Keeper) GetAllFeeDiscountAccountTierInfo(ctx sdk.Context) []*v2.FeeDiscountAccountTierTTL {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	accountTierTTL := make([]*types.FeeDiscountAccountTierTTL, 0)
-
-	appendTiers := func(account sdk.AccAddress, tierInfo *types.FeeDiscountTierTTL) (stop bool) {
-		accountTierTTL = append(accountTierTTL, &types.FeeDiscountAccountTierTTL{
+	accountTierTTL := make([]*v2.FeeDiscountAccountTierTTL, 0)
+	k.iterateFeeDiscountAccountTierInfo(ctx, func(account sdk.AccAddress, tierInfo *v2.FeeDiscountTierTTL) (stop bool) {
+		accountTierTTL = append(accountTierTTL, &v2.FeeDiscountAccountTierTTL{
 			Account: account.String(),
 			TierTtl: tierInfo,
 		})
 		return false
-	}
+	})
 
-	k.iterateFeeDiscountAccountTierInfo(ctx, appendTiers)
 	return accountTierTTL
 }
 
 // iteratePastBucketTotalVolume iterates over all accounts' fee discount Tier and TTL info
 func (k *Keeper) iterateFeeDiscountAccountTierInfo(
 	ctx sdk.Context,
-	process func(account sdk.AccAddress, tierInfo *types.FeeDiscountTierTTL) (stop bool),
+	process func(account sdk.AccAddress, tierInfo *v2.FeeDiscountTierTTL) (stop bool),
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	store := k.getStore(ctx)
-
 	accountTierStore := prefix.NewStore(store, types.FeeDiscountAccountTierPrefix)
-	iterator := accountTierStore.Iterator(nil, nil)
-	defer iterator.Close()
+	iter := accountTierStore.Iterator(nil, nil)
+	defer iter.Close()
 
-	for ; iterator.Valid(); iterator.Next() {
-		addr := sdk.AccAddress(iterator.Key())
-		bz := iterator.Value()
-		var accountTierTTL types.FeeDiscountTierTTL
-		k.cdc.MustUnmarshal(bz, &accountTierTTL)
+	for ; iter.Valid(); iter.Next() {
+		addr := sdk.AccAddress(iter.Key())
+		var accountTierTTL v2.FeeDiscountTierTTL
+		k.cdc.MustUnmarshal(iter.Value(), &accountTierTTL)
 
 		if process(addr, &accountTierTTL) {
 			return

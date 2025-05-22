@@ -3,21 +3,20 @@ package keeper
 import (
 	"context"
 
-	"cosmossdk.io/math"
-
-	insurancetypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/insurance/types"
-
 	"cosmossdk.io/errors"
+	"cosmossdk.io/math"
 	"github.com/InjectiveLabs/metrics"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
+	insurancetypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/insurance/types"
 )
 
 func (k *Keeper) moveCoinsIntoInsuranceFund(
 	ctx sdk.Context,
-	market DerivativeMarketI,
+	market DerivativeMarketInterface,
 	insuranceFundPaymentAmount math.Int,
 ) error {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
@@ -46,7 +45,7 @@ func (k *Keeper) moveCoinsIntoInsuranceFund(
 
 func (k DerivativesMsgServer) handlePositiveLiquidationPayout(
 	ctx sdk.Context,
-	market *types.DerivativeMarket,
+	market *v2.DerivativeMarket,
 	surplusAmount math.LegacyDec,
 	liquidatorAddr sdk.AccAddress,
 	positionSubaccountID common.Hash,
@@ -55,9 +54,7 @@ func (k DerivativesMsgServer) handlePositiveLiquidationPayout(
 	defer doneFn()
 
 	liquidatorRewardShareRate := k.GetLiquidatorRewardShareRate(ctx)
-
 	insuranceFundOrAuctionPaymentAmount := surplusAmount.Mul(math.LegacyOneDec().Sub(liquidatorRewardShareRate)).TruncateInt()
-
 	liquidatorPayout := surplusAmount.Sub(insuranceFundOrAuctionPaymentAmount.ToLegacyDec())
 
 	if liquidatorPayout.IsPositive() {
@@ -76,6 +73,7 @@ func (k DerivativesMsgServer) handlePositiveLiquidationPayout(
 	return k.moveCoinsIntoInsuranceFund(ctx, market, insuranceFundOrAuctionPaymentAmount)
 }
 
+// CONTRACT: absoluteDeficitAmount value must be in chain format
 func (k *Keeper) PayDeficitFromInsuranceFund(
 	ctx sdk.Context,
 	marketID common.Hash,
@@ -116,7 +114,7 @@ func (k *Keeper) PayDeficitFromInsuranceFund(
 // Note: this does NOT cancel the trader's resting reduce-only orders
 func (k *Keeper) cancelAllOrdersFromTraderInCurrentMarket(
 	ctx sdk.Context,
-	market *types.DerivativeMarket,
+	market *v2.DerivativeMarket,
 	subaccountID common.Hash,
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
@@ -133,7 +131,7 @@ func (k *Keeper) cancelAllOrdersFromTraderInCurrentMarket(
 // 4: Not enough funds available. Pause the market and socialize losses.
 func (k DerivativesMsgServer) handleNegativeLiquidationPayout(
 	ctx sdk.Context,
-	market *types.DerivativeMarket,
+	market *v2.DerivativeMarket,
 	positionSubaccountID common.Hash,
 	lostFundsFromAvailableDuringPayout math.LegacyDec,
 ) (shouldSettleMarket bool, err error) {
@@ -148,15 +146,14 @@ func (k DerivativesMsgServer) handleNegativeLiquidationPayout(
 	// defensive programming, orders should have been cancelled before this point
 	if liquidatedTraderDeposits.HasTransientOrRestingVanillaLimitOrders() {
 		k.cancelAllOrdersFromTraderInCurrentMarket(ctx, market, positionSubaccountID)
-		k.CancelAllConditionalDerivativeOrdersBySubaccountIDAndMarket(ctx, market, positionSubaccountID, true, true)
+		k.CancelAllConditionalDerivativeOrdersBySubaccountIDAndMarket(ctx, market, positionSubaccountID)
 	}
 
 	availableBalanceAfterCancels := k.GetDeposit(ctx, positionSubaccountID, market.QuoteDenom).AvailableBalance
 	retrievedFromCancellingOrders := availableBalanceAfterCancels.Sub(liquidatedTraderDeposits.AvailableBalance)
 	lostFundsFromOrderCancels := retrievedFromCancellingOrders.Sub(math.LegacyMaxDec(math.LegacyZeroDec(), availableBalanceAfterCancels))
 
-	// nolint:errcheck //ignored on purpose
-	ctx.EventManager().EmitTypedEvent(&types.EventLostFundsFromLiquidation{
+	k.EmitEvent(ctx, &v2.EventLostFundsFromLiquidation{
 		MarketId:                           marketID.Hex(),
 		SubaccountId:                       positionSubaccountID.Bytes(),
 		LostFundsFromAvailableDuringPayout: lostFundsFromAvailableDuringPayout,
@@ -191,25 +188,32 @@ func (k DerivativesMsgServer) handleNegativeLiquidationPayout(
 	return shouldSettleMarket, nil
 }
 
-func (k DerivativesMsgServer) EmergencySettleMarket(goCtx context.Context, msg *types.MsgEmergencySettleMarket) (*types.MsgEmergencySettleMarketResponse, error) {
+func (k DerivativesMsgServer) EmergencySettleMarket(
+	goCtx context.Context, msg *v2.MsgEmergencySettleMarket,
+) (*v2.MsgEmergencySettleMarketResponse, error) {
 	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
 	defer doneFn()
 
-	_, err := k.liquidatePosition(goCtx, &types.MsgLiquidatePosition{
+	_, err := k.liquidatePosition(goCtx, &v2.MsgLiquidatePosition{
 		Sender:       msg.Sender,
 		MarketId:     msg.MarketId,
 		SubaccountId: msg.SubaccountId,
 	}, true)
-	return &types.MsgEmergencySettleMarketResponse{}, err
+
+	return &v2.MsgEmergencySettleMarketResponse{}, err
 }
 
-func (k DerivativesMsgServer) LiquidatePosition(goCtx context.Context, msg *types.MsgLiquidatePosition) (*types.MsgLiquidatePositionResponse, error) {
+func (k DerivativesMsgServer) LiquidatePosition(
+	goCtx context.Context, msg *v2.MsgLiquidatePosition,
+) (*v2.MsgLiquidatePositionResponse, error) {
 	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
 	defer doneFn()
 	return k.liquidatePosition(goCtx, msg, false)
 }
 
-func (k DerivativesMsgServer) liquidatePosition(goCtx context.Context, msg *types.MsgLiquidatePosition, isEmergencySettlingMarket bool) (*types.MsgLiquidatePositionResponse, error) {
+func (k DerivativesMsgServer) liquidatePosition(
+	goCtx context.Context, msg *v2.MsgLiquidatePosition, isEmergencySettlingMarket bool,
+) (*v2.MsgLiquidatePositionResponse, error) {
 	goCtx, doneFn := metrics.ReportFuncCallAndTimingCtx(goCtx, k.svcTags)
 	defer doneFn()
 
@@ -237,7 +241,7 @@ func (k DerivativesMsgServer) liquidatePosition(goCtx context.Context, msg *type
 		return nil, errors.Wrapf(types.ErrPositionNotFound, "subaccountID %s marketID %s", positionSubaccountID.Hex(), marketID.Hex())
 	}
 
-	var funding *types.PerpetualMarketFunding
+	var funding *v2.PerpetualMarketFunding
 	if market.IsPerpetual {
 		funding = k.GetPerpetualMarketFunding(cacheCtx, marketID)
 	}
@@ -247,7 +251,13 @@ func (k DerivativesMsgServer) liquidatePosition(goCtx context.Context, msg *type
 
 	if !shouldLiquidate {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, errors.Wrapf(types.ErrPositionNotLiquidable, "%s position liquidation price is %s but mark price is %s", position.GetDirectionString(), liquidationPrice.String(), markPrice.String())
+		return nil, errors.Wrapf(
+			types.ErrPositionNotLiquidable,
+			"%s position liquidation price is %s but mark price is %s",
+			position.GetDirectionString(),
+			liquidationPrice.String(),
+			markPrice.String(),
+		)
 	}
 
 	// Step 1a: Cancel all limit orders created by the position holder in the given market
@@ -261,11 +271,11 @@ func (k DerivativesMsgServer) liquidatePosition(goCtx context.Context, msg *type
 	k.CancelAllDerivativeMarketOrdersBySubaccountID(cacheCtx, market, positionSubaccountID, marketID)
 
 	// Step 1c: Cancel all conditional orders created by the position holder in the given market
-	k.CancelAllConditionalDerivativeOrdersBySubaccountIDAndMarket(cacheCtx, market, positionSubaccountID, true, true)
+	k.CancelAllConditionalDerivativeOrdersBySubaccountIDAndMarket(cacheCtx, market, positionSubaccountID)
 
 	marketOrderWorstPrice := position.GetLiquidationMarketOrderWorstPrice(markPrice, funding)
 
-	liquidationMarketOrder := types.NewMarketOrderForLiquidation(position, positionSubaccountID, liquidatorAddr, marketOrderWorstPrice)
+	liquidationMarketOrder := v2.NewMarketOrderForLiquidation(position, positionSubaccountID, liquidatorAddr, marketOrderWorstPrice)
 
 	// 2. Check and increment Subaccount Nonce, Compute Order Hash
 	subaccountNonce := k.IncrementSubaccountTradeNonce(cacheCtx, positionSubaccountID)
@@ -276,17 +286,17 @@ func (k DerivativesMsgServer) liquidatePosition(goCtx context.Context, msg *type
 	}
 
 	if isEmergencySettlingMarket {
-		var orderType types.OrderType
+		var orderType v2.OrderType
 
 		if position.IsLong {
-			orderType = types.OrderType_BUY
+			orderType = v2.OrderType_BUY
 		} else {
-			orderType = types.OrderType_SELL
+			orderType = v2.OrderType_SELL
 		}
 
-		msg.Order = &types.DerivativeOrder{
+		msg.Order = &v2.DerivativeOrder{
 			MarketId: marketID.Hex(),
-			OrderInfo: types.OrderInfo{
+			OrderInfo: v2.OrderInfo{
 				SubaccountId: "0",
 				Price:        markPrice,
 				Quantity:     position.Quantity,
@@ -316,7 +326,7 @@ func (k DerivativesMsgServer) liquidatePosition(goCtx context.Context, msg *type
 			return nil, err
 		}
 
-		order := types.NewDerivativeLimitOrder(msg.Order, liquidatorAddr, liquidatorOrderHash)
+		order := v2.NewDerivativeLimitOrder(msg.Order, liquidatorAddr, liquidatorOrderHash)
 		k.SetNewDerivativeLimitOrderWithMetadata(cacheCtx, order, metadata, marketID)
 	}
 
@@ -324,7 +334,9 @@ func (k DerivativesMsgServer) liquidatePosition(goCtx context.Context, msg *type
 	fundsBeforeLiquidation := k.GetSpendableFunds(cacheCtx, positionSubaccountID, market.QuoteDenom)
 	availableBalanceBeforeLiquidation := k.GetDeposit(cacheCtx, positionSubaccountID, market.QuoteDenom).AvailableBalance
 
-	_, isMarketSolvent, err := k.ExecuteDerivativeMarketOrderImmediately(cacheCtx, market, markPrice, funding, liquidationMarketOrder, positionStates, true)
+	_, isMarketSolvent, err := k.ExecuteDerivativeMarketOrderImmediately(
+		cacheCtx, market, markPrice, funding, liquidationMarketOrder, positionStates, true,
+	)
 
 	if err != nil {
 		metrics.ReportFuncError(k.svcTags)
@@ -333,7 +345,7 @@ func (k DerivativesMsgServer) liquidatePosition(goCtx context.Context, msg *type
 
 	if !isMarketSolvent {
 		writeCache()
-		return &types.MsgLiquidatePositionResponse{}, nil
+		return &v2.MsgLiquidatePositionResponse{}, nil
 	}
 
 	if hasLiquidatorProvidedOrder {
@@ -341,14 +353,27 @@ func (k DerivativesMsgServer) liquidatePosition(goCtx context.Context, msg *type
 		subaccountID := msg.Order.SubaccountID()
 		orderAfterLiquidation := k.GetDerivativeLimitOrderBySubaccountIDAndHash(cacheCtx, marketID, &isBuy, subaccountID, liquidatorOrderHash)
 		if orderAfterLiquidation != nil && orderAfterLiquidation.Fillable.IsPositive() {
-			if err := k.CancelRestingDerivativeLimitOrder(cacheCtx, market, orderAfterLiquidation.SubaccountID(), &isBuy, liquidatorOrderHash, true, true); err != nil {
-				k.Logger(ctx).Info("CancelRestingDerivativeLimitOrder failed during LiquidatePosition of subaccount", "subaccountID", msg.SubaccountId, "order", msg.Order.String(), "err", err)
-				_ = ctx.EventManager().EmitTypedEvent(types.NewEventOrderCancelFail(marketID, subaccountID, orderAfterLiquidation.Hash().Hex(), orderAfterLiquidation.Cid(), err))
+			if err := k.CancelRestingDerivativeLimitOrder(
+				cacheCtx, market, orderAfterLiquidation.SubaccountID(), &isBuy, liquidatorOrderHash, true, true,
+			); err != nil {
+				k.Logger(ctx).Info(
+					"CancelRestingDerivativeLimitOrder failed during LiquidatePosition of subaccount",
+					"subaccountID", msg.SubaccountId,
+					"order", msg.Order.String(),
+					"err", err,
+				)
+				k.EmitEvent(
+					ctx,
+					v2.NewEventOrderCancelFail(
+						marketID, subaccountID, orderAfterLiquidation.Hash().Hex(), orderAfterLiquidation.Cid(), err,
+					),
+				)
 			}
 		}
 	}
 
 	fundsAfterLiquidation := k.GetSpendableFunds(cacheCtx, positionSubaccountID, market.QuoteDenom)
+
 	availableBalanceAfterLiquidation := k.GetDeposit(cacheCtx, positionSubaccountID, market.QuoteDenom).AvailableBalance
 
 	var payout math.LegacyDec
@@ -400,8 +425,7 @@ func (k DerivativesMsgServer) liquidatePosition(goCtx context.Context, msg *type
 
 	if !isMissingFunds {
 		// if missing funds this event is already emitted inside handleNegativeLiquidationPayout
-		// nolint:errcheck //ignored on purpose
-		cacheCtx.EventManager().EmitTypedEvent(&types.EventLostFundsFromLiquidation{
+		k.EmitEvent(cacheCtx, &v2.EventLostFundsFromLiquidation{
 			MarketId:                           marketID.Hex(),
 			SubaccountId:                       positionSubaccountID.Bytes(),
 			LostFundsFromAvailableDuringPayout: lostFundsFromAvailableDuringPayout,
@@ -424,5 +448,5 @@ func (k DerivativesMsgServer) liquidatePosition(goCtx context.Context, msg *type
 		writeCache()
 	}
 
-	return &types.MsgLiquidatePositionResponse{}, nil
+	return &v2.MsgLiquidatePositionResponse{}, nil
 }

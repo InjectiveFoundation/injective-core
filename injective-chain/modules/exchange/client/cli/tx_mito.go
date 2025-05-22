@@ -15,6 +15,7 @@ import (
 
 	cliflags "github.com/InjectiveLabs/injective-core/cli/flags"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	exchangev2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 	wasmxtypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/types"
 )
 
@@ -106,9 +107,9 @@ func NewSubscribeToSpotVaultTxCmd() *cobra.Command {
 				}
 			}
 
-			queryClient := types.NewQueryClient(clientCtx)
+			queryClient := exchangev2.NewQueryClient(clientCtx)
 
-			req := &types.QueryMarketIDFromVaultRequest{
+			req := &exchangev2.QueryMarketIDFromVaultRequest{
 				VaultAddress: vaultAddress,
 			}
 			res, err := queryClient.QueryMarketIDFromVault(context.Background(), req)
@@ -116,7 +117,7 @@ func NewSubscribeToSpotVaultTxCmd() *cobra.Command {
 				return err
 			}
 
-			marketRequest := &types.QuerySpotMarketRequest{
+			marketRequest := &exchangev2.QuerySpotMarketRequest{
 				MarketId: res.MarketId,
 			}
 			marketResp, err := queryClient.SpotMarket(context.Background(), marketRequest)
@@ -166,7 +167,7 @@ func NewSubscribeToSpotVaultTxCmd() *cobra.Command {
 			}
 
 			masterAddress := types.SubaccountIDToSdkAddress(common.HexToHash(vaultSubaccountId))
-			msg := &types.MsgPrivilegedExecuteContract{
+			msg := &exchangev2.MsgPrivilegedExecuteContract{
 				Sender:          fromAddress,
 				Funds:           bankFunds.String(),
 				ContractAddress: masterAddress.String(),
@@ -242,9 +243,9 @@ func NewSubscribeToAmmVaultTxCmd() *cobra.Command {
 				}
 			}
 
-			queryClient := types.NewQueryClient(clientCtx)
+			queryClient := exchangev2.NewQueryClient(clientCtx)
 
-			req := &types.QueryMarketIDFromVaultRequest{
+			req := &exchangev2.QueryMarketIDFromVaultRequest{
 				VaultAddress: vaultAddress,
 			}
 			res, err := queryClient.QueryMarketIDFromVault(context.Background(), req)
@@ -252,7 +253,7 @@ func NewSubscribeToAmmVaultTxCmd() *cobra.Command {
 				return err
 			}
 
-			marketRequest := &types.QuerySpotMarketRequest{
+			marketRequest := &exchangev2.QuerySpotMarketRequest{
 				MarketId: res.MarketId,
 			}
 			marketResp, err := queryClient.SpotMarket(context.Background(), marketRequest)
@@ -306,7 +307,7 @@ func NewSubscribeToAmmVaultTxCmd() *cobra.Command {
 			}
 
 			masterAddress := types.SubaccountIDToSdkAddress(common.HexToHash(vaultSubaccountId))
-			msg := &types.MsgPrivilegedExecuteContract{
+			msg := &exchangev2.MsgPrivilegedExecuteContract{
 				Sender:          fromAddress,
 				Funds:           bankFunds.String(),
 				ContractAddress: masterAddress.String(),
@@ -389,7 +390,7 @@ func NewRedeemFromSpotVaultTxCmd() *cobra.Command {
 			}
 
 			vaultAccount := types.SubaccountIDToSdkAddress(common.HexToHash(vaultSubaccountId))
-			msg := &types.MsgPrivilegedExecuteContract{
+			msg := &exchangev2.MsgPrivilegedExecuteContract{
 				Sender:          fromAddress,
 				Funds:           lpTokenBurnAmount.String(),
 				ContractAddress: vaultAccount.String(),
@@ -469,7 +470,7 @@ func NewRedeemFromAmmVaultTxCmd() *cobra.Command {
 			}
 
 			vaultAccount := types.SubaccountIDToSdkAddress(common.HexToHash(vaultSubaccountId))
-			msg := &types.MsgPrivilegedExecuteContract{
+			msg := &exchangev2.MsgPrivilegedExecuteContract{
 				Sender:          fromAddress,
 				Funds:           lpTokenBurnAmount.String(),
 				ContractAddress: vaultAccount.String(),
@@ -509,9 +510,9 @@ func NewSubscribeToDerivativeVaultTxCmd() *cobra.Command {
 			vaultSubaccountId := args[1]
 			traderSubaccountId := args[2]
 
-			queryClient := types.NewQueryClient(clientCtx)
+			queryClient := exchangev2.NewQueryClient(clientCtx)
 
-			req := &types.QueryMarketIDFromVaultRequest{
+			req := &exchangev2.QueryMarketIDFromVaultRequest{
 				VaultAddress: vaultAddress,
 			}
 			res, err := queryClient.QueryMarketIDFromVault(context.Background(), req)
@@ -519,7 +520,7 @@ func NewSubscribeToDerivativeVaultTxCmd() *cobra.Command {
 				return err
 			}
 
-			marketRequest := &types.QueryDerivativeMarketRequest{
+			marketRequest := &exchangev2.QueryDerivativeMarketRequest{
 				MarketId: res.MarketId,
 			}
 			marketResp, err := queryClient.DerivativeMarket(context.Background(), marketRequest)
@@ -568,7 +569,7 @@ func NewSubscribeToDerivativeVaultTxCmd() *cobra.Command {
 			}
 
 			masterAddress := types.SubaccountIDToSdkAddress(common.HexToHash(vaultSubaccountId))
-			msg := &types.MsgPrivilegedExecuteContract{
+			msg := &exchangev2.MsgPrivilegedExecuteContract{
 				Sender:          fromAddress,
 				Funds:           bankFunds.String(),
 				ContractAddress: masterAddress.String(),
@@ -664,7 +665,7 @@ func NewRedeemFromDerivativeVaultTxCmd() *cobra.Command {
 			}
 
 			vaultAccount := types.SubaccountIDToSdkAddress(common.HexToHash(vaultSubaccountId))
-			msg := &types.MsgPrivilegedExecuteContract{
+			msg := &exchangev2.MsgPrivilegedExecuteContract{
 				Sender:          fromAddress,
 				Funds:           lpTokenBurnAmount.String(),
 				ContractAddress: vaultAccount.String(),
@@ -744,7 +745,7 @@ func NewPrivilegedExecuteContractTxCmd() *cobra.Command {
 				return err
 			}
 
-			msg := &types.MsgPrivilegedExecuteContract{
+			msg := &exchangev2.MsgPrivilegedExecuteContract{
 				Sender:          fromAddress,
 				Funds:           amountStr,
 				ContractAddress: contractAddress,

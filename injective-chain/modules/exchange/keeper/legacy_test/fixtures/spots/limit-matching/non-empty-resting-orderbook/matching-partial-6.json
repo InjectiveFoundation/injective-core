@@ -1,0 +1,121 @@
+/*
+  BID     ASK
+          1930  2
+ *3 1951  1924  1
+ *1 1930  1910  3
+  2 1908  *1905 2
+  1 1900  *1900 1
+  3 1800
+ */
+{
+  "resting-sells": [
+    {
+      "price": 1930,
+      "quantity": 2,
+      "subaccountNonce": 1,
+      "expectedQuantityFilledViaMatching": 0,
+      "expectedQuantityFilledViaMarketOrders": 0
+    },
+    {
+      "price": 1924,
+      "quantity": 1,
+      "subaccountNonce": 2,
+      "expectedQuantityFilledViaMatching": 0,
+      "expectedQuantityFilledViaMarketOrders": 0
+    },
+    {
+      "price": 1910,
+      "quantity": 3,
+      "subaccountNonce": 3,
+      "expectedQuantityFilledViaMatching": 1,
+      "expectedQuantityFilledViaMarketOrders": 0
+    }
+  ],
+  "transient-sells": [
+    {
+      "price": 1905,
+      "quantity": 2,
+      "subaccountNonce": 4,
+      "expectedQuantityFilledViaMatching": 2,
+      "expectedQuantityFilledViaMarketOrders": 0
+    },
+    {
+      "price": 1900,
+      "quantity": 1,
+      "subaccountNonce": 5,
+      "expectedQuantityFilledViaMatching": 1,
+      "expectedQuantityFilledViaMarketOrders": 0
+    }
+  ],
+  "resting-buys": [
+    {
+      "price": 1908,
+      "quantity": 2,
+      "subaccountNonce": 6,
+      "expectedQuantityFilledViaMatching": 0,
+      "expectedQuantityFilledViaMarketOrders": 0
+    },
+    {
+      "price": 1900,
+      "quantity": 1,
+      "subaccountNonce": 7,
+      "expectedQuantityFilledViaMatching": 0,
+      "expectedQuantityFilledViaMarketOrders": 0
+    },
+    {
+      "price": 1800,
+      "quantity": 3,
+      "subaccountNonce": 8,
+      "expectedQuantityFilledViaMatching": 0,
+      "expectedQuantityFilledViaMarketOrders": 0
+    }
+  ],
+  "transient-buys": [
+    {
+      "price": 1951,
+      "quantity": 3,
+      "subaccountNonce": 9,
+      "expectedQuantityFilledViaMatching": 3,
+      "expectedQuantityFilledViaMarketOrders": 0
+    },
+    {
+      "price": 1930,
+      "quantity": 1,
+      "subaccountNonce": 10,
+      "expectedQuantityFilledViaMatching": 1,
+      "expectedQuantityFilledViaMarketOrders": 0
+    }
+  ],
+  "expected-buys-after-matching": [
+    {
+      "price": 1908,
+      "quantity": 2
+    },
+    {
+      "price": 1900,
+      "quantity": 1
+    },
+    {
+      "price": 1800,
+      "quantity": 3
+    }
+  ],
+  "expected-sells-after-matching": [
+    {
+      "price": 1910,
+      "quantity": 2
+    },
+    {
+      "price": 1924,
+      "quantity": 1
+    },
+    {
+      "price": 1930,
+      "quantity": 2
+    }
+  ],
+  "expected-sells-after-matching": [],
+  "expected-clearing-price-matching": 1910,
+  "expected-clearing-price-market-sells": 0,
+  "expected-clearing-price-market-buys": 0
+}

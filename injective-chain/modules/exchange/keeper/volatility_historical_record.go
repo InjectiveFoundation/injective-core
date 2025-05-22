@@ -11,6 +11,7 @@ import (
 	"github.com/InjectiveLabs/metrics"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 	oracletypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/types"
 )
 
@@ -27,7 +28,7 @@ func (k *Keeper) PersistVwapInfo(ctx sdk.Context, spotVwapInfo *SpotVwapInfo, de
 	if spotVwapInfo != nil {
 		spotMarketIDs := spotVwapInfo.GetSortedSpotMarketIDs()
 		for _, spotMarketID := range spotMarketIDs {
-			k.AppendTradeRecord(ctx, spotMarketID, &types.TradeRecord{
+			k.AppendTradeRecord(ctx, spotMarketID, &v2.TradeRecord{
 				Timestamp: blockTime.Unix(),
 				Price:     (*spotVwapInfo)[spotMarketID].Price,
 				Quantity:  (*spotVwapInfo)[spotMarketID].Quantity,
@@ -38,7 +39,7 @@ func (k *Keeper) PersistVwapInfo(ctx sdk.Context, spotVwapInfo *SpotVwapInfo, de
 	if derivativeVwapInfo != nil {
 		perpetualMarketIDs := derivativeVwapInfo.GetSortedPerpetualMarketIDs()
 		for _, perpetualMarketID := range perpetualMarketIDs {
-			k.AppendTradeRecord(ctx, perpetualMarketID, &types.TradeRecord{
+			k.AppendTradeRecord(ctx, perpetualMarketID, &v2.TradeRecord{
 				Timestamp: blockTime.Unix(),
 				Price:     derivativeVwapInfo.perpetualVwapInfo[perpetualMarketID].VwapData.Price,
 				Quantity:  derivativeVwapInfo.perpetualVwapInfo[perpetualMarketID].VwapData.Quantity,
@@ -47,7 +48,7 @@ func (k *Keeper) PersistVwapInfo(ctx sdk.Context, spotVwapInfo *SpotVwapInfo, de
 
 		expiryMarketIDs := derivativeVwapInfo.GetSortedExpiryFutureMarketIDs()
 		for _, expiryMarketID := range expiryMarketIDs {
-			k.AppendTradeRecord(ctx, expiryMarketID, &types.TradeRecord{
+			k.AppendTradeRecord(ctx, expiryMarketID, &v2.TradeRecord{
 				Timestamp: blockTime.Unix(),
 				Price:     derivativeVwapInfo.expiryVwapInfo[expiryMarketID].VwapData.Price,
 				Quantity:  derivativeVwapInfo.expiryVwapInfo[expiryMarketID].VwapData.Quantity,
@@ -56,7 +57,7 @@ func (k *Keeper) PersistVwapInfo(ctx sdk.Context, spotVwapInfo *SpotVwapInfo, de
 
 		binaryOptionsMarketIDs := derivativeVwapInfo.GetSortedBinaryOptionsMarketIDs()
 		for _, binaryOptionMarketID := range binaryOptionsMarketIDs {
-			k.AppendTradeRecord(ctx, binaryOptionMarketID, &types.TradeRecord{
+			k.AppendTradeRecord(ctx, binaryOptionMarketID, &v2.TradeRecord{
 				Timestamp: blockTime.Unix(),
 				Price:     derivativeVwapInfo.binaryOptionsVwapInfo[binaryOptionMarketID].VwapData.Price,
 				Quantity:  derivativeVwapInfo.binaryOptionsVwapInfo[binaryOptionMarketID].VwapData.Quantity,
@@ -65,32 +66,31 @@ func (k *Keeper) PersistVwapInfo(ctx sdk.Context, spotVwapInfo *SpotVwapInfo, de
 	}
 }
 
-func (k *Keeper) AppendTradeRecord(ctx sdk.Context, marketID common.Hash, tradeRecord *types.TradeRecord) {
+func (k *Keeper) AppendTradeRecord(ctx sdk.Context, marketID common.Hash, tradeRecord *v2.TradeRecord) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	existingOrEmptyRecord, _ := k.GetHistoricalTradeRecords(ctx, marketID, tradeRecord.Timestamp-types.MaxHistoricalTradeRecordAge)
 	existingOrEmptyRecord.LatestTradeRecords = append(existingOrEmptyRecord.LatestTradeRecords, tradeRecord)
 
-	k.setHistoricalTradeRecords(ctx, marketID, existingOrEmptyRecord)
+	k.SetHistoricalTradeRecords(ctx, marketID, existingOrEmptyRecord)
 }
 
-func (k *Keeper) GetAllHistoricalTradeRecords(ctx sdk.Context) []*types.TradeRecords {
+func (k *Keeper) GetAllHistoricalTradeRecords(ctx sdk.Context) []*v2.TradeRecords {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	allTradeRecords := make([]*types.TradeRecords, 0)
+	allTradeRecords := make([]*v2.TradeRecords, 0)
 	store := ctx.KVStore(k.storeKey)
-
 	historicalTradeRecordsStore := prefix.NewStore(store, types.MarketHistoricalTradeRecordsPrefix)
 
-	iterator := historicalTradeRecordsStore.Iterator(nil, nil)
-	defer iterator.Close()
+	iter := historicalTradeRecordsStore.Iterator(nil, nil)
+	defer iter.Close()
 
-	for ; iterator.Valid(); iterator.Next() {
-		var tradeRecords types.TradeRecords
-		bz := iterator.Value()
-		k.cdc.MustUnmarshal(bz, &tradeRecords)
+	for ; iter.Valid(); iter.Next() {
+		var tradeRecords v2.TradeRecords
+		k.cdc.MustUnmarshal(iter.Value(), &tradeRecords)
+
 		allTradeRecords = append(allTradeRecords, &tradeRecords)
 	}
 
@@ -104,12 +104,12 @@ func (k *Keeper) CleanupHistoricalTradeRecords(ctx sdk.Context) {
 	before := ctx.BlockTime().Unix() - types.MaxHistoricalTradeRecordAge
 	onlyEnabled := true
 
-	k.IterateSpotMarkets(ctx, &onlyEnabled, func(m *types.SpotMarket) (stop bool) {
+	k.IterateSpotMarkets(ctx, &onlyEnabled, func(m *v2.SpotMarket) (stop bool) {
 		k.cleanupMarketHistoricalTradeRecords(ctx, m.MarketID(), before)
 		return false
 	})
 
-	k.IterateDerivativeMarkets(ctx, &onlyEnabled, func(m *types.DerivativeMarket) (stop bool) {
+	k.IterateDerivativeMarkets(ctx, &onlyEnabled, func(m *v2.DerivativeMarket) (stop bool) {
 		k.cleanupMarketHistoricalTradeRecords(ctx, m.MarketID(), before)
 		return false
 	})
@@ -133,11 +133,11 @@ func (k *Keeper) cleanupMarketHistoricalTradeRecords(ctx sdk.Context, marketID c
 	}
 
 	if needsSave {
-		k.setHistoricalTradeRecords(ctx, marketID, existingOrEmptyRecord)
+		k.SetHistoricalTradeRecords(ctx, marketID, existingOrEmptyRecord)
 	}
 }
 
-func (k *Keeper) setHistoricalTradeRecords(ctx sdk.Context, marketID common.Hash, entry *types.TradeRecords) {
+func (k *Keeper) SetHistoricalTradeRecords(ctx sdk.Context, marketID common.Hash, entry *v2.TradeRecords) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
@@ -148,13 +148,11 @@ func (k *Keeper) setHistoricalTradeRecords(ctx sdk.Context, marketID common.Hash
 }
 
 // GetHistoricalTradeRecords returns the historical trade records for a market starting from the `from` time.
-func (k *Keeper) GetHistoricalTradeRecords(ctx sdk.Context, marketID common.Hash, from int64) (entry *types.TradeRecords, omitted bool) {
+func (k *Keeper) GetHistoricalTradeRecords(ctx sdk.Context, marketID common.Hash, from int64) (entry *v2.TradeRecords, omitted bool) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	entry = &types.TradeRecords{
-		MarketId: marketID.Hex(),
-	}
+	entry = &v2.TradeRecords{MarketId: marketID.Hex()}
 
 	store := k.getStore(ctx)
 	bz := store.Get(types.GetMarketHistoricalTradeRecordsKey(marketID))
@@ -162,7 +160,7 @@ func (k *Keeper) GetHistoricalTradeRecords(ctx sdk.Context, marketID common.Hash
 		return entry, false
 	}
 
-	var tradeEntry types.TradeRecords
+	var tradeEntry v2.TradeRecords
 	k.cdc.MustUnmarshal(bz, &tradeEntry)
 
 	entry.LatestTradeRecords, omitted = filterHistoricalTradeRecords(tradeEntry.LatestTradeRecords, from)
@@ -170,7 +168,7 @@ func (k *Keeper) GetHistoricalTradeRecords(ctx sdk.Context, marketID common.Hash
 	return entry, omitted
 }
 
-func filterHistoricalTradeRecords(records []*types.TradeRecord, from int64) (filteredRecords []*types.TradeRecord, omitted bool) {
+func filterHistoricalTradeRecords(records []*v2.TradeRecord, from int64) (filteredRecords []*v2.TradeRecord, omitted bool) {
 	offsetIdx := -1
 
 	for idx, tradeRecord := range records {
@@ -190,15 +188,15 @@ func filterHistoricalTradeRecords(records []*types.TradeRecord, from int64) (fil
 	return records[offsetIdx:], omitted
 }
 
-func GetRecordsGroupedBy(tradeRecords []*types.TradeRecord, seconds int64) (groupedTradeRecords []*types.TradeRecord) {
-	groupedTradeRecords = make([]*types.TradeRecord, 0)
+func GetRecordsGroupedBy(tradeRecords []*v2.TradeRecord, seconds int64) []*v2.TradeRecord {
+	groupedTradeRecords := make([]*v2.TradeRecord, 0)
 
 	for _, tradeRecord := range tradeRecords {
 		// Don't use midPrice, it's manipulable.
 		//
 		// latestGroupTimestamp := from.Add(time.Duration(len(groupedTradeRecords)+1) * seconds)
 		// for tradeRecord.Timestamp.After(latestGroupTimestamp) {
-		// 	groupedTradeRecords = append(groupedTradeRecords, &types.TradeRecord{
+		// 	groupedTradeRecords = append(groupedTradeRecords, &v2.TradeRecord{
 		// 		Timestamp: latestGroupTimestamp,
 		// 		Price:     midPrice,
 		// 		Quantity:  math.LegacyZeroDec(),
@@ -214,7 +212,7 @@ func GetRecordsGroupedBy(tradeRecords []*types.TradeRecord, seconds int64) (grou
 		lastTradeRecord := groupedTradeRecords[len(groupedTradeRecords)-1]
 		if tradeRecord.Timestamp-lastTradeRecord.Timestamp < seconds {
 			groupedQuantity := lastTradeRecord.Quantity.Add(tradeRecord.Quantity)
-			groupedTradeRecords[len(groupedTradeRecords)-1] = &types.TradeRecord{
+			groupedTradeRecords[len(groupedTradeRecords)-1] = &v2.TradeRecord{
 				Timestamp: lastTradeRecord.Timestamp,
 				// nolint:all
 				// price = (p0 * q0 + p1 * q1) / (q0 + q1)
@@ -231,7 +229,7 @@ func GetRecordsGroupedBy(tradeRecords []*types.TradeRecord, seconds int64) (grou
 
 // GetMeanForTradeRecords returns the volume-weighted arithmetic mean for the trade records.
 // x̄ = ∑(p * q) / ∑q
-func GetMeanForTradeRecords(tradeRecords []*types.TradeRecord) (mean math.LegacyDec) {
+func GetMeanForTradeRecords(tradeRecords []*v2.TradeRecord) (mean math.LegacyDec) {
 	if len(tradeRecords) == 0 {
 		return math.LegacyZeroDec()
 	}
@@ -246,7 +244,7 @@ func GetMeanForTradeRecords(tradeRecords []*types.TradeRecord) (mean math.Legacy
 }
 
 // GetStandardDeviationForTradeRecords returns the volume-weighted arithmetic mean for the trade records.
-func GetStandardDeviationForTradeRecords(tradeRecords []*types.TradeRecord, temporaryPriceScalingFactor uint64) *math.LegacyDec {
+func GetStandardDeviationForTradeRecords(tradeRecords []*v2.TradeRecord, temporaryPriceScalingFactor uint64) *math.LegacyDec {
 	if len(tradeRecords) == 1 {
 		standardDeviationValue := math.LegacyZeroDec()
 		return &standardDeviationValue
@@ -279,11 +277,14 @@ func GetStandardDeviationForTradeRecords(tradeRecords []*types.TradeRecord, temp
 
 // CalculateStatistics returns statistics metadata over given trade records and grouped trade records.
 // Mean is VWAP over grouped trade records, Twap is calculated over the grouped prices.
-func CalculateStatistics(tradeRecords, groupedTradeRecords []*types.TradeRecord) *oracletypes.MetadataStatistics {
+func CalculateStatistics(tradeRecords, groupedTradeRecords []*v2.TradeRecord) *oracletypes.MetadataStatistics {
 	var (
-		sum, qSum, twapSum = math.LegacyZeroDec(), math.LegacyZeroDec(), math.LegacyZeroDec()
-		count              = uint32(len(tradeRecords))
+		sum     = math.LegacyZeroDec()
+		qSum    = math.LegacyZeroDec()
+		twapSum = math.LegacyZeroDec()
+		count   = uint32(len(tradeRecords))
 	)
+
 	if count == 0 {
 		return nil
 	}
@@ -298,7 +299,7 @@ func CalculateStatistics(tradeRecords, groupedTradeRecords []*types.TradeRecord)
 	}
 
 	// compute median on copy so the slice sorting doesn't mess up the indexes above
-	recordsCopy := make([]*types.TradeRecord, 0, count)
+	recordsCopy := make([]*v2.TradeRecord, 0, count)
 	recordsCopy = append(recordsCopy, tradeRecords...)
 	sort.SliceStable(recordsCopy, func(i, j int) bool {
 		return recordsCopy[i].Price.LT(recordsCopy[j].Price)
@@ -328,28 +329,18 @@ func CalculateStatistics(tradeRecords, groupedTradeRecords []*types.TradeRecord)
 }
 
 // GetMarketVolatility returns the volatility based on trades in specific market. Returns nil for invalid volatility.
-func (k *Keeper) GetMarketVolatility(ctx sdk.Context, marketID common.Hash, options *types.TradeHistoryOptions) (
+func (k *Keeper) GetMarketVolatility(
+	ctx sdk.Context,
+	marketID common.Hash,
+	options *v2.TradeHistoryOptions,
+) (
 	vol *math.LegacyDec,
-	rawTrades []*types.TradeRecord,
+	rawTrades []*v2.TradeRecord,
 	meta *oracletypes.MetadataStatistics) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	maxAge := int64(0)
-	groupingSec := int64(GROUPING_SECONDS_DEFAULT)
-	includeRawHistory := false
-	includeMetadata := false
-
-	if options != nil {
-		includeRawHistory = options.IncludeRawHistory
-		includeMetadata = options.IncludeMetadata
-		if options.MaxAge > 0 {
-			maxAge = ctx.BlockTime().Unix() - int64(options.MaxAge)
-		}
-		if options.TradeGroupingSec > 0 {
-			groupingSec = int64(options.TradeGroupingSec)
-		}
-	}
+	maxAge, groupingSec, includeRawHistory, includeMetadata := k.getHistoricalTradeRecordsSearchParams(ctx, options)
 
 	tradeRecords, _ := k.GetHistoricalTradeRecords(ctx, marketID, maxAge)
 	trades := tradeRecords.LatestTradeRecords
@@ -370,6 +361,28 @@ func (k *Keeper) GetMarketVolatility(ctx sdk.Context, marketID common.Hash, opti
 		meta = CalculateStatistics(trades, tradesGrouped)
 	}
 	return
+}
+
+//revive:disable:function-result-limit // we need to return 4 values
+func (*Keeper) getHistoricalTradeRecordsSearchParams(
+	ctx sdk.Context, options *v2.TradeHistoryOptions,
+) (maxAge, groupingSec int64, includeRawHistory, includeMetadata bool) {
+	maxAge = int64(0)
+	groupingSec = int64(GROUPING_SECONDS_DEFAULT)
+	includeRawHistory = false
+	includeMetadata = false
+
+	if options != nil {
+		includeRawHistory = options.IncludeRawHistory
+		includeMetadata = options.IncludeMetadata
+		if options.MaxAge > 0 {
+			maxAge = ctx.BlockTime().Unix() - int64(options.MaxAge)
+		}
+		if options.TradeGroupingSec > 0 {
+			groupingSec = int64(options.TradeGroupingSec)
+		}
+	}
+	return maxAge, groupingSec, includeRawHistory, includeMetadata
 }
 
 func (k *Keeper) getTemporaryPriceScalingFactor(

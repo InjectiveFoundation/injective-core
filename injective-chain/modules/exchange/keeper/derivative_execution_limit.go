@@ -2,11 +2,11 @@ package keeper
 
 import (
 	"cosmossdk.io/math"
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 	"github.com/InjectiveLabs/metrics"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
-
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 )
 
 func (k *Keeper) ExecuteDerivativeLimitOrderMatching(
@@ -27,7 +27,7 @@ func (k *Keeper) ExecuteDerivativeLimitOrderMatching(
 
 	feeDiscountConfig := k.getFeeDiscountConfigForMarket(ctx, marketID, stakingInfo)
 
-	var funding *types.PerpetualMarketFunding
+	var funding *v2.PerpetualMarketFunding
 	if market.GetIsPerpetual() {
 		funding = k.GetPerpetualMarketFunding(ctx, marketID)
 	}
@@ -46,10 +46,10 @@ func (k *Keeper) ExecuteDerivativeLimitOrderMatching(
 }
 
 type filteredTransientOrderResults struct {
-	transientLimitBuyOrders          []*types.DerivativeLimitOrder
-	transientLimitSellOrders         []*types.DerivativeLimitOrder
-	transientLimitBuyOrdersToCancel  []*types.DerivativeLimitOrder
-	transientLimitSellOrdersToCancel []*types.DerivativeLimitOrder
+	transientLimitBuyOrders          []*v2.DerivativeLimitOrder
+	transientLimitSellOrders         []*v2.DerivativeLimitOrder
+	transientLimitBuyOrdersToCancel  []*v2.DerivativeLimitOrder
+	transientLimitSellOrdersToCancel []*v2.DerivativeLimitOrder
 }
 
 func addAllTransientRoOrdersForSubaccountToCancellation(
@@ -123,10 +123,10 @@ func (k *Keeper) getFilteredTransientOrdersAndOrdersToCancel(
 	k.updateTransientOrderHashesToCancel(ctx, transientOrderHashesToCancel, marketID, false, sellROTracker, modifiedPositionCache)
 
 	results := &filteredTransientOrderResults{
-		transientLimitBuyOrders:          make([]*types.DerivativeLimitOrder, 0, len(transientLimitBuyOrders)),
-		transientLimitSellOrders:         make([]*types.DerivativeLimitOrder, 0, len(transientLimitBuyOrders)),
-		transientLimitBuyOrdersToCancel:  make([]*types.DerivativeLimitOrder, 0, len(transientOrderHashesToCancel)),
-		transientLimitSellOrdersToCancel: make([]*types.DerivativeLimitOrder, 0, len(transientOrderHashesToCancel)),
+		transientLimitBuyOrders:          make([]*v2.DerivativeLimitOrder, 0, len(transientLimitBuyOrders)),
+		transientLimitSellOrders:         make([]*v2.DerivativeLimitOrder, 0, len(transientLimitBuyOrders)),
+		transientLimitBuyOrdersToCancel:  make([]*v2.DerivativeLimitOrder, 0, len(transientOrderHashesToCancel)),
+		transientLimitSellOrdersToCancel: make([]*v2.DerivativeLimitOrder, 0, len(transientOrderHashesToCancel)),
 	}
 
 	for _, order := range transientLimitBuyOrders {
@@ -196,33 +196,27 @@ func (k *Keeper) PersistDerivativeMatchingExecution(
 		k.UpdateDerivativeLimitOrdersFromFilledDeltas(ctx, marketID, false, execution.TransientLimitOrderCancelledDeltas)
 
 		if execution.NewOrdersEvent != nil {
-			// nolint:errcheck //ignored on purpose
-			ctx.EventManager().EmitTypedEvent(execution.NewOrdersEvent)
+			k.EmitEvent(ctx, execution.NewOrdersEvent)
 		}
 
 		if execution.RestingLimitBuyOrderExecutionEvent != nil {
-			// nolint:errcheck //ignored on purpose
-			ctx.EventManager().EmitTypedEvent(execution.RestingLimitBuyOrderExecutionEvent)
+			k.EmitEvent(ctx, execution.RestingLimitBuyOrderExecutionEvent)
 		}
 
 		if execution.RestingLimitSellOrderExecutionEvent != nil {
-			// nolint:errcheck //ignored on purpose
-			ctx.EventManager().EmitTypedEvent(execution.RestingLimitSellOrderExecutionEvent)
+			k.EmitEvent(ctx, execution.RestingLimitSellOrderExecutionEvent)
 		}
 
 		if execution.TransientLimitBuyOrderExecutionEvent != nil {
-			// nolint:errcheck //ignored on purpose
-			ctx.EventManager().EmitTypedEvent(execution.TransientLimitBuyOrderExecutionEvent)
+			k.EmitEvent(ctx, execution.TransientLimitBuyOrderExecutionEvent)
 		}
 
 		if execution.TransientLimitSellOrderExecutionEvent != nil {
-			// nolint:errcheck //ignored on purpose
-			ctx.EventManager().EmitTypedEvent(execution.TransientLimitSellOrderExecutionEvent)
+			k.EmitEvent(ctx, execution.TransientLimitSellOrderExecutionEvent)
 		}
 
 		for idx := range execution.CancelLimitOrderEvents {
-			// nolint:errcheck //ignored on purpose
-			ctx.EventManager().EmitTypedEvent(execution.CancelLimitOrderEvents[idx])
+			k.EmitEvent(ctx, execution.CancelLimitOrderEvents[idx])
 		}
 
 		if len(execution.TradingRewards) > 0 {

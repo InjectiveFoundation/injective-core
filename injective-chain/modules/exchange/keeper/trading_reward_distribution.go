@@ -2,11 +2,12 @@ package keeper
 
 import (
 	"cosmossdk.io/math"
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/InjectiveLabs/metrics"
 
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 	chaintypes "github.com/InjectiveLabs/injective-core/injective-chain/types"
 )
 
@@ -65,21 +66,20 @@ func (k *Keeper) distributeTradingRewardsForAllAccounts(
 		return
 	}
 
-	ev := types.EventTradingRewardDistribution{
-		AccountRewards: make([]*types.AccountRewards, 0),
+	ev := v2.EventTradingRewardDistribution{
+		AccountRewards: make([]*v2.AccountRewards, 0),
 	}
 
 	for _, accountPoints := range allAccountPoints {
 		accountCoins := k.distributeTradingRewardsForAccount(ctx, availableRewardsToPayout, maxCampaignRewards, accountPoints, totalPoints, pendingPoolStartTimestamp)
 
-		ev.AccountRewards = append(ev.AccountRewards, &types.AccountRewards{
+		ev.AccountRewards = append(ev.AccountRewards, &v2.AccountRewards{
 			Account: accountPoints.Account.String(),
 			Rewards: accountCoins,
 		})
 	}
 
-	// nolint:errcheck //ignored on purpose
-	ctx.EventManager().EmitTypedEvent(&ev)
+	k.EmitEvent(ctx, &ev)
 	k.DeleteTotalTradingRewardPendingPoints(ctx, pendingPoolStartTimestamp)
 }
 

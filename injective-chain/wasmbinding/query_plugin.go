@@ -18,6 +18,7 @@ import (
 
 	auctiontypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/auction/types"
 	exchangetypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	exchangev2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 	oracletypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/types"
 )
 
@@ -40,38 +41,31 @@ type InjectiveQueryWrapper struct {
 }
 
 // CustomQuerier dispatches custom CosmWasm bindings queries.
-func CustomQuerier(qp *QueryPlugin) func(ctx sdk.Context, request json.RawMessage) ([]byte, error) {
+func CustomQuerier(qp *QueryPlugin) wasmkeeper.CustomQuerier {
+	// Create a map of route to handler function
+	handlers := map[string]func(sdk.Context, json.RawMessage) ([]byte, error){
+		AuthzRoute:        qp.HandleAuthzQuery,
+		StakingRoute:      qp.HandleStakingQuery,
+		AuctionRoute:      qp.HandleAuctionQuery,
+		OracleRoute:       qp.HandleOracleQuery,
+		ExchangeRoute:     qp.HandleExchangeQuery,
+		TokenFactoryRoute: qp.HandleTokenFactoryQuery,
+		WasmxRoute:        qp.HandleWasmxQuery,
+		FeeGrant:          qp.HandleFeeGrantQuery,
+	}
+
 	return func(ctx sdk.Context, request json.RawMessage) ([]byte, error) {
 		var contractQuery InjectiveQueryWrapper
 		if err := json.Unmarshal(request, &contractQuery); err != nil {
 			return nil, errorsmod.Wrap(err, "Error parsing request data")
 		}
 
-		var bz []byte
-		var err error
-
-		switch contractQuery.Route {
-		case AuthzRoute:
-			bz, err = qp.HandleAuthzQuery(ctx, contractQuery.QueryData)
-		case StakingRoute:
-			bz, err = qp.HandleStakingQuery(ctx, contractQuery.QueryData)
-		case AuctionRoute:
-			bz, err = qp.HandleAuctionQuery(ctx, contractQuery.QueryData)
-		case OracleRoute:
-			bz, err = qp.HandleOracleQuery(ctx, contractQuery.QueryData)
-		case ExchangeRoute:
-			bz, err = qp.HandleExchangeQuery(ctx, contractQuery.QueryData)
-		case TokenFactoryRoute:
-			bz, err = qp.HandleTokenFactoryQuery(ctx, contractQuery.QueryData)
-		case WasmxRoute:
-			bz, err = qp.HandleWasmxQuery(ctx, contractQuery.QueryData)
-		case FeeGrant:
-			bz, err = qp.HandleFeeGrantQuery(ctx, contractQuery.QueryData)
-		default:
+		handler, exists := handlers[contractQuery.Route]
+		if !exists {
 			return nil, wasmvmtypes.UnsupportedRequest{Kind: "Unknown Injective Query Route"}
 		}
 
-		return bz, err
+		return handler(ctx, contractQuery.QueryData)
 	}
 }
 
@@ -110,6 +104,26 @@ func getWhitelistedQueries() wasmkeeper.AcceptedQueries {
 		"/injective.exchange.v1beta1.Query/SpotOrderbook":                       &exchangetypes.QuerySpotOrderbookResponse{},
 		"/injective.exchange.v1beta1.Query/DerivativeOrderbook":                 &exchangetypes.QueryDerivativeOrderbookResponse{},
 		"/injective.exchange.v1beta1.Query/MarketAtomicExecutionFeeMultiplier":  &exchangetypes.QueryMarketAtomicExecutionFeeMultiplierResponse{},
+		// ExchangeV2
+		"/injective.exchange.v2.Query/QueryExchangeParams":                 &exchangev2.QueryExchangeParamsResponse{},
+		"/injective.exchange.v2.Query/SubaccountDeposit":                   &exchangev2.QuerySubaccountDepositResponse{},
+		"/injective.exchange.v2.Query/DerivativeMarket":                    &exchangev2.QueryDerivativeMarketResponse{},
+		"/injective.exchange.v2.Query/SpotMarket":                          &exchangev2.QuerySpotMarketResponse{},
+		"/injective.exchange.v2.Query/SubaccountEffectivePositionInMarket": &exchangev2.QuerySubaccountEffectivePositionInMarketResponse{},
+		"/injective.exchange.v2.Query/SubaccountPositionInMarket":          &exchangev2.QuerySubaccountPositionInMarketResponse{},
+		"/injective.exchange.v2.Query/TraderDerivativeOrders":              &exchangev2.QueryTraderDerivativeOrdersResponse{},
+		"/injective.exchange.v2.Query/TraderDerivativeTransientOrders":     &exchangev2.QueryTraderDerivativeOrdersResponse{},
+		"/injective.exchange.v2.Query/TraderSpotTransientOrders":           &exchangev2.QueryTraderSpotOrdersResponse{},
+		"/injective.exchange.v2.Query/TraderSpotOrders":                    &exchangev2.QueryTraderSpotOrdersResponse{},
+		"/injective.exchange.v2.Query/PerpetualMarketInfo":                 &exchangev2.QueryPerpetualMarketInfoResponse{},
+		"/injective.exchange.v2.Query/PerpetualMarketFunding":              &exchangev2.QueryPerpetualMarketFundingResponse{},
+		"/injective.exchange.v2.Query/MarketVolatility":                    &exchangev2.QueryMarketVolatilityResponse{},
+		"/injective.exchange.v2.Query/SpotMidPriceAndTOB":                  &exchangev2.QuerySpotMidPriceAndTOBResponse{},
+		"/injective.exchange.v2.Query/DerivativeMidPriceAndTOB":            &exchangev2.QueryDerivativeMidPriceAndTOBResponse{},
+		"/injective.exchange.v2.Query/AggregateMarketVolume":               &exchangev2.QueryAggregateMarketVolumeResponse{},
+		"/injective.exchange.v2.Query/SpotOrderbook":                       &exchangev2.QuerySpotOrderbookResponse{},
+		"/injective.exchange.v2.Query/DerivativeOrderbook":                 &exchangev2.QueryDerivativeOrderbookResponse{},
+		"/injective.exchange.v2.Query/MarketAtomicExecutionFeeMultiplier":  &exchangev2.QueryMarketAtomicExecutionFeeMultiplierResponse{},
 		// Oracle
 		"/injective.oracle.v1beta1.Query/OracleVolatility": &oracletypes.QueryOracleVolatilityResponse{},
 		"/injective.oracle.v1beta1.Query/OraclePrice":      &oracletypes.QueryOraclePriceResponse{},
@@ -126,7 +140,9 @@ func getWhitelistedQueries() wasmkeeper.AcceptedQueries {
 }
 
 // StargateQuerier dispatches whitelisted stargate queries
-func StargateQuerier(queryRouter baseapp.GRPCQueryRouter, codecInterface codec.Codec) func(ctx sdk.Context, request *wasmvmtypes.StargateQuery) ([]byte, error) {
+func StargateQuerier(
+	queryRouter baseapp.GRPCQueryRouter, codecInterface codec.Codec,
+) func(ctx sdk.Context, request *wasmvmtypes.StargateQuery) ([]byte, error) {
 	acceptList := getWhitelistedQueries()
 	return func(ctx sdk.Context, request *wasmvmtypes.StargateQuery) ([]byte, error) {
 		protoResponse, accepted := acceptList[request.Path]
@@ -139,7 +155,7 @@ func StargateQuerier(queryRouter baseapp.GRPCQueryRouter, codecInterface codec.C
 			return nil, wasmvmtypes.UnsupportedRequest{Kind: fmt.Sprintf("No route to query '%s'", request.Path)}
 		}
 
-		res, err := route(ctx, &abci.RequestQuery{
+		res, err := route(ctx, &abci.QueryRequest{
 			Data: request.Data,
 			Path: request.Path,
 		})

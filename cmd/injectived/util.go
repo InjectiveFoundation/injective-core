@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	sdkconfig "github.com/cosmos/cosmos-sdk/server/config"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -157,7 +156,7 @@ func interceptConfigs(rootViper *viper.Viper) (*tmcfg.Config, error) {
 			return nil, fmt.Errorf("failed to parse %s: %w", appCfgFilePath, err)
 		}
 
-		sdkconfig.WriteConfigFile(appCfgFilePath, appConf)
+		config.WriteConfigFile(appCfgFilePath, appConf)
 	}
 
 	rootViper.SetConfigType("toml")

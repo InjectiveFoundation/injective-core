@@ -2,8 +2,6 @@
 
 set -e
 
-make install
-
 killall injectived &>/dev/null || true
 
 # Default INJHOME to current directory if not set
@@ -29,6 +27,43 @@ injectived init $MONIKER --chain-id $CHAINID --home $INJHOME
 perl -i -pe 's/^timeout_commit = ".*?"/timeout_commit = "2500ms"/' $INJHOME/config/config.toml
 perl -i -pe 's/^minimum-gas-prices = ".*?"/minimum-gas-prices = "1inj"/' $INJHOME/config/app.toml
 
+INITIAL_GENESIS_DIR="./scripts/local-genesis"
+if [ -d $INITIAL_GENESIS_DIR ]; then
+	echo "loading initial genesis files from $INITIAL_GENESIS_DIR..."
+	EXCHANGE_GENESIS_STATE=$(cat $INITIAL_GENESIS_DIR/initial_exchange_genesis.json | jq -r '.state')
+	INSURANCE_GENESIS_STATE=$(cat $INITIAL_GENESIS_DIR/initial_insurance_genesis.json | jq -r '.state')
+	ORACLE_GENESIS_STATE=$(cat $INITIAL_GENESIS_DIR/initial_oracle_genesis.json | jq -r '.state')
+	WASMX_GENESIS_STATE=$(cat $INITIAL_GENESIS_DIR/initial_wasmx_genesis.json | jq -r '.state')
+
+	cat $INJHOME/config/genesis.json | jq '.app_state["exchange"]='"${EXCHANGE_GENESIS_STATE}" > $INJHOME/config/tmp_genesis.json && mv $INJHOME/config/tmp_genesis.json $INJHOME/config/genesis.json
+	cat $INJHOME/config/genesis.json | jq '.app_state["insurance"]='"${INSURANCE_GENESIS_STATE}" > $INJHOME/config/tmp_genesis.json && mv $INJHOME/config/tmp_genesis.json $INJHOME/config/genesis.json
+	cat $INJHOME/config/genesis.json | jq '.app_state["oracle"]='"${ORACLE_GENESIS_STATE}" > $INJHOME/config/tmp_genesis.json && mv $INJHOME/config/tmp_genesis.json $INJHOME/config/genesis.json
+	cat $INJHOME/config/genesis.json | jq '.app_state["xwasm"]='"${WASMX_GENESIS_STATE}" > $INJHOME/config/tmp_genesis.json && mv $INJHOME/config/tmp_genesis.json $INJHOME/config/genesis.json
+
+	CURRENT_UNIX_TIMESTAMP=$(date +%s)
+	NEXT_FUNDING_TIMESTAMP=$((CURRENT_UNIX_TIMESTAMP + 600))
+	sed -i'' -e "s/XXX-FUNDING-TIMESTAMP-PLACEHOLDER-XXX/${NEXT_FUNDING_TIMESTAMP}/g" $INJHOME/config/genesis.json
+
+	rm -f $INJHOME/config/tmp_campaign_rewards.json
+	touch $INJHOME/config/tmp_campaign_rewards.json
+	echo '[' >> $INJHOME/config/tmp_campaign_rewards.json
+
+	EPOCH_UNIX_TIMESTAMP=$CURRENT_UNIX_TIMESTAMP
+
+	for i in {1..35}
+	do
+	    EPOCH_UNIX_TIMESTAMP=$((EPOCH_UNIX_TIMESTAMP + 600))
+	    echo '{"start_timestamp": '$((EPOCH_UNIX_TIMESTAMP))', "max_campaign_rewards": [{"denom": "inj", "amount": "1000000000000000000000"}]},' >> $INJHOME/config/tmp_campaign_rewards.json
+	done
+
+	sed -i'' -e "$ s/.$//" $INJHOME/config/tmp_campaign_rewards.json
+
+	echo ']' >> $INJHOME/config/tmp_campaign_rewards.json
+
+	INITIAL_TRADING_CAMPAIGNS=$(cat $INJHOME/config/tmp_campaign_rewards.json)
+	cat $INJHOME/config/genesis.json | jq '.app_state["exchange"]["trading_reward_pool_campaign_schedule"]='"${INITIAL_TRADING_CAMPAIGNS}" > $INJHOME/config/tmp_genesis.json && mv $INJHOME/config/tmp_genesis.json $INJHOME/config/genesis.json
+fi
+
 cat $INJHOME/config/genesis.json | jq '.app_state["staking"]["params"]["bond_denom"]="inj"' > $INJHOME/config/tmp_genesis.json && mv $INJHOME/config/tmp_genesis.json $INJHOME/config/genesis.json
 cat $INJHOME/config/genesis.json | jq '.app_state["crisis"]["constant_fee"]["denom"]="inj"' > $INJHOME/config/tmp_genesis.json && mv $INJHOME/config/tmp_genesis.json $INJHOME/config/genesis.json
 cat $INJHOME/config/genesis.json | jq '.app_state["gov"]["params"]["min_deposit"][0]["denom"]="inj"' > $INJHOME/config/tmp_genesis.json && mv $INJHOME/config/tmp_genesis.json $INJHOME/config/genesis.json
@@ -40,6 +75,7 @@ cat $INJHOME/config/genesis.json | jq '.app_state["mint"]["params"]["mint_denom"
 cat $INJHOME/config/genesis.json | jq '.app_state["auction"]["params"]["auction_period"]="10"' > $INJHOME/config/tmp_genesis.json && mv $INJHOME/config/tmp_genesis.json $INJHOME/config/genesis.json
 cat $INJHOME/config/genesis.json | jq '.app_state["ocr"]["params"]["module_admin"]="'$FEEDADMIN'"' > $INJHOME/config/tmp_genesis.json && mv $INJHOME/config/tmp_genesis.json $INJHOME/config/genesis.json
 cat $INJHOME/config/genesis.json | jq '.app_state["ocr"]["params"]["payout_block_interval"]="5"' > $INJHOME/config/tmp_genesis.json && mv $INJHOME/config/tmp_genesis.json $INJHOME/config/genesis.json
+cat $INJHOME/config/genesis.json | jq '.consensus["params"]["block"]["max_gas"]="150000000"' > $INJHOME/config/tmp_genesis.json && mv $INJHOME/config/tmp_genesis.json $INJHOME/config/genesis.json
 
 INJ='{"denom":"inj","decimals":18}'
 

@@ -3,12 +3,12 @@ package keeper
 import (
 	"cosmossdk.io/math"
 	"cosmossdk.io/store/prefix"
+	"github.com/InjectiveLabs/metrics"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/InjectiveLabs/metrics"
-
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 )
 
 func (k *Keeper) GetMarketBalance(ctx sdk.Context, marketID common.Hash) math.LegacyDec {
@@ -25,12 +25,12 @@ func (k *Keeper) GetMarketBalance(ctx sdk.Context, marketID common.Hash) math.Le
 	return types.SignedDecBytesToDec(bz)
 }
 
-func (k *Keeper) GetAllMarketBalances(ctx sdk.Context) []*types.MarketBalance {
+func (k *Keeper) GetAllMarketBalances(ctx sdk.Context) []*v2.MarketBalance {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	store := k.getStore(ctx)
-	balances := make([]*types.MarketBalance, 0)
+	balances := make([]*v2.MarketBalance, 0)
 
 	marketBalancesStore := prefix.NewStore(store, types.MarketBalanceKey)
 
@@ -40,7 +40,7 @@ func (k *Keeper) GetAllMarketBalances(ctx sdk.Context) []*types.MarketBalance {
 	for ; iter.Valid(); iter.Next() {
 		marketID := common.BytesToHash(iter.Key()).String()
 		balance := types.SignedDecBytesToDec(iter.Value())
-		balances = append(balances, &types.MarketBalance{
+		balances = append(balances, &v2.MarketBalance{
 			MarketId: marketID,
 			Balance:  balance,
 		})
@@ -50,12 +50,20 @@ func (k *Keeper) GetAllMarketBalances(ctx sdk.Context) []*types.MarketBalance {
 }
 
 // CalculateMarketBalance calculates the market balance = sum(margins + pnls + fundings)
-func (k *Keeper) CalculateMarketBalance(ctx sdk.Context, marketID common.Hash, markPrice math.LegacyDec, marketFunding *types.PerpetualMarketFunding) math.LegacyDec {
+func (k *Keeper) CalculateMarketBalance(
+	ctx sdk.Context, marketID common.Hash, markPrice math.LegacyDec, marketFunding *v2.PerpetualMarketFunding,
+) math.LegacyDec {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	positions := k.GetAllPositionsByMarket(ctx, marketID)
 	marketBalance := math.LegacyZeroDec()
+
+	marketFinder := NewCachedMarketFinder(k)
+	market, err := marketFinder.FindMarket(ctx, marketID.String())
+	if err != nil {
+		return marketBalance
+	}
 
 	for idx := range positions {
 		position := positions[idx]
@@ -66,7 +74,10 @@ func (k *Keeper) CalculateMarketBalance(ctx sdk.Context, marketID common.Hash, m
 		positionMargin := position.Position.Margin
 		positionPnlAtOraclePrice := position.Position.GetPayoutFromPnl(markPrice, position.Position.Quantity)
 
-		marketBalance = marketBalance.Add(positionMargin).Add(positionPnlAtOraclePrice)
+		chainFormattedMargin := market.NotionalToChainFormat(positionMargin)
+		chainFormattedPnlAtOraclePrice := market.NotionalToChainFormat(positionPnlAtOraclePrice)
+
+		marketBalance = marketBalance.Add(chainFormattedMargin).Add(chainFormattedPnlAtOraclePrice)
 	}
 
 	return marketBalance
@@ -108,6 +119,7 @@ func (k *Keeper) ApplyMarketBalanceDelta(ctx sdk.Context, marketID common.Hash, 
 	defer doneFn()
 
 	balance := k.GetMarketBalance(ctx, marketID)
+
 	balance = balance.Add(delta)
 	k.SetMarketBalance(ctx, marketID, balance)
 }

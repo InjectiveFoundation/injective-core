@@ -8,13 +8,14 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 )
 
 func (k *Keeper) ensureValidDerivativeOrder(
 	ctx sdk.Context,
-	derivativeOrder *types.DerivativeOrder,
-	market DerivativeMarketI,
-	metadata *types.SubaccountOrderbookMetadata,
+	derivativeOrder *v2.DerivativeOrder,
+	market DerivativeMarketInterface,
+	metadata *v2.SubaccountOrderbookMetadata,
 	markPrice math.LegacyDec,
 	isMarketOrder bool,
 	orderMarginHold *math.LegacyDec,
@@ -138,7 +139,7 @@ func (k *Keeper) ensureValidDerivativeOrder(
 		// check that the position can actually be closed (position is not beyond bankruptcy)
 		isClosingPosition := position != nil && derivativeOrder.IsBuy() != position.IsLong && position.Quantity.IsPositive()
 		if isClosingPosition {
-			var funding *types.PerpetualMarketFunding
+			var funding *v2.PerpetualMarketFunding
 			if marketType.IsPerpetual() {
 				funding = k.GetPerpetualMarketFunding(ctx, marketID)
 			}
@@ -180,7 +181,8 @@ func (k *Keeper) ensureValidDerivativeOrder(
 		}
 
 		// Decrement the available balance by the funds amount needed to fund the order
-		if err := k.chargeAccount(ctx, subaccountID, market.GetQuoteDenom(), marginHold); err != nil {
+		chainFormattedMarginHold := market.NotionalToChainFormat(marginHold)
+		if err := k.chargeAccount(ctx, subaccountID, market.GetQuoteDenom(), chainFormattedMarginHold); err != nil {
 			return orderHash, err
 		}
 
@@ -203,8 +205,8 @@ func (k *Keeper) resolveReduceOnlyConflicts(
 	order types.IMutableDerivativeOrder,
 	subaccountID common.Hash,
 	marketID common.Hash,
-	metadata *types.SubaccountOrderbookMetadata,
-	position *types.Position,
+	metadata *v2.SubaccountOrderbookMetadata,
+	position *v2.Position,
 ) error {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
@@ -237,7 +239,7 @@ func (k *Keeper) resolveReduceOnlyConflicts(
 func (k *Keeper) cancelMinimumReduceOnlyOrders(
 	ctx sdk.Context,
 	marketID, subaccountID common.Hash,
-	metadata *types.SubaccountOrderbookMetadata,
+	metadata *v2.SubaccountOrderbookMetadata,
 	isReduceOnlyDirectionBuy bool,
 	positionQuantity math.LegacyDec,
 	eobResults *SubaccountOrderResults,
@@ -262,7 +264,7 @@ func (k *Keeper) cancelMinimumReduceOnlyOrders(
 	}
 
 	checkedFlippingQuantity, totalReduceOnlyCancelQuantity := math.LegacyZeroDec(), math.LegacyZeroDec()
-	ordersToCancel := make([]*types.SubaccountOrderData, 0)
+	ordersToCancel := make([]*v2.SubaccountOrderData, 0)
 
 	for _, order := range worstROandBetterOrders {
 		if isAddingNewOrder &&
@@ -288,9 +290,9 @@ func (k *Keeper) cancelMinimumReduceOnlyOrders(
 func (k *Keeper) cancelWorseOrdersToCancelIfRequired(
 	ctx sdk.Context,
 	marketID, subaccountID common.Hash,
-	metadata *types.SubaccountOrderbookMetadata,
+	metadata *v2.SubaccountOrderbookMetadata,
 	newOrder types.IDerivativeOrder,
-	position *types.Position,
+	position *v2.Position,
 	eobResults *SubaccountOrderResults,
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
@@ -306,9 +308,9 @@ func (k *Keeper) cancelWorseOrdersToCancelIfRequired(
 
 func (k *Keeper) resizeNewReduceOnlyIfRequired(
 	_ sdk.Context,
-	metadata *types.SubaccountOrderbookMetadata,
+	metadata *v2.SubaccountOrderbookMetadata,
 	order types.IMutableDerivativeOrder,
-	position *types.Position,
+	position *v2.Position,
 	betterOrEqualOrders *SubaccountOrderResults,
 ) error {
 	existingClosingQuantity := betterOrEqualOrders.GetCumulativeEOBReduceOnlyQuantity().Add(betterOrEqualOrders.GetCumulativeEOBVanillaQuantity())
@@ -331,7 +333,7 @@ func (k *Keeper) resizeNewReduceOnlyIfRequired(
 func (k *Keeper) cancelAllReduceOnlyOrders(
 	ctx sdk.Context,
 	marketID, subaccountID common.Hash,
-	metadata *types.SubaccountOrderbookMetadata,
+	metadata *v2.SubaccountOrderbookMetadata,
 	isBuy bool,
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
@@ -348,10 +350,10 @@ func (k *Keeper) cancelAllReduceOnlyOrders(
 func (k *Keeper) cancelReduceOnlyOrders(
 	ctx sdk.Context,
 	marketID, subaccountID common.Hash,
-	metadata *types.SubaccountOrderbookMetadata,
+	metadata *v2.SubaccountOrderbookMetadata,
 	isBuy bool,
 	totalReduceOnlyCancelQuantity math.LegacyDec,
-	ordersToCancel []*types.SubaccountOrderData,
+	ordersToCancel []*v2.SubaccountOrderData,
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
@@ -374,9 +376,9 @@ func (k *Keeper) ensureValidAccessLevelForAtomicExecution(
 	defer doneFn()
 
 	switch k.GetAtomicMarketOrderAccessLevel(ctx) {
-	case types.AtomicMarketOrderAccessLevel_Nobody:
+	case v2.AtomicMarketOrderAccessLevel_Nobody:
 		return types.ErrInvalidAccessLevel
-	case types.AtomicMarketOrderAccessLevel_SmartContractsOnly:
+	case v2.AtomicMarketOrderAccessLevel_SmartContractsOnly:
 		if !k.wasmViewKeeper.HasContractInfo(ctx, sender) { // sender is not a smart-contract
 			metrics.ReportFuncError(k.svcTags)
 			return types.ErrInvalidAccessLevel

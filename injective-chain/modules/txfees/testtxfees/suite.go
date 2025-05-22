@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	tmproto "github.com/cometbft/cometbft/proto/tendermint/types"
+	cmtproto "github.com/cometbft/cometbft/api/cometbft/types/v1"
 	"github.com/cosmos/cosmos-sdk/client/flags"
 	simtestutil "github.com/cosmos/cosmos-sdk/testutil/sims"
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -24,7 +24,7 @@ func NewTestSuite(t *testing.T) TestSuite {
 		flags.FlagHome: t.TempDir(), // enables parallel execution of tests (wasm VM)
 	})
 
-	ctx := app.BaseApp.NewContextLegacy(false, tmproto.Header{
+	ctx := app.NewContextLegacy(false, cmtproto.Header{
 		Height: 1,
 		Time:   time.Now().UTC(),
 	})

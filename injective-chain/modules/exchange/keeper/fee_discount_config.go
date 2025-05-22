@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 )
 
 type ValidatorCache map[string]stakingtypes.ValidatorI
@@ -76,10 +77,10 @@ func (c *FeeDiscountConfig) incrementAccountVolumeContribution(
 		}
 	}
 
-	newVolume := types.NewVolumeWithSingleType(amount, isMaker)
+	newVolume := v2.NewVolumeWithSingleType(amount, isMaker)
 	// the SubaccountMarketVolumeContributions is still fine to update though since volumes are recorded on a per-market level
 	if innerMap, ok := c.SubaccountMarketVolumeContributions[subaccountID]; !ok {
-		c.SubaccountMarketVolumeContributions[subaccountID] = map[common.Hash]types.VolumeRecord{
+		c.SubaccountMarketVolumeContributions[subaccountID] = map[common.Hash]v2.VolumeRecord{
 			marketID: newVolume,
 		}
 	} else {
@@ -92,18 +93,18 @@ func (c *FeeDiscountConfig) incrementAccountVolumeContribution(
 }
 
 func NewFeeDiscountStakingInfo(
-	schedule *types.FeeDiscountSchedule,
+	schedule *v2.FeeDiscountSchedule,
 	currBucketStartTimestamp, oldestBucketStartTimestamp int64,
 	maxTTLTimestamp int64,
 	nextTTLTimestamp int64,
 	isFirstFeeCycleFinished bool,
 ) *FeeDiscountStakingInfo {
 	return &FeeDiscountStakingInfo{
-		SubaccountMarketVolumeContributions: make(map[common.Hash]map[common.Hash]types.VolumeRecord),
+		SubaccountMarketVolumeContributions: make(map[common.Hash]map[common.Hash]v2.VolumeRecord),
 		AccountVolumeContributions:          make(map[types.Account]math.LegacyDec),
 		AccountFeeTiers:                     make(map[types.Account]*types.FeeDiscountRates),
 		Validators:                          make(ValidatorCache),
-		NewAccounts:                         make(map[types.Account]*types.FeeDiscountTierTTL),
+		NewAccounts:                         make(map[types.Account]*v2.FeeDiscountTierTTL),
 		GrantCheckpoints:                    make(map[string]struct{}),
 		InvalidGrants:                       make(map[string]string),
 		AccountFeeTiersMux:                  new(sync.RWMutex),
@@ -123,11 +124,11 @@ func NewFeeDiscountStakingInfo(
 
 type FeeDiscountStakingInfo struct {
 	// subaccountID => marketID => volume
-	SubaccountMarketVolumeContributions map[common.Hash]map[common.Hash]types.VolumeRecord
+	SubaccountMarketVolumeContributions map[common.Hash]map[common.Hash]v2.VolumeRecord
 	AccountVolumeContributions          map[types.Account]math.LegacyDec
 	AccountFeeTiers                     map[types.Account]*types.FeeDiscountRates
 	Validators                          ValidatorCache
-	NewAccounts                         map[types.Account]*types.FeeDiscountTierTTL
+	NewAccounts                         map[types.Account]*v2.FeeDiscountTierTTL
 	GrantCheckpoints                    map[string]struct{}
 	InvalidGrants                       map[string]string // grantee => granter
 
@@ -137,7 +138,7 @@ type FeeDiscountStakingInfo struct {
 	NewAccountsMux     *sync.RWMutex
 	GrantsMux          *sync.RWMutex
 
-	Schedule                   *types.FeeDiscountSchedule
+	Schedule                   *v2.FeeDiscountSchedule
 	CurrBucketStartTimestamp   int64
 	OldestBucketStartTimestamp int64
 	MaxTTLTimestamp            int64
@@ -148,7 +149,7 @@ type FeeDiscountStakingInfo struct {
 
 type AccountTierTTL struct {
 	Account sdk.AccAddress
-	TierTTL *types.FeeDiscountTierTTL
+	TierTTL *v2.FeeDiscountTierTTL
 }
 
 type AccountContribution struct {
@@ -159,12 +160,12 @@ type AccountContribution struct {
 type SubaccountVolumeContribution struct {
 	SubaccountID common.Hash
 	MarketID     common.Hash
-	Volume       types.VolumeRecord
+	Volume       v2.VolumeRecord
 }
 
 type MarketVolumeContribution struct {
 	MarketID common.Hash
-	Volume   types.VolumeRecord
+	Volume   v2.VolumeRecord
 }
 
 func (info *FeeDiscountStakingInfo) getSortedNewFeeDiscountAccountTiers() []*AccountTierTTL {
@@ -206,7 +207,7 @@ func (info *FeeDiscountStakingInfo) getSortedSubaccountAndMarketVolumes() (
 	[]*MarketVolumeContribution,
 ) {
 	subaccountVolumes := make([]*SubaccountVolumeContribution, 0, len(info.AccountFeeTiers))
-	marketVolumeTracker := make(map[common.Hash]types.VolumeRecord)
+	marketVolumeTracker := make(map[common.Hash]v2.VolumeRecord)
 
 	info.AccountVolumesMux.RLock()
 	for subaccountID, innerMap := range info.SubaccountMarketVolumeContributions {
@@ -249,13 +250,13 @@ func (info *FeeDiscountStakingInfo) getSortedSubaccountAndMarketVolumes() (
 
 func (info *FeeDiscountStakingInfo) getSortedGrantCheckpointGrantersAndInvalidGrants() (
 	granters []string,
-	invalidGrants []*types.EventInvalidGrant,
+	invalidGrants []*v2.EventInvalidGrant,
 ) {
 	info.GrantsMux.RLock()
 	defer info.GrantsMux.RUnlock()
 
 	granters = make([]string, 0, len(info.GrantCheckpoints))
-	invalidGrants = make([]*types.EventInvalidGrant, 0, len(info.InvalidGrants))
+	invalidGrants = make([]*v2.EventInvalidGrant, 0, len(info.InvalidGrants))
 
 	for k := range info.GrantCheckpoints {
 		granters = append(granters, k)
@@ -266,7 +267,7 @@ func (info *FeeDiscountStakingInfo) getSortedGrantCheckpointGrantersAndInvalidGr
 	})
 
 	for k, v := range info.InvalidGrants {
-		invalidGrants = append(invalidGrants, &types.EventInvalidGrant{
+		invalidGrants = append(invalidGrants, &v2.EventInvalidGrant{
 			Grantee: k,
 			Granter: v,
 		})
@@ -286,7 +287,7 @@ func (info *FeeDiscountStakingInfo) setAccountTierInfo(accAddress sdk.AccAddress
 
 func (info *FeeDiscountStakingInfo) setNewAccountTierTTL(accAddress sdk.AccAddress, tier uint64) {
 	info.NewAccountsMux.Lock()
-	info.NewAccounts[types.SdkAccAddressToAccount(accAddress)] = &types.FeeDiscountTierTTL{
+	info.NewAccounts[types.SdkAccAddressToAccount(accAddress)] = &v2.FeeDiscountTierTTL{
 		Tier:         tier,
 		TtlTimestamp: info.NextTTLTimestamp,
 	}

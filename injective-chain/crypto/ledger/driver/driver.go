@@ -371,7 +371,7 @@ func (w *LedgerDriver) ledgerExchange(opcode ledgerOpcode, p1 ledgerParam1, p2 l
 	// Construct the message payload, possibly split into multiple chunks
 	apdu := make([]byte, 2, 7+len(data))
 
-	//#nosec G701 -- gosec will raise a warning on this integer conversion for potential overflow
+	// #nosec G701 -- gosec will raise a warning on this integer conversion for potential overflow
 	binary.BigEndian.PutUint16(apdu, uint16(5+len(data)))
 	apdu = append(apdu, []byte{0xe0, byte(opcode), byte(p1), byte(p2), byte(len(data))}...)
 	apdu = append(apdu, data...)
@@ -384,7 +384,7 @@ func (w *LedgerDriver) ledgerExchange(opcode ledgerOpcode, p1 ledgerParam1, p2 l
 	for i := 0; len(apdu) > 0; i++ {
 		// Construct the new message to stream
 		chunk = append(chunk[:0], header...)
-		//#nosec G701 -- gosec will raise a warning on this integer conversion for potential overflow
+		// #nosec G701 -- gosec will raise a warning on this integer conversion for potential overflow
 		binary.BigEndian.PutUint16(chunk[3:], uint16(i))
 
 		if len(apdu) > space {
@@ -416,19 +416,18 @@ func (w *LedgerDriver) ledgerExchange(opcode ledgerOpcode, p1 ledgerParam1, p2 l
 		var payload []byte
 
 		if chunk[3] == 0x00 && chunk[4] == 0x00 {
-			//#nosec G701 -- gosec will raise a warning on this integer conversion for potential overflow
+			// #nosec G701 -- gosec will raise a warning on this integer conversion for potential overflow
 			reply = make([]byte, 0, int(binary.BigEndian.Uint16(chunk[5:7])))
 			payload = chunk[7:]
 		} else {
 			payload = chunk[5:]
 		}
 		// Append to the reply and stop when filled up
-		if left := cap(reply) - len(reply); left > len(payload) {
-			reply = append(reply, payload...)
-		} else {
+		if left := cap(reply) - len(reply); left <= len(payload) {
 			reply = append(reply, payload[:left]...)
 			break
 		}
+		reply = append(reply, payload...)
 	}
 	return reply[:len(reply)-2], nil
 }

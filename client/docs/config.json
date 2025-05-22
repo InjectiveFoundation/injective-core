@@ -10,6 +10,79 @@
       "url": "./tmp-swagger-gen/injective/exchange/v1beta1/query.swagger.json",
       "operationIds": {
         "rename": {
+          "ActiveStakeGrant": "LegacyActiveStakeGrant",
+          "MarketAtomicExecutionFeeMultiplier": "LegacyMarketAtomicExecutionFeeMultiplier",
+          "BalanceMismatches": "LegacyBalanceMismatches",
+          "BalanceWithBalanceHolds": "LegacyBalanceWithBalanceHolds",
+          "BinaryOptionsMarkets": "LegacyBinaryOptionsMarkets",
+          "DenomMinNotional": "LegacyDenomMinNotional",
+          "DenomMinNotionals": "LegacyDenomMinNotionals",
+          "L3DerivativeOrderBook": "LegacyL3DerivativeOrderBook",
+          "DerivativeMarketAddress": "LegacyDerivativeMarketAddress",
+          "DerivativeMarkets": "LegacyDerivativeMarkets",
+          "DerivativeMarket": "LegacyDerivativeMarket",
+          "DerivativeMidPriceAndTOB": "LegacyDerivativeMidPriceAndTOB",
+          "DerivativeOrderbook": "LegacyDerivativeOrderbook",
+          "TraderDerivativeConditionalOrders": "LegacyTraderDerivativeConditionalOrders",
+          "AccountAddressDerivativeOrders": "LegacyAccountAddressDerivativeOrders",
+          "TraderDerivativeOrders": "LegacyTraderDerivativeOrders",
+          "DerivativeOrdersByHashes": "LegacyDerivativeOrdersByHashes",
+          "TraderDerivativeTransientOrders": "LegacyTraderDerivativeTransientOrders",
+          "SubaccountEffectivePositionInMarket": "LegacySubaccountEffectivePositionInMarket",
+          "AggregateMarketVolume": "LegacyAggregateMarketVolume",
+          "AggregateMarketVolumes": "LegacyAggregateMarketVolumes",
+          "AggregateVolume": "LegacyAggregateVolume",
+          "AggregateVolumes": "LegacyAggregateVolumes",
+          "DenomDecimal": "LegacyDenomDecimal",
+          "DenomDecimals": "LegacyDenomDecimals",
+          "ExchangeBalances": "LegacyExchangeBalances",
+          "SubaccountDeposit": "LegacySubaccountDeposit",
+          "SubaccountDeposits": "LegacySubaccountDeposits",
+          "SubaccountTradeNonce": "LegacySubaccountTradeNonce",
+          "ExpiryFuturesMarketInfo": "LegacyExpiryFuturesMarketInfo",
+          "FeeDiscountAccountInfo": "LegacyFeeDiscountAccountInfo",
+          "FeeDiscountSchedule": "LegacyFeeDiscountSchedule",
+          "FeeDiscountTierStatistics": "LegacyFeeDiscountTierStatistics",
+          "GrantAuthorization": "LegacyGrantAuthorization",
+          "GrantAuthorizations": "LegacyGrantAuthorizations",
+          "HistoricalTradeRecords": "LegacyHistoricalTradeRecords",
+          "IsOptedOutOfRewards": "LegacyIsOptedOutOfRewards",
+          "MarketBalance": "LegacyMarketBalance",
+          "MarketBalances": "LegacyMarketBalances",
+          "MarketVolatility": "LegacyMarketVolatility",
+          "MitoVaultInfos": "LegacyMitoVaultInfos",
+          "ExchangeModuleState": "LegacyExchangeModuleState",
+          "OptedOutOfRewardsAccounts": "LegacyOptedOutOfRewardsAccounts",
+          "SubaccountOrderMetadata": "LegacySubaccountOrderMetadata",
+          "SubaccountOrders": "LegacySubaccountOrders",
+          "PendingTradeRewardPoints": "LegacyPendingTradeRewardPoints",
+          "PerpetualMarketFunding": "LegacyPerpetualMarketFunding",
+          "PerpetualMarketInfo": "LegacyPerpetualMarketInfo",
+          "Positions": "LegacyPositions",
+          "SubaccountPositions": "LegacySubaccountPositions",
+          "SubaccountPositionInMarket": "LegacySubaccountPositionInMarket",
+          "L3SpotOrderBook": "LegacyL3SpotOrderBook",
+          "FullSpotMarket": "LegacyFullSpotMarket",
+          "FullSpotMarkets": "LegacyFullSpotMarkets",
+          "SpotMarkets": "LegacySpotMarkets",
+          "SpotMarket": "LegacySpotMarket",
+          "SpotMidPriceAndTOB": "LegacySpotMidPriceAndTOB",
+          "SpotOrderbook": "LegacySpotOrderbook",
+          "AccountAddressSpotOrders": "LegacyAccountAddressSpotOrders",
+          "TraderSpotOrders": "LegacyTraderSpotOrders",
+          "SpotOrdersByHashes": "LegacySpotOrdersByHashes",
+          "TraderSpotTransientOrders": "LegacyTraderSpotTransientOrders",
+          "TradeRewardCampaign": "LegacyTradeRewardCampaign",
+          "TradeRewardPoints": "LegacyTradeRewardPoints",
+          "QueryMarketIDFromVault": "LegacyQueryMarketIDFromVault", 
+          "QueryExchangeParams": "LegacyQueryExchangeParams"
+        }
+      }
+    },
+    {
+      "url": "./tmp-swagger-gen/injective/exchange/v2/query.swagger.json",
+      "operationIds": {
+        "rename": {
           "Params": "ExchangeParams"
         }
       }
@@ -67,6 +140,32 @@
       "operationIds": {
         "rename": {
           "Params": "TokenfactoryParams"
+        }
+      }
+    },
+    {
+      "url": "./tmp-swagger-gen/injective/permissions/v1beta1/query.swagger.json",
+      "operationIds": {
+        "rename": {
+          "Params": "PermissionsParams"
+        }
+      }
+    },
+    {
+      "url": "./tmp-swagger-gen/injective/evm/v1/query.swagger.json",
+      "operationIds": {
+        "rename": {
+          "Params": "EvmParams",
+          "Code": "EvmCode"
+        }
+      }
+    },
+    {
+      "url": "./tmp-swagger-gen/injective/erc20/v1beta1/query.swagger.json",
+      "operationIds": {
+        "rename": {
+          "Params": "Erc20Params",
+          "Code": "Erc20Code"
         }
       }
     },

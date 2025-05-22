@@ -14,8 +14,8 @@ import (
 	"cosmossdk.io/log"
 	"cosmossdk.io/store/rootmulti"
 	abci "github.com/cometbft/cometbft/abci/types"
+	cmtypes "github.com/cometbft/cometbft/api/cometbft/types/v1"
 	"github.com/cometbft/cometbft/crypto/ed25519"
-	tmtypes "github.com/cometbft/cometbft/proto/tendermint/types"
 	dbm "github.com/cosmos/cosmos-db"
 	"github.com/cosmos/cosmos-sdk/baseapp"
 	"github.com/cosmos/cosmos-sdk/client"
@@ -55,7 +55,7 @@ var (
 // Setup sets up basic environment for suite (App, Ctx, and test accounts)
 func (s *KeeperTestHelper) Setup() {
 	s.App = app.Setup(false)
-	s.Ctx = s.App.BaseApp.NewContextLegacy(false, tmtypes.Header{Height: 1, ChainID: "sei-test", Time: time.Now().UTC()})
+	s.Ctx = s.App.NewContextLegacy(false, cmtypes.Header{Height: 1, ChainID: "sei-test", Time: time.Now().UTC()})
 	s.QueryHelper = &baseapp.QueryServiceTestHelper{
 		GRPCQueryRouter: s.App.GRPCQueryRouter(),
 		Ctx:             s.Ctx,
@@ -80,7 +80,7 @@ func (s *KeeperTestHelper) CreateTestContext() sdk.Context {
 
 	ms := rootmulti.NewStore(db, logger, metrics.NewNoOpMetrics())
 
-	return sdk.NewContext(ms, tmtypes.Header{}, false, logger)
+	return sdk.NewContext(ms, cmtypes.Header{}, false, logger)
 }
 
 // CreateTestContextWithMultiStore creates a test context and returns it together with multi store.
@@ -90,7 +90,7 @@ func (s *KeeperTestHelper) CreateTestContextWithMultiStore() (sdk.Context, store
 
 	ms := rootmulti.NewStore(db, logger, metrics.NewNoOpMetrics())
 
-	return sdk.NewContext(ms, tmtypes.Header{}, false, logger), ms
+	return sdk.NewContext(ms, cmtypes.Header{}, false, logger), ms
 }
 
 func (s *KeeperTestHelper) Commit() {
@@ -99,7 +99,7 @@ func (s *KeeperTestHelper) Commit() {
 	_, err := s.App.Commit()
 	s.Require().NoError(err)
 
-	newHeader := tmtypes.Header{Height: oldHeight + 1, ChainID: oldHeader.ChainID, Time: time.Now().UTC()}
+	newHeader := cmtypes.Header{Height: oldHeight + 1, ChainID: oldHeader.ChainID, Time: time.Now().UTC()}
 	_, err = s.App.BeginBlocker(s.App.GetBaseApp().NewContextLegacy(false, newHeader))
 	s.Require().NoError(err)
 }

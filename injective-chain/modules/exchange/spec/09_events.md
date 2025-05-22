@@ -166,4 +166,92 @@ message EventTradingRewardCampaignUpdate {
 message EventTradingRewardDistribution {
   repeated AccountRewards account_rewards = 1;
 }
+
+message EventMarketBeyondBankruptcy {
+  string market_id = 1;
+  string settle_price = 2;
+  string missing_market_funds = 3;
+}
+
+message EventAllPositionsHaircut {
+  string market_id = 1;
+  string settle_price = 2;
+  string missing_funds_rate = 3;
+}
+
+message EventNewConditionalDerivativeOrder {
+  string market_id = 1;
+  DerivativeOrder order = 2;
+  bytes hash = 3;
+  bool is_market = 4;
+}
+
+message EventCancelConditionalDerivativeOrder {
+  string market_id = 1;
+  bool isLimitCancel = 2;
+  DerivativeLimitOrder limit_order = 3 [ (gogoproto.nullable) = true ];
+  DerivativeMarketOrder market_order = 4 [ (gogoproto.nullable) = true ];
+}
+
+message EventConditionalDerivativeOrderTrigger {
+  string market_id = 1;
+  bool isLimitTrigger = 2;
+  bytes triggered_order_hash = 3;
+  bytes placed_order_hash = 4;
+  string triggered_order_cid = 5;
+}
+
+message EventOrderFail {
+  bytes account = 1;
+  repeated bytes hashes = 2;
+  repeated uint32 flags = 3;
+  repeated string cids = 4;
+}
+
+message EventAtomicMarketOrderFeeMultipliersUpdated {
+  repeated MarketFeeMultiplier market_fee_multipliers = 1;
+}
+
+message EventOrderbookUpdate {
+  repeated OrderbookUpdate spot_updates = 1;
+  repeated OrderbookUpdate derivative_updates = 2;
+}
+
+message OrderbookUpdate {
+  uint64 seq = 1;
+  Orderbook orderbook = 2;
+}
+
+message Orderbook {
+  string market_id = 1;
+  repeated Level buy_levels = 2;
+  repeated Level sell_levels = 3;
+}
+
+message EventGrantAuthorizations {
+  string granter = 1;
+  repeated GrantAuthorization grants = 2;
+}
+
+message EventGrantActivation {
+  string grantee = 1;
+  string granter = 2;
+  string amount = 3 [
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+}
+
+message EventInvalidGrant {
+  string grantee = 1;
+  string granter = 2;
+}
+
+message EventOrderCancelFail {
+  string market_id = 1;
+  string subaccount_id = 2;
+  string order_hash = 3;
+  string cid = 4;
+  string description = 5;
+}
 ```

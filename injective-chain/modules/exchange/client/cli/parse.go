@@ -7,20 +7,33 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 
 	"cosmossdk.io/math"
 	"github.com/cosmos/cosmos-sdk/client"
-	"github.com/spf13/cobra"
-
 	govcli "github.com/cosmos/cosmos-sdk/x/gov/client/cli"
 	"github.com/pkg/errors"
+	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
-	exchangetypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 )
 
-func parseSubmitFeeDiscountProposalFlags(fs *pflag.FlagSet) (*exchangetypes.FeeDiscountProposal, error) {
-	proposal := &exchangetypes.FeeDiscountProposal{}
+// orderParams holds the basic parameters extracted from command flags
+type orderParams struct {
+	marketId        string
+	orderType       v2.OrderType
+	reduceOnly      bool
+	price           math.LegacyDec
+	quantity        math.LegacyDec
+	subaccountId    string
+	feeRecipient    string
+	expirationBlock int64
+}
+
+func parseSubmitFeeDiscountProposalFlags(fs *pflag.FlagSet) (*v2.FeeDiscountProposal, error) {
+	proposal := &v2.FeeDiscountProposal{}
 	proposalFile, _ := fs.GetString(govcli.FlagProposal)
 
 	contents, err := os.ReadFile(proposalFile)
@@ -36,8 +49,8 @@ func parseSubmitFeeDiscountProposalFlags(fs *pflag.FlagSet) (*exchangetypes.FeeD
 	return proposal, nil
 }
 
-func parseBatchCommunityPoolSpendProposalFlags(fs *pflag.FlagSet) (*exchangetypes.BatchCommunityPoolSpendProposal, error) {
-	proposal := &exchangetypes.BatchCommunityPoolSpendProposal{}
+func parseBatchCommunityPoolSpendProposalFlags(fs *pflag.FlagSet) (*v2.BatchCommunityPoolSpendProposal, error) {
+	proposal := &v2.BatchCommunityPoolSpendProposal{}
 	proposalFile, _ := fs.GetString(govcli.FlagProposal)
 
 	contents, err := os.ReadFile(proposalFile)
@@ -53,8 +66,8 @@ func parseBatchCommunityPoolSpendProposalFlags(fs *pflag.FlagSet) (*exchangetype
 	return proposal, nil
 }
 
-func parseTradingRewardCampaignUpdateProposalFlags(fs *pflag.FlagSet) (*exchangetypes.TradingRewardCampaignUpdateProposal, error) {
-	proposal := &exchangetypes.TradingRewardCampaignUpdateProposal{}
+func parseTradingRewardCampaignUpdateProposalFlags(fs *pflag.FlagSet) (*v2.TradingRewardCampaignUpdateProposal, error) {
+	proposal := &v2.TradingRewardCampaignUpdateProposal{}
 	proposalFile, _ := fs.GetString(govcli.FlagProposal)
 
 	contents, err := os.ReadFile(proposalFile)
@@ -70,8 +83,8 @@ func parseTradingRewardCampaignUpdateProposalFlags(fs *pflag.FlagSet) (*exchange
 	return proposal, nil
 }
 
-func parseTradingRewardCampaignLaunchProposalFlags(fs *pflag.FlagSet) (*exchangetypes.TradingRewardCampaignLaunchProposal, error) {
-	proposal := &exchangetypes.TradingRewardCampaignLaunchProposal{}
+func parseTradingRewardCampaignLaunchProposalFlags(fs *pflag.FlagSet) (*v2.TradingRewardCampaignLaunchProposal, error) {
+	proposal := &v2.TradingRewardCampaignLaunchProposal{}
 	proposalFile, _ := fs.GetString(govcli.FlagProposal)
 
 	contents, err := os.ReadFile(proposalFile)
@@ -87,8 +100,8 @@ func parseTradingRewardCampaignLaunchProposalFlags(fs *pflag.FlagSet) (*exchange
 	return proposal, nil
 }
 
-func parseTradingRewardPointsUpdateProposalFlags(fs *pflag.FlagSet) (*exchangetypes.TradingRewardPendingPointsUpdateProposal, error) {
-	proposal := &exchangetypes.TradingRewardPendingPointsUpdateProposal{}
+func parseTradingRewardPointsUpdateProposalFlags(fs *pflag.FlagSet) (*v2.TradingRewardPendingPointsUpdateProposal, error) {
+	proposal := &v2.TradingRewardPendingPointsUpdateProposal{}
 	proposalFile, _ := fs.GetString(govcli.FlagProposal)
 
 	contents, err := os.ReadFile(proposalFile)
@@ -104,7 +117,7 @@ func parseTradingRewardPointsUpdateProposalFlags(fs *pflag.FlagSet) (*exchangety
 	return proposal, nil
 }
 
-func parseBatchExchangeModificationsProposalFlags(fs *pflag.FlagSet) (*exchangetypes.BatchExchangeModificationProposal, error) {
+func parseBatchExchangeModificationsProposalFlags(fs *pflag.FlagSet) (*v2.BatchExchangeModificationProposal, error) {
 	proposalFile, err := fs.GetString(govcli.FlagProposal)
 	if err != nil {
 		return nil, err
@@ -115,7 +128,7 @@ func parseBatchExchangeModificationsProposalFlags(fs *pflag.FlagSet) (*exchanget
 		return nil, err
 	}
 
-	content := exchangetypes.BatchExchangeModificationProposal{}
+	content := v2.BatchExchangeModificationProposal{}
 	jsonDecoder := json.NewDecoder(bytes.NewReader(bz))
 	jsonDecoder.DisallowUnknownFields()
 
@@ -127,24 +140,44 @@ func parseBatchExchangeModificationsProposalFlags(fs *pflag.FlagSet) (*exchanget
 	return &content, nil
 }
 
-func parseDerivativeOrderFlags(cmd *cobra.Command, ctx client.Context) (*exchangetypes.DerivativeOrder, error) {
-
-	marketId, err := cmd.Flags().GetString(FlagMarketID)
+func parseDerivativeOrderFlags(cmd *cobra.Command, ctx client.Context) (*v2.DerivativeOrder, error) {
+	// Extract basic order parameters
+	orderParams, err := extractBasicOrderParams(cmd)
 	if err != nil {
 		return nil, err
 	}
 
-	queryClient := exchangetypes.NewQueryClient(ctx)
-	req := &exchangetypes.QueryBinaryMarketsRequest{
-		Status: "Active",
+	// Calculate margin if not a reduce-only order
+	margin := math.LegacyZeroDec()
+	if !orderParams.reduceOnly {
+		margin, err = calculateOrderMargin(ctx, orderParams)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Build the order
+	order := buildDerivativeOrder(orderParams, margin)
+
+	// Add optional CID if present
+	if err := addOptionalCID(cmd, &order); err != nil {
+		return nil, err
+	}
+
+	return &order, nil
+}
+
+// extractBasicOrderParams extracts the basic order parameters from command flags
+func extractBasicOrderParams(cmd *cobra.Command) (*orderParams, error) {
+	marketId, err := cmd.Flags().GetString(FlagMarketID)
+	if err != nil {
+		return nil, err
 	}
 
 	orderType, err := orderTypeFromFlag(cmd, FlagOrderType)
 	if err != nil {
 		return nil, err
 	}
-
-	margin := math.LegacyZeroDec()
 
 	reduceOnly, err := cmd.Flags().GetBool(FlagReduceOnly)
 	if err != nil {
@@ -161,27 +194,6 @@ func parseDerivativeOrderFlags(cmd *cobra.Command, ctx client.Context) (*exchang
 		return nil, err
 	}
 
-	if !reduceOnly {
-		response, err := queryClient.BinaryOptionsMarkets(context.Background(), req)
-		if err != nil {
-			return nil, err
-		}
-		var market *exchangetypes.BinaryOptionsMarket
-		for _, m := range response.GetMarkets() {
-			if m.MarketId == marketId {
-				market = m
-			}
-		}
-		if market == nil {
-			return nil, errors.New(fmt.Sprintf("Cannot find market with id: %s", marketId))
-		}
-
-		if orderType == exchangetypes.OrderType_BUY {
-			margin = price.Mul(quantity)
-		} else {
-			margin = exchangetypes.GetScaledPrice(math.LegacyOneDec(), market.OracleScaleFactor).Sub(price).Mul(quantity)
-		}
-	}
 	subaccountId, err := cmd.Flags().GetString(FlagSubaccountID)
 	if err != nil {
 		return nil, err
@@ -192,76 +204,144 @@ func parseDerivativeOrderFlags(cmd *cobra.Command, ctx client.Context) (*exchang
 		return nil, err
 	}
 
-	order := exchangetypes.DerivativeOrder{
-		MarketId: marketId,
-		OrderInfo: exchangetypes.OrderInfo{
-			SubaccountId: subaccountId,
-			FeeRecipient: feeRecipient,
-			Price:        price,
-			Quantity:     quantity,
-		},
-		OrderType:    orderType,
-		Margin:       margin,
-		TriggerPrice: nil, // not supported currently
+	expirationBlock, err := cmd.Flags().GetString(FlagExpirationBlock)
+	if err != nil {
+		expirationBlock = "0"
 	}
 
+	expirationBlockInt, err := strconv.ParseInt(expirationBlock, 10, 64)
+	if err != nil {
+		return nil, err
+	}
+
+	return &orderParams{
+		marketId:        marketId,
+		orderType:       orderType,
+		reduceOnly:      reduceOnly,
+		price:           price,
+		quantity:        quantity,
+		subaccountId:    subaccountId,
+		feeRecipient:    feeRecipient,
+		expirationBlock: expirationBlockInt,
+	}, nil
+}
+
+// calculateOrderMargin calculates the margin for a non-reduce-only order
+func calculateOrderMargin(ctx client.Context, params *orderParams) (math.LegacyDec, error) {
+	// Get the market information
+	market, err := findMarketById(ctx, params.marketId)
+	if err != nil {
+		return math.LegacyZeroDec(), err
+	}
+
+	// Calculate margin based on order type
+	return calculateMarginAmount(params, market)
+}
+
+// findMarketById retrieves the market information by its ID
+func findMarketById(ctx client.Context, marketId string) (*v2.BinaryOptionsMarket, error) {
+	queryClient := v2.NewQueryClient(ctx)
+	req := &v2.QueryBinaryMarketsRequest{
+		Status: "Active",
+	}
+
+	response, err := queryClient.BinaryOptionsMarkets(context.Background(), req)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, m := range response.GetMarkets() {
+		if m.MarketId == marketId {
+			return m, nil
+		}
+	}
+
+	return nil, fmt.Errorf("cannot find market with id: %s", marketId)
+}
+
+// calculateMarginAmount calculates the margin amount based on order parameters and market information
+func calculateMarginAmount(params *orderParams, market *v2.BinaryOptionsMarket) (math.LegacyDec, error) {
+	if params.orderType == v2.OrderType_BUY {
+		return params.price.Mul(params.quantity), nil
+	}
+	return types.GetScaledPrice(math.LegacyOneDec(), market.OracleScaleFactor).Sub(params.price).Mul(params.quantity), nil
+}
+
+// buildDerivativeOrder creates a derivative order from the given parameters
+func buildDerivativeOrder(params *orderParams, margin math.LegacyDec) v2.DerivativeOrder {
+	return v2.DerivativeOrder{
+		MarketId: params.marketId,
+		OrderInfo: v2.OrderInfo{
+			SubaccountId: params.subaccountId,
+			FeeRecipient: params.feeRecipient,
+			Price:        params.price,
+			Quantity:     params.quantity,
+		},
+		OrderType:       params.orderType,
+		Margin:          margin,
+		TriggerPrice:    nil, // not supported currently
+		ExpirationBlock: params.expirationBlock,
+	}
+}
+
+// addOptionalCID adds the CID to the order if it's present in the flags
+func addOptionalCID(cmd *cobra.Command, order *v2.DerivativeOrder) error {
 	cidFlag := cmd.Flags().Lookup(FlagCID)
 	if cidFlag != nil {
 		cid, err := cmd.Flags().GetString(FlagCID)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		order.OrderInfo.Cid = cid
 	}
-
-	return &order, nil
+	return nil
 }
 
-func orderTypeFromFlag(cmd *cobra.Command, flag string) (exchangetypes.OrderType, error) {
+func orderTypeFromFlag(cmd *cobra.Command, flag string) (v2.OrderType, error) {
 	orderTypeStr, err := cmd.Flags().GetString(flag)
 	if err != nil {
-		return exchangetypes.OrderType_UNSPECIFIED, err
+		return v2.OrderType_UNSPECIFIED, err
 	}
 
-	var orderType exchangetypes.OrderType
+	var orderType v2.OrderType
 	switch orderTypeStr {
 	case "buy":
-		orderType = exchangetypes.OrderType_BUY
+		orderType = v2.OrderType_BUY
 	case "buyPostOnly":
-		orderType = exchangetypes.OrderType_BUY_PO
+		orderType = v2.OrderType_BUY_PO
 	case "sell":
-		orderType = exchangetypes.OrderType_SELL
+		orderType = v2.OrderType_SELL
 	case "sellPostOnly":
-		orderType = exchangetypes.OrderType_SELL_PO
+		orderType = v2.OrderType_SELL_PO
 	case "buyAtomic":
-		orderType = exchangetypes.OrderType_BUY_ATOMIC
+		orderType = v2.OrderType_BUY_ATOMIC
 	case "sellAtomic":
-		orderType = exchangetypes.OrderType_SELL_ATOMIC
+		orderType = v2.OrderType_SELL_ATOMIC
 	default:
-		return exchangetypes.OrderType_UNSPECIFIED, errors.New("order type must be \"buy\", \"buyPostOnly\", \"sellPostOnly\" or \"sell\" or \"buyAtomic\" or \"sellAtomic\"")
+		return v2.OrderType_UNSPECIFIED, errors.New("order type must be \"buy\", \"buyPostOnly\", \"sellPostOnly\" or \"sell\" or \"buyAtomic\" or \"sellAtomic\"")
 	}
 
 	return orderType, nil
 }
 
-func marketStatusFromFlag(cmd *cobra.Command, flag string) (exchangetypes.MarketStatus, error) {
+func marketStatusFromFlag(cmd *cobra.Command, flag string) (v2.MarketStatus, error) {
 	marketStatusStr, err := cmd.Flags().GetString(flag)
 	if err != nil {
-		return exchangetypes.MarketStatus_Unspecified, err
+		return v2.MarketStatus_Unspecified, err
 	}
 
-	var marketStatus exchangetypes.MarketStatus
+	var marketStatus v2.MarketStatus
 	switch marketStatusStr {
 	case "active":
-		marketStatus = exchangetypes.MarketStatus_Active
+		marketStatus = v2.MarketStatus_Active
 	case "paused":
-		marketStatus = exchangetypes.MarketStatus_Paused
+		marketStatus = v2.MarketStatus_Paused
 	case "demolished":
-		marketStatus = exchangetypes.MarketStatus_Demolished
+		marketStatus = v2.MarketStatus_Demolished
 	case "expired":
-		marketStatus = exchangetypes.MarketStatus_Expired
+		marketStatus = v2.MarketStatus_Expired
 	default:
-		marketStatus = exchangetypes.MarketStatus_Unspecified
+		marketStatus = v2.MarketStatus_Unspecified
 	}
 	return marketStatus, nil
 }

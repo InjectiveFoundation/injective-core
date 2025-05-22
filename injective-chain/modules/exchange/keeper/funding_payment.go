@@ -5,9 +5,8 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 	"github.com/InjectiveLabs/metrics"
-
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 )
 
 func (k *Keeper) ProcessHourlyFundings(ctx sdk.Context) {
@@ -65,7 +64,7 @@ func (k *Keeper) ProcessHourlyFundings(ctx sdk.Context) {
 		k.SetPerpetualMarketInfo(ctx, marketID, &marketInfo)
 
 		// set the perpetual market funding
-		newFunding := types.PerpetualMarketFunding{
+		newFunding := v2.PerpetualMarketFunding{
 			CumulativeFunding: cumulativeFunding,
 			CumulativePrice:   math.LegacyZeroDec(),
 			LastTimestamp:     currFundingTimestamp,
@@ -73,8 +72,7 @@ func (k *Keeper) ProcessHourlyFundings(ctx sdk.Context) {
 
 		k.SetPerpetualMarketFunding(ctx, marketID, &newFunding)
 
-		// nolint:errcheck //ignored on purpose
-		ctx.EventManager().EmitTypedEvent(&types.EventPerpetualMarketFundingUpdate{
+		k.EmitEvent(ctx, &v2.EventPerpetualMarketFundingUpdate{
 			MarketId:        marketID.Hex(),
 			Funding:         newFunding,
 			IsHourlyFunding: true,
@@ -125,8 +123,7 @@ func (k *Keeper) PersistPerpetualFundingInfo(ctx sdk.Context, perpetualVwapInfo 
 		funding.LastTimestamp = blockTime
 
 		k.SetPerpetualMarketFunding(ctx, marketID, funding)
-		// nolint:errcheck //ignored on purpose
-		ctx.EventManager().EmitTypedEvent(&types.EventPerpetualMarketFundingUpdate{
+		k.EmitEvent(ctx, &v2.EventPerpetualMarketFundingUpdate{
 			MarketId:        marketID.Hex(),
 			Funding:         *funding,
 			IsHourlyFunding: false,

@@ -15,6 +15,7 @@ import (
 	"github.com/InjectiveLabs/injective-core/cli"
 	cliflags "github.com/InjectiveLabs/injective-core/cli/flags"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	exchangev2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 )
 
 // GetQueryCmd returns the parent command for all modules/bank CLi query commands.
@@ -48,8 +49,8 @@ func GetQueryCmd() *cobra.Command {
 func GetAllSpotMarkets() *cobra.Command {
 	cmd := cli.QueryCmd("spot-markets",
 		"Gets all active spot markets",
-		types.NewQueryClient,
-		&types.QuerySpotMarketsRequest{
+		exchangev2.NewQueryClient,
+		&exchangev2.QuerySpotMarketsRequest{
 			Status: "Active",
 		}, cli.FlagsMapping{
 			"MarketIds": cli.Flag{Flag: FlagMarketIDs},
@@ -63,8 +64,8 @@ func GetAllSpotMarkets() *cobra.Command {
 func GetSpotMarket() *cobra.Command {
 	cmd := cli.QueryCmd("spot-market <market_id>",
 		"Gets a single spot market",
-		types.NewQueryClient,
-		&types.QuerySpotMarketRequest{}, cli.FlagsMapping{}, cli.ArgsMapping{})
+		exchangev2.NewQueryClient,
+		&exchangev2.QuerySpotMarketRequest{}, cli.FlagsMapping{}, cli.ArgsMapping{})
 	cmd.Long = "Gets a single spot market by ID. If the height is not provided, it will use the latest height from context."
 	return cmd
 }
@@ -81,15 +82,15 @@ func GetSubaccountDeposits() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			queryClient := types.NewQueryClient(clientCtx)
+			queryClient := exchangev2.NewQueryClient(clientCtx)
 
 			nonce, err := strconv.Atoi(args[1])
 			if err != nil {
 				return err
 			}
 
-			req := &types.QuerySubaccountDepositsRequest{
-				Subaccount: &types.Subaccount{
+			req := &exchangev2.QuerySubaccountDepositsRequest{
+				Subaccount: &exchangev2.Subaccount{
 					Trader:          args[0],
 					SubaccountNonce: uint32(nonce),
 				},
@@ -118,9 +119,9 @@ func GetSubaccountDeposit() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			queryClient := types.NewQueryClient(clientCtx)
+			queryClient := exchangev2.NewQueryClient(clientCtx)
 
-			req := &types.QuerySubaccountDepositRequest{
+			req := &exchangev2.QuerySubaccountDepositRequest{
 				SubaccountId: args[0],
 				Denom:        args[1],
 			}
@@ -148,14 +149,14 @@ func GetAllDerivativeMarkets() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			queryClient := types.NewQueryClient(clientCtx)
+			queryClient := exchangev2.NewQueryClient(clientCtx)
 
 			status, err := cmd.Flags().GetString(FlagMarketStatus)
 			if err != nil {
 				return err
 			}
 
-			req := &types.QueryDerivativeMarketsRequest{
+			req := &exchangev2.QueryDerivativeMarketsRequest{
 				Status: status,
 			}
 			res, err := queryClient.DerivativeMarkets(context.Background(), req)
@@ -183,9 +184,9 @@ func GetDerivativeMarket() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			queryClient := types.NewQueryClient(clientCtx)
+			queryClient := exchangev2.NewQueryClient(clientCtx)
 
-			req := &types.QueryDerivativeMarketRequest{
+			req := &exchangev2.QueryDerivativeMarketRequest{
 				MarketId: args[0],
 			}
 			res, err := queryClient.DerivativeMarket(context.Background(), req)
@@ -213,9 +214,9 @@ func GetExchangeParamsCmd() *cobra.Command {
 				return err
 			}
 
-			queryClient := types.NewQueryClient(clientCtx)
+			queryClient := exchangev2.NewQueryClient(clientCtx)
 
-			req := &types.QueryExchangeParamsRequest{}
+			req := &exchangev2.QueryExchangeParamsRequest{}
 
 			res, err := queryClient.QueryExchangeParams(context.Background(), req)
 			if err != nil {
@@ -332,14 +333,14 @@ func GetAllBinaryOptionsMarketsCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			queryClient := types.NewQueryClient(clientCtx)
+			queryClient := exchangev2.NewQueryClient(clientCtx)
 
 			status, err := cmd.Flags().GetString(FlagMarketStatus)
 			if err != nil {
 				return err
 			}
 
-			req := &types.QueryBinaryMarketsRequest{
+			req := &exchangev2.QueryBinaryMarketsRequest{
 				Status: status,
 			}
 			res, err := queryClient.BinaryOptionsMarkets(context.Background(), req)
@@ -367,9 +368,9 @@ func GetActiveStakeGrantForGranteeCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			queryClient := types.NewQueryClient(clientCtx)
+			queryClient := exchangev2.NewQueryClient(clientCtx)
 
-			req := &types.QueryActiveStakeGrantRequest{
+			req := &exchangev2.QueryActiveStakeGrantRequest{
 				Grantee: args[0],
 			}
 			res, err := queryClient.ActiveStakeGrant(context.Background(), req)
@@ -395,9 +396,9 @@ func GetGranterAuthorizationsCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			queryClient := types.NewQueryClient(clientCtx)
+			queryClient := exchangev2.NewQueryClient(clientCtx)
 
-			req := &types.QueryGrantAuthorizationsRequest{
+			req := &exchangev2.QueryGrantAuthorizationsRequest{
 				Granter: args[0],
 			}
 			res, err := queryClient.GrantAuthorizations(context.Background(), req)
@@ -423,9 +424,9 @@ func GetMarketBalanceCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			queryClient := types.NewQueryClient(clientCtx)
+			queryClient := exchangev2.NewQueryClient(clientCtx)
 
-			req := &types.QueryMarketBalanceRequest{
+			req := &exchangev2.QueryMarketBalanceRequest{
 				MarketId: args[0],
 			}
 			res, err := queryClient.MarketBalance(context.Background(), req)
@@ -452,9 +453,9 @@ func GetSubaccountPositionsForMarket() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			queryClient := types.NewQueryClient(clientCtx)
+			queryClient := exchangev2.NewQueryClient(clientCtx)
 
-			req := &types.QuerySubaccountPositionInMarketRequest{
+			req := &exchangev2.QuerySubaccountPositionInMarketRequest{
 				MarketId:     args[0],
 				SubaccountId: args[1],
 			}
@@ -481,9 +482,9 @@ func GetFeeDiscountAccountInfo() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			queryClient := types.NewQueryClient(clientCtx)
+			queryClient := exchangev2.NewQueryClient(clientCtx)
 
-			req := &types.QueryFeeDiscountAccountInfoRequest{
+			req := &exchangev2.QueryFeeDiscountAccountInfoRequest{
 				Account: args[0],
 			}
 			res, err := queryClient.FeeDiscountAccountInfo(context.Background(), req)
@@ -501,15 +502,15 @@ func GetFeeDiscountAccountInfo() *cobra.Command {
 func GetMinNotionalForDenom() *cobra.Command {
 	return cli.QueryCmd("min-notional-for-denom <denom>",
 		"Returns the minimum notional amount for this denom as a quote asset",
-		types.NewQueryClient,
-		&types.QueryDenomMinNotionalRequest{}, nil, nil,
+		exchangev2.NewQueryClient,
+		&exchangev2.QueryDenomMinNotionalRequest{}, nil, nil,
 	)
 }
 
 func GetAllDenomMinNotionals() *cobra.Command {
 	return cli.QueryCmd("denom-min-notionals",
 		"Returns all the minimum notional amounts for all denoms",
-		types.NewQueryClient,
-		&types.QueryDenomMinNotionalsRequest{}, nil, nil,
+		exchangev2.NewQueryClient,
+		&exchangev2.QueryDenomMinNotionalsRequest{}, nil, nil,
 	)
 }

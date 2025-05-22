@@ -6,37 +6,28 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cosmos/cosmos-sdk/runtime"
-	authcodec "github.com/cosmos/cosmos-sdk/x/auth/codec"
-
-	"cosmossdk.io/math"
-	"github.com/cosmos/cosmos-sdk/baseapp"
-	govclient "github.com/cosmos/cosmos-sdk/x/gov/client"
-	govv1 "github.com/cosmos/cosmos-sdk/x/gov/types/v1"
-
-	storetypes "cosmossdk.io/store/types"
-
-	injcodectypes "github.com/InjectiveLabs/injective-core/injective-chain/codec/types"
-	chaintypes "github.com/InjectiveLabs/injective-core/injective-chain/types"
-
-	insurancekeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/insurance/keeper"
-	insurancetypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/insurance/types"
-
+	corestore "cosmossdk.io/core/store"
 	"cosmossdk.io/log"
+	"cosmossdk.io/math"
 	"cosmossdk.io/store"
+	storemetrics "cosmossdk.io/store/metrics"
+	storetypes "cosmossdk.io/store/types"
 	"cosmossdk.io/x/evidence"
 	"cosmossdk.io/x/upgrade"
-	tmproto "github.com/cometbft/cometbft/proto/tendermint/types"
+	cmtproto "github.com/cometbft/cometbft/api/cometbft/types/v1"
 	dbm "github.com/cosmos/cosmos-db"
+	"github.com/cosmos/cosmos-sdk/baseapp"
 	"github.com/cosmos/cosmos-sdk/codec"
 	ccodec "github.com/cosmos/cosmos-sdk/crypto/codec"
 	"github.com/cosmos/cosmos-sdk/crypto/keys/ed25519"
 	"github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	ccrypto "github.com/cosmos/cosmos-sdk/crypto/types"
+	"github.com/cosmos/cosmos-sdk/runtime"
 	"github.com/cosmos/cosmos-sdk/std"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/module"
 	"github.com/cosmos/cosmos-sdk/x/auth"
+	authcodec "github.com/cosmos/cosmos-sdk/x/auth/codec"
 	authkeeper "github.com/cosmos/cosmos-sdk/x/auth/keeper"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	"github.com/cosmos/cosmos-sdk/x/auth/vesting"
@@ -49,8 +40,10 @@ import (
 	distrtypes "github.com/cosmos/cosmos-sdk/x/distribution/types"
 	"github.com/cosmos/cosmos-sdk/x/genutil"
 	"github.com/cosmos/cosmos-sdk/x/gov"
+	govclient "github.com/cosmos/cosmos-sdk/x/gov/client"
 	govkeeper "github.com/cosmos/cosmos-sdk/x/gov/keeper"
 	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
+	govv1 "github.com/cosmos/cosmos-sdk/x/gov/types/v1"
 	govv1beta1 "github.com/cosmos/cosmos-sdk/x/gov/types/v1beta1"
 	"github.com/cosmos/cosmos-sdk/x/mint"
 	minttypes "github.com/cosmos/cosmos-sdk/x/mint/types"
@@ -71,17 +64,17 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 
+	injcodectypes "github.com/InjectiveLabs/injective-core/injective-chain/codec/types"
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange"
 	exchangekeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/keeper"
 	exchangetypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	insurancekeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/insurance/keeper"
+	insurancetypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/insurance/types"
 	oraclekeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/keeper"
 	oracletypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/types"
-
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange"
-
 	peggyKeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/peggy/keeper"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/peggy/types"
-
-	storemetrics "cosmossdk.io/store/metrics"
+	chaintypes "github.com/InjectiveLabs/injective-core/injective-chain/types"
 )
 
 var (
@@ -364,6 +357,7 @@ func CreateTestEnv(t *testing.T) TestInput {
 	keyStaking := storetypes.NewKVStoreKey(stakingtypes.StoreKey)
 	keyBank := storetypes.NewKVStoreKey(banktypes.StoreKey)
 	tkeyBank := storetypes.NewTransientStoreKey(banktypes.TStoreKey)
+	okeyBank := storetypes.NewObjectStoreKey(banktypes.ObjectStoreKey)
 	keyDistro := storetypes.NewKVStoreKey(distrtypes.StoreKey)
 	keyParams := storetypes.NewKVStoreKey(paramstypes.StoreKey)
 	tkeyParams := storetypes.NewTransientStoreKey(paramstypes.TStoreKey)
@@ -400,7 +394,7 @@ func CreateTestEnv(t *testing.T) TestInput {
 	require.Nil(t, err)
 
 	// Create sdk.Context
-	ctx := sdk.NewContext(ms, tmproto.Header{
+	ctx := sdk.NewContext(ms, cmtproto.Header{
 		Height: 1234567,
 		Time:   time.Date(2020, time.April, 22, 12, 0, 0, 0, time.UTC),
 	}, false, logger)
@@ -447,6 +441,7 @@ func CreateTestEnv(t *testing.T) TestInput {
 		marshaler,
 		runtime.NewKVStoreService(keyBank),
 		runtime.NewTransientKVStoreService(tkeyBank),
+		okeyBank,
 		accountKeeper,
 		blockedAddr,
 		authority,
@@ -584,7 +579,7 @@ func CreateTestEnv(t *testing.T) TestInput {
 		bankKeeper,
 		slashingKeeper,
 		distKeeper,
-		*exchangeKeeper,
+		exchangeKeeper,
 		authority,
 		accountKeeper,
 	)
@@ -801,7 +796,7 @@ func (s *StakingKeeperMock) GetValidator(ctx context.Context, addr sdk.ValAddres
 	panic("unexpected call")
 }
 
-func (s *StakingKeeperMock) ValidatorQueueIterator(ctx context.Context, endTime time.Time, endHeight int64) (storetypes.Iterator, error) {
+func (s *StakingKeeperMock) ValidatorQueueIterator(ctx context.Context, endTime time.Time, endHeight int64) (corestore.Iterator, error) {
 	panic("unexpected call")
 }
 

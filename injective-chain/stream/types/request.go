@@ -1,5 +1,7 @@
 package types
 
+import "errors"
+
 func NewFullStreamRequest() *StreamRequest {
 	return &StreamRequest{
 		BankBalancesFilter: &BankBalancesFilter{
@@ -51,4 +53,24 @@ func (Empty) Matches(tags map[string][]string) (bool, error) {
 
 func (Empty) String() string {
 	return "empty"
+}
+
+func (m *StreamRequest) Validate() error {
+	if m.hasNoFilters() {
+		return errors.New("at least one filter must be set")
+	}
+	return nil
+}
+
+func (m *StreamRequest) hasNoFilters() bool {
+	return m.BankBalancesFilter == nil &&
+		m.SubaccountDepositsFilter == nil &&
+		m.SpotTradesFilter == nil &&
+		m.DerivativeTradesFilter == nil &&
+		m.SpotOrdersFilter == nil &&
+		m.DerivativeOrdersFilter == nil &&
+		m.SpotOrderbooksFilter == nil &&
+		m.DerivativeOrderbooksFilter == nil &&
+		m.PositionsFilter == nil &&
+		m.OraclePriceFilter == nil
 }

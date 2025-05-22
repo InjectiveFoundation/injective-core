@@ -6,13 +6,12 @@ import (
 
 	"cosmossdk.io/math"
 
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
-
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 )
 
-func (k *Keeper) InitGenesis(ctx sdk.Context, data types.GenesisState) {
+func (k *Keeper) InitGenesis(ctx sdk.Context, data v2.GenesisState) {
 	k.CreateModuleAccount(ctx)
 
 	k.SetParams(ctx, data.Params)
@@ -274,8 +273,8 @@ func (k *Keeper) InitGenesis(ctx sdk.Context, data types.GenesisState) {
 	}
 }
 
-func (k *Keeper) ExportGenesis(ctx sdk.Context) *types.GenesisState {
-	return &types.GenesisState{
+func (k *Keeper) ExportGenesis(ctx sdk.Context) *v2.GenesisState {
+	return &v2.GenesisState{
 		Params:                                       k.GetParams(ctx),
 		SpotMarkets:                                  k.GetAllSpotMarkets(ctx),
 		DerivativeMarkets:                            k.GetAllDerivativeMarkets(ctx),

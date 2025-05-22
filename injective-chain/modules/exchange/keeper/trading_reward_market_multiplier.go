@@ -6,14 +6,14 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/InjectiveLabs/metrics"
-
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
+	"github.com/InjectiveLabs/metrics"
 )
 
 // GetEffectiveTradingRewardsMarketPointsMultiplierConfig returns the market's points multiplier if the marketID is qualified
 // and has a multiplier, and returns a multiplier of 0 otherwise
-func (k *Keeper) GetEffectiveTradingRewardsMarketPointsMultiplierConfig(ctx sdk.Context, marketID common.Hash) types.PointsMultiplier {
+func (k *Keeper) GetEffectiveTradingRewardsMarketPointsMultiplierConfig(ctx sdk.Context, marketID common.Hash) v2.PointsMultiplier {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
@@ -23,7 +23,7 @@ func (k *Keeper) GetEffectiveTradingRewardsMarketPointsMultiplierConfig(ctx sdk.
 
 	hasDefaultMultiplier := bz == nil && isQualified
 	if hasDefaultMultiplier {
-		return types.PointsMultiplier{
+		return v2.PointsMultiplier{
 			MakerPointsMultiplier: math.LegacyOneDec(),
 			TakerPointsMultiplier: math.LegacyOneDec(),
 		}
@@ -31,19 +31,20 @@ func (k *Keeper) GetEffectiveTradingRewardsMarketPointsMultiplierConfig(ctx sdk.
 
 	hasNoMultiplier := bz == nil && !isQualified
 	if hasNoMultiplier {
-		return types.PointsMultiplier{
+		return v2.PointsMultiplier{
 			MakerPointsMultiplier: math.LegacyZeroDec(),
 			TakerPointsMultiplier: math.LegacyZeroDec(),
 		}
 	}
 
-	var multiplier types.PointsMultiplier
+	var multiplier v2.PointsMultiplier
 	k.cdc.MustUnmarshal(bz, &multiplier)
+
 	return multiplier
 }
 
 // SetTradingRewardsMarketPointsMultipliersFromCampaign sets the market's points multiplier for the specified spot and derivative markets
-func (k *Keeper) SetTradingRewardsMarketPointsMultipliersFromCampaign(ctx sdk.Context, campaignInfo *types.TradingRewardCampaignInfo) {
+func (k *Keeper) SetTradingRewardsMarketPointsMultipliersFromCampaign(ctx sdk.Context, campaignInfo *v2.TradingRewardCampaignInfo) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
@@ -72,7 +73,7 @@ func (k *Keeper) DeleteTradingRewardsMarketPointsMultiplier(ctx sdk.Context, mar
 }
 
 // SetTradingRewardsMarketPointsMultiplier sets the market's points multiplier
-func (k *Keeper) SetTradingRewardsMarketPointsMultiplier(ctx sdk.Context, marketID common.Hash, multiplier *types.PointsMultiplier) {
+func (k *Keeper) SetTradingRewardsMarketPointsMultiplier(ctx sdk.Context, marketID common.Hash, multiplier *v2.PointsMultiplier) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
@@ -93,14 +94,14 @@ func (k *Keeper) DeleteAllTradingRewardsMarketPointsMultipliers(ctx sdk.Context)
 }
 
 // GetAllTradingRewardsMarketPointsMultiplier gets all points multipliers for all markets
-func (k *Keeper) GetAllTradingRewardsMarketPointsMultiplier(ctx sdk.Context) ([]*types.PointsMultiplier, []common.Hash) {
+func (k *Keeper) GetAllTradingRewardsMarketPointsMultiplier(ctx sdk.Context) ([]*v2.PointsMultiplier, []common.Hash) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	multipliers := make([]*types.PointsMultiplier, 0)
+	multipliers := make([]*v2.PointsMultiplier, 0)
 	marketIDs := make([]common.Hash, 0)
 
-	appendMultiplier := func(multiplier *types.PointsMultiplier, marketID common.Hash) (stop bool) {
+	appendMultiplier := func(multiplier *v2.PointsMultiplier, marketID common.Hash) (stop bool) {
 		marketIDs = append(marketIDs, marketID)
 		multipliers = append(multipliers, multiplier)
 		return false
@@ -113,7 +114,7 @@ func (k *Keeper) GetAllTradingRewardsMarketPointsMultiplier(ctx sdk.Context) ([]
 // iterateTradingRewardsMarketPointsMultipliers iterates over the trading reward market point multipliers
 func (k *Keeper) iterateTradingRewardsMarketPointsMultipliers(
 	ctx sdk.Context,
-	process func(*types.PointsMultiplier, common.Hash) (stop bool),
+	process func(*v2.PointsMultiplier, common.Hash) (stop bool),
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
@@ -126,7 +127,7 @@ func (k *Keeper) iterateTradingRewardsMarketPointsMultipliers(
 
 	for ; iterator.Valid(); iterator.Next() {
 		bz := iterator.Value()
-		var multiplier types.PointsMultiplier
+		var multiplier v2.PointsMultiplier
 		k.cdc.MustUnmarshal(bz, &multiplier)
 		marketID := common.BytesToHash(iterator.Key())
 		if process(&multiplier, marketID) {

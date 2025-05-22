@@ -7,9 +7,9 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/InjectiveLabs/metrics"
-
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
+	"github.com/InjectiveLabs/metrics"
 )
 
 var _ DerivativeOrderbook = &DerivativeLimitOrderbook{}
@@ -26,27 +26,27 @@ type DerivativeLimitOrderbook struct {
 	restingOrderIterator  storetypes.Iterator
 
 	orderCancelHashes       map[common.Hash]bool
-	restingOrdersToCancel   []*types.DerivativeLimitOrder
-	transientOrdersToCancel []*types.DerivativeLimitOrder
+	restingOrdersToCancel   []*v2.DerivativeLimitOrder
+	transientOrdersToCancel []*v2.DerivativeLimitOrder
 
 	// pointers to the current OrderbookFills
 	currState *DerivativeOrderbookFills
 
 	k              *Keeper
-	market         DerivativeMarketI
+	market         DerivativeMarketInterface
 	markPrice      math.LegacyDec
 	marketID       common.Hash
-	funding        *types.PerpetualMarketFunding
+	funding        *v2.PerpetualMarketFunding
 	positionStates map[common.Hash]*PositionState
 }
 
 func (k *Keeper) NewDerivativeLimitOrderbook(
 	ctx sdk.Context,
 	isBuy bool,
-	transientOrders []*types.DerivativeLimitOrder,
-	market DerivativeMarketI,
+	transientOrders []*v2.DerivativeLimitOrder,
+	market DerivativeMarketInterface,
 	markPrice math.LegacyDec,
-	funding *types.PerpetualMarketFunding,
+	funding *v2.PerpetualMarketFunding,
 	positionStates map[common.Hash]*PositionState,
 ) *DerivativeLimitOrderbook {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
@@ -87,7 +87,7 @@ func (k *Keeper) NewDerivativeLimitOrderbook(
 
 	if iterator.Valid() {
 		restingOrderbookState = &DerivativeOrderbookFills{
-			Orders:         make([]*types.DerivativeLimitOrder, 0),
+			Orders:         make([]*v2.DerivativeLimitOrder, 0),
 			FillQuantities: make([]math.LegacyDec, 0),
 		}
 	}
@@ -104,8 +104,8 @@ func (k *Keeper) NewDerivativeLimitOrderbook(
 		restingOrderIterator:    iterator,
 
 		orderCancelHashes:       make(map[common.Hash]bool),
-		restingOrdersToCancel:   make([]*types.DerivativeLimitOrder, 0),
-		transientOrdersToCancel: make([]*types.DerivativeLimitOrder, 0),
+		restingOrdersToCancel:   make([]*v2.DerivativeLimitOrder, 0),
+		transientOrdersToCancel: make([]*v2.DerivativeLimitOrder, 0),
 
 		currState:      nil,
 		market:         market,
@@ -126,7 +126,7 @@ func (b *DerivativeLimitOrderbook) GetTransientOrderbookFills() *DerivativeOrder
 
 	capacity := len(b.transientOrderbookFills.Orders) - len(b.transientOrdersToCancel)
 	filteredFills := &DerivativeOrderbookFills{
-		Orders:         make([]*types.DerivativeLimitOrder, 0, capacity),
+		Orders:         make([]*v2.DerivativeLimitOrder, 0, capacity),
 		FillQuantities: make([]math.LegacyDec, 0, capacity),
 	}
 	for idx := range b.transientOrderbookFills.Orders {
@@ -146,7 +146,7 @@ func (b *DerivativeLimitOrderbook) GetRestingOrderbookFills() *DerivativeOrderbo
 	capacity := len(b.restingOrderbookFills.Orders) - len(b.restingOrdersToCancel)
 
 	filteredFills := &DerivativeOrderbookFills{
-		Orders:         make([]*types.DerivativeLimitOrder, 0, capacity),
+		Orders:         make([]*v2.DerivativeLimitOrder, 0, capacity),
 		FillQuantities: make([]math.LegacyDec, 0, capacity),
 	}
 
@@ -160,10 +160,10 @@ func (b *DerivativeLimitOrderbook) GetRestingOrderbookFills() *DerivativeOrderbo
 	return filteredFills
 }
 
-func (b *DerivativeLimitOrderbook) GetRestingOrderbookCancels() []*types.DerivativeLimitOrder {
+func (b *DerivativeLimitOrderbook) GetRestingOrderbookCancels() []*v2.DerivativeLimitOrder {
 	return b.restingOrdersToCancel
 }
-func (b *DerivativeLimitOrderbook) GetTransientOrderbookCancels() []*types.DerivativeLimitOrder {
+func (b *DerivativeLimitOrderbook) GetTransientOrderbookCancels() []*v2.DerivativeLimitOrder {
 	return b.transientOrdersToCancel
 }
 
@@ -185,7 +185,7 @@ func (b *DerivativeLimitOrderbook) checkAndInitializePosition(
 				cumulativeFundingEntry = b.funding.CumulativeFunding
 			}
 
-			position = types.NewPosition(b.isBuy, cumulativeFundingEntry)
+			position = v2.NewPosition(b.isBuy, cumulativeFundingEntry)
 			positionState := &PositionState{
 				Position: position,
 			}
@@ -197,11 +197,11 @@ func (b *DerivativeLimitOrderbook) checkAndInitializePosition(
 	return b.positionStates[subaccountID]
 }
 
-func (b *DerivativeLimitOrderbook) getCurrOrderAndInitializeCurrState() *types.DerivativeLimitOrder {
+func (b *DerivativeLimitOrderbook) getCurrOrderAndInitializeCurrState() *v2.DerivativeLimitOrder {
 	restingOrder := b.getRestingOrder()
 	transientOrder := b.getTransientOrder()
 
-	var currOrder *types.DerivativeLimitOrder
+	var currOrder *v2.DerivativeLimitOrder
 
 	// if iterating over both orderbooks, find the orderbook with the best priced order to use next
 	switch {
@@ -229,7 +229,7 @@ func (b *DerivativeLimitOrderbook) getCurrOrderAndInitializeCurrState() *types.D
 	return currOrder
 }
 
-func (b *DerivativeLimitOrderbook) addInvalidOrderToCancelsAndAdvanceToNextOrder(ctx sdk.Context, currOrder *types.DerivativeLimitOrder) {
+func (b *DerivativeLimitOrderbook) addInvalidOrderToCancelsAndAdvanceToNextOrder(ctx sdk.Context, currOrder *v2.DerivativeLimitOrder) {
 	if b.isCurrOrderResting() {
 		b.restingOrdersToCancel = append(b.restingOrdersToCancel, currOrder)
 	} else {
@@ -283,7 +283,7 @@ func (b *DerivativeLimitOrderbook) advanceNewOrder(ctx sdk.Context) {
 	}
 }
 
-func (b *DerivativeLimitOrderbook) Peek(ctx sdk.Context) *types.PriceLevel {
+func (b *DerivativeLimitOrderbook) Peek(ctx sdk.Context) *v2.PriceLevel {
 	// Sets currState to the orderbook (transientOrderbook or restingOrderbook) with the next best priced order
 	b.advanceNewOrder(ctx)
 
@@ -291,7 +291,7 @@ func (b *DerivativeLimitOrderbook) Peek(ctx sdk.Context) *types.PriceLevel {
 		return nil
 	}
 
-	priceLevel := &types.PriceLevel{
+	priceLevel := &v2.PriceLevel{
 		Price:    b.getCurrPrice(),
 		Quantity: b.getCurrFillableQuantity(),
 	}
@@ -383,7 +383,7 @@ func (b *DerivativeLimitOrderbook) getCurrPrice() math.LegacyDec {
 	return b.currState.Orders[idx].OrderInfo.Price
 }
 
-func (b *DerivativeLimitOrderbook) getRestingOrder() *types.DerivativeLimitOrder {
+func (b *DerivativeLimitOrderbook) getRestingOrder() *v2.DerivativeLimitOrder {
 	// if no more orders to iterate + fully filled, return nil
 	if !b.restingOrderIterator.Valid() && (b.restingOrderbookFills == nil || b.getRestingFillableQuantity().IsZero()) {
 		return nil
@@ -393,7 +393,7 @@ func (b *DerivativeLimitOrderbook) getRestingOrder() *types.DerivativeLimitOrder
 
 	// if the current resting order state is fully filled, advance the iterator
 	if b.getRestingFillableQuantity().IsZero() {
-		var order types.DerivativeLimitOrder
+		var order v2.DerivativeLimitOrder
 		bz := b.restingOrderIterator.Value()
 
 		b.k.cdc.MustUnmarshal(bz, &order)
@@ -407,7 +407,7 @@ func (b *DerivativeLimitOrderbook) getRestingOrder() *types.DerivativeLimitOrder
 	return b.restingOrderbookFills.Orders[idx]
 }
 
-func (b *DerivativeLimitOrderbook) getTransientOrder() *types.DerivativeLimitOrder {
+func (b *DerivativeLimitOrderbook) getTransientOrder() *v2.DerivativeLimitOrder {
 	if b.transientOrderbookFills == nil {
 		return nil
 	}
@@ -428,7 +428,7 @@ type DerivativeOrderbook interface {
 	GetTotalQuantityFilled() math.LegacyDec
 	GetTransientOrderbookFills() *DerivativeOrderbookFills
 	GetRestingOrderbookFills() *DerivativeOrderbookFills
-	Peek(ctx sdk.Context) *types.PriceLevel
+	Peek(ctx sdk.Context) *v2.PriceLevel
 	Fill(fillQuantity math.LegacyDec)
 	Close()
 }

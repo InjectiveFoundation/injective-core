@@ -36,6 +36,9 @@ This document describes the state transition operations pertaining to:
 - Trading rewards update proposal
 - Begin-blocker
 - End-blocker
+- Fee discount schedule proposal
+- Stake grant authorizations
+- Stake grant activation
 
 ## Deposit into exchange module account
 
@@ -445,3 +448,24 @@ Derivative market param update is handled by `DerivativeMarketParamUpdateProposa
 - Set the first fee paid bucket timestamp as the current block time
 - Set New Fee Discount Schedule, delete it along with Market Qualifications
 - Set New Market Qualifications
+
+## Stake Grant Authorizations
+
+**Steps**
+
+- Check if an existing grant from the granter already exists for the grantee
+- Calculate the new total amount of stake granted to the grantee by subtracting the existing grant amounts and adding the new grant amounts (essentially overwrites the existing grant amounts with the new grant amounts)
+- Ensure valid grant authorizations by making sure total amount granted is less than or equal to total amount staked by granter
+- Update grant amounts for grantee
+- Set grant to active if the current active grant is from the same granter or if there is no current active grant
+- Emit `EventGrantAuthorizations` with granter and grants
+
+
+## Stake Grant Activation
+
+**Steps**
+
+- Check to make sure grant from granter to grantee exists
+- Check to make sure granter is not granting more than their total staked amount
+- If grant amount is 0, delete the grant, otherwise write new grant amount to store
+- Emit `EventGrantActivation` with grantee, granter, and amount

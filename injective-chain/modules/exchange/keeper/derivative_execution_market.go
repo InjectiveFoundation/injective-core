@@ -1,10 +1,10 @@
 package keeper
 
 import (
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 	"github.com/InjectiveLabs/metrics"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 )
 
 func (k *Keeper) ExecuteDerivativeMarketOrderMatching(
@@ -25,7 +25,7 @@ func (k *Keeper) ExecuteDerivativeMarketOrderMatching(
 
 	feeDiscountConfig := k.getFeeDiscountConfigForMarket(ctx, marketID, stakingInfo)
 
-	var funding *types.PerpetualMarketFunding
+	var funding *v2.PerpetualMarketFunding
 	if market.GetIsPerpetual() {
 		funding = k.GetPerpetualMarketFunding(ctx, marketID)
 	}
@@ -99,26 +99,19 @@ func (k *Keeper) PersistSingleDerivativeMarketOrderExecution(
 	}
 
 	if execution.MarketBuyOrderExecutionEvent != nil {
-		// nolint:errcheck //ignored on purpose
-		ctx.EventManager().EmitTypedEvent(execution.MarketBuyOrderExecutionEvent)
-
-		// nolint:errcheck //ignored on purpose
-		ctx.EventManager().EmitTypedEvent(execution.RestingLimitSellOrderExecutionEvent)
+		k.EmitEvent(ctx, execution.MarketBuyOrderExecutionEvent)
+		k.EmitEvent(ctx, execution.RestingLimitSellOrderExecutionEvent)
 	}
 	if execution.MarketSellOrderExecutionEvent != nil {
-		// nolint:errcheck //ignored on purpose
-		ctx.EventManager().EmitTypedEvent(execution.MarketSellOrderExecutionEvent)
-		// nolint:errcheck //ignored on purpose
-		ctx.EventManager().EmitTypedEvent(execution.RestingLimitBuyOrderExecutionEvent)
+		k.EmitEvent(ctx, execution.MarketSellOrderExecutionEvent)
+		k.EmitEvent(ctx, execution.RestingLimitBuyOrderExecutionEvent)
 	}
 
 	for idx := range execution.CancelLimitOrderEvents {
-		// nolint:errcheck //ignored on purpose
-		ctx.EventManager().EmitTypedEvent(execution.CancelLimitOrderEvents[idx])
+		k.EmitEvent(ctx, execution.CancelLimitOrderEvents[idx])
 	}
 	for idx := range execution.CancelMarketOrderEvents {
-		// nolint:errcheck //ignored on purpose
-		ctx.EventManager().EmitTypedEvent(execution.CancelMarketOrderEvents[idx])
+		k.EmitEvent(ctx, execution.CancelMarketOrderEvents[idx])
 	}
 
 	if len(execution.TradingRewards) > 0 {

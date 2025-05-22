@@ -5,9 +5,9 @@ import (
 	"cosmossdk.io/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"github.com/InjectiveLabs/metrics"
-
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
+	"github.com/InjectiveLabs/metrics"
 )
 
 // GetPastBucketTotalVolume gets the total volume in past buckets
@@ -95,14 +95,14 @@ func (k *Keeper) DeleteAllPastBucketTotalVolume(ctx sdk.Context) {
 }
 
 // GetAllPastBucketTotalVolume gets all total volume in past buckets for all accounts
-func (k *Keeper) GetAllPastBucketTotalVolume(ctx sdk.Context) []*types.AccountVolume {
+func (k *Keeper) GetAllPastBucketTotalVolume(ctx sdk.Context) []*v2.AccountVolume {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	accountVolumes := make([]*types.AccountVolume, 0)
+	accountVolumes := make([]*v2.AccountVolume, 0)
 
 	appendFees := func(account sdk.AccAddress, volume math.LegacyDec) (stop bool) {
-		accountVolumes = append(accountVolumes, &types.AccountVolume{
+		accountVolumes = append(accountVolumes, &v2.AccountVolume{
 			Account: account.String(),
 			Volume:  volume,
 		})

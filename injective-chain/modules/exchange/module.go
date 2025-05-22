@@ -6,9 +6,7 @@ import (
 	"fmt"
 
 	"cosmossdk.io/core/appmodule"
-
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/exported"
-
+	"github.com/InjectiveLabs/metrics"
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/codec"
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
@@ -21,10 +19,10 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/client/cli"
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/keeper"
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/exported"
+	exchangekeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/keeper"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
-
-	"github.com/InjectiveLabs/metrics"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 )
 
 // type check to ensure the interface is properly implemented
@@ -49,21 +47,23 @@ func (AppModuleBasic) Name() string {
 // RegisterLegacyAminoCodec registers the exchnage module's types for the given codec.
 func (AppModuleBasic) RegisterLegacyAminoCodec(cdc *codec.LegacyAmino) {
 	types.RegisterLegacyAminoCodec(cdc)
+	v2.RegisterLegacyAminoCodec(cdc)
 }
 
 // RegisterInterfaces registers interfaces and implementations of the exchange module.
 func (AppModuleBasic) RegisterInterfaces(interfaceRegistry codectypes.InterfaceRegistry) {
 	types.RegisterInterfaces(interfaceRegistry)
+	v2.RegisterInterfaces(interfaceRegistry)
 }
 
 // DefaultGenesis returns default genesis state as raw bytes for the exchange
 // module.
 func (AppModuleBasic) DefaultGenesis(cdc codec.JSONCodec) json.RawMessage {
-	return cdc.MustMarshalJSON(types.DefaultGenesisState())
+	return cdc.MustMarshalJSON(v2.DefaultGenesisState())
 }
 
 func (b AppModuleBasic) ValidateGenesis(cdc codec.JSONCodec, config client.TxEncodingConfig, bz json.RawMessage) error {
-	var genesisState types.GenesisState
+	var genesisState v2.GenesisState
 	if err := cdc.UnmarshalJSON(bz, &genesisState); err != nil {
 		return fmt.Errorf("failed to unmarshal %s genesis state: %w", types.ModuleName, err)
 	}
@@ -73,6 +73,10 @@ func (b AppModuleBasic) ValidateGenesis(cdc codec.JSONCodec, config client.TxEnc
 
 func (b AppModuleBasic) RegisterGRPCGatewayRoutes(c client.Context, serveMux *runtime.ServeMux) {
 	if err := types.RegisterQueryHandlerClient(context.Background(), serveMux, types.NewQueryClient(c)); err != nil {
+		panic(err)
+	}
+
+	if err := v2.RegisterQueryHandlerClient(context.Background(), serveMux, v2.NewQueryClient(c)); err != nil {
 		panic(err)
 	}
 }
@@ -93,7 +97,7 @@ type AppModule struct {
 	AppModuleBasic
 
 	svcTags        metrics.Tags
-	keeper         *keeper.Keeper
+	keeper         *exchangekeeper.Keeper
 	accountKeeper  authkeeper.AccountKeeper
 	bankKeeper     bankkeeper.Keeper
 	blockHandler   *BlockHandler
@@ -110,17 +114,17 @@ func (am AppModule) ConsensusVersion() uint64 {
 
 // NewAppModule creates a new AppModule Object
 func NewAppModule(
-	k *keeper.Keeper,
+	keeper *exchangekeeper.Keeper,
 	accountKeeper authkeeper.AccountKeeper,
 	bankKeeper bankkeeper.Keeper,
 	legacySubspace exported.Subspace,
 ) AppModule {
 	return AppModule{
 		AppModuleBasic: AppModuleBasic{},
-		keeper:         k,
+		keeper:         keeper,
 		accountKeeper:  accountKeeper,
 		bankKeeper:     bankKeeper,
-		blockHandler:   NewBlockHandler(k),
+		blockHandler:   NewBlockHandler(keeper),
 		legacySubspace: legacySubspace,
 		svcTags: metrics.Tags{
 			"svc": "exchange_m",
@@ -140,10 +144,14 @@ func (am AppModule) QuerierRoute() string {
 
 // RegisterServices registers module services.
 func (am AppModule) RegisterServices(cfg module.Configurator) {
-	types.RegisterMsgServer(cfg.MsgServer(), keeper.NewMsgServerImpl(am.keeper))
-	types.RegisterQueryServer(cfg.QueryServer(), am.keeper)
+	msgServer := exchangekeeper.NewMsgServerImpl(am.keeper)
+	types.RegisterMsgServer(cfg.MsgServer(), exchangekeeper.NewV1MsgServerImpl(am.keeper, msgServer))
+	v2.RegisterMsgServer(cfg.MsgServer(), msgServer)
 
-	migrator := keeper.NewMigrator(*am.keeper, am.legacySubspace)
+	types.RegisterQueryServer(cfg.QueryServer(), exchangekeeper.NewV1QueryServer(am.keeper))
+	v2.RegisterQueryServer(cfg.QueryServer(), exchangekeeper.NewQueryServer(am.keeper))
+
+	migrator := exchangekeeper.NewMigrator(*am.keeper, am.legacySubspace)
 	if err := cfg.RegisterMigration(types.ModuleName, 1, migrator.Migrate1to2); err != nil {
 		panic(fmt.Sprintf("failed to migrate exchange from version 1 to 2: %v", err))
 	}
@@ -160,7 +168,7 @@ func (am AppModule) EndBlock(ctx context.Context) error {
 }
 
 func (am AppModule) InitGenesis(ctx sdk.Context, cdc codec.JSONCodec, data json.RawMessage) {
-	var genesisState types.GenesisState
+	var genesisState v2.GenesisState
 
 	cdc.MustUnmarshalJSON(data, &genesisState)
 	am.keeper.InitGenesis(ctx, genesisState)

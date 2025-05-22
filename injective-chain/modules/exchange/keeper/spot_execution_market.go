@@ -2,17 +2,17 @@ package keeper
 
 import (
 	"cosmossdk.io/math"
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 	"github.com/InjectiveLabs/metrics"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 
 	"github.com/ethereum/go-ethereum/common"
 )
 
 func (k *Keeper) ExecuteSpotMarketOrders(
 	ctx sdk.Context,
-	marketOrderIndicator *types.MarketOrderIndicator,
+	marketOrderIndicator *v2.MarketOrderIndicator,
 	stakingInfo *FeeDiscountStakingInfo,
 ) *SpotBatchExecutionData {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
@@ -39,7 +39,7 @@ func (k *Keeper) ExecuteSpotMarketOrders(
 
 func GetSpotMarketOrderBatchExecutionData(
 	isMarketBuy bool,
-	market *types.SpotMarket,
+	market *v2.SpotMarket,
 	spotLimitOrderStateExpansions, spotMarketOrderStateExpansions []*spotOrderStateExpansion,
 	clearingPrice, clearingQuantity math.LegacyDec,
 ) *SpotBatchExecutionData {
@@ -47,19 +47,19 @@ func GetSpotMarketOrderBatchExecutionData(
 	quoteDenomDepositDeltas := types.NewDepositDeltas()
 
 	// Step 3a: Process market order events
-	marketOrderBatchEvent := &types.EventBatchSpotExecution{
+	marketOrderBatchEvent := &v2.EventBatchSpotExecution{
 		MarketId:      market.MarketID().Hex(),
 		IsBuy:         isMarketBuy,
-		ExecutionType: types.ExecutionType_Market,
+		ExecutionType: v2.ExecutionType_Market,
 	}
 
-	trades := make([]*types.TradeLog, len(spotMarketOrderStateExpansions))
+	trades := make([]*v2.TradeLog, len(spotMarketOrderStateExpansions))
 
 	marketOrderTradingRewardPoints := types.NewTradingRewardPoints()
 
 	for idx := range spotMarketOrderStateExpansions {
 		expansion := spotMarketOrderStateExpansions[idx]
-		expansion.UpdateFromDepositDeltas(baseDenomDepositDeltas, quoteDenomDepositDeltas)
+		expansion.UpdateFromDepositDeltas(market, baseDenomDepositDeltas, quoteDenomDepositDeltas)
 
 		realizedTradeFee := expansion.AuctionFeeReward
 
@@ -68,7 +68,7 @@ func GetSpotMarketOrderBatchExecutionData(
 			realizedTradeFee = realizedTradeFee.Add(expansion.FeeRecipientReward)
 		}
 
-		trades[idx] = &types.TradeLog{
+		trades[idx] = &v2.TradeLog{
 			Quantity:            expansion.BaseChangeAmount.Abs(),
 			Price:               expansion.TradePrice,
 			SubaccountId:        expansion.SubaccountID.Bytes(),
@@ -88,13 +88,13 @@ func GetSpotMarketOrderBatchExecutionData(
 	// Stage 3b: Process limit order events
 	limitOrderBatchEvent, filledDeltas, limitOrderTradingRewardPoints := GetBatchExecutionEventsFromSpotLimitOrderStateExpansions(
 		!isMarketBuy,
-		market.MarketID(),
-		types.ExecutionType_LimitFill,
+		market,
+		v2.ExecutionType_LimitFill,
 		spotLimitOrderStateExpansions,
 		baseDenomDepositDeltas, quoteDenomDepositDeltas,
 	)
 
-	limitOrderExecutionEvent := make([]*types.EventBatchSpotExecution, 0)
+	limitOrderExecutionEvent := make([]*v2.EventBatchSpotExecution, 0)
 	if limitOrderBatchEvent != nil {
 		limitOrderExecutionEvent = append(limitOrderExecutionEvent, limitOrderBatchEvent)
 	}
@@ -149,12 +149,10 @@ func (k *Keeper) PersistSingleSpotMarketOrderExecution(
 
 	// only get first index since only one limit order side that gets filled
 	if execution.MarketOrderExecutionEvent != nil {
-		// nolint:errcheck //ignored on purpose
-		ctx.EventManager().EmitTypedEvent(execution.MarketOrderExecutionEvent)
+		k.EmitEvent(ctx, execution.MarketOrderExecutionEvent)
 	}
 	if len(execution.LimitOrderExecutionEvent) > 0 {
-		// nolint:errcheck //ignored on purpose
-		ctx.EventManager().EmitTypedEvent(execution.LimitOrderExecutionEvent[0])
+		k.EmitEvent(ctx, execution.LimitOrderExecutionEvent[0])
 	}
 
 	if len(execution.TradingRewardPoints) > 0 {

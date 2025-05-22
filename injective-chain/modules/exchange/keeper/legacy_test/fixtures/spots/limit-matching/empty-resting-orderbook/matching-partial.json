@@ -1,0 +1,107 @@
+{
+  "resting-sells": [],
+  "transient-sells": [
+    {
+      "price": 90,
+      "quantity": 1,
+      "subaccountNonce": 1,
+      "expectedQuantityFilledViaMatching": 1,
+      "expectedQuantityFilledViaMarketOrders": 0
+    },
+    {
+      "price": 95,
+      "quantity": 3,
+      "subaccountNonce": 2,
+      "expectedQuantityFilledViaMatching": 3,
+      "expectedQuantityFilledViaMarketOrders": 0
+    },
+    {
+      "price": 100,
+      "quantity": 1,
+      "subaccountNonce": 3,
+      "expectedQuantityFilledViaMatching": 0,
+      "expectedQuantityFilledViaMarketOrders": 0
+    },
+    {
+      "price": 105,
+      "quantity": 2,
+      "subaccountNonce": 4,
+      "expectedQuantityFilledViaMatching": 0,
+      "expectedQuantityFilledViaMarketOrders": 0
+    },
+    {
+      "price": 108,
+      "quantity": 8,
+      "subaccountNonce": 5,
+      "expectedQuantityFilledViaMatching": 0,
+      "expectedQuantityFilledViaMarketOrders": 0
+    }
+  ],
+  "resting-buys": [],
+  "transient-buys": [
+    {
+      "price": 110,
+      "quantity": 1,
+      "subaccountNonce": 6,
+      "expectedQuantityFilledViaMatching": 1,
+      "expectedQuantityFilledViaMarketOrders": 0
+    },
+    {
+      "price": 100,
+      "quantity": 1,
+      "subaccountNonce": 7,
+      "expectedQuantityFilledViaMatching": 1,
+      "expectedQuantityFilledViaMarketOrders": 0
+    },
+    {
+      "price": 96,
+      "quantity": 2,
+      "subaccountNonce": 8,
+      "expectedQuantityFilledViaMatching": 2,
+      "expectedQuantityFilledViaMarketOrders": 0
+    },
+    {
+      "price": 90,
+      "quantity": 3,
+      "subaccountNonce": 9,
+      "expectedQuantityFilledViaMatching": 0,
+      "expectedQuantityFilledViaMarketOrders": 0
+    },
+    {
+      "price": 82,
+      "quantity": 6,
+      "subaccountNonce": 10,
+      "expectedQuantityFilledViaMatching": 0,
+      "expectedQuantityFilledViaMarketOrders": 0
+    }
+  ],
+  "market-buys": [],
+  "market-sells": [],
+  "expected-buys-after-matching": [
+    {
+      "price": 90,
+      "quantity": 3
+    },
+    {
+      "price": 82,
+      "quantity": 6
+    }
+  ],
+  "expected-sells-after-matching": [
+    {
+      "price": 100,
+      "quantity": 1
+    },
+    {
+      "price": 105,
+      "quantity": 2
+    },
+    {
+      "price": 108,
+      "quantity": 8
+    }
+  ],
+  "expected-clearing-price-matching": 95.5,
+  "expected-clearing-price-market-sells": 0,
+  "expected-clearing-price-market-buys": 0
+}

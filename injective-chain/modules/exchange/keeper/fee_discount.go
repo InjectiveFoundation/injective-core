@@ -6,15 +6,12 @@ import (
 	stakingTypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/InjectiveLabs/metrics"
-
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
+	"github.com/InjectiveLabs/metrics"
 )
 
-func (k *Keeper) PersistFeeDiscountStakingInfoUpdates(
-	ctx sdk.Context,
-	stakingInfo *FeeDiscountStakingInfo,
-) {
+func (k *Keeper) PersistFeeDiscountStakingInfoUpdates(ctx sdk.Context, stakingInfo *FeeDiscountStakingInfo) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
@@ -53,8 +50,7 @@ func (k *Keeper) PersistFeeDiscountStakingInfoUpdates(
 	}
 
 	for _, invalidGrant := range invalidGrants {
-		// nolint:errcheck //ignored on purpose
-		ctx.EventManager().EmitTypedEvent(invalidGrant)
+		k.EmitEvent(ctx, invalidGrant)
 	}
 }
 
@@ -180,7 +176,7 @@ func (k *Keeper) GetAccountFeeDiscountRates(
 	feeDiscountRates *types.FeeDiscountRates,
 	tierLevel uint64,
 	isTTLExpired bool,
-	effectiveGrant *types.EffectiveGrant,
+	effectiveGrant *v2.EffectiveGrant,
 ) {
 	tierTTL := k.GetFeeDiscountAccountTierInfo(ctx, account)
 	isTTLExpired = tierTTL == nil || tierTTL.TtlTimestamp < config.MaxTTLTimestamp
@@ -225,15 +221,14 @@ func (k *Keeper) setAccountFeeDiscountTier(
 	config.setAccountTierInfo(account, feeDiscountRates)
 
 	if isTTLExpired {
-		k.SetFeeDiscountAccountTierInfo(ctx, account, types.NewFeeDiscountTierTTL(tierLevel, config.NextTTLTimestamp))
+		k.SetFeeDiscountAccountTierInfo(ctx, account, v2.NewFeeDiscountTierTTL(tierLevel, config.NextTTLTimestamp))
 
 		if effectiveGrant != nil {
 			// only update the last valid grant delegation check time if the grant is valid
 			if effectiveGrant.IsValid {
 				k.setLastValidGrantDelegationCheckTime(ctx, effectiveGrant.Granter, ctx.BlockTime().Unix())
 			} else {
-				// nolint:errcheck //ignored on purpose
-				ctx.EventManager().EmitTypedEvent(&types.EventInvalidGrant{
+				k.EmitEvent(ctx, &v2.EventInvalidGrant{
 					Grantee: account.String(),
 					Granter: effectiveGrant.Granter,
 				})

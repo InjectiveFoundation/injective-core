@@ -4,17 +4,17 @@ import (
 	"cosmossdk.io/errors"
 	"cosmossdk.io/math"
 	storetypes "cosmossdk.io/store/types"
+	"github.com/InjectiveLabs/metrics"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/InjectiveLabs/metrics"
-
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 	chaintypes "github.com/InjectiveLabs/injective-core/injective-chain/types"
 )
 
 type DeficitPositions struct {
-	DerivativePosition *types.DerivativePosition
+	DerivativePosition *v2.DerivativePosition
 	DeficitAmountAbs   math.LegacyDec
 }
 
@@ -30,19 +30,25 @@ func (k *Keeper) ProcessMarketsScheduledToSettle(ctx sdk.Context) {
 		derivativeMarket := k.GetDerivativeMarketByID(ctx, marketID)
 
 		if derivativeMarket != nil && marketSettlementInfo.SettlementPrice.IsZero() {
-			latestPrice, err := k.GetDerivativeMarketPrice(ctx, derivativeMarket.OracleBase, derivativeMarket.OracleQuote, derivativeMarket.OracleScaleFactor, derivativeMarket.OracleType)
+			latestPrice, err := k.GetDerivativeMarketPrice(
+				ctx,
+				derivativeMarket.OracleBase,
+				derivativeMarket.OracleQuote,
+				derivativeMarket.OracleScaleFactor,
+				derivativeMarket.OracleType,
+			)
 
 			// for derivative markets, this is defensive programming since they should always have a valid oracle price
 			// nolint:all
 			if err != nil || latestPrice == nil || latestPrice.IsNil() {
-				derivativeMarket.Status = types.MarketStatus_Paused
+				derivativeMarket.Status = v2.MarketStatus_Paused
 				continue
 			}
 
 			marketSettlementInfo.SettlementPrice = *latestPrice
 		}
 
-		var market DerivativeMarketI
+		var market DerivativeMarketInterface
 
 		if derivativeMarket != nil {
 			market = derivativeMarket
@@ -64,7 +70,7 @@ func (k *Keeper) ProcessMarketsScheduledToSettle(ctx sdk.Context) {
 			k.SetDerivativeMarketWithInfo(ctx, derivativeMarket, nil, nil, nil)
 		}
 
-		if market.GetMarketStatus() == types.MarketStatus_Active {
+		if market.GetMarketStatus() == v2.MarketStatus_Active {
 			err := k.DemolishOrPauseGenericMarket(ctx, market)
 			if err != nil {
 				k.Logger(ctx).Error("failed to demolish or pause generic market in settlement", "error", err)
@@ -85,10 +91,10 @@ func (k *Keeper) ProcessMatureExpiryFutureMarkets(ctx sdk.Context) {
 
 	blockTime := ctx.BlockTime().Unix()
 
-	maturingMarketInfos := make([]*types.ExpiryFuturesMarketInfo, 0)
-	maturedMarketInfos := make([]*types.ExpiryFuturesMarketInfo, 0)
+	maturingMarketInfos := make([]*v2.ExpiryFuturesMarketInfo, 0)
+	maturedMarketInfos := make([]*v2.ExpiryFuturesMarketInfo, 0)
 
-	markets := make(map[common.Hash]*types.DerivativeMarket)
+	markets := make(map[common.Hash]*v2.DerivativeMarket)
 
 	for ; iterator.Valid(); iterator.Next() {
 		marketID := common.BytesToHash(iterator.Value())
@@ -108,7 +114,7 @@ func (k *Keeper) ProcessMatureExpiryFutureMarkets(ctx sdk.Context) {
 		cumulativePrice, err := k.GetDerivativeMarketCumulativePrice(ctx, market.OracleBase, market.OracleQuote, market.OracleType)
 		if err != nil {
 			// should never happen
-			market.Status = types.MarketStatus_Paused
+			market.Status = v2.MarketStatus_Paused
 			k.SetDerivativeMarket(ctx, market)
 			continue
 		}
@@ -125,7 +131,7 @@ func (k *Keeper) ProcessMatureExpiryFutureMarkets(ctx sdk.Context) {
 				price, err := k.GetDerivativeMarketPrice(ctx, market.OracleBase, market.OracleQuote, market.OracleScaleFactor, market.OracleType)
 				if err != nil {
 					// should never happen
-					market.Status = types.MarketStatus_Paused
+					market.Status = v2.MarketStatus_Paused
 					k.SetDerivativeMarket(ctx, market)
 					continue
 				}
@@ -140,7 +146,7 @@ func (k *Keeper) ProcessMatureExpiryFutureMarkets(ctx sdk.Context) {
 
 			if settlementPrice.IsZero() || settlementPrice.IsNegative() {
 				// should never happen
-				market.Status = types.MarketStatus_Paused
+				market.Status = v2.MarketStatus_Paused
 				k.SetDerivativeMarket(ctx, market)
 				continue
 			}
@@ -166,7 +172,7 @@ func (k *Keeper) ProcessMatureExpiryFutureMarkets(ctx sdk.Context) {
 		closingFeeWhenSettlingTimeExpiryMarket := market.TakerFeeRate
 		k.SettleMarket(ctx, market, closingFeeWhenSettlingTimeExpiryMarket, &marketInfo.SettlementPrice)
 
-		market.Status = types.MarketStatus_Expired
+		market.Status = v2.MarketStatus_Expired
 		k.SetDerivativeMarketWithInfo(ctx, market, nil, nil, marketInfo)
 
 		k.DeleteExpiryFuturesMarketInfoByTimestamp(ctx, marketID, marketInfo.ExpirationTimestamp)
@@ -174,7 +180,10 @@ func (k *Keeper) ProcessMatureExpiryFutureMarkets(ctx sdk.Context) {
 	}
 }
 
-func getPositionFundsStatus(position *types.Position, settlementPrice, closingFeeRate math.LegacyDec) (isProfitable bool, profitAmount, deficitAmountAbs, payout math.LegacyDec) {
+//revive:disable:function-result-limit // we need the four return values
+func getPositionFundsStatus(
+	position *v2.Position, settlementPrice, closingFeeRate math.LegacyDec,
+) (isProfitable bool, profitAmount, deficitAmountAbs, payout math.LegacyDec) {
 	profitAmount, deficitAmountAbs = math.LegacyZeroDec(), math.LegacyZeroDec()
 
 	positionPayout := position.GetPayoutIfFullyClosing(settlementPrice, closingFeeRate)
@@ -193,7 +202,7 @@ func getPositionFundsStatus(position *types.Position, settlementPrice, closingFe
 }
 
 type SocializedLossData struct {
-	PositionsReceivingHaircut []*types.Position
+	PositionsReceivingHaircut []*v2.Position
 	DeficitPositions          []DeficitPositions
 	DeficitAmountAbs          math.LegacyDec
 	SurplusAmount             math.LegacyDec
@@ -202,13 +211,13 @@ type SocializedLossData struct {
 }
 
 func getDerivativeSocializedLossData(
-	marketFunding *types.PerpetualMarketFunding,
-	positions []*types.DerivativePosition,
+	marketFunding *v2.PerpetualMarketFunding,
+	positions []*v2.DerivativePosition,
 	settlementPrice math.LegacyDec,
 	closingFeeRate math.LegacyDec,
 	marketBalance math.LegacyDec,
 ) SocializedLossData {
-	profitablePositions := make([]*types.Position, 0)
+	profitablePositions := make([]*v2.Position, 0)
 	deficitPositions := make([]DeficitPositions, 0)
 	totalProfits := math.LegacyZeroDec()
 	deficitAmountAbs := math.LegacyZeroDec()
@@ -251,9 +260,9 @@ func getDerivativeSocializedLossData(
 	}
 }
 
-func getTotalMarginAndQuantity(positions []*types.DerivativePosition) (math.LegacyDec, math.LegacyDec) {
-	totalMargin := math.LegacyZeroDec()
-	totalQuantity := math.LegacyZeroDec()
+func getTotalMarginAndQuantity(positions []*v2.DerivativePosition) (totalMargin, totalQuantity math.LegacyDec) {
+	totalMargin = math.LegacyZeroDec()
+	totalQuantity = math.LegacyZeroDec()
 
 	for idx := range positions {
 		totalMargin = totalMargin.Add(positions[idx].Position.Margin)
@@ -263,7 +272,9 @@ func getTotalMarginAndQuantity(positions []*types.DerivativePosition) (math.Lega
 	return totalMargin, totalQuantity
 }
 
-func getBinaryOptionsSocializedLossData(positions []*types.DerivativePosition, market DerivativeMarketI, marketBalance, settlementPrice math.LegacyDec) SocializedLossData {
+func getBinaryOptionsSocializedLossData(
+	positions []*v2.DerivativePosition, market DerivativeMarketInterface, marketBalance, settlementPrice math.LegacyDec,
+) SocializedLossData {
 	if settlementPrice.Equal(types.BinaryOptionsMarketRefundFlagPrice) {
 		return getBinaryOptionsSocializedLossDataWithRefundFlag(positions, market, marketBalance)
 	}
@@ -271,18 +282,22 @@ func getBinaryOptionsSocializedLossData(positions []*types.DerivativePosition, m
 	return getBinaryOptionsSocializedLossDataWithSettlementPrice(positions, marketBalance, settlementPrice)
 }
 
-func getBinaryOptionsSocializedLossDataWithSettlementPrice(positions []*types.DerivativePosition, marketBalance, settlementPrice math.LegacyDec) SocializedLossData {
+func getBinaryOptionsSocializedLossDataWithSettlementPrice(
+	positions []*v2.DerivativePosition, marketBalance, settlementPrice math.LegacyDec,
+) SocializedLossData {
 	return getDerivativeSocializedLossData(nil, positions, settlementPrice, math.LegacyZeroDec(), marketBalance)
 }
 
-func getBinaryOptionsSocializedLossDataWithRefundFlag(positions []*types.DerivativePosition, market DerivativeMarketI, marketBalance math.LegacyDec) SocializedLossData {
+func getBinaryOptionsSocializedLossDataWithRefundFlag(
+	positions []*v2.DerivativePosition, market DerivativeMarketInterface, marketBalance math.LegacyDec,
+) SocializedLossData {
 	// liabilities = ∑ (margin)
 	// assets = 10^oracleScaleFactor * ∑ (quantity) / 2
 	totalMarginLiabilities, totalQuantity := getTotalMarginAndQuantity(positions)
 	assets := types.GetScaledPrice(totalQuantity, market.GetOracleScaleFactor()).Quo(math.LegacyNewDec(2))
 
 	// all positions receive haircut in BO refunds
-	positionsReceivingHaircut := make([]*types.Position, len(positions))
+	positionsReceivingHaircut := make([]*v2.Position, len(positions))
 	for i, position := range positions {
 		positionsReceivingHaircut[i] = position.Position
 	}
@@ -313,9 +328,9 @@ func getBinaryOptionsSocializedLossDataWithRefundFlag(positions []*types.Derivat
 
 func (k *Keeper) executeSocializedLoss(
 	ctx sdk.Context,
-	market DerivativeMarketI,
-	marketFunding *types.PerpetualMarketFunding,
-	positions []*types.DerivativePosition,
+	market DerivativeMarketInterface,
+	marketFunding *v2.PerpetualMarketFunding,
+	positions []*v2.DerivativePosition,
 	settlementPrice math.LegacyDec,
 	closingFeeRate math.LegacyDec,
 ) []DeficitPositions {
@@ -325,42 +340,53 @@ func (k *Keeper) executeSocializedLoss(
 	marketID := market.MarketID()
 	marketType := market.GetMarketType()
 	marketBalance := k.GetMarketBalance(ctx, marketID)
+	humanReadableMarketBalance := market.NotionalFromChainFormat(marketBalance)
 
 	var socializedLossData SocializedLossData
 
 	if marketType.IsBinaryOptions() {
-		socializedLossData = getBinaryOptionsSocializedLossData(positions, market, marketBalance, settlementPrice)
+		socializedLossData = getBinaryOptionsSocializedLossData(positions, market, humanReadableMarketBalance, settlementPrice)
 	} else {
 		socializedLossData = getDerivativeSocializedLossData(
 			marketFunding,
 			positions,
 			settlementPrice,
 			closingFeeRate,
-			marketBalance,
+			humanReadableMarketBalance,
 		)
 	}
 
-	surplusAmount := socializedLossData.SurplusAmount.TruncateInt()
+	chainFormattedSurplusAmount := market.NotionalToChainFormat(socializedLossData.SurplusAmount)
+	surplusAmount := chainFormattedSurplusAmount.TruncateInt()
+
 	if surplusAmount.IsPositive() {
 		if err := k.moveCoinsIntoInsuranceFund(ctx, market, surplusAmount); err != nil {
-			_ = k.IncrementDepositForNonDefaultSubaccount(ctx, types.AuctionSubaccountID, market.GetQuoteDenom(), socializedLossData.SurplusAmount)
+			_ = k.IncrementDepositForNonDefaultSubaccount(ctx, types.AuctionSubaccountID, market.GetQuoteDenom(), chainFormattedSurplusAmount)
 		}
 		return socializedLossData.DeficitPositions
 	}
 
-	deficitAmountAfterInsuranceFunds, err := k.PayDeficitFromInsuranceFund(ctx, marketID, socializedLossData.DeficitAmountAbs)
+	chainFormatDeficitAmount := market.NotionalToChainFormat(socializedLossData.DeficitAmountAbs)
+	chainFormattedDeficitAmountAfterInsuranceFunds, err := k.PayDeficitFromInsuranceFund(ctx, marketID, chainFormatDeficitAmount)
 
 	if err != nil {
 		metrics.ReportFuncError(k.svcTags)
-		k.Logger(ctx).Error("Retrieving from insurance fund upon settling failed for amount", socializedLossData.DeficitAmountAbs.String(), " with error", err)
+		k.Logger(ctx).Error(
+			"Retrieving from insurance fund upon settling failed for amount",
+			socializedLossData.DeficitAmountAbs.String(),
+			" with error",
+			err,
+		)
 	}
+
+	// scale it back to human readable
+	deficitAmountAfterInsuranceFunds := market.NotionalFromChainFormat(chainFormattedDeficitAmountAfterInsuranceFunds)
 
 	haircutPercentage := math.LegacyZeroDec()
 	doesMarketHaveDeficit := deficitAmountAfterInsuranceFunds.IsPositive()
 
 	if !doesMarketHaveDeficit {
-		// nolint:errcheck //ignored on purpose
-		ctx.EventManager().EmitTypedEvent(&types.EventDerivativeMarketPaused{
+		k.EmitEvent(ctx, &v2.EventDerivativeMarketPaused{
 			MarketId:          marketID.Hex(),
 			SettlePrice:       settlementPrice.String(),
 			TotalMissingFunds: deficitAmountAfterInsuranceFunds.String(),
@@ -384,7 +410,9 @@ func (k *Keeper) executeSocializedLoss(
 
 		for _, positionsReceivingHaircut := range socializedLossData.PositionsReceivingHaircut {
 			if marketType.IsBinaryOptions() {
-				positionsReceivingHaircut.ApplyProfitHaircutForBinaryOptions(deficitTakenFromProfits, socializedLossData.TotalProfits, market.GetOracleScaleFactor())
+				positionsReceivingHaircut.ApplyProfitHaircutForBinaryOptions(
+					deficitTakenFromProfits, socializedLossData.TotalProfits, market.GetOracleScaleFactor(),
+				)
 			} else {
 				positionsReceivingHaircut.ApplyProfitHaircutForDerivatives(deficitTakenFromProfits, socializedLossData.TotalProfits, settlementPrice)
 			}
@@ -393,8 +421,7 @@ func (k *Keeper) executeSocializedLoss(
 		haircutPercentage = deficitAmountAfterInsuranceFunds.Quo(socializedLossData.TotalProfits)
 	}
 
-	// nolint:errcheck //ignored on purpose
-	ctx.EventManager().EmitTypedEvent(&types.EventDerivativeMarketPaused{
+	k.EmitEvent(ctx, &v2.EventDerivativeMarketPaused{
 		MarketId:          marketID.Hex(),
 		SettlePrice:       settlementPrice.String(),
 		TotalMissingFunds: deficitAmountAfterInsuranceFunds.String(),
@@ -414,8 +441,7 @@ func (k *Keeper) executeSocializedLoss(
 				}
 			}
 
-			// nolint:errcheck //ignored on purpose
-			ctx.EventManager().EmitTypedEvent(&types.EventMarketBeyondBankruptcy{
+			k.EmitEvent(ctx, &v2.EventMarketBeyondBankruptcy{
 				MarketId:           marketID.Hex(),
 				SettlePrice:        settlementPrice.String(),
 				MissingMarketFunds: remainingDeficit.Sub(remainingPayouts).String(),
@@ -429,8 +455,7 @@ func (k *Keeper) executeSocializedLoss(
 
 			allPositionsHaircutPercentage := remainingDeficit.Quo(remainingPayouts)
 
-			// nolint:errcheck //ignored on purpose
-			ctx.EventManager().EmitTypedEvent(&types.EventAllPositionsHaircut{
+			k.EmitEvent(ctx, &v2.EventAllPositionsHaircut{
 				MarketId:         marketID.Hex(),
 				SettlePrice:      settlementPrice.String(),
 				MissingFundsRate: allPositionsHaircutPercentage.String(),
@@ -443,11 +468,11 @@ func (k *Keeper) executeSocializedLoss(
 
 func (k *Keeper) closeAllPositionsWithSettlePrice(
 	ctx sdk.Context,
-	market DerivativeMarketI,
-	positions []*types.DerivativePosition,
+	market DerivativeMarketInterface,
+	positions []*v2.DerivativePosition,
 	settlementPrice math.LegacyDec,
 	closingFeeRate math.LegacyDec,
-	marketFunding *types.PerpetualMarketFunding,
+	marketFunding *v2.PerpetualMarketFunding,
 	deficitPositions []DeficitPositions,
 ) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
@@ -456,8 +481,8 @@ func (k *Keeper) closeAllPositionsWithSettlePrice(
 	depositDeltas := types.NewDepositDeltas()
 	marketID := market.MarketID()
 
-	buyTrades := make([]*types.DerivativeTradeLog, 0)
-	sellTrades := make([]*types.DerivativeTradeLog, 0)
+	buyTrades := make([]*v2.DerivativeTradeLog, 0)
+	sellTrades := make([]*v2.DerivativeTradeLog, 0)
 
 	marketBalanceDelta := math.LegacyZeroDec()
 
@@ -467,27 +492,29 @@ func (k *Keeper) closeAllPositionsWithSettlePrice(
 		if closingFeeRate.IsPositive() && settlementPrice.IsPositive() {
 			orderFillNotional := settlementPrice.Mul(position.Position.Quantity)
 			auctionFeeReward := orderFillNotional.Mul(closingFeeRate)
-			depositDeltas.ApplyUniformDelta(types.AuctionSubaccountID, auctionFeeReward)
+			chainFormatAuctionFeeReward := market.NotionalToChainFormat(auctionFeeReward)
+			depositDeltas.ApplyUniformDelta(types.AuctionSubaccountID, chainFormatAuctionFeeReward)
 		}
 
 		subaccountID := common.HexToHash(position.SubaccountId)
 		var (
 			payout          math.LegacyDec
 			closeTradingFee math.LegacyDec
-			positionDelta   *types.PositionDelta
+			positionDelta   *v2.PositionDelta
 			pnl             math.LegacyDec
 		)
 
-		if settlementPrice.Equal(types.BinaryOptionsMarketRefundFlagPrice) {
+		if settlementPrice.Equal(v2.BinaryOptionsMarketRefundFlagPrice) {
 			payout, closeTradingFee, positionDelta, pnl = position.Position.ClosePositionByRefunding(closingFeeRate)
 		} else {
 			payout, closeTradingFee, positionDelta, pnl = position.Position.ClosePositionWithSettlePrice(settlementPrice, closingFeeRate)
 		}
 
-		marketBalanceDelta = marketBalanceDelta.Add(payout.Neg())
-		depositDeltas.ApplyUniformDelta(subaccountID, payout)
+		chainFormatPayout := market.NotionalToChainFormat(payout)
+		marketBalanceDelta = marketBalanceDelta.Add(chainFormatPayout.Neg())
+		depositDeltas.ApplyUniformDelta(subaccountID, chainFormatPayout)
 
-		tradeLog := types.DerivativeTradeLog{
+		tradeLog := v2.DerivativeTradeLog{
 			SubaccountId:        subaccountID.Bytes(),
 			PositionDelta:       positionDelta,
 			Payout:              payout,
@@ -507,16 +534,16 @@ func (k *Keeper) closeAllPositionsWithSettlePrice(
 	}
 
 	for _, deficitPosition := range deficitPositions {
-		depositDeltas.ApplyUniformDelta(common.HexToHash(deficitPosition.DerivativePosition.SubaccountId), deficitPosition.DeficitAmountAbs)
-		marketBalanceDelta = marketBalanceDelta.Sub(deficitPosition.DeficitAmountAbs)
+		chainFormattedDeficitAmountAbs := market.NotionalToChainFormat(deficitPosition.DeficitAmountAbs)
+		depositDeltas.ApplyUniformDelta(common.HexToHash(deficitPosition.DerivativePosition.SubaccountId), chainFormattedDeficitAmountAbs)
+		marketBalanceDelta = marketBalanceDelta.Sub(chainFormattedDeficitAmountAbs)
 	}
 
 	marketBalance := k.GetMarketBalance(ctx, marketID)
 	marketBalance = marketBalance.Add(marketBalanceDelta)
 	k.SetMarketBalance(ctx, marketID, marketBalance)
 
-	// nolint:errcheck //ignored on purpose
-	ctx.EventManager().EmitTypedEvent(&types.EventSettledMarketBalance{
+	k.EmitEvent(ctx, &v2.EventSettledMarketBalance{
 		MarketId: marketID.Hex(),
 		Amount:   marketBalance.String(),
 	})
@@ -534,14 +561,14 @@ func (k *Keeper) closeAllPositionsWithSettlePrice(
 
 	wasMarketLiquidation := closingFeeRate.IsZero() && market.GetMarketType() != types.MarketType_BinaryOption
 
-	var executionType types.ExecutionType
+	var executionType v2.ExecutionType
 	if wasMarketLiquidation {
-		executionType = types.ExecutionType_MarketLiquidation
+		executionType = v2.ExecutionType_MarketLiquidation
 	} else {
-		executionType = types.ExecutionType_ExpiryMarketSettlement
+		executionType = v2.ExecutionType_ExpiryMarketSettlement
 	}
 
-	closingBuyTradeEvents := &types.EventBatchDerivativeExecution{
+	closingBuyTradeEvents := &v2.EventBatchDerivativeExecution{
 		MarketId:          market.MarketID().String(),
 		IsBuy:             true,
 		IsLiquidation:     wasMarketLiquidation,
@@ -549,7 +576,7 @@ func (k *Keeper) closeAllPositionsWithSettlePrice(
 		Trades:            buyTrades,
 		CumulativeFunding: &cumulativeFunding,
 	}
-	closingSellTradeEvents := &types.EventBatchDerivativeExecution{
+	closingSellTradeEvents := &v2.EventBatchDerivativeExecution{
 		MarketId:          market.MarketID().String(),
 		IsBuy:             false,
 		IsLiquidation:     wasMarketLiquidation,
@@ -558,10 +585,8 @@ func (k *Keeper) closeAllPositionsWithSettlePrice(
 		CumulativeFunding: &cumulativeFunding,
 	}
 
-	// nolint:errcheck //ignored on purpose
-	ctx.EventManager().EmitTypedEvent(closingBuyTradeEvents)
-	// nolint:errcheck //ignored on purpose
-	ctx.EventManager().EmitTypedEvent(closingSellTradeEvents)
+	k.EmitEvent(ctx, closingBuyTradeEvents)
+	k.EmitEvent(ctx, closingSellTradeEvents)
 
 	for _, subaccountID := range depositDeltas.GetSortedSubaccountKeys() {
 		k.UpdateDepositWithDelta(ctx, subaccountID, market.GetQuoteDenom(), depositDeltas[subaccountID])
@@ -571,7 +596,7 @@ func (k *Keeper) closeAllPositionsWithSettlePrice(
 // SettleMarket settles derivative & binary options markets
 func (k *Keeper) SettleMarket(
 	ctx sdk.Context,
-	market DerivativeMarketI,
+	market DerivativeMarketInterface,
 	closingFeeRate math.LegacyDec,
 	settlementPrice *math.LegacyDec,
 ) {
@@ -616,7 +641,7 @@ func (k *Keeper) PauseMarketAndScheduleForSettlement(
 
 	settlementPrice := markPrice
 
-	marketSettlementInfo := types.DerivativeMarketSettlementInfo{
+	marketSettlementInfo := v2.DerivativeMarketSettlementInfo{
 		MarketId:        market.MarketID().Hex(),
 		SettlementPrice: settlementPrice,
 	}
@@ -642,5 +667,65 @@ func (k *Keeper) PauseMarketAndScheduleForSettlement(
 		return err
 	}
 
+	return nil
+}
+
+func (k *Keeper) handleMarketForcedSettlementProposal(ctx sdk.Context, p *v2.MarketForcedSettlementProposal) error {
+	if err := p.ValidateBasic(); err != nil {
+		return err
+	}
+
+	marketID := common.HexToHash(p.MarketId)
+	derivativeMarket := k.GetDerivativeMarketByID(ctx, marketID)
+
+	if derivativeMarket == nil {
+		spotMarket := k.GetSpotMarketByID(ctx, marketID)
+
+		if spotMarket == nil {
+			return types.ErrGenericMarketNotFound
+		}
+
+		if p.SettlementPrice != nil {
+			return errors.Wrap(types.ErrInvalidSettlement, "settlement price must be nil for spot markets")
+		}
+
+		return scheduleSpotMarketForceClosure(ctx, k, spotMarket)
+	}
+
+	return scheduleDerivativeMarketSettlement(ctx, k, derivativeMarket, p.SettlementPrice)
+}
+
+func scheduleSpotMarketForceClosure(ctx sdk.Context, k *Keeper, spotMarket *v2.SpotMarket) error {
+	settlementInfo := k.GetSpotMarketForceCloseInfo(ctx, common.HexToHash(spotMarket.MarketId))
+	if settlementInfo != nil {
+		return types.ErrMarketAlreadyScheduledToSettle
+	}
+
+	k.SetSpotMarketForceCloseInfo(ctx, common.HexToHash(spotMarket.MarketId))
+
+	return nil
+}
+
+func scheduleDerivativeMarketSettlement(
+	ctx sdk.Context, k *Keeper, derivativeMarket *v2.DerivativeMarket, settlementPrice *math.LegacyDec,
+) error {
+	if settlementPrice == nil {
+		// zero is a reserved value for fetching the latest price from oracle
+		zeroDec := math.LegacyZeroDec()
+		settlementPrice = &zeroDec
+	} else if !types.SafeIsPositiveDec(*settlementPrice) {
+		return errors.Wrap(types.ErrInvalidSettlement, "settlement price must be positive for derivative markets")
+	}
+
+	settlementInfo := k.GetDerivativesMarketScheduledSettlementInfo(ctx, common.HexToHash(derivativeMarket.MarketId))
+	if settlementInfo != nil {
+		return types.ErrMarketAlreadyScheduledToSettle
+	}
+
+	marketSettlementInfo := v2.DerivativeMarketSettlementInfo{
+		MarketId:        derivativeMarket.MarketId,
+		SettlementPrice: *settlementPrice,
+	}
+	k.SetDerivativesMarketScheduledSettlementInfo(ctx, &marketSettlementInfo)
 	return nil
 }
