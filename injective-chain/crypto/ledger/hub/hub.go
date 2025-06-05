@@ -33,10 +33,16 @@ var (
 
 		// Original product IDs
 		0x0000, /* Ledger Blue */
-		0x0001, /* Ledger Nano S */
-		0x0004, /* Ledger Nano X */
-		0x0005, /* Ledger Nano S Plus */
-		0x0006, /* Ledger Nano FTS */
+		0x0001, /* Ledger Nano S Legacy */
+		0x1000, /* Ledger Nano S */
+		0x0004, /* Ledger Nano X Legacy */
+		0x4000, /* Ledger Nano X */
+		0x0005, /* Ledger Nano S Plus Legacy */
+		0x5000, /* Ledger Nano S Plus */
+		0x0006, /* Ledger Stax Legacy */
+		0x6000, /* Ledger Stax */
+		0x0007, /* Ledger Flex Legacy */
+		0x7000, /* Ledger Flex */
 
 		0x0015, /* HID + U2F + WebUSB Ledger Blue */
 		0x1015, /* HID + U2F + WebUSB Ledger Nano S */
