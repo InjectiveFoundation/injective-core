@@ -12,59 +12,99 @@ import (
 	"github.com/cosmos/cosmos-sdk/types/module"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/app/upgrades"
-	v1dot16dot0 "github.com/InjectiveLabs/injective-core/injective-chain/app/upgrades/v1.16.0-beta.2"
+	v1dot16dot0 "github.com/InjectiveLabs/injective-core/injective-chain/app/upgrades/v1.16.0"
+	v1dot16b2 "github.com/InjectiveLabs/injective-core/injective-chain/app/upgrades/v1.16.0-beta.2"
+	v1dot16b3 "github.com/InjectiveLabs/injective-core/injective-chain/app/upgrades/v1.16.0-beta.3"
 )
 
 var _ upgrades.InjectiveApplication = &InjectiveApp{}
 
-func (app *InjectiveApp) registerUpgradeHandlers() {
-	upgradeName := v1dot16dot0.UpgradeName
-	if app.UpgradeKeeper.HasHandler(upgradeName) {
-		panic(fmt.Sprintf("Cannot register duplicate upgrade handler '%s'", upgradeName))
+var upgradeNames = []string{
+	v1dot16b2.UpgradeName,
+	v1dot16b3.UpgradeName,
+	v1dot16dot0.UpgradeName,
+}
+
+var upgradeSteps = map[string]UpgradeStepsFn{
+	v1dot16b2.UpgradeName:   v1dot16b2.UpgradeSteps,
+	v1dot16b3.UpgradeName:   v1dot16b3.UpgradeSteps,
+	v1dot16dot0.UpgradeName: v1dot16dot0.UpgradeSteps,
+
+	// NOTE: use NoSteps for upgrades that don't have any migration steps
+}
+
+var storeUpgrades = map[string]storetypes.StoreUpgrades{
+	v1dot16b2.UpgradeName:   v1dot16b2.StoreUpgrades(),
+	v1dot16b3.UpgradeName:   v1dot16b3.StoreUpgrades(),
+	v1dot16dot0.UpgradeName: v1dot16dot0.StoreUpgrades(),
+}
+
+type UpgradeStepsFn func() []*upgrades.UpgradeHandlerStep
+
+func NoSteps() []*upgrades.UpgradeHandlerStep {
+	return []*upgrades.UpgradeHandlerStep{}
+}
+
+func NoStoreUpgrades() storetypes.StoreUpgrades {
+	return storetypes.StoreUpgrades{
+		Added:   nil,
+		Renamed: nil,
+		Deleted: nil,
 	}
-	app.UpgradeKeeper.SetUpgradeHandler(upgradeName,
-		func(ctx context.Context, upgradeInfo upgradetypes.Plan, fromVM module.VersionMap) (module.VersionMap, error) {
-			sdkCtx := sdk.UnwrapSDKContext(ctx)
+}
 
-			upgradeSteps := v1dot16dot0.UpgradeSteps()
-			upgradeSteps = append(upgradeSteps,
-				upgrades.NewUpgradeHandlerStep(
-					"CONFIGURE POST ONLY MODE HEIGHT THRESHOLD",
-					upgradeName,
-					upgrades.MainnetChainID,
-					configurePostOnlyModeFunction(upgradeInfo),
-				),
-				upgrades.NewUpgradeHandlerStep(
-					"CONFIGURE POST ONLY MODE HEIGHT THRESHOLD",
-					upgradeName,
-					upgrades.TestnetChainID,
-					configurePostOnlyModeFunction(upgradeInfo),
-				),
-			)
+func (app *InjectiveApp) registerUpgradeHandlers() {
+	validUpgradeNames := make(map[string]bool, len(upgradeNames))
 
-			for _, step := range upgradeSteps {
-				if err := step.RunPreventingPanic(sdkCtx, upgradeInfo, app, app.Logger()); err != nil {
-					return nil, errors.Wrapf(err, "upgrade step %s failed", step.Name)
+	for _, upgradeName := range upgradeNames {
+		if app.UpgradeKeeper.HasHandler(upgradeName) {
+			panic(fmt.Sprintf("Cannot register duplicate upgrade handler '%s'", upgradeName))
+		} else if _, ok := upgradeSteps[upgradeName]; !ok {
+			panic(fmt.Sprintf("Upgrade steps for '%s' not found", upgradeName))
+		} else if _, ok := storeUpgrades[upgradeName]; !ok {
+			panic(fmt.Sprintf("Store upgrades for '%s' not found", upgradeName))
+		}
+
+		validUpgradeNames[upgradeName] = true
+
+		app.UpgradeKeeper.SetUpgradeHandler(upgradeName,
+			func(ctx context.Context, upgradeInfo upgradetypes.Plan, fromVM module.VersionMap) (module.VersionMap, error) {
+				sdkCtx := sdk.UnwrapSDKContext(ctx)
+
+				upgradeSteps := append(upgradeSteps[upgradeName](),
+					upgrades.NewUpgradeHandlerStep(
+						"CONFIGURE POST ONLY MODE HEIGHT THRESHOLD",
+						upgradeName,
+						upgrades.MainnetChainID,
+						configurePostOnlyModeFunction(upgradeInfo),
+					),
+					upgrades.NewUpgradeHandlerStep(
+						"CONFIGURE POST ONLY MODE HEIGHT THRESHOLD",
+						upgradeName,
+						upgrades.TestnetChainID,
+						configurePostOnlyModeFunction(upgradeInfo),
+					),
+				)
+
+				for _, step := range upgradeSteps {
+					if err := step.RunPreventingPanic(sdkCtx, upgradeInfo, app, app.Logger()); err != nil {
+						return nil, errors.Wrapf(err, "upgrade step %s failed", step.Name)
+					}
 				}
-			}
 
-			return app.mm.RunMigrations(ctx, app.configurator, fromVM)
-		},
-	)
+				return app.mm.RunMigrations(ctx, app.configurator, fromVM)
+			},
+		)
+	}
 
 	upgradeInfo, err := app.UpgradeKeeper.ReadUpgradeInfoFromDisk()
 	if err != nil {
 		panic(err)
 	}
 
-	// nolint:all
-	if upgradeInfo.Name == upgradeName && !app.UpgradeKeeper.IsSkipHeight(upgradeInfo.Height) {
-		// add any store upgrades here
-		storeUpgrades := storetypes.StoreUpgrades{
-			Added:   []string{"evm", "erc20"},
-			Renamed: nil,
-			Deleted: nil,
-		}
+	if validUpgradeNames[upgradeInfo.Name] && !app.UpgradeKeeper.IsSkipHeight(upgradeInfo.Height) {
+		storeUpgrades := storeUpgrades[upgradeInfo.Name]
+
 		// configure store loader that checks if version == upgradeHeight and applies store upgrades
 		app.SetStoreLoader(upgradetypes.UpgradeStoreLoader(upgradeInfo.Height, &storeUpgrades))
 	}

@@ -302,7 +302,7 @@ func (c *broadcastClient) SendDepositClaim(_ context.Context, deposit *peggyeven
 		EthereumSender: deposit.Sender.Hex(),
 		CosmosReceiver: cosmostypes.AccAddress(deposit.Destination[12:32]).String(),
 		Orchestrator:   c.ChainClient.FromAddress().String(),
-		Data:           deposit.Data,
+		Data:           "",
 	}
 
 	c.mux.Lock()

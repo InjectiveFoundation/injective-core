@@ -220,10 +220,11 @@ func GetWeb3ExtensionOptions(tx authsigning.Tx, signerData authsigning.SignerDat
 	}
 
 	// chainID in EIP712 typed data is allowed to not match signerData.ChainID,
-	// but limited to certain options: 1 (mainnet), 11155111 (Sepolia), thus Metamask will
-	// be able to submit signatures without switching networks.
-	hasValidMainnetChainID := signerData.ChainID == "injective-1" && extOpts.TypedDataChainID == 1
-	hasValidNonMainnetChainID := (signerData.ChainID == "injective-777" || signerData.ChainID == "injective-888") && extOpts.TypedDataChainID == 11155111
+	// but limited to certain options: 1 (Ethereum Mainnet), 11155111 (Ethereum Sepolia),
+	// 1776 (Injective EVM Mainnet), 1439 (Injective EVM Testnet), thus Metamask will be
+	// able to submit signatures without switching networks.
+	hasValidMainnetChainID := signerData.ChainID == "injective-1" && (extOpts.TypedDataChainID == 1 || extOpts.TypedDataChainID == 1776)
+	hasValidNonMainnetChainID := (signerData.ChainID == "injective-777" || signerData.ChainID == "injective-888") && (extOpts.TypedDataChainID == 11155111 || extOpts.TypedDataChainID == 1439)
 
 	if !hasValidMainnetChainID && !hasValidNonMainnetChainID {
 		return Web3ExtensionOptions{}, fmt.Errorf("invalid TypedDataChainID in Web3Extension: %d for %s chain", extOpts.TypedDataChainID, signerData.ChainID)

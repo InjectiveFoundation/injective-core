@@ -355,14 +355,20 @@ func (qp QueryPlugin) HandleExchangeQuery(ctx sdk.Context, queryData json.RawMes
 		subaccountID := common.HexToHash(query.TraderSpotOrdersToCancelUpToAmountRequest.SubaccountId)
 		market := qp.exchangeKeeper.GetSpotMarket(ctx, marketID, true)
 
+		referencePrice := query.TraderSpotOrdersToCancelUpToAmountRequest.ReferencePrice
+		if referencePrice != nil {
+			referencePriceChainFormat := market.PriceFromChainFormat(*query.TraderSpotOrdersToCancelUpToAmountRequest.ReferencePrice)
+			referencePrice = &referencePriceChainFormat
+		}
+
 		ordersToCancel, hasProcessedFullAmount := qp.exchangeKeeper.GetSpotOrdersToCancelUpToAmount(
 			ctx,
 			market,
 			qp.exchangeKeeper.GetAllTraderSpotLimitOrders(ctx, marketID, subaccountID),
 			exchangev2.CancellationStrategy(query.TraderSpotOrdersToCancelUpToAmountRequest.Strategy),
-			query.TraderSpotOrdersToCancelUpToAmountRequest.ReferencePrice,
-			query.TraderSpotOrdersToCancelUpToAmountRequest.BaseAmount,
-			query.TraderSpotOrdersToCancelUpToAmountRequest.QuoteAmount,
+			referencePrice,
+			market.QuantityFromChainFormat(query.TraderSpotOrdersToCancelUpToAmountRequest.BaseAmount),
+			market.NotionalFromChainFormat(query.TraderSpotOrdersToCancelUpToAmountRequest.QuoteAmount),
 		)
 
 		if hasProcessedFullAmount {
@@ -383,12 +389,18 @@ func (qp QueryPlugin) HandleExchangeQuery(ctx sdk.Context, queryData json.RawMes
 		market := qp.exchangeKeeper.GetDerivativeMarket(ctx, marketID, true)
 		traderOrders := qp.exchangeKeeper.GetAllTraderDerivativeLimitOrders(ctx, marketID, subaccountID)
 
+		referencePrice := query.TraderDerivativeOrdersToCancelUpToAmountRequest.ReferencePrice
+		if referencePrice != nil {
+			referencePriceChainFormat := market.PriceFromChainFormat(*query.TraderDerivativeOrdersToCancelUpToAmountRequest.ReferencePrice)
+			referencePrice = &referencePriceChainFormat
+		}
+
 		ordersToCancel, hasProcessedFullAmount := exchangekeeper.GetDerivativeOrdersToCancelUpToAmount(
 			market,
 			traderOrders,
 			exchangev2.CancellationStrategy(query.TraderDerivativeOrdersToCancelUpToAmountRequest.Strategy),
-			query.TraderDerivativeOrdersToCancelUpToAmountRequest.ReferencePrice,
-			query.TraderDerivativeOrdersToCancelUpToAmountRequest.QuoteAmount,
+			referencePrice,
+			market.NotionalFromChainFormat(query.TraderDerivativeOrdersToCancelUpToAmountRequest.QuoteAmount),
 		)
 
 		if hasProcessedFullAmount {

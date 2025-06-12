@@ -145,7 +145,7 @@ func (e *FeeState) UpdateBaseFee(logger log.Logger, height int64) {
 	//  (gasUsed - targetGas) / targetGas * maxChangeRate
 	baseFeeIncrement := math.LegacyNewDec(gasDiff).Quo(math.LegacyNewDec(e.TargetGas)).Mul(e.MaxBlockChangeRate)
 	baseFeeMultiplier := math.LegacyNewDec(1).Add(baseFeeIncrement)
-	e.CurBaseFee.MulMut(baseFeeMultiplier)
+	e.CurBaseFee = e.CurBaseFee.Mul(baseFeeMultiplier).TruncateDec()
 
 	// Enforce the minimum base fee by resetting the CurBaseFee if it drops below the MinBaseFee
 	if e.CurBaseFee.LT(e.MinBaseFee) {

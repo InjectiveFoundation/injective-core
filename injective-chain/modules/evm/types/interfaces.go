@@ -37,6 +37,7 @@ type BankKeeper interface {
 	BurnCoins(ctx context.Context, moduleName string, amt sdk.Coins) error
 	BlockedAddr(addr sdk.AccAddress) bool
 	GetSupply(ctx context.Context, denom string) sdk.Coin
+	HasSupply(ctx context.Context, denom string) bool
 	GetDenomMetaData(ctx context.Context, denom string) (types.Metadata, bool)
 	SetDenomMetaData(ctx context.Context, denomMetaData types.Metadata)
 }
@@ -45,6 +46,10 @@ type BankKeeper interface {
 type StakingKeeper interface {
 	GetHistoricalInfo(ctx context.Context, height int64) (stakingtypes.HistoricalInfo, error)
 	GetValidatorByConsAddr(ctx context.Context, consAddr sdk.ConsAddress) (validator stakingtypes.Validator, err error)
+}
+
+type CommunityPoolKeeper interface {
+	FundCommunityPool(ctx context.Context, amount sdk.Coins, sender sdk.AccAddress) error
 }
 
 // Event Hooks

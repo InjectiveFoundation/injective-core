@@ -17,69 +17,81 @@ import (
 	"github.com/strangelove-ventures/interchaintest/v8/chain/cosmos"
 )
 
-func SignAndBroadcastEthTx(
+func SignAndBroadcastEthTxs(
 	ctx context.Context,
 	chainNode *cosmos.ChainNode,
 	ethChainID *big.Int,
 	fromName string,
 	fromPrivKey cryptotypes.PrivKey,
-	legacyTx *ethtypes.LegacyTx,
 	checkTxError bool,
+	legacyTxs ...*ethtypes.LegacyTx,
 ) (
 	cosmosTxHash string,
-	ethTxHash ethcmn.Hash,
+	ethTxHash []ethcmn.Hash,
 	err error,
 ) {
-	tx := ethtypes.NewTx(legacyTx)
+	signedTxs := make([]*ethtypes.Transaction, len(legacyTxs))
+	ethTxHashes := make([]ethcmn.Hash, len(legacyTxs))
 
 	ethSigner := ethtypes.LatestSignerForChainID(ethChainID)
-	txHashToSign := ethSigner.Hash(tx)
-
 	ethPrivKey, ok := fromPrivKey.(*ethsecp256k1.PrivKey)
 	if !ok {
 		err = errors.Errorf("failed to convert privKey to ethsecp256k1.PrivKey: got %T", fromPrivKey)
-		return "", ethcmn.Hash{}, err
+		return "", nil, err
 	}
 
-	sig, err := ethcrypto.Sign(txHashToSign.Bytes(), ethPrivKey.ToECDSA())
-	if err != nil {
-		err = errors.Wrap(err, "failed to sign Ethereum Tx hash")
-		return "", ethcmn.Hash{}, err
+	for i, legacyTx := range legacyTxs {
+		tx := ethtypes.NewTx(legacyTx)
+		txHashToSign := ethSigner.Hash(tx)
+
+		sig, err := ethcrypto.Sign(txHashToSign.Bytes(), ethPrivKey.ToECDSA())
+		if err != nil {
+			err = errors.Wrapf(err, "idx %d: failed to sign Ethereum Tx hash", i)
+			return "", nil, err
+		}
+
+		signedTx, err := tx.WithSignature(ethSigner, sig)
+		if err != nil {
+			err = errors.Wrapf(err, "idx %d: failed to update Ethereum Tx with signature", i)
+			return "", nil, err
+		}
+
+		signedTxs[i] = signedTx
+		ethTxHashes[i] = signedTx.Hash()
 	}
 
-	tx, err = tx.WithSignature(ethSigner, sig)
-	if err != nil {
-		err = errors.Wrap(err, "failed to update Ethereum Tx with signature")
-		return "", ethcmn.Hash{}, err
-	}
-
-	ethTxHash = tx.Hash()
-	cosmosTxHash, err = broadcastSignedEthTx(ctx, chainNode, fromName, tx, checkTxError)
-	return cosmosTxHash, ethTxHash, err
+	cosmosTxHash, err = broadcastSignedEthTxs(ctx, chainNode, fromName, checkTxError, signedTxs...)
+	return cosmosTxHash, ethTxHashes, err
 }
 
-func broadcastSignedEthTx(
+func broadcastSignedEthTxs(
 	ctx context.Context,
 	chainNode *cosmos.ChainNode,
 	fromName string,
-	signedTx *ethtypes.Transaction,
 	checkTxError bool,
+	signedTxs ...*ethtypes.Transaction,
 ) (
 	cosmosTxHash string,
 	err error,
 ) {
-	txData, err := signedTx.MarshalBinary()
-	if err != nil {
-		err = errors.Wrap(err, "failed to binary marshal signed Ethereum Tx")
-		return "", err
+	rawList := make([]string, len(signedTxs))
+	for i, signedTx := range signedTxs {
+		txData, err := signedTx.MarshalBinary()
+		if err != nil {
+			err = errors.Wrapf(err, "idx %d: failed to binary marshal signed Ethereum Tx", i)
+			return "", err
+		}
+
+		rawList[i] = hexutil.Encode(txData)
 	}
+
+	rawListJoined := strings.Join(rawList, ",")
 
 	// if checkTxError, the built-in ExecTx is fine
 
 	if checkTxError {
 		if cosmosTxHash, err = chainNode.ExecTx(
-			ctx, fromName, "evm", "raw",
-			hexutil.Encode(txData),
+			ctx, fromName, "evm", "raw", rawListJoined,
 		); err != nil {
 			err = errors.Wrap(err, "failed to broadcast signed Ethereum Tx")
 			return "", err
@@ -92,7 +104,7 @@ func broadcastSignedEthTx(
 
 	stdout, stderr, err := chainNode.Exec(ctx,
 		chainNode.TxCommand(
-			fromName, "evm", "raw", hexutil.Encode(txData),
+			fromName, "evm", "raw", rawListJoined,
 		),
 		chainNode.Chain.Config().Env,
 	)

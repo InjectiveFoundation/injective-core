@@ -4,7 +4,7 @@ ulimit -n 120000
 
 # Default INJHOME to current directory if not set
 if [ -z "$INJHOME" ]; then
-  INJHOME="$HOME/.injectived"
+  INJHOME="$(pwd)/.injectived"
   echo "INJHOME not set, defaulting to HOME directory: $INJHOME"
 fi
 
@@ -14,7 +14,7 @@ yes 12345678 | injectived \
   --json-rpc.address "0.0.0.0:8545" \
   --json-rpc.ws-address "0.0.0.0:8546" \
   --json-rpc.api "eth,web3,net,txpool,debug,personal,inj" \
-  --json-rpc.enable true \
+  --json-rpc.enable=true \
   --optimistic-execution-enabled true \
   --home "$INJHOME" \
 start

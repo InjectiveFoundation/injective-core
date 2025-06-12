@@ -218,7 +218,7 @@ func (b *Backend) GetTransactionReceipt(hash common.Hash) (map[string]interface{
 		// Consensus fields: These fields are defined by the Yellow Paper
 		"status":            status,
 		"cumulativeGasUsed": hexutil.Uint64(cumulativeGasUsed),
-		"logsBloom":         ethtypes.BytesToBloom(ethtypes.LogsBloom(logs)),
+		"logsBloom":         ethtypes.BytesToBloom(evmtypes.LogsBloom(logs)),
 		"logs":              logs,
 
 		// Implementation fields: These fields are added by geth when processing a transaction.

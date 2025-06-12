@@ -2,14 +2,10 @@ package types
 
 import (
 	"cosmossdk.io/errors"
+	ethcommon "github.com/ethereum/go-ethereum/common"
 )
 
-// this line is used by starport scaffolding # genesis/types/import
-
-// DefaultIndex is the default capability global index
-const DefaultIndex uint64 = 1
-
-// DefaultGenesis returns the default Capability genesis state
+// DefaultGenesis returns the default genesis state
 func DefaultGenesis() *GenesisState {
 	return &GenesisState{
 		Params:     DefaultParams(),
@@ -26,12 +22,27 @@ func (gs GenesisState) Validate() error {
 	}
 
 	seenDenoms := map[string]struct{}{}
+	seenErc20Addresses := map[string]struct{}{}
 
 	for _, pair := range gs.GetTokenPairs() {
+		// Validate individual TokenPair
+		if err := pair.Validate(); err != nil {
+			return err
+		}
+
+		// Check for duplicate bank denoms
 		if _, ok := seenDenoms[pair.GetBankDenom()]; ok {
 			return errors.Wrapf(ErrInvalidGenesis, "duplicate bank denom: %s", pair.GetBankDenom())
 		}
 		seenDenoms[pair.GetBankDenom()] = struct{}{}
+
+		// Check for duplicate ERC20 addresses
+		erc20Address := ethcommon.HexToAddress(pair.GetErc20Address())
+
+		if _, ok := seenErc20Addresses[string(erc20Address.Bytes())]; ok {
+			return errors.Wrapf(ErrInvalidGenesis, "duplicate ERC20 address: %s", erc20Address.Hex())
+		}
+		seenErc20Addresses[string(erc20Address.Bytes())] = struct{}{}
 	}
 
 	return nil

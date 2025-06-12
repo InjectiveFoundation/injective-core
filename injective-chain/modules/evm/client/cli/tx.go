@@ -3,11 +3,15 @@ package cli
 import (
 	"bufio"
 	"fmt"
+	"math/big"
 	"os"
+	"strings"
 
+	sdkmath "cosmossdk.io/math"
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/client/flags"
 	"github.com/cosmos/cosmos-sdk/client/input"
+	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/pkg/errors"
@@ -34,18 +38,13 @@ func GetTxCmd() *cobra.Command {
 // NewRawTxCmd command build cosmos transaction from raw ethereum transaction
 func NewRawTxCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "raw TX_HEX",
-		Short: "Build cosmos transaction from raw ethereum transaction",
+		Use:   "raw TX_HEX,TX_HEX_2,...",
+		Short: "Build cosmos transaction from raw ethereum transactions",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clientCtx, err := client.GetClientTxContext(cmd)
 			if err != nil {
 				return err
-			}
-
-			data, err := hexutil.Decode(args[0])
-			if err != nil {
-				return errors.Wrap(err, "failed to decode ethereum tx hex bytes")
 			}
 
 			rsp, err := rpctypes.NewQueryClient(clientCtx).Params(cmd.Context(), &types.QueryParamsRequest{})
@@ -58,19 +57,43 @@ func NewRawTxCmd() *cobra.Command {
 				return errors.New("EIP155 ChainID is nil")
 			}
 
-			msg := &types.MsgEthereumTx{}
-			if err := msg.UnmarshalBinary(data, ethtypes.LatestSignerForChainID(eip155ChainID.BigInt())); err != nil {
-				return err
-			}
+			txBuilder := clientCtx.TxConfig.NewTxBuilder()
+			totalFees := big.NewInt(0)
+			msgs := make([]sdk.Msg, 0)
+			totalGas := uint64(0)
 
-			if err := msg.ValidateBasic(); err != nil {
-				return err
-			}
+			dataStrings := strings.Split(args[0], ",")
+			for i, dataStr := range dataStrings {
+				data, err := hexutil.Decode(dataStr)
+				if err != nil {
+					return errors.Wrapf(err, "failed to decode ethereum tx hex bytes #%d", i)
+				}
 
-			tx, err := msg.BuildTx(clientCtx.TxConfig.NewTxBuilder(), rsp.Params.EvmDenom)
-			if err != nil {
-				return err
+				msg := &types.MsgEthereumTx{}
+				if err := msg.UnmarshalBinary(data, ethtypes.LatestSignerForChainID(eip155ChainID.BigInt())); err != nil {
+					return err
+				}
+
+				if err := msg.ValidateBasic(); err != nil {
+					return err
+				}
+
+				totalFees.Add(totalFees, msg.GetFee())
+				totalGas += msg.GetGas()
+
+				// we ignore returned tx since this call is only to modify txBuilder state
+				tx, err := msg.BuildTx(txBuilder, rsp.Params.EvmDenom)
+				if err != nil {
+					return err
+				}
+
+				msgs = append(msgs, tx.GetMsgs()...)
 			}
+			feeAmt := sdk.NewCoins(sdk.NewCoin(rsp.Params.EvmDenom, sdkmath.NewIntFromBigInt(totalFees)))
+			txBuilder.SetFeeAmount(feeAmt)
+			txBuilder.SetGasLimit(totalGas)
+			txBuilder.SetMsgs(msgs...)
+			tx := txBuilder.GetTx()
 
 			if clientCtx.GenerateOnly {
 				json, err := clientCtx.TxConfig.TxJSONEncoder()(tx)

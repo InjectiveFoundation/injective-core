@@ -155,8 +155,10 @@
       "url": "./tmp-swagger-gen/injective/evm/v1/query.swagger.json",
       "operationIds": {
         "rename": {
-          "Params": "EvmParams",
-          "Code": "EvmCode"
+          "Account": "EvmAccount",
+          "Balance": "EvmBalance",
+          "Code": "EvmCode",
+          "Params": "EvmParams"
         }
       }
     },
@@ -185,16 +187,7 @@
       "url": "./tmp-swagger-gen/cosmos/auth/v1beta1/query.swagger.json",
       "operationIds": {
         "rename": {
-          "Account": "AuthAccount",
           "Params": "AuthParams"
-        }
-      }
-    },
-    {
-      "url": "./tmp-swagger-gen/cosmos/authz/v1beta1/query.swagger.json",
-      "operationIds": {
-        "rename": {
-          "Params": "AuthzParams"
         }
       }
     },
@@ -202,7 +195,6 @@
       "url": "./tmp-swagger-gen/cosmos/bank/v1beta1/query.swagger.json",
       "operationIds": {
         "rename": {
-          "Balance": "BankBalance",
           "Params": "BankParams"
         }
       }
@@ -211,24 +203,18 @@
       "url": "./tmp-swagger-gen/cosmos/base/tendermint/v1beta1/query.swagger.json",
       "operationIds": {
         "rename": {
-          "Params": "TendermintParams"
+          "Params": "BaseParams"
         }
       }
     },
     {
-      "url": "./tmp-swagger-gen/cosmos/consensus/v1/query.swagger.json",
-      "operationIds": {
-        "rename": {
-          "Params": "ConsensusParams"
-        }
-      }
+      "url": "./tmp-swagger-gen/cosmos/base/node/v1beta1/query.swagger.json"
     },
     {
       "url": "./tmp-swagger-gen/cosmos/distribution/v1beta1/query.swagger.json",
       "operationIds": {
         "rename": {
-          "Params": "DistributionParams",
-          "DelegatorValidators": "DistDelegatorValidators"
+          "Params": "DistributionParams"
         }
       }
     },
@@ -241,10 +227,10 @@
       }
     },
     {
-      "url": "./tmp-swagger-gen/cosmos/feegrant/v1beta1/query.swagger.json",
+      "url": "./tmp-swagger-gen/cosmos/gov/v1beta1/query.swagger.json",
       "operationIds": {
         "rename": {
-          "Params": "FeeGrantParams"
+          "Params": "GovParams"
         }
       }
     },
@@ -252,7 +238,14 @@
       "url": "./tmp-swagger-gen/cosmos/gov/v1/query.swagger.json",
       "operationIds": {
         "rename": {
-          "Params": "GovV1Params"
+          "Params": "GovV1Params",
+          "Proposal": "GovV1Proposal",
+          "Proposals": "GovV1Proposal",
+          "Vote": "GovV1Vote",
+          "Votes": "GovV1Votes",
+          "Deposit": "GovV1Deposit",
+          "Deposits": "GovV1Deposit",
+          "TallyResult": "GovV1TallyResult"
         }
       }
     },
@@ -268,7 +261,7 @@
       "url": "./tmp-swagger-gen/cosmos/params/v1beta1/query.swagger.json",
       "operationIds": {
         "rename": {
-          "Params": "ParamsParams"
+          "Params": "Params"
         }
       }
     },
@@ -284,8 +277,15 @@
       "url": "./tmp-swagger-gen/cosmos/staking/v1beta1/query.swagger.json",
       "operationIds": {
         "rename": {
-          "Params": "StakingParams"
+          "Params": "StakingParams",
+          "DelegatorValidators": "StakingDelegatorValidators"
         }
+      }
+    },
+    {
+      "url": "./tmp-swagger-gen/cosmos/tx/v1beta1/service.swagger.json",
+      "dereference": {
+        "circular": "ignore"
       }
     },
     {
@@ -293,6 +293,81 @@
       "operationIds": {
         "rename": {
           "Params": "UpgradeParams"
+        }
+      }
+    },
+    {
+      "url": "./tmp-swagger-gen/cosmos/authz/v1beta1/query.swagger.json",
+      "operationIds": {
+        "rename": {
+          "Params": "AuthzParams"
+        }
+      }
+    },
+    {
+      "url": "./tmp-swagger-gen/cosmos/feegrant/v1beta1/query.swagger.json",
+      "operationIds": {
+        "rename": {
+          "Params": "FeegrantParams"
+        }
+      }
+    },
+    {
+      "url": "./tmp-swagger-gen/cosmos/nft/v1beta1/query.swagger.json",
+      "operationIds": {
+        "rename": {
+          "Params": "NftParams",
+          "Balance": "NftBalance"
+        }
+      }
+    },
+    {
+      "url": "./tmp-swagger-gen/cosmos/group/v1/query.swagger.json",
+      "operationIds": {
+        "rename": {
+          "Params": "GroupParams",
+          "Proposal": "GroupProposal",
+          "TallyResult": "GroupTallyResult"
+        }
+      }
+    },
+    {
+      "url": "./tmp-swagger-gen/cosmos/circuit/v1/query.swagger.json",
+      "operationIds": {
+        "rename": {
+          "Accounts": "CircuitAccounts",
+          "Account": "CircuitAccount",
+          "Params": "CircuitParams"
+        }
+      }
+    },
+    {
+      "url": "./tmp-swagger-gen/cosmos/consensus/v1/query.swagger.json",
+      "operationIds": {
+        "rename": {
+          "Params": "ConsensusParams"
+        }
+      }
+    },
+    {
+      "url": "./tmp-swagger-gen/cosmos/app/v1alpha1/query.swagger.json"
+    },
+    {
+      "url": "tmp-swagger-gen/ibc/applications/fee/v1/query.swagger.json"
+    },
+    {
+      "url": "tmp-swagger-gen/ibc/applications/interchain_accounts/controller/v1/query.swagger.json",
+      "operationIds": {
+        "rename": {
+          "Params": "IBCInterchainAccountsControllerParams"
+        }
+      }
+    },
+    {
+      "url": "tmp-swagger-gen/ibc/applications/interchain_accounts/host/v1/query.swagger.json",
+      "operationIds": {
+        "rename": {
+          "Params": "IBCInterchainAccountsHostParams"
         }
       }
     },
@@ -330,7 +405,21 @@
       }
     },
     {
-      "url": "tmp-swagger-gen/cosmwasm/wasm/v1/query.swagger.json"
+      "url": "tmp-swagger-gen/ibc/lightclients/wasm/v1/query.swagger.json",
+      "operationIds": {
+        "rename": {
+          "Code": "IBCLightClientCode"
+        }
+      }
+    },
+    {
+      "url": "tmp-swagger-gen/cosmwasm/wasm/v1/query.swagger.json",
+      "operationIds": {
+        "rename": {
+          "Code": "CosmwasmCode",
+          "Params": "CosmwasmParams"
+        }
+      }
     }
   ]
 }

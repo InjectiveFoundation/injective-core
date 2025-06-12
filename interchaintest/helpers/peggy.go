@@ -33,6 +33,7 @@ import (
 	"github.com/strangelove-ventures/interchaintest/v8/chain/ethereum"
 	"github.com/strangelove-ventures/interchaintest/v8/chain/ethereum/geth"
 	"github.com/strangelove-ventures/interchaintest/v8/ibc"
+	"github.com/strangelove-ventures/interchaintest/v8/testutil"
 	"github.com/stretchr/testify/require"
 
 	"github.com/InjectiveLabs/etherman/deployer"
@@ -69,31 +70,20 @@ func RegisterOrchestrator(
 	validator, err := node.AccountKeyBech32(ctx, "validator")
 	require.NoError(t, err)
 
-	// We can't use ExecTx because interchain expects `--output json` to work with cli and that's not the case
-	cmd := []string{
-		node.Chain.Config().Bin,
-		"tx",
+	txHash, err := node.ExecTx(ctx, "validator",
 		"peggy",
 		"set-orchestrator-address",
 		validator,
 		orchestratorAddress,
 		ethereumAddress,
-		"--gas-prices",
-		node.Chain.Config().GasPrices,
-		"--gas-adjustment",
-		strconv.FormatFloat(node.Chain.Config().GasAdjustment, 'f', -1, 64),
-		"--gas",
-		node.Chain.Config().Gas,
-		"--chain-id",
-		node.Chain.Config().ChainID,
-		"--from", "validator",
-		"--keyring-backend", keyring.BackendTest,
-		"--home", node.HomeDir(),
-		"--node", fmt.Sprintf("tcp://%s:26657", node.HostName()),
-		"-y",
-	}
+	)
+	require.NoError(t, err)
 
-	_, _, err = node.Exec(ctx, cmd, node.Chain.Config().Env)
+	txResp, err := QueryTx(ctx, node, txHash)
+	require.NoError(t, err)
+	require.Equal(t, uint32(0), txResp.ErrorCode)
+
+	err = testutil.WaitForBlocks(ctx, 1, node.Chain)
 	require.NoError(t, err)
 
 	t.Log("registered orchestrator",
@@ -556,54 +546,32 @@ func PrependZeroBytes12(data []byte) []byte {
 	return append(prefix, data...)
 }
 
-func SendToEth(
+func PeggySendToEth(
 	t *testing.T,
 	ctx context.Context,
 	chain *cosmos.CosmosChain,
-	sender string,
-	receiver string,
+	sender ibc.Wallet,
+	receiver ibc.Wallet,
 	coin sdktypes.Coin,
 	fee sdktypes.Coin,
 ) []*peggytypes.OutgoingTransferTx {
 	t.Helper()
 
-	//cmd := []string{
-	//	"peggy",
-	//	"send-to-eth",
-	//	receiver.FormattedAddress(),
-	//	coin.String(),
-	//	fee.String(),
-	//}
-	//
 	chainNode := chain.GetNode()
-	//_, err := chainNode.ExecTx(ctx, sender.KeyName(), cmd...)
-	//require.NoError(t, err)
-
-	// We can't use ExecTx because interchain expects `--output json` to work with cli and that's not the case
-	cmd := []string{
-		chainNode.Chain.Config().Bin,
-		"tx",
+	txHash, err := chainNode.ExecTx(ctx, sender.KeyName(),
 		"peggy",
 		"send-to-eth",
-		receiver,
+		receiver.FormattedAddress(),
 		coin.String(),
 		fee.String(),
-		"--gas-prices",
-		chainNode.Chain.Config().GasPrices,
-		"--gas-adjustment",
-		strconv.FormatFloat(chainNode.Chain.Config().GasAdjustment, 'f', -1, 64),
-		"--gas",
-		chainNode.Chain.Config().Gas,
-		"--chain-id",
-		chainNode.Chain.Config().ChainID,
-		"--from", sender,
-		"--keyring-backend", keyring.BackendTest,
-		"--home", chainNode.HomeDir(),
-		"--node", fmt.Sprintf("tcp://%s:26657", chainNode.HostName()),
-		"-y",
-	}
+	)
+	require.NoError(t, err)
 
-	_, _, err := chainNode.Exec(ctx, cmd, chainNode.Chain.Config().Env)
+	txResp, err := QueryTx(ctx, chainNode, txHash)
+	require.NoError(t, err)
+	require.Equal(t, uint32(0), txResp.ErrorCode)
+
+	err = testutil.WaitForBlocks(ctx, 1, chain)
 	require.NoError(t, err)
 
 	return GetPeggyModuleState(t, ctx, chain).UnbatchedTransfers
@@ -899,7 +867,7 @@ func DeployERC20(
 		denomMetadata.Base,
 		denomMetadata.Display,
 		denomMetadata.Display,
-		uint8(18),
+		uint8(denomMetadata.Decimals),
 	}
 
 	_, _, err = d.Tx(ctx, opts, "deployERC20", func(_ abi.Arguments) []interface{} {

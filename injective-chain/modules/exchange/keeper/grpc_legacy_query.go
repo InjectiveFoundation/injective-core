@@ -569,7 +569,7 @@ func (q legacyQueryServer) SpotOrderbook(
 	}
 
 	if request.LimitCumulativeNotional != nil {
-		humanReadableLimitCumulativeNotional := market.PriceFromChainFormat(*request.LimitCumulativeNotional)
+		humanReadableLimitCumulativeNotional := market.NotionalFromChainFormat(*request.LimitCumulativeNotional)
 		reqV2.LimitCumulativeNotional = &humanReadableLimitCumulativeNotional
 	}
 	if request.LimitCumulativeQuantity != nil {
@@ -1478,7 +1478,8 @@ func convertTradingRewardCampaignAccountPoints(points []*v2.TradingRewardCampaig
 	for _, point := range points {
 		p := &v1.TradingRewardCampaignAccountPoints{
 			Account: point.Account,
-			Points:  point.Points,
+			// Historically all tokens with FeeDiscount had 6 decimals (until the migration to exchange v2 - v1.16.0)
+			Points: types.NotionalToChainFormat(point.Points, 6),
 		}
 
 		result = append(result, p)
@@ -1499,7 +1500,8 @@ func convertPendingTradingRewardPoints(
 		for _, accountPoint := range point.AccountPoints {
 			p.AccountPoints = append(p.AccountPoints, &v1.TradingRewardCampaignAccountPoints{
 				Account: accountPoint.Account,
-				Points:  accountPoint.Points,
+				// Historically all tokens with FeeDiscount had 6 decimals (until the migration to exchange v2 - v1.16.0)
+				Points: types.NotionalToChainFormat(accountPoint.Points, 6),
 			})
 		}
 
@@ -1519,11 +1521,13 @@ func convertFeeDiscountSchedule(respV2 *v2.QueryModuleStateResponse, resp *v1.Qu
 		}
 
 		for _, info := range respV2.State.FeeDiscountSchedule.TierInfos {
+			// Historically all tokens with FeeDiscount had 6 decimals (until the migration to exchange v2 - v1.16.0)
+			chainFormatVolume := types.NotionalToChainFormat(info.Volume, 6)
 			feeDiscount.TierInfos = append(feeDiscount.TierInfos, &v1.FeeDiscountTierInfo{
 				MakerDiscountRate: info.MakerDiscountRate,
 				TakerDiscountRate: info.TakerDiscountRate,
 				StakedAmount:      info.StakedAmount,
-				Volume:            info.Volume,
+				Volume:            chainFormatVolume,
 			})
 		}
 
@@ -1553,9 +1557,11 @@ func convertFeeDiscountSchedule(respV2 *v2.QueryModuleStateResponse, resp *v1.Qu
 		}
 
 		for _, volume := range account.AccountVolume {
+			// Historically all tokens with FeeDiscount had 6 decimals (until the migration to exchange v2 - v1.16.0)
+			chainFormatVolume := types.NotionalToChainFormat(volume.Volume, 6)
 			a.AccountVolume = append(a.AccountVolume, &v1.AccountVolume{
 				Account: volume.Account,
-				Volume:  volume.Volume,
+				Volume:  chainFormatVolume,
 			})
 		}
 
@@ -1997,8 +2003,9 @@ func (q legacyQueryServer) TradeRewardPoints(
 		return nil, err
 	}
 
-	resp := &v1.QueryTradeRewardPointsResponse{
-		AccountTradeRewardPoints: respV2.AccountTradeRewardPoints,
+	resp := &v1.QueryTradeRewardPointsResponse{}
+	for _, points := range respV2.AccountTradeRewardPoints {
+		resp.AccountTradeRewardPoints = append(resp.AccountTradeRewardPoints, types.NotionalToChainFormat(points, 6))
 	}
 
 	return resp, nil
@@ -2020,8 +2027,10 @@ func (q legacyQueryServer) PendingTradeRewardPoints(
 		return nil, err
 	}
 
-	resp := &v1.QueryTradeRewardPointsResponse{
-		AccountTradeRewardPoints: respV2.AccountTradeRewardPoints,
+	resp := &v1.QueryTradeRewardPointsResponse{}
+
+	for _, points := range respV2.AccountTradeRewardPoints {
+		resp.AccountTradeRewardPoints = append(resp.AccountTradeRewardPoints, types.NotionalToChainFormat(points, 6))
 	}
 
 	return resp, nil
@@ -2040,8 +2049,8 @@ func (q legacyQueryServer) TradeRewardCampaign(
 	}
 
 	resp := &v1.QueryTradeRewardCampaignResponse{
-		TotalTradeRewardPoints:        respV2.TotalTradeRewardPoints,
-		PendingTotalTradeRewardPoints: respV2.PendingTotalTradeRewardPoints,
+		// Historically all tokens with FeeDiscount had 6 decimals (until the migration to exchange v2 - v1.16.0)
+		TotalTradeRewardPoints: types.NotionalToChainFormat(respV2.TotalTradeRewardPoints, 6),
 	}
 
 	if respV2.TradingRewardCampaignInfo != nil {
@@ -2061,6 +2070,12 @@ func (q legacyQueryServer) TradeRewardCampaign(
 			StartTimestamp:     pool.StartTimestamp,
 			MaxCampaignRewards: pool.MaxCampaignRewards,
 		})
+	}
+
+	for _, totalRewardPoints := range respV2.PendingTotalTradeRewardPoints {
+		// Historically all tokens with FeeDiscount had 6 decimals (until the migration to exchange v2 - v1.16.0)
+		chainFormattedPoints := types.NotionalToChainFormat(totalRewardPoints, 6)
+		resp.PendingTotalTradeRewardPoints = append(resp.PendingTotalTradeRewardPoints, chainFormattedPoints)
 	}
 
 	return resp, nil
@@ -2087,7 +2102,8 @@ func (q legacyQueryServer) FeeDiscountAccountInfo(
 			MakerDiscountRate: respV2.AccountInfo.MakerDiscountRate,
 			TakerDiscountRate: respV2.AccountInfo.TakerDiscountRate,
 			StakedAmount:      respV2.AccountInfo.StakedAmount,
-			Volume:            respV2.AccountInfo.Volume,
+			// Historically all tokens with FeeDiscount had 6 decimals (until the migration to exchange v2 - v1.16.0)
+			Volume: types.NotionalToChainFormat(respV2.AccountInfo.Volume, 6),
 		}
 	}
 
@@ -2126,7 +2142,8 @@ func (q legacyQueryServer) FeeDiscountSchedule(
 			MakerDiscountRate: info.MakerDiscountRate,
 			TakerDiscountRate: info.TakerDiscountRate,
 			StakedAmount:      info.StakedAmount,
-			Volume:            info.Volume,
+			// Historically all tokens with FeeDiscount had 6 decimals (until the migration to exchange v2 - v1.16.0)
+			Volume: types.NotionalToChainFormat(info.Volume, 6),
 		})
 	}
 
@@ -2348,11 +2365,15 @@ func (q legacyQueryServer) MarketVolatility(
 		return nil, err
 	}
 
-	chainFormatVolatility := market.PriceToChainFormat(*respV2.Volatility)
 	resp := &v1.QueryMarketVolatilityResponse{
-		Volatility:      &chainFormatVolatility,
+		Volatility:      nil,
 		HistoryMetadata: respV2.HistoryMetadata,
 		RawHistory:      make([]*v1.TradeRecord, 0, len(respV2.RawHistory)),
+	}
+
+	if respV2.Volatility != nil {
+		chainFormatVolatility := market.PriceToChainFormat(*respV2.Volatility)
+		resp.Volatility = &chainFormatVolatility
 	}
 
 	if respV2.HistoryMetadata != nil {

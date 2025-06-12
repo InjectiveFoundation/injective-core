@@ -15,8 +15,8 @@
       "accountIndex": 0,
       "isLong": false,
       "isReduceOnly": false,
-      "repeatTimes" : 20,
-      "comment" : "limit buys"
+      "repeatTimes": 100,
+      "comment": "limit buys"
     },
     {
       "actionType": "derivativeLimitOrder",
@@ -26,8 +26,8 @@
       "accountIndex": 0,
       "isLong": true,
       "isReduceOnly": false,
-      "triggerPrice" : 6,
-      "comment" : "should be sl - higher = false"
+      "triggerPrice": 6,
+      "comment": "should be sl - higher = false"
     },
     {
       "actionType": "endblocker",
@@ -41,8 +41,8 @@
       "accountIndex": 0,
       "isLong": false,
       "isReduceOnly": false,
-      "triggerPrice" : 14,
-      "comment" : "should be rejected"
+      "triggerPrice": 14,
+      "comment": "should be rejected"
     },
     {
       "actionType": "endblocker",

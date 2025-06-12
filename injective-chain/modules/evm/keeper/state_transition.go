@@ -11,6 +11,7 @@ import (
 	"github.com/holiman/uint256"
 
 	errorsmod "cosmossdk.io/errors"
+	storetypes "cosmossdk.io/store/types"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/statedb"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/types"
@@ -19,6 +20,7 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/tracing"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -72,7 +74,8 @@ func (k *Keeper) NewEVM(
 	sort.SliceStable(active, func(i, j int) bool {
 		return bytes.Compare(active[i].Bytes(), active[j].Bytes()) < 0
 	})
-	evm := vm.NewEVM(blockCtx, txCtx, stateDB, cfg.ChainConfig, vmConfig)
+	evm := vm.NewEVM(blockCtx, stateDB, cfg.ChainConfig, vmConfig)
+	evm.SetTxContext(txCtx)
 	evm.WithPrecompiles(contracts, active)
 	return evm
 }
@@ -169,6 +172,9 @@ func (k *Keeper) ApplyTransaction(ctx sdk.Context, msgEth *types.MsgEthereumTx) 
 		tmpCtx, commit = ctx.CacheContext()
 	}
 
+	// replace gas meter with InfiniteGasMeter to not account for "Cosmos"-style CRUD operations gas costs and only use EVM returned gas
+	tmpCtx = tmpCtx.WithGasMeter(storetypes.NewInfiniteGasMeter())
+
 	// pass true to commit the StateDB
 	res, applyMessageErr := k.ApplyMessageWithConfig(tmpCtx, msg, cfg, true)
 	if applyMessageErr != nil {
@@ -192,7 +198,7 @@ func (k *Keeper) ApplyTransaction(ctx sdk.Context, msgEth *types.MsgEthereumTx) 
 
 	// Compute block bloom filter
 	if len(logs) > 0 {
-		k.SetTxBloom(tmpCtx, new(big.Int).SetBytes(ethtypes.LogsBloom(logs)))
+		k.SetTxBloom(tmpCtx, new(big.Int).SetBytes(types.LogsBloom(logs)))
 	}
 
 	var contractAddr common.Address
@@ -246,13 +252,12 @@ func (k *Keeper) ApplyTransaction(ctx sdk.Context, msgEth *types.MsgEthereumTx) 
 		return nil, errorsmod.Wrapf(err, "failed to refund leftover gas to sender %s", msg.From)
 	}
 
-	totalGasUsed, err := k.AddTransientGasUsed(ctx, res.GasUsed)
-	if err != nil {
+	if _, err = k.AddTransientGasUsed(ctx, res.GasUsed); err != nil {
 		return nil, errorsmod.Wrap(err, "failed to add transient gas used")
 	}
 
-	// reset the gas meter for current cosmos transaction
-	k.ResetGasMeterAndConsumeGas(ctx, totalGasUsed)
+	// consume gas on the original gas meter
+	ctx.GasMeter().ConsumeGas(res.GasUsed, "apply evm transaction")
 
 	return res, nil
 }
@@ -333,9 +338,9 @@ func (k *Keeper) ApplyMessageWithConfig(
 
 	// return error if contract creation is permissioned and the sender is not an
 	// authorized contract deployer
-	if cfg.Params.Permissioned &&
-		!cfg.Params.IsAuthorisedDeployer(msg.From) &&
-		msg.To == nil {
+	if msg.To == nil &&
+		(cfg.Params.Permissioned &&
+			!cfg.Params.IsAuthorisedDeployer(msg.From)) {
 		return nil, errorsmod.Wrap(types.ErrCreateNotAuthorized, "failed to create new contract")
 	}
 
@@ -354,7 +359,6 @@ func (k *Keeper) ApplyMessageWithConfig(
 
 	evm = k.NewEVM(ctx, msg, cfg, stateDB)
 	leftoverGas := msg.GasLimit
-	sender := vm.AccountRef(msg.From)
 
 	tx := ethtypes.NewTx(&ethtypes.LegacyTx{
 		Nonce:    msg.Nonce,
@@ -412,18 +416,19 @@ func (k *Keeper) ApplyMessageWithConfig(
 	// - reset transient storage(eip 1153)
 	stateDB.Prepare(rules, msg.From, cfg.CoinBase, msg.To, vm.DefaultActivePrecompiles(rules), msg.AccessList)
 
-	if contractCreation {
-		// Why do we want to set the nonce in the statedb twice here?
+	// take over the nonce management from evm:
+	// After AnteHandlers (in case of multiple msgs in a tx) the nonce is set to last msg nonce + 1
+	// - reset sender's nonce to msg.Nonce() before calling evm (it is needed due to EVM checking nonce or what?)
+	// - increase sender's nonce by one no matter the result.
+	stateDB.SetNonce(msg.From, msg.Nonce, tracing.NonceChangeUnspecified)
 
-		// take over the nonce management from evm:
-		// - reset sender's nonce to msg.Nonce() before calling evm.
-		// - increase sender's nonce by one no matter the result.
-		stateDB.SetNonce(sender.Address(), msg.Nonce)
-		ret, _, leftoverGas, vmErr = evm.Create(sender, msg.Data, leftoverGas, uint256.MustFromBig(msg.Value))
-		stateDB.SetNonce(sender.Address(), msg.Nonce+1)
+	if contractCreation {
+		ret, _, leftoverGas, vmErr = evm.Create(msg.From, msg.Data, leftoverGas, uint256.MustFromBig(msg.Value))
 	} else {
-		ret, leftoverGas, vmErr = evm.Call(sender, *msg.To, msg.Data, leftoverGas, uint256.MustFromBig(msg.Value))
+		ret, leftoverGas, vmErr = evm.Call(msg.From, *msg.To, msg.Data, leftoverGas, uint256.MustFromBig(msg.Value))
 	}
+
+	stateDB.SetNonce(msg.From, msg.Nonce+1, tracing.NonceChangeUnspecified)
 
 	refundQuotient := params.RefundQuotient
 

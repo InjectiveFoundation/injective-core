@@ -24,9 +24,9 @@
       "accountIndex": 0,
       "isLong": true,
       "isReduceOnly": false,
-      "triggerPrice" : 12,
-      "repeatTimes" : 19,
-      "comment" : "tp limit buys"
+      "triggerPrice": 12,
+      "repeatTimes": 99,
+      "comment": "tp limit buys"
     },
     {
       "actionType": "derivativeLimitOrder",
@@ -37,7 +37,7 @@
       "isLong": true,
       "isReduceOnly": false
     },
-   {
+    {
       "actionType": "derivativeLimitOrder",
       "actionId": "1",
       "price": 8,
@@ -45,9 +45,9 @@
       "accountIndex": 0,
       "isLong": false,
       "isReduceOnly": false,
-      "triggerPrice" : 8,
-      "repeatTimes" : 19,
-      "comment" : "sl limit sell"
+      "triggerPrice": 8,
+      "repeatTimes": 99,
+      "comment": "sl limit sell"
     },
     {
       "actionType": "derivativeLimitOrder",

@@ -205,11 +205,11 @@ func (s *stateObject) GetState(key common.Hash) common.Hash {
 }
 
 // SetState sets the contract state
-func (s *stateObject) SetState(key, value common.Hash) {
+func (s *stateObject) SetState(key, value common.Hash) common.Hash {
 	// If the new value is the same as old, don't set
 	prev := s.GetState(key)
 	if prev == value {
-		return
+		return prev
 	}
 	// New value is different, update and journal the change
 	s.db.journal.append(storageChange{
@@ -218,6 +218,8 @@ func (s *stateObject) SetState(key, value common.Hash) {
 		prevalue: prev,
 	})
 	s.setState(key, value)
+
+	return prev
 }
 
 func (s *stateObject) SetStorage(storage Storage) {

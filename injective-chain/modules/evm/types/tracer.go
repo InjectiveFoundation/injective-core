@@ -3,6 +3,7 @@ package types
 import (
 	"os"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -22,16 +23,17 @@ const (
 // EVM transaction.
 func NewTracer(tracer string, msg *core.Message, rules params.Rules) *tracers.Tracer {
 	// TODO: enable additional log configuration
-	logCfg := &logger.Config{
-		Debug: true,
-	}
+	logCfg := &logger.Config{}
 
 	var hooks *tracing.Hooks
 
 	switch tracer {
 	case TracerAccessList:
-		preCompiles := vm.DefaultActivePrecompiles(rules)
-		hooks = logger.NewAccessListTracer(msg.AccessList, msg.From, *msg.To, preCompiles).Hooks()
+		addressesToExclude := map[common.Address]struct{}{}
+		for _, pc := range vm.DefaultActivePrecompiles(rules) {
+			addressesToExclude[pc] = struct{}{}
+		}
+		hooks = logger.NewAccessListTracer(msg.AccessList, addressesToExclude).Hooks()
 	case TracerJSON:
 		hooks = logger.NewJSONLogger(logCfg, os.Stderr)
 	case TracerMarkdown:

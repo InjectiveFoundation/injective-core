@@ -26,6 +26,7 @@ var commonArgs = []string{
 	fmt.Sprintf("--%s=%s", flags.FlagBroadcastMode, flags.BroadcastSync),
 	fmt.Sprintf("--%s=%s", flags.FlagFees, sdk.NewCoins(sdk.NewCoin(sdk.DefaultBondDenom, math.NewInt(10))).String()),
 	fmt.Sprintf("--%s=%s", flags.FlagChainID, "injective-1"),
+	fmt.Sprintf("--%s=%s", flags.FlagOutput, "json"),
 }
 
 func FindProposalID(events []abci.Event) string {
@@ -64,7 +65,7 @@ func GrantPriceFeederPrivilege(net *network.Network, clientCtx client.Context, b
 		return output, err
 	}
 	txResp, _ = clitestutil.GetTxResponse(net, clientCtx, txResp.TxHash)
-	
+
 	if len(txResp.Events) == 0 {
 		return output, errors.New("proposal log does not exist")
 	}

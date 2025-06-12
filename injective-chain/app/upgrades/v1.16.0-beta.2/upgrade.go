@@ -9,6 +9,7 @@ import (
 	"cosmossdk.io/errors"
 	"cosmossdk.io/log"
 	"cosmossdk.io/math"
+	storetypes "cosmossdk.io/store/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
@@ -23,28 +24,18 @@ const (
 	UpgradeName = "v1.16.0-beta.2"
 )
 
+func StoreUpgrades() storetypes.StoreUpgrades {
+	return storetypes.StoreUpgrades{
+		Added:   []string{"evm", "erc20"},
+		Renamed: nil,
+		Deleted: nil,
+	}
+}
+
 //revive:disable:function-length // This is a long function, but it is not a problem
 func UpgradeSteps() []*upgrades.UpgradeHandlerStep {
-	// 1. Update markets
-	// 1.1 Update spot markets with base and quote decimals
-	// 1.2 Update derivative markets
-	// 1.2.1 Update with quote decimals
-	// 1.2.2 Update oracle scale factors (1 (or 0?) for regular markets, 1000 for e.g. 1000 PEPE market)
-	// 2. Update orders
-	// 2.1 Update spot orders with
-	//     price = old_price * 10 ^ (base_decimals - quote_decimals)
-	//     quantity = old_quantity * 10 ^ -base_decimals
-	// 2.2 Update derivative orders with
-	//     price = old_price * 10 ^ (-quote_decimals)
-	//     margin = old_margin * 10 ^ (-quote_decimals)
-	// 3. Update derivative positions with
-	//    margin = old_margin * 10 ^ (-quote_decimals)
-	//    entry_price = old_entry_price * 10 ^ (-quote_decimals)
-	// 4. SubaccountOrderbookMetadata (it has aggregated quantity in it but it is not separated by market or token)
-
 	devnetTokensMetadata := GetTokenInfoMap("data/upgrade_devnet_tokens.json")
 	testnetTokensMetadata := GetTokenInfoMap("data/upgrade_testnet_tokens.json")
-	mainnetTokensMetadata := GetTokenInfoMap("data/upgrade_mainnet_tokens.json")
 
 	// isActiveOrPausedMarket returns true if the market is either Active or Paused
 	isActiveOrPausedMarket := func(market exchangekeeper.MarketInterface) bool {
@@ -52,12 +43,6 @@ func UpgradeSteps() []*upgrades.UpgradeHandlerStep {
 	}
 
 	upgradeSteps := []*upgrades.UpgradeHandlerStep{
-		upgrades.NewUpgradeHandlerStep(
-			"UPDATE EXCHANGE PARAMS",
-			UpgradeName,
-			upgrades.MainnetChainID,
-			UpdateExchangeParams,
-		),
 		upgrades.NewUpgradeHandlerStep(
 			"UPDATE EXCHANGE PARAMS",
 			UpgradeName,
@@ -69,13 +54,6 @@ func UpgradeSteps() []*upgrades.UpgradeHandlerStep {
 			UpgradeName,
 			upgrades.DevnetChainID,
 			UpdateExchangeParams,
-		),
-
-		upgrades.NewUpgradeHandlerStep(
-			"DENOM MIN NOTIONALS MIGRATION",
-			UpgradeName,
-			upgrades.MainnetChainID,
-			UpdateDenomMinNotionalsFunction(mainnetTokensMetadata),
 		),
 		upgrades.NewUpgradeHandlerStep(
 			"DENOM MIN NOTIONALS MIGRATION",
@@ -89,13 +67,6 @@ func UpgradeSteps() []*upgrades.UpgradeHandlerStep {
 			upgrades.DevnetChainID,
 			UpdateDenomMinNotionalsFunction(devnetTokensMetadata),
 		),
-
-		upgrades.NewUpgradeHandlerStep(
-			"SPOT MARKETS MIGRATION",
-			UpgradeName,
-			upgrades.MainnetChainID,
-			UpdateAllSpotMarketsFunction(mainnetTokensMetadata),
-		),
 		upgrades.NewUpgradeHandlerStep(
 			"SPOT MARKETS MIGRATION",
 			UpgradeName,
@@ -107,13 +78,6 @@ func UpgradeSteps() []*upgrades.UpgradeHandlerStep {
 			UpgradeName,
 			upgrades.DevnetChainID,
 			UpdateAllSpotMarketsFunction(devnetTokensMetadata),
-		),
-
-		upgrades.NewUpgradeHandlerStep(
-			"DERIVATIVE MARKETS MIGRATION",
-			UpgradeName,
-			upgrades.MainnetChainID,
-			UpdateAllDerivativeMarketsFunction(mainnetTokensMetadata),
 		),
 		upgrades.NewUpgradeHandlerStep(
 			"DERIVATIVE MARKETS MIGRATION",
@@ -127,13 +91,6 @@ func UpgradeSteps() []*upgrades.UpgradeHandlerStep {
 			upgrades.DevnetChainID,
 			UpdateAllDerivativeMarketsFunction(devnetTokensMetadata),
 		),
-
-		upgrades.NewUpgradeHandlerStep(
-			"BINARY OPTIONS MARKETS MIGRATION",
-			UpgradeName,
-			upgrades.MainnetChainID,
-			UpdateAllBinaryOptionsMarketsFunction(mainnetTokensMetadata, exchangekeeper.AllMarketFilter),
-		),
 		upgrades.NewUpgradeHandlerStep(
 			"BINARY OPTIONS MARKETS MIGRATION",
 			UpgradeName,
@@ -146,12 +103,17 @@ func UpgradeSteps() []*upgrades.UpgradeHandlerStep {
 			upgrades.DevnetChainID,
 			UpdateAllBinaryOptionsMarketsFunction(devnetTokensMetadata, exchangekeeper.AllMarketFilter),
 		),
-
 		upgrades.NewUpgradeHandlerStep(
-			"INIT EVM PARAMS",
+			"UPDATE EXCHANGE PARAMS",
 			UpgradeName,
-			upgrades.MainnetChainID,
-			InitEVMParams,
+			upgrades.TestnetChainID,
+			UpdateExchangeParams,
+		),
+		upgrades.NewUpgradeHandlerStep(
+			"UPDATE EXCHANGE PARAMS",
+			UpgradeName,
+			upgrades.DevnetChainID,
+			UpdateExchangeParams,
 		),
 		upgrades.NewUpgradeHandlerStep(
 			"INIT EVM PARAMS",
@@ -171,7 +133,7 @@ func UpgradeSteps() []*upgrades.UpgradeHandlerStep {
 }
 
 // Following struct and functions are only usable for v1.14 markets decimals update
-// Tokens data is taken from the injective-lists repository, from the mainnet file
+// Tokens data is taken from the injective-lists repository, from the testnet file
 // NOTE: remember to update the tokens data JSON string before running the upgrade
 
 type TokenMetadata struct {
@@ -190,7 +152,7 @@ type TokenMetadata struct {
 	// MarketIDs         []string `json:"marketIds"`
 }
 
-//go:embed data/upgrade_mainnet_tokens.json data/upgrade_testnet_tokens.json data/upgrade_devnet_tokens.json
+//go:embed data/upgrade_testnet_tokens.json data/upgrade_devnet_tokens.json
 var embedFS embed.FS
 
 func GetTokenInfoMap(filename string) map[string]*TokenMetadata {
@@ -865,5 +827,59 @@ func InitEVMParams(ctx sdk.Context, app upgrades.InjectiveApplication, _ log.Log
 	}
 
 	evmKeeper.SetParams(ctx, evmParams)
+	return nil
+}
+
+func UpdateFeeDiscountsInfo(ctx sdk.Context, app upgrades.InjectiveApplication, _ log.Logger) error {
+	exchangeKeeper := app.GetExchangeKeeper()
+
+	feeDiscountShecdule := exchangeKeeper.GetFeeDiscountSchedule(ctx)
+
+	if feeDiscountShecdule != nil {
+		for _, tierInfo := range feeDiscountShecdule.TierInfos {
+			tierInfo.Volume = types.NotionalFromChainFormat(tierInfo.Volume, 6)
+		}
+
+		exchangeKeeper.SetFeeDiscountSchedule(ctx, feeDiscountShecdule)
+	}
+
+	allAccountVolumes := exchangeKeeper.GetAllAccountVolumeInAllBuckets(ctx)
+	for _, accountVolume := range allAccountVolumes {
+		for _, account := range accountVolume.AccountVolume {
+			// All account volumes so far in mainnet and testnet have been calculated for tokens with 6 decimals
+			humanReadableVolume := types.NotionalFromChainFormat(account.Volume, 6)
+			accountAddress, _ := sdk.AccAddressFromBech32(account.Account)
+			exchangeKeeper.SetFeeDiscountAccountVolumeInBucket(ctx, accountVolume.BucketStartTimestamp, accountAddress, humanReadableVolume)
+		}
+	}
+
+	allPastBucketTotalVolumes := exchangeKeeper.GetAllPastBucketTotalVolume(ctx)
+	for _, accountVolume := range allPastBucketTotalVolumes {
+		humanReadableVolume := types.NotionalFromChainFormat(accountVolume.Volume, 6)
+		accountAddress, _ := sdk.AccAddressFromBech32(accountVolume.Account)
+		exchangeKeeper.SetPastBucketTotalVolume(ctx, accountAddress, humanReadableVolume)
+	}
+
+	allAccountCampaignTradingRewardPendingPoints := exchangeKeeper.GetAllTradingRewardCampaignAccountPendingPoints(ctx)
+	for _, accountPoints := range allAccountCampaignTradingRewardPendingPoints {
+		for _, account := range accountPoints.AccountPoints {
+			humanReadableVolume := types.NotionalFromChainFormat(account.Points, 6)
+			accountAddress, _ := sdk.AccAddressFromBech32(account.Account)
+			exchangeKeeper.SetAccountCampaignTradingRewardPendingPoints(
+				ctx,
+				accountAddress,
+				accountPoints.RewardPoolStartTimestamp,
+				humanReadableVolume,
+			)
+		}
+	}
+
+	allRewardsPendingPools := exchangeKeeper.GetAllCampaignRewardPendingPools(ctx)
+	for _, rewardPool := range allRewardsPendingPools {
+		totalRewardsPendingPool := exchangeKeeper.GetTotalTradingRewardPendingPoints(ctx, rewardPool.StartTimestamp)
+		humanReadableValue := types.NotionalFromChainFormat(totalRewardsPendingPool, 6)
+		exchangeKeeper.SetTotalTradingRewardPendingPoints(ctx, humanReadableValue, rewardPool.StartTimestamp)
+	}
+
 	return nil
 }

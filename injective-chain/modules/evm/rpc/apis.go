@@ -67,13 +67,11 @@ func init() {
 					Namespace: EthNamespace,
 					Version:   apiVersion,
 					Service:   eth.NewPublicAPI(ctx.Logger, evmBackend),
-					Public:    true,
 				},
 				{
 					Namespace: EthNamespace,
 					Version:   apiVersion,
 					Service:   filters.NewPublicAPI(ctx.Logger, clientCtx, stream, evmBackend),
-					Public:    true,
 				},
 			}
 		},
@@ -83,7 +81,6 @@ func init() {
 					Namespace: Web3Namespace,
 					Version:   apiVersion,
 					Service:   web3.NewPublicAPI(),
-					Public:    true,
 				},
 			}
 		},
@@ -93,7 +90,6 @@ func init() {
 					Namespace: NetNamespace,
 					Version:   apiVersion,
 					Service:   net.NewPublicAPI(clientCtx),
-					Public:    true,
 				},
 			}
 		},
@@ -109,7 +105,6 @@ func init() {
 					Namespace: PersonalNamespace,
 					Version:   apiVersion,
 					Service:   personal.NewAPI(ctx.Logger, evmBackend),
-					Public:    false,
 				},
 			}
 		},
@@ -119,7 +114,6 @@ func init() {
 					Namespace: TxPoolNamespace,
 					Version:   apiVersion,
 					Service:   txpool.NewPublicAPI(ctx.Logger),
-					Public:    true,
 				},
 			}
 		},
@@ -135,7 +129,6 @@ func init() {
 					Namespace: DebugNamespace,
 					Version:   apiVersion,
 					Service:   debug.NewAPI(ctx, evmBackend),
-					Public:    true,
 				},
 			}
 		},
@@ -151,7 +144,6 @@ func init() {
 					Namespace: MinerNamespace,
 					Version:   apiVersion,
 					Service:   miner.NewPrivateAPI(ctx, evmBackend),
-					Public:    false,
 				},
 			}
 		},
@@ -167,7 +159,6 @@ func init() {
 					Namespace: InjectiveNamespace,
 					Version:   apiVersion,
 					Service:   inj.NewInjectiveAPI(ctx, evmBackend),
-					Public:    true,
 				},
 			}
 		},

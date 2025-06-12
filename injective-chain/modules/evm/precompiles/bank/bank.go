@@ -4,15 +4,17 @@ import (
 	"errors"
 	"math/big"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/vm"
+
 	errorsmod "cosmossdk.io/errors"
 	sdkmath "cosmossdk.io/math"
 	storetypes "cosmossdk.io/store/types"
 	"github.com/cosmos/cosmos-sdk/codec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	errortypes "github.com/cosmos/cosmos-sdk/types/errors"
-	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/vm"
+	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 
 	erc20types "github.com/InjectiveLabs/injective-core/injective-chain/modules/erc20/types"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/precompiles"
@@ -34,6 +36,11 @@ var (
 	bankABI                 abi.ABI
 	bankContractAddress     = common.BytesToAddress([]byte{100})
 	bankGasRequiredByMethod = map[[4]byte]uint64{}
+	zero                    = sdkmath.ZeroInt()
+)
+
+var (
+	ErrPrecompilePanic = errors.New("precompile panic")
 )
 
 func init() {
@@ -62,29 +69,46 @@ func init() {
 	}
 }
 
-type BankContract struct {
-	bankKeeper       types.BankKeeper
-	erc20QueryServer erc20types.QueryServer
+type Contract struct {
+	bankKeeper          types.BankKeeper
+	communityPoolKeeper types.CommunityPoolKeeper
+	erc20QueryServer    erc20types.QueryServer
 
 	cdc         codec.Codec
 	kvGasConfig storetypes.GasConfig
 }
 
-// NewBankContract creates the precompiled contract to manage native tokens
-func NewBankContract(bankKeeper types.BankKeeper, erc20QueryServer erc20types.QueryServer, cdc codec.Codec, kvGasConfig storetypes.GasConfig) vm.PrecompiledContract {
-	return &BankContract{bankKeeper, erc20QueryServer, cdc, kvGasConfig}
+// NewContract creates the precompiled contract to manage native tokens
+func NewContract(
+	bankKeeper types.BankKeeper,
+	erc20QueryServer erc20types.QueryServer,
+	cdc codec.Codec,
+	kvGasConfig storetypes.GasConfig,
+	communityPoolKeeper types.CommunityPoolKeeper,
+) vm.PrecompiledContract {
+	return &Contract{
+		bankKeeper:          bankKeeper,
+		erc20QueryServer:    erc20QueryServer,
+		cdc:                 cdc,
+		kvGasConfig:         kvGasConfig,
+		communityPoolKeeper: communityPoolKeeper,
+	}
 }
 
-func (bc *BankContract) ABI() abi.ABI {
+func (*Contract) ABI() abi.ABI {
 	return bankABI
 }
 
-func (bc *BankContract) Address() common.Address {
+func (*Contract) Address() common.Address {
 	return bankContractAddress
 }
 
 // RequiredGas calculates the contract gas use
-func (bc *BankContract) RequiredGas(input []byte) uint64 {
+func (bc *Contract) RequiredGas(input []byte) uint64 {
+	if len(input) < 4 {
+		return 0
+	}
+
 	// base cost to prevent large input size
 	baseCost := uint64(len(input)) * bc.kvGasConfig.WriteCostPerByte
 	var methodID [4]byte
@@ -96,7 +120,7 @@ func (bc *BankContract) RequiredGas(input []byte) uint64 {
 	return baseCost
 }
 
-func (bc *BankContract) checkBlockedAddr(addr sdk.AccAddress) error {
+func (bc *Contract) checkBlockedAddr(addr sdk.AccAddress) error {
 	to, err := sdk.AccAddressFromBech32(addr.String())
 	if err != nil {
 		return err
@@ -107,7 +131,14 @@ func (bc *BankContract) checkBlockedAddr(addr sdk.AccAddress) error {
 	return nil
 }
 
-func (bc *BankContract) Run(evm *vm.EVM, contract *vm.Contract, readonly bool) ([]byte, error) {
+func (bc *Contract) Run(evm *vm.EVM, contract *vm.Contract, readonly bool) (output []byte, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = ErrPrecompilePanic
+			output = nil
+		}
+	}()
+
 	// parse input
 	methodID := contract.Input[:4]
 	method, err := bankABI.MethodById(methodID)
@@ -121,7 +152,7 @@ func (bc *BankContract) Run(evm *vm.EVM, contract *vm.Contract, readonly bool) (
 		if readonly {
 			return nil, errors.New("the method is not readonly")
 		}
-		return bc.mintBurn(stateDB, method, precompileAddr, contract.CallerAddress, contract.Input[4:])
+		return bc.mintBurn(stateDB, method, precompileAddr, contract.Caller(), contract.Input[4:])
 	case BalanceOfMethodName:
 		return bc.balanceOf(stateDB, method, contract.Input[4:])
 	case TotalSupplyMethodName:
@@ -132,18 +163,18 @@ func (bc *BankContract) Run(evm *vm.EVM, contract *vm.Contract, readonly bool) (
 		if readonly {
 			return nil, errors.New("the method is not readonly")
 		}
-		return bc.setMetadata(stateDB, method, precompileAddr, contract.CallerAddress, contract.Input[4:])
+		return bc.setMetadata(stateDB, method, precompileAddr, contract.Caller(), contract.Input[4:])
 	case TransferMethodName:
 		if readonly {
 			return nil, errors.New("the method is not readonly")
 		}
-		return bc.transfer(stateDB, method, precompileAddr, contract.CallerAddress, contract.Input[4:])
+		return bc.transfer(stateDB, method, precompileAddr, contract.Caller(), contract.Input[4:])
 	default:
 		return nil, errors.New("unknown method")
 	}
 }
 
-func (bc *BankContract) mintBurn(stateDB precompiles.ExtStateDB, method *abi.Method, precompileAddress, calledAddress common.Address, input []byte) ([]byte, error) {
+func (bc *Contract) mintBurn(stateDB precompiles.ExtStateDB, method *abi.Method, precompileAddress, calledAddress common.Address, input []byte) ([]byte, error) {
 	args, err := method.Inputs.Unpack(input)
 	if err != nil {
 		return nil, errors.New("fail to unpack input arguments")
@@ -156,8 +187,8 @@ func (bc *BankContract) mintBurn(stateDB precompiles.ExtStateDB, method *abi.Met
 	if !ok {
 		return nil, errors.New("arg 1 is not of a big.Int type")
 	}
-	if amount.Sign() <= 0 || amount.Cmp(big.NewInt(0)) == 0 {
-		return nil, errors.New("invalid amount")
+	if amount.Sign() == -1 {
+		return nil, errors.New("invalid negative amount")
 	}
 	addr := sdk.AccAddress(recipient.Bytes())
 	if err := bc.checkBlockedAddr(addr); err != nil {
@@ -173,6 +204,12 @@ func (bc *BankContract) mintBurn(stateDB precompiles.ExtStateDB, method *abi.Met
 			return err
 		}
 		if method.Name == "mint" {
+			if bc.needsDenomCreationFee(ctx, denom) {
+				// charge contract for denom ccreation
+				if err := bc.chargeDenomCreationFee(ctx, sdk.AccAddress(calledAddress.Bytes())); err != nil {
+					return errorsmod.Wrap(err, "fail to charge denom creation fee")
+				}
+			}
 			if err := bc.bankKeeper.MintCoins(ctx, types.ModuleName, sdk.NewCoins(amt)); err != nil {
 				return errorsmod.Wrap(err, "fail to mint coins in precompiled contract")
 			}
@@ -195,7 +232,7 @@ func (bc *BankContract) mintBurn(stateDB precompiles.ExtStateDB, method *abi.Met
 	return method.Outputs.Pack(true)
 }
 
-func (bc *BankContract) balanceOf(stateDB precompiles.ExtStateDB, method *abi.Method, input []byte) ([]byte, error) {
+func (bc *Contract) balanceOf(stateDB precompiles.ExtStateDB, method *abi.Method, input []byte) ([]byte, error) {
 	args, err := method.Inputs.Unpack(input)
 	if err != nil {
 		return nil, errors.New("fail to unpack input arguments")
@@ -215,7 +252,7 @@ func (bc *BankContract) balanceOf(stateDB precompiles.ExtStateDB, method *abi.Me
 	return method.Outputs.Pack(balance)
 }
 
-func (bc *BankContract) totalSupply(stateDB precompiles.ExtStateDB, method *abi.Method, input []byte) ([]byte, error) {
+func (bc *Contract) totalSupply(stateDB precompiles.ExtStateDB, method *abi.Method, input []byte) ([]byte, error) {
 	args, err := method.Inputs.Unpack(input)
 	if err != nil {
 		return nil, errors.New("fail to unpack input arguments")
@@ -230,7 +267,7 @@ func (bc *BankContract) totalSupply(stateDB precompiles.ExtStateDB, method *abi.
 	return method.Outputs.Pack(supply)
 }
 
-func (bc *BankContract) metadata(stateDB precompiles.ExtStateDB, method *abi.Method, input []byte) ([]byte, error) {
+func (bc *Contract) metadata(stateDB precompiles.ExtStateDB, method *abi.Method, input []byte) ([]byte, error) {
 	args, err := method.Inputs.Unpack(input)
 	if err != nil {
 		return nil, errors.New("fail to unpack input arguments")
@@ -245,7 +282,7 @@ func (bc *BankContract) metadata(stateDB precompiles.ExtStateDB, method *abi.Met
 	return method.Outputs.Pack(metadata.Name, metadata.Symbol, uint8(metadata.Decimals))
 }
 
-func (bc *BankContract) setMetadata(stateDB precompiles.ExtStateDB, method *abi.Method, precompileAddress, calledAddress common.Address, input []byte) ([]byte, error) {
+func (bc *Contract) setMetadata(stateDB precompiles.ExtStateDB, method *abi.Method, precompileAddress, calledAddress common.Address, input []byte) ([]byte, error) {
 	args, err := method.Inputs.Unpack(input)
 	if err != nil {
 		return nil, errors.New("fail to unpack input arguments")
@@ -266,19 +303,47 @@ func (bc *BankContract) setMetadata(stateDB precompiles.ExtStateDB, method *abi.
 	if !ok {
 		return nil, errors.New("arg 2 is not of an uint8 type")
 	}
-	metadata.Base = denom
+
 	metadata.Name = name
 	metadata.Symbol = symbol
+	metadata.Display = symbol
+
+	metadata.Base = denom
 	metadata.Decimals = uint32(decimals)
+
+	metadata.DenomUnits = []*banktypes.DenomUnit{
+		{
+			Denom:    metadata.Base,
+			Exponent: 0,
+		},
+		{
+			// This is important for the peggy module, which looks for a denom
+			// unit whose Denom is the same as the metadata.Display, and Exponent
+			// is the same as the metadata.Decimals.
+			Denom:    metadata.Display,
+			Exponent: metadata.Decimals,
+			Aliases:  []string{metadata.Symbol},
+		},
+	}
+
+	// add most important validation here, to avoid calling metadata.Validate
+	// which requires len(Display) >= 3 and doesn't work well with ERC20 symbols.
+
+	if len(metadata.Name) > 128 {
+		return nil, errors.New("name is too long (max 128 characters)")
+	} else if len(metadata.Symbol) > 32 {
+		return nil, errors.New("symbol is too long (max 32 characters)")
+	}
 
 	stateDB.ExecuteNativeAction(precompileAddress, nil, func(ctx sdk.Context) error { //nolint:errcheck // can't return anything
 		bc.bankKeeper.SetDenomMetaData(ctx, metadata)
 		return nil
 	})
+
 	return method.Outputs.Pack(true)
 }
 
-func (bc *BankContract) transfer(stateDB precompiles.ExtStateDB, method *abi.Method, precompileAddress, calledAddress common.Address, input []byte) ([]byte, error) {
+func (bc *Contract) transfer(stateDB precompiles.ExtStateDB, method *abi.Method, precompileAddress, calledAddress common.Address, input []byte) ([]byte, error) {
 	args, err := method.Inputs.Unpack(input)
 	if err != nil {
 		return nil, errors.New("fail to unpack input arguments")
@@ -295,8 +360,8 @@ func (bc *BankContract) transfer(stateDB precompiles.ExtStateDB, method *abi.Met
 	if !ok {
 		return nil, errors.New("arg 2 is not of a big.Int type")
 	}
-	if amount.Sign() <= 0 || amount.Cmp(big.NewInt(0)) == 0 {
-		return nil, errors.New("invalid amount")
+	if amount.Sign() == -1 {
+		return nil, errors.New("invalid negative amount")
 	}
 	from := sdk.AccAddress(sender.Bytes())
 	to := sdk.AccAddress(recipient.Bytes())
@@ -320,7 +385,36 @@ func (bc *BankContract) transfer(stateDB precompiles.ExtStateDB, method *abi.Met
 	return method.Outputs.Pack(true)
 }
 
-func (bc *BankContract) GetBankDenom(ctx sdk.Context, erc20Addr common.Address) string {
+// needsDenomCreationFee checks if we need to charge creation fee to mint denom
+func (bc *Contract) needsDenomCreationFee(ctx sdk.Context, denom string) bool {
+	// only charge for erc20: denoms
+	if erc20types.GetDenomType(denom) != erc20types.DenomTypeERC20 {
+		return false
+	}
+	return !bc.bankKeeper.HasSupply(ctx, denom)
+}
+
+// chargeDenomCreationFee sends denom creation fee to community pool
+func (bc *Contract) chargeDenomCreationFee(ctx sdk.Context, payerAddr sdk.AccAddress) error {
+	// Send creation fee to community pool
+	creationFee := bc.GetDenomCreationFee(ctx)
+	if creationFee.Amount.GT(zero) {
+		if err := bc.communityPoolKeeper.FundCommunityPool(ctx, sdk.NewCoins(creationFee), payerAddr); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (bc *Contract) GetDenomCreationFee(ctx sdk.Context) sdk.Coin {
+	params, err := bc.erc20QueryServer.Params(ctx, &erc20types.QueryParamsRequest{})
+	if err != nil {
+		return erc20types.DefaultParams().DenomCreationFee
+	}
+	return params.Params.DenomCreationFee
+}
+
+func (bc *Contract) GetBankDenom(ctx sdk.Context, erc20Addr common.Address) string {
 	pair, err := bc.erc20QueryServer.TokenPairByERC20Address(ctx, &erc20types.QueryTokenPairByERC20AddressRequest{Erc20Address: erc20Addr.Hex()})
 	if err == nil && pair.TokenPair != nil {
 		return pair.TokenPair.BankDenom

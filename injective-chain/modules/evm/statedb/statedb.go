@@ -13,6 +13,7 @@ import (
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/stateless"
 	"github.com/ethereum/go-ethereum/core/tracing"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
@@ -457,9 +458,12 @@ func (s *StateDB) Transfer(sender, recipient common.Address, amount *big.Int) {
 }
 
 // AddBalance adds amount to the account associated with addr.
-func (s *StateDB) AddBalance(addr common.Address, amount *uint256.Int, reason tracing.BalanceChangeReason) {
+// Returns previous balance
+func (s *StateDB) AddBalance(addr common.Address, amount *uint256.Int, reason tracing.BalanceChangeReason) uint256.Int {
+	oldBalance := s.GetBalance(addr)
+
 	if amount.Sign() == 0 {
-		return
+		return *oldBalance
 	}
 	if amount.Sign() < 0 {
 		panic("negative amount")
@@ -467,7 +471,6 @@ func (s *StateDB) AddBalance(addr common.Address, amount *uint256.Int, reason tr
 
 	// collect balance changes only if tracer is active to reduce reads to StateDB
 	if s.evmTracer != nil && s.evmTracer.OnBalanceChange != nil {
-		oldBalance := s.GetBalance(addr)
 		defer func() {
 			if s.err == nil {
 				newBalance := new(big.Int)
@@ -478,18 +481,22 @@ func (s *StateDB) AddBalance(addr common.Address, amount *uint256.Int, reason tr
 	}
 
 	coins := sdk.Coins{sdk.NewCoin(s.evmDenom, sdkmath.NewIntFromBigInt(amount.ToBig()))}
+
 	if err := s.ExecuteNativeAction(common.Address{}, nil, func(ctx sdk.Context) error {
 		return s.keeper.AddBalance(ctx, addr.Bytes(), coins)
 	}); err != nil {
 		s.err = err
 	}
 
+	return *oldBalance
 }
 
 // SubBalance subtracts amount from the account associated with addr.
-func (s *StateDB) SubBalance(addr common.Address, amount *uint256.Int, reason tracing.BalanceChangeReason) {
+func (s *StateDB) SubBalance(addr common.Address, amount *uint256.Int, reason tracing.BalanceChangeReason) uint256.Int {
+	oldBalance := s.GetBalance(addr)
+
 	if amount.Sign() == 0 {
-		return
+		return *oldBalance
 	}
 	if amount.Sign() < 0 {
 		panic("negative amount")
@@ -497,7 +504,6 @@ func (s *StateDB) SubBalance(addr common.Address, amount *uint256.Int, reason tr
 
 	// collect balance changes only if tracer is active to reduce reads to StateDB
 	if s.evmTracer != nil && s.evmTracer.OnBalanceChange != nil {
-		oldBalance := s.GetBalance(addr)
 		if s.err == nil {
 			newBalance := new(big.Int)
 			newBalance.Sub(oldBalance.ToBig(), amount.ToBig())
@@ -506,12 +512,14 @@ func (s *StateDB) SubBalance(addr common.Address, amount *uint256.Int, reason tr
 	}
 
 	coins := sdk.Coins{sdk.NewCoin(s.evmDenom, sdkmath.NewIntFromBigInt(amount.ToBig()))}
+
 	if err := s.ExecuteNativeAction(common.Address{}, nil, func(ctx sdk.Context) error {
 		return s.keeper.SubBalance(ctx, addr.Bytes(), coins)
 	}); err != nil {
 		s.err = err
 	}
 
+	return *oldBalance
 }
 
 // SetBalance is called by state override
@@ -533,7 +541,7 @@ func (s *StateDB) SetBalance(addr common.Address, amount *big.Int) {
 }
 
 // SetNonce sets the nonce of account.
-func (s *StateDB) SetNonce(addr common.Address, nonce uint64) {
+func (s *StateDB) SetNonce(addr common.Address, nonce uint64, _ tracing.NonceChangeReason) {
 	stateObject := s.getOrNewStateObject(addr)
 	if stateObject != nil {
 		// collect nonce changes only if tracer is active to reduce reads to
@@ -548,13 +556,13 @@ func (s *StateDB) SetNonce(addr common.Address, nonce uint64) {
 }
 
 // SetCode sets the code of account.
-func (s *StateDB) SetCode(addr common.Address, code []byte) {
+func (s *StateDB) SetCode(addr common.Address, code []byte) []byte {
 	stateObject := s.getOrNewStateObject(addr)
 	if stateObject != nil {
+		oldCode := s.GetCode(addr)
 		// collect code changes only if tracer is active to reduce reads to
 		// StateDB
 		if s.evmTracer != nil && s.evmTracer.OnCodeChange != nil {
-			oldCode := s.GetCode(addr)
 			var oldCodeHash common.Hash
 			if oldCode != nil {
 				oldCodeHash = crypto.Keccak256Hash(oldCode)
@@ -563,17 +571,22 @@ func (s *StateDB) SetCode(addr common.Address, code []byte) {
 		}
 
 		stateObject.SetCode(crypto.Keccak256Hash(code), code)
+
+		return oldCode
 	}
+
+	return []byte{}
 }
 
 // SetState sets the contract state.
-func (s *StateDB) SetState(addr common.Address, key, value common.Hash) {
+func (s *StateDB) SetState(addr common.Address, key, value common.Hash) common.Hash {
 	if s.evmTracer != nil && s.evmTracer.OnStorageChange != nil {
-		s.evmTracer.OnStorageChange(addr, key, s.GetState(addr, key), value)
+		oldState := s.GetState(addr, key)
+		s.evmTracer.OnStorageChange(addr, key, oldState, value)
 	}
 
 	stateObject := s.getOrNewStateObject(addr)
-	stateObject.SetState(key, value)
+	return stateObject.SetState(key, value)
 }
 
 // SetStorage replaces the entire storage for the specified account with given
@@ -596,11 +609,14 @@ func (s *StateDB) SetStorage(addr common.Address, storage Storage) {
 //
 // The account's state object is still available until the state is committed,
 // getStateObject will return a non-nil account after Suicide.
-func (s *StateDB) SelfDestruct(addr common.Address) {
+func (s *StateDB) SelfDestruct(addr common.Address) uint256.Int {
+	var prevBalance *uint256.Int
+
 	stateObject := s.getStateObject(addr)
 	if stateObject == nil {
-		return
+		return *uint256.NewInt(0)
 	}
+
 	s.journal.append(selfDestructChange{
 		account: &addr,
 		prev:    stateObject.selfDestructed,
@@ -608,20 +624,24 @@ func (s *StateDB) SelfDestruct(addr common.Address) {
 	stateObject.markSelfDestructed()
 
 	// clear balance
-	balance := s.GetBalance(addr)
-	if balance.Sign() > 0 {
-		s.SubBalance(addr, balance, tracing.BalanceChangeUnspecified)
+	prevBalance = s.GetBalance(addr)
+	if prevBalance.Sign() > 0 {
+		s.SubBalance(addr, prevBalance, tracing.BalanceChangeUnspecified)
 	}
+
+	return *prevBalance
 }
 
-func (s *StateDB) Selfdestruct6780(addr common.Address) {
+func (s *StateDB) SelfDestruct6780(addr common.Address) (uint256.Int, bool) {
 	stateObject := s.getStateObject(addr)
 	if stateObject == nil {
-		return
+		return uint256.Int{}, false
 	}
 	if stateObject.newContract {
-		s.SelfDestruct(addr)
+		return s.SelfDestruct(addr), true
 	}
+
+	return *s.GetBalance(addr), false
 }
 
 // SetTransientState sets transient storage for a given account. It
@@ -834,7 +854,7 @@ func (s *StateDB) emitNativeEvents(contract common.Address, converter EventConve
 // of the process to generate proofs. But Ethermint uses a different kind of
 // proofs (because it represents state differently), so this method is not
 // important.
-func (s *StateDB) GetStorageRoot(_ common.Address) common.Hash {
+func (*StateDB) GetStorageRoot(_ common.Address) common.Hash {
 	return types.EmptyRootHash
 }
 
@@ -844,7 +864,7 @@ func (s *StateDB) GetStorageRoot(_ common.Address) common.Hash {
 // used to calculate gas costs.
 // Ethermint uses a different state and database than go-ethereum, and a different
 // way to calculating gas costs, so this method is not important.
-func (s *StateDB) PointCache() *utils.PointCache {
+func (*StateDB) PointCache() *utils.PointCache {
 	return utils.NewPointCache(0)
 }
 
@@ -853,6 +873,18 @@ func (s *StateDB) PointCache() *utils.PointCache {
 // client verification" which is disabled by default. It's ok to return nil
 // here.
 // cf : https://gist.github.com/karalabe/47c906f0ab4fdc5b8b791b74f084e5f9
-func (s *StateDB) Witness() *stateless.Witness {
+func (*StateDB) Witness() *stateless.Witness {
 	return nil
+}
+
+// AccessEvents is not relevant for Ethermint
+// It is used in go-ethereum for gas cost calculation for BLOCKHASH opcode
+// within verkle tries: https://github.com/ethereum/go-ethereum/pull/31036
+func (*StateDB) AccessEvents() *state.AccessEvents {
+	return nil
+}
+
+// Finalise is only used in go-ethereum to clear up some dirty journal writes.
+// Ethermint doesn't need that, we commit in Commit() and then the state is GC'ed
+func (*StateDB) Finalise(bool) {
 }

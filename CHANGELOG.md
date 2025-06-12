@@ -36,24 +36,24 @@ Ref: https://keepachangelog.com/en/1.1.0/
 
 ## [Unreleased]
 
-
 ### Bug Fixes
 
+- (evm) [#2250](https://github.com/InjectiveLabs/injective-core/pull/2250) Fixed EVM nonce increment for any type of EVM txns when tx contains multiple msgs.
 - (exchange) [#2197](https://github.com/InjectiveLabs/injective-core/pull/2197) Fixed CLI commands to support `ExpirationBlock` while maintaining backwards compatibility.
 - (exchange) [#2195](https://github.com/InjectiveLabs/injective-core/pull/2195) Fixed propogation of AdminInfo inputs to governance launches for Perpetuals and Expiry Futures markets.
-- (wasmx) [#2136](https://github.com/InjectiveLabs/injective-core/pull/2136) Fixed wasmx authz ExecuteCompat authorization to work properly when MaxCalls > 1 filter is applied.
 - (peggo) [#2216](https://github.com/InjectiveLabs/injective-core/pull/2216) On failure, `Relayer` loop attempts to submit subsequent batch.
-- (peggy) [#2186](https://github.com/InjectiveLabs/injective-core/pull/2186) Added a fix for Peggy.sol contract when paying out fees to the relayer who submitted the batch
+- (peggy) [#2186](https://github.com/InjectiveLabs/injective-core/pull/2186) Added a fix for Peggy.sol contract when paying out fees to the relayer who submitted the batch.
+- (swagger) [#2242](https://github.com/InjectiveLabs/injective-core/pull/2242) Updated swagger config.json file to include all Cosmos SDK modules.
+- (exchange) [#2246](https://github.com/InjectiveLabs/injective-core/pull/2246) Fixed incorrect emptiness check for conditional orderbooks.
+- (exchange) [#2254](https://github.com/InjectiveLabs/injective-core/pull/2254) Fixed incorrect max derivative order value usage.
+- (wasm) [#2260](https://github.com/InjectiveLabs/injective-core/pull/2260) Fixed issue in few wasm queries (human readable format).
 
 ### Features
 
+- (evm) [#2269](https://github.com/InjectiveLabs/injective-core/pull/2269) Added denom creation fee for STR erc20 denoms.
 - (evm) [#2099](https://github.com/InjectiveLabs/injective-core/pull/2099) EVM support
 - (cmd) [#2143](https://github.com/InjectiveLabs/injective-core/pull/2143) Devnetify existing state via CLI `bootstrap-devnet` command.
-- (txfees) [#4266](https://github.com/InjectiveLabs/injective-core/pull/4266) Dynamic transaction fees with EIP-1559 style fee market. The implementation is based on the [Osmosis implementation](https://github.com/osmosis-labs/osmosis/tree/main/x/txfees).
 - (chain-stream) [#2229](https://github.com/InjectiveLabs/injective-core/pull/2229)
-- (cmd) [#2124](https://github.com/InjectiveLabs/injective-core/pull/2124) Add `--log-color` bool flag support to disable coloring of log lines, disable usage print on errors.
-- (exchange) [#2096](https://github.com/InjectiveLabs/injective-core/pull/2096) Introduce fixed-gas consumption for certain exchange Msg types.
-- (abci/block-sdk) [#2106](https://github.com/InjectiveLabs/injective-core/pull/2106) Added app-level mempool prioritization.
 - (exchange) [#2100](https://github.com/InjectiveLabs/injective-core/pull/2100) Refactoring of Exchange module to use human-readable values in all places except for deposits.
 - (exchange) [#2175](https://github.com/InjectiveLabs/injective-core/pull/2175) Added GTB (Good-Til-Block) limit orders
 - (exchange) [#2192](https://github.com/InjectiveLabs/injective-core/pull/2192) Added new reduce margin ratio for derivative markets
@@ -61,12 +61,30 @@ Ref: https://keepachangelog.com/en/1.1.0/
 
 ### Improvements
 
+- (evm) [#2238](https://github.com/InjectiveLabs/injective-core/pull/2238) Migrated precompiles bindings generation to forge
+- (cmd) [#2250](https://github.com/InjectiveLabs/injective-core/pull/2250) Added support for batching of multiple raw evm txns in `tx evm raw` CLI command.
+- (evm) [#2241](https://github.com/InjectiveLabs/injective-core/pull/2241) Upgraded go-ethereum to v1.15.11
 - (evm) [#2211](https://github.com/InjectiveLabs/injective-core/pull/2211) Disable unused gas refunds for MsgEthereumTx
 - (peggo) Moved InjectiveLabs/peggo to injective-core repo.
 - (cosmos-sdk) [#2183](https://github.com/InjectiveLabs/injective-core/pull/2183) Updated dependencies to use Cosmos SDK v0.50.13
 - (cmd) [#2207](https://github.com/InjectiveLabs/injective-core/pull/2207) Removed rosetta dependency.
 - (peggo) [#2209](https://github.com/InjectiveLabs/injective-core/pull/2209) Expose loop durations through .env vars. Clients should not change the default values.
 - (peggo) [#2219](https://github.com/InjectiveLabs/injective-core/pull/2219) Removed sdk-go dependency.
+- (ante) [#2275](https://github.com/InjectiveLabs/injective-core/pull/2275) Added support for Injective EVM Mainnet and Testnet in EIP712 Tx (chainID 1776 and 1439)
+
+## [v1.15.0](https://github.com/InjectiveFoundation/injective-core/releases/tag/v1.15.0) - 2025-04-17
+
+### Bug Fixes
+
+- (wasmx) [#2136](https://github.com/InjectiveLabs/injective-core/pull/2136) Fixed wasmx authz ExecuteCompat authorization to work properly when MaxCalls > 1 filter is applied.
+
+### Features
+
+- (txfees) [#4266](https://github.com/InjectiveLabs/injective-core/pull/4266) Dynamic transaction fees with EIP-1559 style fee market. The implementation is based on the [Osmosis implementation](https://github.com/osmosis-labs/osmosis/tree/main/x/txfees).
+- (cmd) [#2124](https://github.com/InjectiveLabs/injective-core/pull/2124) Add `--log-color` bool flag support to disable coloring of log lines, disable usage print on errors.
+- (exchange) [#2096](https://github.com/InjectiveLabs/injective-core/pull/2096) Introduce fixed-gas consumption for certain exchange Msg types.
+- (abci/block-sdk) [#2106](https://github.com/InjectiveLabs/injective-core/pull/2106) Added app-level mempool prioritization.
+- (exchange) [#2160](https://github.com/InjectiveLabs/injective-core/pull/2160) CLI command for MsgWithdraw, MsgExternalTransfer
 
 ### Security
 

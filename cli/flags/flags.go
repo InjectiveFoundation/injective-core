@@ -3,7 +3,6 @@ package flags
 import (
 	"fmt"
 
-	cmcli "github.com/cometbft/cometbft/libs/cli"
 	"github.com/cosmos/cosmos-sdk/client/flags"
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
 	govcli "github.com/cosmos/cosmos-sdk/x/gov/client/cli"
@@ -14,7 +13,7 @@ import (
 func AddQueryFlagsToCmd(cmd *cobra.Command) {
 	cmd.Flags().String(flags.FlagNode, "tcp://localhost:26657", "<host>:<port> to Tendermint RPC interface for this chain")
 	cmd.Flags().Int64(flags.FlagHeight, 0, "Use a specific height to query state at (this can error if the node is pruning state)")
-	cmd.Flags().StringP(cmcli.OutputFlag, "o", "text", "Output format (text|json)")
+	cmd.Flags().StringP(flags.FlagOutput, "o", "text", "Output format (text|json)")
 	cmd.Flags().String(flags.FlagChainID, "", "chain-id")
 	err := cmd.MarkFlagRequired(flags.FlagChainID)
 	if err != nil {
@@ -24,6 +23,7 @@ func AddQueryFlagsToCmd(cmd *cobra.Command) {
 
 // AddTxFlagsToCmd adds common flags to a module tx command.
 func AddTxFlagsToCmd(cmd *cobra.Command) {
+	cmd.Flags().StringP(flags.FlagOutput, "o", "text", "Output format (text|json)")
 	cmd.Flags().String(flags.FlagKeyringDir, "", "The client Keyring directory; if omitted, the default 'home' directory will be used")
 	cmd.Flags().String(flags.FlagFrom, "", "Name or address of private key with which to sign")
 	cmd.Flags().Uint64P(flags.FlagAccountNumber, "a", 0, "The account number of the signing account (offline mode only)")

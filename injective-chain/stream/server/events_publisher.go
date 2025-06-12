@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync"
 
 	sdkerrors "cosmossdk.io/errors"
 	"cosmossdk.io/log"
@@ -42,18 +43,21 @@ var supportedEventTypes = map[string]struct{}{
 }
 
 type Publisher struct {
-	inABCIEvents   chan baseapp.StreamEvents
-	bus            *pubsub.Server
-	done           chan struct{}
-	bufferCapacity uint
+	inABCIEvents          chan baseapp.StreamEvents
+	bus                   *pubsub.Server
+	eventsContextCancelFn context.CancelFunc
+	wg                    sync.WaitGroup
+	bufferCapacity        uint
+	inBuffer              v2.StreamResponseMap
+	mu                    sync.RWMutex // Protects inBuffer
 }
 
 func NewPublisher(inABCIEvents chan baseapp.StreamEvents, bus *pubsub.Server) *Publisher {
 	p := &Publisher{
 		inABCIEvents:   inABCIEvents,
 		bus:            bus,
-		done:           make(chan struct{}),
 		bufferCapacity: 100,
+		inBuffer:       v2.NewStreamResponseMap(),
 	}
 	return p
 }
@@ -65,8 +69,10 @@ func (e *Publisher) Run(ctx context.Context) error {
 		return fmt.Errorf("failed to start pubsub server: %w", err)
 	}
 
+	ctx, e.eventsContextCancelFn = context.WithCancel(ctx)
 	eventsBuffer := make(chan baseapp.StreamEvents, e.bufferCapacity)
 
+	e.wg.Add(2)
 	go e.handleIncomingEvents(ctx, eventsBuffer, logger)
 	go e.processEventsBuffer(ctx, eventsBuffer, logger)
 
@@ -74,12 +80,17 @@ func (e *Publisher) Run(ctx context.Context) error {
 }
 
 func (e *Publisher) handleIncomingEvents(ctx context.Context, eventsBuffer chan baseapp.StreamEvents, logger log.Logger) {
+	defer e.wg.Done()
 	for {
-		events := <-e.inABCIEvents
 		select {
-		case eventsBuffer <- events:
-		default:
-			e.handleBufferOverflow(ctx, logger)
+		case <-ctx.Done():
+			return
+		case events := <-e.inABCIEvents:
+			select {
+			case eventsBuffer <- events:
+			default:
+				e.handleBufferOverflow(ctx, logger)
+			}
 		}
 	}
 }
@@ -94,52 +105,62 @@ func (e *Publisher) handleBufferOverflow(ctx context.Context, logger log.Logger)
 		logger.Error("failed to publish", "error", err)
 	}
 
-	if err := e.Stop(); err != nil {
-		logger.Error("failed to stop event publisher", "error", err)
-	}
+	go func() {
+		if err := e.Stop(); err != nil {
+			logger.Error("failed to stop event publisher", "error", err)
+		}
+	}()
 }
 
 func (e *Publisher) processEventsBuffer(ctx context.Context, eventsBuffer chan baseapp.StreamEvents, logger log.Logger) {
-	inBuffer := v2.NewStreamResponseMap()
+	defer e.wg.Done()
+	e.mu.Lock()
+	e.inBuffer = v2.NewStreamResponseMap()
+	e.mu.Unlock()
 	for {
 		select {
-		case <-e.done:
+		case <-ctx.Done():
 			return
 		case events := <-eventsBuffer:
-			e.handleEvents(ctx, inBuffer, events, logger)
+			e.handleEvents(ctx, events, logger)
 		}
 	}
 }
 
-func (e *Publisher) handleEvents(ctx context.Context, inBuffer *v2.StreamResponseMap, events baseapp.StreamEvents, logger log.Logger) {
+func (e *Publisher) handleEvents(ctx context.Context, events baseapp.StreamEvents, logger log.Logger) {
 	// The block height is required in the inBuffer when calculating the id for trade events
-	inBuffer.BlockHeight = events.Height
+	e.mu.Lock()
+	e.inBuffer.BlockHeight = events.Height
+	e.mu.Unlock()
 
 	for _, ev := range events.Events {
-		if err := e.ProcessEvent(ctx, inBuffer, ev, logger); err != nil {
+		if err := e.ProcessEvent(ctx, ev, logger); err != nil {
 			logger.Error("failed to process event", "error", err)
 		}
 	}
 
 	// all events for specific height are received
 	if events.Flush {
-		inBuffer.Lock()
-		inBuffer.BlockHeight = events.Height
-		inBuffer.BlockTime = events.BlockTime
-		inBuffer.Unlock()
+		e.mu.Lock()
+		e.inBuffer.BlockHeight = events.Height
+		e.inBuffer.BlockTime = events.BlockTime
 
 		// flush buffer
-		if err := e.bus.Publish(ctx, inBuffer); err != nil {
+		if err := e.bus.Publish(ctx, e.inBuffer); err != nil {
 			logger.Error("failed to publish stream response", "error", err)
 		}
 		// clear buffer
-		inBuffer.Lock()
-		inBuffer.Clear()
-		inBuffer.Unlock()
+		e.inBuffer = v2.NewStreamResponseMap()
+		e.mu.Unlock()
 	}
 }
 
 func (e *Publisher) Stop() error {
+	if e.eventsContextCancelFn != nil {
+		e.eventsContextCancelFn()
+		e.wg.Wait()
+	}
+
 	if !e.bus.IsRunning() {
 		return nil
 	}
@@ -148,7 +169,7 @@ func (e *Publisher) Stop() error {
 	if err != nil {
 		return fmt.Errorf("failed to stop pubsub server: %w", err)
 	}
-	e.done <- struct{}{}
+
 	return nil
 }
 
@@ -157,7 +178,7 @@ func (e *Publisher) WithBufferCapacity(capacity uint) *Publisher {
 	return e
 }
 
-func (e *Publisher) ProcessEvent(ctx context.Context, inBuffer *v2.StreamResponseMap, event abci.Event, logger log.Logger) error {
+func (e *Publisher) ProcessEvent(ctx context.Context, event abci.Event, logger log.Logger) error {
 	if _, found := supportedEventTypes[event.Type]; !found {
 		return nil
 	}
@@ -168,8 +189,17 @@ func (e *Publisher) ProcessEvent(ctx context.Context, inBuffer *v2.StreamRespons
 		return err
 	}
 
-	handleParsedEvent(inBuffer, parsedEvent)
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	handleParsedEvent(&e.inBuffer, parsedEvent)
 	return nil
+}
+
+func (e *Publisher) GetInBuffer() v2.StreamResponseMap {
+	// Added to be used in tests
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.inBuffer
 }
 
 func filterEventAttributes(event abci.Event) abci.Event {
@@ -197,9 +227,6 @@ func parseEvent(ctx context.Context, bus *pubsub.Server, event abci.Event, logge
 
 //nolint:revive // this is the most readable way to handle the parsed event
 func handleParsedEvent(inBuffer *v2.StreamResponseMap, parsedEvent proto.Message) {
-	inBuffer.Lock()
-	defer inBuffer.Unlock()
-
 	switch chainEvent := parsedEvent.(type) {
 	case *banktypes.EventSetBalances:
 		handleBankBalanceEvent(inBuffer, chainEvent)

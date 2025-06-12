@@ -133,7 +133,6 @@ import (
 	ibcexported "github.com/cosmos/ibc-go/v8/modules/core/exported"
 	ibckeeper "github.com/cosmos/ibc-go/v8/modules/core/keeper"
 	ibctm "github.com/cosmos/ibc-go/v8/modules/light-clients/07-tendermint"
-	ibctestingtypes "github.com/cosmos/ibc-go/v8/testing/types"
 	"github.com/gorilla/mux"
 	skipabci "github.com/skip-mev/block-sdk/v2/abci"
 	skipchecktx "github.com/skip-mev/block-sdk/v2/abci/checktx"
@@ -190,9 +189,6 @@ import (
 	chaintypes "github.com/InjectiveLabs/injective-core/injective-chain/types"
 	"github.com/InjectiveLabs/injective-core/injective-chain/wasmbinding"
 	"github.com/InjectiveLabs/metrics"
-
-	// unnamed import of statik for swagger UI support
-	_ "github.com/InjectiveLabs/injective-core/client/docs/statik"
 )
 
 func init() {
@@ -725,6 +721,10 @@ func (app *InjectiveApp) GetEvmKeeper() *evmkeeper.Keeper {
 	return app.EvmKeeper
 }
 
+func (app *InjectiveApp) GetERC20Keeper() *erc20keeper.Keeper {
+	return &app.ERC20Keeper
+}
+
 func (app *InjectiveApp) GetPeggyKeeper() *peggyKeeper.Keeper {
 	return &app.PeggyKeeper
 }
@@ -866,7 +866,7 @@ func (app *InjectiveApp) GetKey(storeKey string) *storetypes.KVStoreKey {
 	return app.keys[storeKey]
 }
 
-func (app *InjectiveApp) GetStakingKeeper() ibctestingtypes.StakingKeeper {
+func (app *InjectiveApp) GetStakingKeeper() *stakingkeeper.Keeper {
 	return app.StakingKeeper
 }
 
@@ -1117,11 +1117,12 @@ func (app *InjectiveApp) initKeepers(authority string, appOpts servertypes.AppOp
 		evmSubspace,
 		[]evmkeeper.CustomContractFn{
 			func(_ sdk.Context, rules ethparams.Rules) vm.PrecompiledContract {
-				return bankpc.NewBankContract(
+				return bankpc.NewContract(
 					app.BankKeeper,
 					erc20keeper.NewQueryServerImpl(app.ERC20Keeper), // it's OK to reference erc20Keeper here since it's inside generator function that will be called later
 					app.codec,
 					storetypes.TransientGasConfig(),
+					app.DistrKeeper,
 				)
 			},
 			func(_ sdk.Context, rules ethparams.Rules) vm.PrecompiledContract {

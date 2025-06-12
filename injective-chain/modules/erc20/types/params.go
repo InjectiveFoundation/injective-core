@@ -1,6 +1,9 @@
 package types
 
 import (
+	"cosmossdk.io/math"
+	chaintypes "github.com/InjectiveLabs/injective-core/injective-chain/types"
+	sdk "github.com/cosmos/cosmos-sdk/types"
 	paramtypes "github.com/cosmos/cosmos-sdk/x/params/types"
 )
 
@@ -13,9 +16,11 @@ func NewParams(wasmHookQueryMaxGas uint64) Params {
 	return Params{}
 }
 
-// default module parameters.
+// default erc20 module parameters.
 func DefaultParams() Params {
-	return Params{}
+	return Params{
+		DenomCreationFee: sdk.NewCoin(chaintypes.InjectiveCoin, math.NewIntWithDecimal(1, 18)), // 1 INJ
+	}
 }
 
 // validate params.

@@ -17,7 +17,6 @@ import (
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/precompiles"
-	cosmostypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/precompiles/bindings/cosmos/lib"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/precompiles/bindings/cosmos/precompile/staking"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/precompiles/types"
 )
@@ -34,6 +33,10 @@ var (
 	stakingABI                 abi.ABI
 	stakingContractAddress     = common.BytesToAddress([]byte{102})
 	stakingGasRequiredByMethod = map[[4]byte]uint64{}
+)
+
+var (
+	ErrPrecompilePanic = errors.New("precompile panic")
 )
 
 func init() {
@@ -91,6 +94,10 @@ func (sc *StakingContract) Address() common.Address {
 }
 
 func (sc *StakingContract) RequiredGas(input []byte) uint64 {
+	if len(input) < 4 {
+		return 0
+	}
+
 	// base cost to prevent large input size
 	baseCost := uint64(len(input)) * sc.kvGasConfig.WriteCostPerByte
 	var methodID [4]byte
@@ -102,7 +109,14 @@ func (sc *StakingContract) RequiredGas(input []byte) uint64 {
 	return baseCost
 }
 
-func (sc *StakingContract) Run(evm *vm.EVM, contract *vm.Contract, readonly bool) ([]byte, error) {
+func (sc *StakingContract) Run(evm *vm.EVM, contract *vm.Contract, readonly bool) (output []byte, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = ErrPrecompilePanic
+			output = nil
+		}
+	}()
+
 	// parse input
 	methodID := contract.Input[:4]
 	method, err := stakingABI.MethodById(methodID)
@@ -115,7 +129,7 @@ func (sc *StakingContract) Run(evm *vm.EVM, contract *vm.Contract, readonly bool
 		return nil, errors.New("fail to unpack input arguments")
 	}
 
-	caller := sdk.AccAddress(contract.CallerAddress.Bytes())
+	caller := sdk.AccAddress(contract.Caller().Bytes())
 
 	switch method.Name {
 	case DelegateMethodName:
@@ -326,7 +340,7 @@ func (sc *StakingContract) queryDelegation(
 
 	return method.Outputs.Pack(
 		types.ConvertLegacyDecToBigInt(resp.DelegationResponse.Delegation.Shares),
-		cosmostypes.CosmosCoin{
+		staking.CosmosCoin{
 			Denom:  "inj",
 			Amount: resp.DelegationResponse.Balance.Amount.BigInt(),
 		},
@@ -367,9 +381,9 @@ func (sc *StakingContract) withdrawDelegatorRewards(
 		return nil, err
 	}
 
-	coins := []cosmostypes.CosmosCoin{}
+	coins := []staking.CosmosCoin{}
 	for _, coin := range resp.Amount {
-		coins = append(coins, cosmostypes.CosmosCoin{
+		coins = append(coins, staking.CosmosCoin{
 			Denom:  coin.Denom,
 			Amount: coin.Amount.BigInt(),
 		})

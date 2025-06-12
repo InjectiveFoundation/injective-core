@@ -13,7 +13,7 @@ func (k Keeper) GetParams(ctx sdk.Context) types.Params {
 	store := ctx.KVStore(k.storeKey)
 	bz := store.Get(paramsKey)
 	if bz == nil {
-		return types.Params{}
+		return types.DefaultParams()
 	}
 
 	var params types.Params

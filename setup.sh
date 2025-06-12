@@ -75,6 +75,8 @@ cat $INJHOME/config/genesis.json | jq '.app_state["mint"]["params"]["mint_denom"
 cat $INJHOME/config/genesis.json | jq '.app_state["auction"]["params"]["auction_period"]="10"' > $INJHOME/config/tmp_genesis.json && mv $INJHOME/config/tmp_genesis.json $INJHOME/config/genesis.json
 cat $INJHOME/config/genesis.json | jq '.app_state["ocr"]["params"]["module_admin"]="'$FEEDADMIN'"' > $INJHOME/config/tmp_genesis.json && mv $INJHOME/config/tmp_genesis.json $INJHOME/config/genesis.json
 cat $INJHOME/config/genesis.json | jq '.app_state["ocr"]["params"]["payout_block_interval"]="5"' > $INJHOME/config/tmp_genesis.json && mv $INJHOME/config/tmp_genesis.json $INJHOME/config/genesis.json
+cat $INJHOME/config/genesis.json | jq '.app_state["evm"]["params"]["chain_config"]["cancun_time"]="0"' > $INJHOME/config/tmp_genesis.json && mv $INJHOME/config/tmp_genesis.json $INJHOME/config/genesis.json
+cat $INJHOME/config/genesis.json | jq '.app_state["evm"]["params"]["chain_config"]["prague_time"]="0"' > $INJHOME/config/tmp_genesis.json && mv $INJHOME/config/tmp_genesis.json $INJHOME/config/genesis.json
 cat $INJHOME/config/genesis.json | jq '.consensus["params"]["block"]["max_gas"]="150000000"' > $INJHOME/config/tmp_genesis.json && mv $INJHOME/config/tmp_genesis.json $INJHOME/config/genesis.json
 
 INJ='{"denom":"inj","decimals":18}'

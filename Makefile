@@ -166,10 +166,9 @@ ictest-upgrade: rm-testcache
 	cd interchaintest && go test -v -run TestInjectiveUpgradeHandler .
 	./scripts/coverage-html.sh interchaintest/coverage/TestInjectiveUpgradeHandler
 
-.PHONY: rm-testcache ictest-all ictest-basic ictest-upgrade ictest-evm
 ictest-dynamic-fee: rm-testcache
 	rm -rf interchaintest/coverage/TestDynamicFee
-	cd interchaintest && go test -v -run Test_DynamicFee_FeeIncreases .
+	cd interchaintest && go test -v -run Test_DynamicFee .
 	./scripts/coverage-html.sh interchaintest/coverage/TestDynamicFee
 
 ictest-ibchooks: rm-testcache
@@ -212,14 +211,24 @@ ictest-peggo-ibc: rm-testcache
 	cd interchaintest && go test -timeout 30m -v -run Test_Peggo_IBCDenomDeployed .
 	./scripts/coverage-html.sh interchaintest/coverage/Test_Peggo_IBCDenomDeployed
 
+ictest-peggo-erc20: rm-testcache
+	rm -rf interchaintest/coverage/Test_Peggo_ERC20DenomDeployed
+	cd interchaintest && go test -timeout 30m -v -run Test_Peggo_ERC20DenomDeployed .
+	./scripts/coverage-html.sh interchaintest/coverage/Test_Peggo_ERC20DenomDeployed
+
 ictest-evm: rm-testcache
-	rm -rf interchaintest/coverage/TestInjectiveEvm
-	cd interchaintest && go test -race -v -run TestInjectiveEvm .
-	./scripts/coverage-html.sh interchaintest/coverage/TestInjectiveEvm
+	rm -rf interchaintest/coverage/TestEVMRPC
+	cd interchaintest && go test -v -run "(EVMRPC*|EVMKeeper*)" .
+	./scripts/coverage-html.sh interchaintest/coverage/TestEVMRPC
+
+ictest-chainstream: rm-testcache
+	rm -rf interchaintest/coverage/Test_ChainStream_ConnectsAndReceivesEvents
+	cd interchaintest && go test -timeout 30m -v -run Test_ChainStream_ConnectsAndReceivesEvents .
+	./scripts/coverage-html.sh interchaintest/coverage/Test_ChainStream_ConnectsAndReceivesEvents
 
 .PHONY: rm-testcache rm-ic-coverage
 .PHONY: ictest-all ictest-basic ictest-upgrade ictest-ibchooks ictest-permissions-wasm-hook ictest-pfm ictest-lanes
-.PHONY: ictest-fixed-gas ictest-fixed-gas-regression ictest-peggo ictest-peggo-ibc
+.PHONY: ictest-fixed-gas ictest-fixed-gas-regression ictest-peggo ictest-peggo-ibc ictest-evm ictest-chainstream
 
 ###############################################################################
 
@@ -274,16 +283,7 @@ precompiles-bindings:
 ###                              Documentation                              ###
 ###############################################################################
 
-update-swagger-docs:
-	statik -src=client/docs/swagger-ui -dest=client/docs -f -m
-	@if [ -n "$(git status --porcelain)" ]; then \
-        echo "\033[91mSwagger docs are out of sync!!!\033[0m";\
-        exit 1;\
-    else \
-    	echo "\033[92mSwagger docs are in sync\033[0m";\
-    fi
-
 gen-modules-errors-pages:
 	@exec ./scripts/docs/generate_errors_docs.sh
 
-.PHONY: update-swagger-docs
+.PHONY: gen-modules-errors-pages

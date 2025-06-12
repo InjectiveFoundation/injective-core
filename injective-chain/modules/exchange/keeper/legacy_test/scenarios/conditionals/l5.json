@@ -23,20 +23,20 @@
       "accountIndex": 0,
       "isLong": true,
       "isReduceOnly": false,
-      "triggerPrice" : 14,
-      "repeatTimes" : 20,
-      "comment" : "tp limit buys"
+      "triggerPrice": 14,
+      "repeatTimes": 100,
+      "comment": "tp limit buys"
     },
-   {
+    {
       "actionType": "derivativeLimitOrder",
       "price": 8,
       "quantity": 1,
       "accountIndex": 0,
       "isLong": false,
       "isReduceOnly": false,
-      "triggerPrice" : 9,
-      "repeatTimes" : 20,
-      "comment" : "sl limit sell"
+      "triggerPrice": 9,
+      "repeatTimes": 100,
+      "comment": "sl limit sell"
     },
     {
       "actionType": "endblocker"

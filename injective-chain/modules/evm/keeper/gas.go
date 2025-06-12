@@ -17,7 +17,15 @@ import (
 
 // GetEthIntrinsicGas returns the intrinsic gas cost for the transaction
 func (k *Keeper) GetEthIntrinsicGas(msg *core.Message, rules params.Rules, isContractCreation bool) (uint64, error) {
-	return core.IntrinsicGas(msg.Data, msg.AccessList, isContractCreation, rules.IsHomestead, rules.IsIstanbul, rules.IsShanghai)
+	return core.IntrinsicGas(
+		msg.Data,
+		msg.AccessList,
+		msg.SetCodeAuthorizations,
+		isContractCreation,
+		rules.IsHomestead,
+		rules.IsIstanbul,
+		rules.IsShanghai,
+	)
 }
 
 // RefundGas transfers the leftover gas to the sender of the message

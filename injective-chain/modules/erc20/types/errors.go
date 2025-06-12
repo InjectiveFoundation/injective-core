@@ -17,4 +17,5 @@ var (
 	ErrUploadERC20Contract      = errors.Register(ModuleName, 8, "error uploading ERC20 contract")
 	ErrInvalidTFDenom           = errors.Register(ModuleName, 9, "invalid token factory denom")
 	ErrExistingERC20DenomSupply = errors.Register(ModuleName, 10, "respective erc20:... denom has existing supply")
+	ErrInvalidQueryRequest      = errors.Register(ModuleName, 11, "invalid query request")
 )

@@ -30,6 +30,7 @@ import (
 
 	"github.com/InjectiveLabs/injective-core/interchaintest/helpers"
 	chaincodec "github.com/InjectiveLabs/sdk-go/chain/codec"
+	erc20types "github.com/InjectiveLabs/sdk-go/chain/erc20/types"
 	evmtypes "github.com/InjectiveLabs/sdk-go/chain/evm/types"
 	exchangetypes "github.com/InjectiveLabs/sdk-go/chain/exchange/types"
 	exchangev2types "github.com/InjectiveLabs/sdk-go/chain/exchange/types/v2"
@@ -90,6 +91,7 @@ func injectiveEncoding() *cosmtestutil.TestEncodingConfig {
 
 	// TODO: types dependency shall be moved to sdk-go
 	evmtypes.RegisterInterfaces(cfg.InterfaceRegistry)
+	erc20types.RegisterInterfaces(cfg.InterfaceRegistry)
 
 	return &cfg
 }
@@ -125,6 +127,7 @@ func InjectiveChainConfig(
 
 	appTomlOverrides := make(testutil.Toml)
 	appTomlOverrides["json-rpc"] = jsonRpcOverrides
+	appTomlOverrides["chainstream-server"] = "0.0.0.0:9999"
 
 	config := ibc.ChainConfig{
 		Type: "cosmos",
@@ -148,6 +151,7 @@ func InjectiveChainConfig(
 		ModifyGenesis:       cosmos.ModifyGenesis(genesisOverrides),
 		ExposeAdditionalPorts: []string{
 			"8545/tcp", // open the port for the EVM on all nodes
+			"9999/tcp", // open the port for the chainstream server on all nodes
 		},
 		ConfigFileOverrides: map[string]any{
 			"config/app.toml":    appTomlOverrides,

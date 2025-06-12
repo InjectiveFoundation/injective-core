@@ -3,7 +3,9 @@ package keeper
 import (
 	"context"
 
+	"cosmossdk.io/errors"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/cosmos/cosmos-sdk/types/query"
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/erc20/types"
@@ -23,14 +25,31 @@ func (q queryServer) Params(c context.Context, _ *types.QueryParamsRequest) (*ty
 	return &types.QueryParamsResponse{Params: q.GetParams(sdk.UnwrapSDKContext(c))}, nil
 }
 
-func (q queryServer) AllTokenPairs(c context.Context, _ *types.QueryAllTokenPairsRequest) (*types.QueryAllTokenPairsResponse, error) {
-	ctx := sdk.UnwrapSDKContext(c)
-	pairs, err := q.GetAllTokenPairs(ctx)
-	if err != nil {
-		return nil, err
+func (q queryServer) AllTokenPairs(c context.Context, req *types.QueryAllTokenPairsRequest) (*types.QueryAllTokenPairsResponse, error) {
+	if req == nil {
+		return nil, errors.Wrap(types.ErrInvalidQueryRequest, "no request provided")
 	}
 
-	return &types.QueryAllTokenPairsResponse{TokenPairs: pairs}, nil
+	ctx := sdk.UnwrapSDKContext(c)
+	store := q.getTokenPairsStoreByBankDenom(ctx)
+	pairs := make([]*types.TokenPair, 0)
+
+	pageRes, err := query.Paginate(store, req.Pagination, func(key, value []byte) error {
+		pair := &types.TokenPair{
+			BankDenom:    string(key),
+			Erc20Address: common.BytesToAddress(value).String(),
+		}
+		pairs = append(pairs, pair)
+		return nil
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "can't paginate request")
+	}
+
+	return &types.QueryAllTokenPairsResponse{
+		TokenPairs: pairs,
+		Pagination: pageRes,
+	}, nil
 }
 
 func (q queryServer) TokenPairByDenom(c context.Context, req *types.QueryTokenPairByDenomRequest) (*types.QueryTokenPairByDenomResponse, error) {

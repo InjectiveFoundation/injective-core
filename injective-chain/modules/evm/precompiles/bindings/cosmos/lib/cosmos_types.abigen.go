@@ -37,8 +37,8 @@ type CosmosCoin struct {
 
 // CosmosTypesMetaData contains all meta data concerning the CosmosTypes contract.
 var CosmosTypesMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[{\"components\":[{\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"},{\"internalType\":\"string\",\"name\":\"denom\",\"type\":\"string\"}],\"internalType\":\"structCosmos.Coin\",\"name\":\"\",\"type\":\"tuple\"}],\"name\":\"coin\",\"outputs\":[],\"stateMutability\":\"pure\",\"type\":\"function\"}]",
-	Bin: "0x608060405234801561000f575f80fd5b5060e18061001c5f395ff3fe6080604052348015600e575f80fd5b50600436106026575f3560e01c80632ff6e5df14602a575b5f80fd5b60406004803603810190603c9190606c565b6042565b005b50565b5f80fd5b5f80fd5b5f80fd5b5f604082840312156063576062604d565b5b81905092915050565b5f60208284031215607e57607d6045565b5b5f82013567ffffffffffffffff81111560985760976049565b5b60a2848285016051565b9150509291505056fea264697066735822122039efff1e30a359f4e6b36cc045bf629a3a57d9dcdd75a655220d41b5b05dba9a64736f6c63430008180033",
+	ABI: "[][{\"type\":\"function\",\"name\":\"coin\",\"inputs\":[{\"name\":\"\",\"type\":\"tuple\",\"internalType\":\"structCosmos.Coin\",\"components\":[{\"name\":\"amount\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"denom\",\"type\":\"string\",\"internalType\":\"string\"}]}],\"outputs\":[],\"stateMutability\":\"pure\"}]",
+	Bin: "0x6080604052348015600e575f5ffd5b5060e180601a5f395ff3fe6080604052348015600e575f5ffd5b50600436106026575f3560e01c80632ff6e5df14602a575b5f5ffd5b60406004803603810190603c9190606c565b6042565b005b50565b5f5ffd5b5f5ffd5b5f5ffd5b5f604082840312156063576062604d565b5b81905092915050565b5f60208284031215607e57607d6045565b5b5f82013567ffffffffffffffff81111560985760976049565b5b60a2848285016051565b9150509291505056fea26469706673582212202222fe0fe37b307d0b2a41bce0f4a82467fcf467b5a429c364ac7f8b699bb68c64736f6c634300081b0033",
 }
 
 // CosmosTypesABI is the input ABI used to generate the binding from.

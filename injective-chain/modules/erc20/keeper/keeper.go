@@ -3,18 +3,19 @@ package keeper
 import (
 	"context"
 	"fmt"
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/precompiles/bindings/cosmos/precompile/bank"
 	"math/big"
+
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/precompiles/bindings/cosmos/precompile/bank"
 
 	"cosmossdk.io/log"
 	storetypes "cosmossdk.io/store/types"
 
+	"cosmossdk.io/errors"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/pkg/errors"
 
 	evmtypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/types"
 
@@ -86,7 +87,8 @@ func (k Keeper) createTokenPairTokenFactory(c context.Context, sender sdk.AccAdd
 	// deploy ERC20 contract if one was not provided in the msg
 	if pair.Erc20Address == "" {
 		denomMeta, _ := k.bankKeeper.GetDenomMetaData(c, pair.BankDenom)
-		contractAddr, err := k.DeploySmartContract(c, bank.MintBurnBankERC20MetaData, sender, common.BytesToAddress(sender.Bytes()), denomMeta.Base, denomMeta.Symbol, uint8(denomMeta.Decimals))
+		denomCreationFee := k.GetParams(ctx).DenomCreationFee.Amount.BigInt()
+		contractAddr, err := k.DeploySmartContract(c, bank.MintBurnBankERC20MetaData, sender, denomCreationFee, common.BytesToAddress(sender.Bytes()), denomMeta.Base, denomMeta.Symbol, uint8(denomMeta.Decimals))
 		if err != nil {
 			return errors.Wrap(types.ErrUploadERC20Contract, err.Error())
 		}
@@ -110,7 +112,8 @@ func (k Keeper) createTokenPairPeggy(c context.Context, sender sdk.AccAddress, p
 
 	// deploy ERC20 contract
 	denomMeta, _ := k.bankKeeper.GetDenomMetaData(c, pair.BankDenom)
-	contractAddr, err := k.DeploySmartContract(c, bank.FixedSupplyBankERC20MetaData, sender, denomMeta.Base, denomMeta.Symbol, uint8(denomMeta.Decimals), big.NewInt(0))
+	denomCreationFee := k.GetParams(ctx).DenomCreationFee.Amount.BigInt()
+	contractAddr, err := k.DeploySmartContract(c, bank.FixedSupplyBankERC20MetaData, sender, denomCreationFee, denomMeta.Base, denomMeta.Symbol, uint8(denomMeta.Decimals), big.NewInt(0))
 	if err != nil {
 		return errors.Wrap(types.ErrUploadERC20Contract, err.Error())
 	}
@@ -133,7 +136,8 @@ func (k Keeper) createTokenPairIBC(c context.Context, sender sdk.AccAddress, pai
 
 	// deploy ERC20 contract
 	denomMeta, _ := k.bankKeeper.GetDenomMetaData(c, pair.BankDenom)
-	contractAddr, err := k.DeploySmartContract(c, bank.FixedSupplyBankERC20MetaData, sender, denomMeta.Base, denomMeta.Symbol, uint8(denomMeta.Decimals), big.NewInt(0))
+	denomCreationFee := k.GetParams(ctx).DenomCreationFee.Amount.BigInt()
+	contractAddr, err := k.DeploySmartContract(c, bank.FixedSupplyBankERC20MetaData, sender, denomCreationFee, denomMeta.Base, denomMeta.Symbol, uint8(denomMeta.Decimals), big.NewInt(0))
 	if err != nil {
 		return errors.Wrap(types.ErrUploadERC20Contract, err.Error())
 	}
@@ -144,7 +148,7 @@ func (k Keeper) createTokenPairIBC(c context.Context, sender sdk.AccAddress, pai
 	return nil
 }
 
-func (k Keeper) DeploySmartContract(c context.Context, metadata *bind.MetaData, from sdk.AccAddress, args ...any) (common.Address, error) {
+func (k Keeper) DeploySmartContract(c context.Context, metadata *bind.MetaData, from sdk.AccAddress, amount *big.Int, args ...any) (common.Address, error) {
 	abi, err := metadata.GetAbi()
 	if err != nil {
 		return common.Address{}, err
@@ -166,7 +170,7 @@ func (k Keeper) DeploySmartContract(c context.Context, metadata *bind.MetaData, 
 		nil,           // chain id
 		nonce,         // nonce
 		nil,           // to
-		nil,           // amount
+		amount,        // amount (e.g. denom creation fee)
 		2_000_000,     // gas limit
 		big.NewInt(1), // gas price
 		nil,           // gas fee cap
@@ -181,7 +185,7 @@ func (k Keeper) DeploySmartContract(c context.Context, metadata *bind.MetaData, 
 		return common.Address{}, err
 	}
 	if response.VmError != "" {
-		return common.Address{}, errors.New(response.VmError)
+		return common.Address{}, errors.Wrap(types.ErrUploadERC20Contract, response.VmError)
 	}
 
 	contractAddr := crypto.CreateAddress(common.Address(from.Bytes()), nonce)

@@ -9,6 +9,7 @@ import (
 	evmtypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/tracing"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 )
@@ -68,7 +69,7 @@ func (diff *StateOverride) Apply(db *statedb.StateDB) error {
 	for addr, account := range *diff {
 		// Override account nonce.
 		if account.Nonce != nil {
-			db.SetNonce(addr, uint64(*account.Nonce))
+			db.SetNonce(addr, uint64(*account.Nonce), tracing.NonceChangeUnspecified)
 		}
 		// Override account(contract) code.
 		if account.Code != nil {

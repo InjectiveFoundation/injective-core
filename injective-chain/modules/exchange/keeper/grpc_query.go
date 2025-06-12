@@ -481,8 +481,10 @@ func (q queryServer) SpotOrderbook(c context.Context, req *v2.QuerySpotOrderbook
 	ctx := sdk.UnwrapSDKContext(c)
 
 	marketID := common.HexToHash(req.MarketId)
-	limit := &req.Limit
-	if req.Limit == 0 && req.LimitCumulativeNotional == nil && req.LimitCumulativeQuantity == nil {
+	var limit *uint64
+	if req.Limit > 0 {
+		limit = &req.Limit
+	} else if req.LimitCumulativeNotional == nil && req.LimitCumulativeQuantity == nil {
 		defaultLimit := types.DefaultQueryOrderbookLimit
 		limit = &defaultLimit
 	}

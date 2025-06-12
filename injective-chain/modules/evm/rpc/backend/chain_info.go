@@ -2,6 +2,7 @@ package backend
 
 import (
 	"fmt"
+	gomath "math"
 	"math/big"
 	"sync"
 
@@ -126,7 +127,7 @@ func (b *Backend) FeeHistory(
 	if blocks > maxBlockCount {
 		return nil, fmt.Errorf("FeeHistory user block count %d higher than %d", blocks, maxBlockCount)
 	}
-	if blockEnd < math.MaxInt64 && blockEnd+1 < blocks {
+	if blockEnd < gomath.MaxInt64 && blockEnd+1 < blocks {
 		blocks = blockEnd + 1
 	}
 	// Ensure not trying to retrieve before genesis.
@@ -258,5 +259,5 @@ func (b *Backend) GlobalMinGasPrice() (sdkmath.LegacyDec, error) {
 // If the London hard fork is not activated at the current height, the query will
 // return nil.
 func (b *Backend) BaseFee(blockRes *cmtrpctypes.ResultBlockResults) (*big.Int, error) {
-	return nil, nil
+	return b.RPCMinGasPrice(), nil
 }

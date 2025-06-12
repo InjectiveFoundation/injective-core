@@ -43,7 +43,6 @@ type StreamServer struct {
 	Bus                  *pubsub.Server
 	GrpcServer           *grpc.Server
 	listener             net.Listener
-	done                 chan struct{}
 	exchangeKeeper       *exchangekeeper.Keeper
 	txfeesKeeper         *txfeeskeeper.Keeper
 	queryContextProvider QueryContextProvider
@@ -143,16 +142,14 @@ func (s *StreamServer) listenStream(
 	var height uint64
 	for {
 		select {
-		case <-s.done:
-			return status.Error(codes.Canceled, "server is shutting down")
+		case <-server.Context().Done():
+			return nil
 		case message := <-ch:
 			newHeight, err := s.processMessage(message, v2Req, server, height, marketFinder)
 			if err != nil {
 				return err
 			}
 			height = newHeight
-		case <-server.Context().Done():
-			return nil
 		}
 	}
 }
@@ -165,38 +162,39 @@ func (s *StreamServer) processMessage(
 	if err != nil {
 		return height, err
 	}
-	if inResp == nil {
-		return height, nil
-	}
 
 	return s.processAndSendResponse(inResp, &v2Req, server, newHeight, marketFinder)
 }
 
-func (*StreamServer) validateAndExtractResponse(message pubsub.Message, height uint64) (*v2.StreamResponseMap, uint64, error) {
+func (*StreamServer) validateAndExtractResponse(message pubsub.Message, height uint64) (v2.StreamResponseMap, uint64, error) {
 	if err, ok := message.Data().(error); ok {
-		return nil, height, status.Error(codes.Internal, err.Error())
+		return v2.StreamResponseMap{}, height, status.Error(codes.Internal, err.Error())
 	}
 
-	inResp, ok := message.Data().(*v2.StreamResponseMap)
+	inResp, ok := message.Data().(v2.StreamResponseMap)
 	if !ok {
-		return nil, height, nil
+		returnError := status.Errorf(codes.Internal, "incorrect events details type %T (expected v2.StreamResponseMap)", message.Data())
+		return v2.StreamResponseMap{}, height, returnError
 	}
-
-	inResp.RLock()
-	defer inResp.RUnlock()
 
 	newHeight := height
 	if height == 0 {
 		newHeight = inResp.BlockHeight
 	} else if inResp.BlockHeight != height {
-		return nil, height, status.Error(codes.Internal, "block height mismatch")
+		returnError := status.Errorf(
+			codes.Internal,
+			"block height mismatch (events height %d - expected height %d)",
+			inResp.BlockHeight,
+			height,
+		)
+		return v2.StreamResponseMap{}, height, returnError
 	}
 
 	return inResp, newHeight, nil
 }
 
 func (s *StreamServer) processAndSendResponse(
-	inResp *v2.StreamResponseMap, v2Req *v2.StreamRequest,
+	inResp v2.StreamResponseMap, v2Req *v2.StreamRequest,
 	server types.Stream_StreamServer, height uint64,
 	marketFinder *exchangekeeper.CachedMarketFinder,
 ) (uint64, error) {
@@ -207,7 +205,12 @@ func (s *StreamServer) processAndSendResponse(
 
 	// We might be processing events before the Injective app new block is available.
 	// To avoid issues we create a query context for the event height - 1.
-	ctx, err := s.queryContextProvider(int64(height-1), false)
+	queryContextHeight := height - 1
+	if height == 0 {
+		queryContextHeight = 0
+	}
+
+	ctx, err := s.queryContextProvider(int64(queryContextHeight), false)
 	if err != nil {
 		return height, status.Error(codes.Internal, err.Error())
 	}
@@ -249,16 +252,14 @@ func (s *StreamServer) listenStreamV2(req *v2.StreamRequest, server v2.Stream_St
 	var height uint64
 	for {
 		select {
-		case <-s.done:
-			return status.Error(codes.Canceled, "server is shutting down")
+		case <-server.Context().Done():
+			return nil
 		case message := <-ch:
 			newHeight, err := s.processMessageV2(message, req, server, height)
 			if err != nil {
 				return err
 			}
 			height = newHeight
-		case <-server.Context().Done():
-			return nil
 		}
 	}
 }
@@ -269,9 +270,6 @@ func (s *StreamServer) processMessageV2(
 	inResp, newHeight, err := s.validateAndExtractResponse(message, height)
 	if err != nil {
 		return height, err
-	}
-	if inResp == nil {
-		return height, nil
 	}
 
 	outResp, err := s.streamResponseFromMap(inResp, req)
@@ -297,10 +295,7 @@ func (s *StreamServer) GetCurrentServerPort() int {
 	return s.listener.Addr().(*net.TCPAddr).Port
 }
 
-func (s *StreamServer) streamResponseFromMap(inResp *v2.StreamResponseMap, req *v2.StreamRequest) (*v2.StreamResponse, error) {
-	inResp.RLock()
-	defer inResp.RUnlock()
-
+func (s *StreamServer) streamResponseFromMap(inResp v2.StreamResponseMap, req *v2.StreamRequest) (*v2.StreamResponse, error) {
 	outResp := v2.NewChainStreamResponse()
 
 	// Set common fields
@@ -338,14 +333,14 @@ func (s *StreamServer) streamResponseFromMap(inResp *v2.StreamResponseMap, req *
 }
 
 // processBankBalances handles bank balance filtering
-func processBankBalances(req *v2.StreamRequest, inResp *v2.StreamResponseMap, outResp *v2.StreamResponse) {
+func processBankBalances(req *v2.StreamRequest, inResp v2.StreamResponseMap, outResp *v2.StreamResponse) {
 	if req.BankBalancesFilter != nil && inResp.BankBalancesByAccount != nil {
 		outResp.BankBalances = Filter(inResp.BankBalancesByAccount, req.BankBalancesFilter.Accounts)
 	}
 }
 
 // processSpotOrders handles spot orders filtering
-func processSpotOrders(req *v2.StreamRequest, inResp *v2.StreamResponseMap, outResp *v2.StreamResponse) error {
+func processSpotOrders(req *v2.StreamRequest, inResp v2.StreamResponseMap, outResp *v2.StreamResponse) error {
 	if req.SpotOrdersFilter != nil && inResp.SpotOrdersByMarketID != nil {
 		var err error
 		outResp.SpotOrders, err = FilterMulti(
@@ -362,7 +357,7 @@ func processSpotOrders(req *v2.StreamRequest, inResp *v2.StreamResponseMap, outR
 }
 
 // processDerivativeOrders handles derivative orders filtering
-func processDerivativeOrders(req *v2.StreamRequest, inResp *v2.StreamResponseMap, outResp *v2.StreamResponse) error {
+func processDerivativeOrders(req *v2.StreamRequest, inResp v2.StreamResponseMap, outResp *v2.StreamResponse) error {
 	if req.DerivativeOrdersFilter != nil && inResp.DerivativeOrdersByMarketID != nil {
 		var err error
 		outResp.DerivativeOrders, err = FilterMulti(
@@ -379,7 +374,7 @@ func processDerivativeOrders(req *v2.StreamRequest, inResp *v2.StreamResponseMap
 }
 
 // processOrderbooks handles both spot and derivative orderbooks filtering
-func processOrderbooks(req *v2.StreamRequest, inResp *v2.StreamResponseMap, outResp *v2.StreamResponse) {
+func processOrderbooks(req *v2.StreamRequest, inResp v2.StreamResponseMap, outResp *v2.StreamResponse) {
 	// Process spot orderbooks
 	if req.SpotOrderbooksFilter != nil && inResp.SpotOrderbookUpdatesByMarketID != nil {
 		outResp.SpotOrderbookUpdates = Filter(
@@ -398,7 +393,7 @@ func processOrderbooks(req *v2.StreamRequest, inResp *v2.StreamResponseMap, outR
 }
 
 // processPositions handles positions filtering
-func processPositions(req *v2.StreamRequest, inResp *v2.StreamResponseMap, outResp *v2.StreamResponse) error {
+func processPositions(req *v2.StreamRequest, inResp v2.StreamResponseMap, outResp *v2.StreamResponse) error {
 	if req.PositionsFilter != nil && inResp.PositionsByMarketID != nil {
 		var err error
 		outResp.Positions, err = FilterMulti(
@@ -415,7 +410,7 @@ func processPositions(req *v2.StreamRequest, inResp *v2.StreamResponseMap, outRe
 }
 
 // processSubaccountDeposits handles subaccount deposits filtering
-func processSubaccountDeposits(req *v2.StreamRequest, inResp *v2.StreamResponseMap, outResp *v2.StreamResponse) {
+func processSubaccountDeposits(req *v2.StreamRequest, inResp v2.StreamResponseMap, outResp *v2.StreamResponse) {
 	if req.SubaccountDepositsFilter != nil && inResp.SubaccountDepositsBySubaccountID != nil {
 		outResp.SubaccountDeposits = Filter(
 			inResp.SubaccountDepositsBySubaccountID,
@@ -425,7 +420,7 @@ func processSubaccountDeposits(req *v2.StreamRequest, inResp *v2.StreamResponseM
 }
 
 // processOraclePrices handles oracle price filtering
-func processOraclePrices(req *v2.StreamRequest, inResp *v2.StreamResponseMap, outResp *v2.StreamResponse) {
+func processOraclePrices(req *v2.StreamRequest, inResp v2.StreamResponseMap, outResp *v2.StreamResponse) {
 	if req.OraclePriceFilter != nil && inResp.OraclePriceBySymbol != nil {
 		outResp.OraclePrices = Filter(
 			inResp.OraclePriceBySymbol,
@@ -435,7 +430,7 @@ func processOraclePrices(req *v2.StreamRequest, inResp *v2.StreamResponseMap, ou
 }
 
 // processTrades handles both spot and derivative trades filtering
-func processTrades(req *v2.StreamRequest, inResp *v2.StreamResponseMap, outResp *v2.StreamResponse) error {
+func processTrades(req *v2.StreamRequest, inResp v2.StreamResponseMap, outResp *v2.StreamResponse) error {
 	if err := processSpotTrades(req, inResp, outResp); err != nil {
 		return err
 	}
@@ -444,7 +439,7 @@ func processTrades(req *v2.StreamRequest, inResp *v2.StreamResponseMap, outResp 
 }
 
 // processSpotTrades handles spot trades filtering
-func processSpotTrades(req *v2.StreamRequest, inResp *v2.StreamResponseMap, outResp *v2.StreamResponse) error {
+func processSpotTrades(req *v2.StreamRequest, inResp v2.StreamResponseMap, outResp *v2.StreamResponse) error {
 	if req.SpotTradesFilter != nil && inResp.SpotTradesByMarketID != nil {
 		var err error
 		outResp.SpotTrades, err = FilterMulti(
@@ -461,7 +456,7 @@ func processSpotTrades(req *v2.StreamRequest, inResp *v2.StreamResponseMap, outR
 }
 
 // processDerivativeTrades handles derivative trades filtering
-func processDerivativeTrades(req *v2.StreamRequest, inResp *v2.StreamResponseMap, outResp *v2.StreamResponse) error {
+func processDerivativeTrades(req *v2.StreamRequest, inResp v2.StreamResponseMap, outResp *v2.StreamResponse) error {
 	if req.DerivativeTradesFilter != nil && inResp.DerivativeTradesByMarketID != nil {
 		var err error
 		outResp.DerivativeTrades, err = FilterMulti(

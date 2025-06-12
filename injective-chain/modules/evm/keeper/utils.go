@@ -87,7 +87,15 @@ func VerifyFee(
 	gasLimit := tx.Gas()
 
 	accessList := tx.AccessList()
-	intrinsicGas, err := core.IntrinsicGas(tx.Data(), accessList, isContractCreation, homestead, istanbul, shanghai)
+	intrinsicGas, err := core.IntrinsicGas(
+		tx.Data(),
+		accessList,
+		tx.SetCodeAuthorizations(),
+		isContractCreation,
+		homestead,
+		istanbul,
+		shanghai,
+	)
 	if err != nil {
 		return nil, errorsmod.Wrapf(
 			err,

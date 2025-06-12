@@ -9,8 +9,10 @@ import (
 	storetypes "cosmossdk.io/store/types"
 	upgradetypes "cosmossdk.io/x/upgrade/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	stakingkeeper "github.com/cosmos/cosmos-sdk/x/staking/keeper"
 	"github.com/pkg/errors"
 
+	erc20keeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/erc20/keeper"
 	evmkeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/keeper"
 	exchangekeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/keeper"
 	peggykeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/peggy/keeper"
@@ -113,8 +115,10 @@ type InjectiveApplication interface {
 	ChainID() string
 	GetExchangeKeeper() *exchangekeeper.Keeper
 	GetEvmKeeper() *evmkeeper.Keeper
+	GetERC20Keeper() *erc20keeper.Keeper
 	GetKey(storeKey string) *storetypes.KVStoreKey
 	GetPeggyKeeper() *peggykeeper.Keeper
+	GetStakingKeeper() *stakingkeeper.Keeper
 }
 
 func LogUpgradeProgress(logger log.Logger, startTime, lastUpdatedTime time.Time, currentUpdateNumber, totalUpdates int) {

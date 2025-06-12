@@ -417,7 +417,7 @@ func (k *Keeper) GetWorstReduceOnlySubaccountOrdersUpToCount(
 	orders = make([]*v2.SubaccountOrderData, 0)
 	totalQuantity = math.LegacyZeroDec()
 
-	remainingROCount := types.MaxDerivativeOrderSideCount
+	remainingROCount := k.GetMaxDerivativeOrderSideCount(ctx)
 	if totalROCount != nil {
 		remainingROCount = *totalROCount
 	}

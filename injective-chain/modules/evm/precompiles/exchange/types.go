@@ -26,15 +26,20 @@ var (
 	errEmptyMethodsArgs    = "methods argument cannot be empty"
 )
 
-/*******************************************************************************
+/*
+******************************************************************************
 Inputs
-*******************************************************************************/
-
-type ApproveParams struct {
-	Grantee         sdk.AccAddress
-	MsgTypes        []exchangetypesv2.MsgType
+******************************************************************************
+*/
+type Authorization struct {
+	MsgType         exchangetypesv2.MsgType
 	SpendLimit      sdk.Coins
 	DurationSeconds int64
+}
+
+type ApproveParams struct {
+	Grantee        sdk.AccAddress
+	Authorizations []Authorization
 }
 
 func CastApproveParams(methodInputs abi.Arguments, values []any) (
@@ -42,10 +47,8 @@ func CastApproveParams(methodInputs abi.Arguments, values []any) (
 	err error,
 ) {
 	type SolApprovalParams struct {
-		Grantee    common.Address
-		Methods    []uint8
-		SpendLimit []exchangeabi.CosmosCoin
-		Duration   *big.Int
+		Grantee        common.Address
+		Authorizations []exchangeabi.IExchangeModuleAuthorization
 	}
 
 	var solArgs SolApprovalParams
@@ -57,19 +60,20 @@ func CastApproveParams(methodInputs abi.Arguments, values []any) (
 
 	res.Grantee = sdk.AccAddress(solArgs.Grantee.Bytes())
 
-	methods := []exchangetypesv2.MsgType{}
-	for _, method := range solArgs.Methods {
-		methods = append(methods, exchangetypesv2.MsgType(method))
+	authorizations := []Authorization{}
+	for _, auth := range solArgs.Authorizations {
+		authorization := Authorization{
+			MsgType:         exchangetypesv2.MsgType(auth.Method),
+			DurationSeconds: auth.Duration.Int64(),
+		}
+		spendLimit := sdk.Coins{}
+		for _, coin := range auth.SpendLimit {
+			spendLimit = append(spendLimit, sdk.Coin{Denom: coin.Denom, Amount: sdkmath.NewIntFromBigInt(coin.Amount)})
+		}
+		authorization.SpendLimit = spendLimit
+		authorizations = append(authorizations, authorization)
 	}
-	res.MsgTypes = methods
-
-	spendLimit := sdk.Coins{}
-	for _, coin := range solArgs.SpendLimit {
-		spendLimit = append(spendLimit, sdk.Coin{Denom: coin.Denom, Amount: sdkmath.NewIntFromBigInt(coin.Amount)})
-	}
-	res.SpendLimit = spendLimit
-
-	res.DurationSeconds = solArgs.Duration.Int64()
+	res.Authorizations = authorizations
 
 	return res, nil
 }

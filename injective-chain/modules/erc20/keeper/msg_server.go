@@ -104,7 +104,10 @@ func (k Keeper) validateErc20Address(ctx sdk.Context, erc20Address common.Addres
 
 	// now check that contract is ERC20 (has symbol() function)
 	args, _ := json.Marshal(evmtypes.TransactionArgs{To: &erc20Address, Input: &ERC20SymbolCallInput})
-	resp, err := k.evmKeeper.EthCall(ctx, &evmtypes.EthCallRequest{Args: args})
+	resp, err := k.evmKeeper.EthCall(ctx, &evmtypes.EthCallRequest{
+		Args:   args,
+		GasCap: uint64(300_000),
+	})
 	if err != nil || resp.VmError != "" {
 		var errText string
 		if err != nil {

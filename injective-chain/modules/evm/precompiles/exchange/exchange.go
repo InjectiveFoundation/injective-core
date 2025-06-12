@@ -72,6 +72,10 @@ var (
 	exchangeGasRequiredByMethod = map[[4]byte]uint64{}
 )
 
+var (
+	ErrPrecompilePanic = errors.New("precompile panic")
+)
+
 func init() {
 	if err := exchangeABI.UnmarshalJSON([]byte(exchange.ExchangeModuleMetaData.ABI)); err != nil {
 		panic(err)
@@ -155,6 +159,10 @@ func (ec *ExchangeContract) Address() common.Address {
 }
 
 func (ec *ExchangeContract) RequiredGas(input []byte) uint64 {
+	if len(input) < 4 {
+		return 0
+	}
+
 	// base cost to prevent large input size
 	baseCost := uint64(len(input)) * ec.kvGasConfig.WriteCostPerByte
 	var methodID [4]byte
@@ -166,7 +174,14 @@ func (ec *ExchangeContract) RequiredGas(input []byte) uint64 {
 	return baseCost
 }
 
-func (ec *ExchangeContract) Run(evm *vm.EVM, contract *vm.Contract, readonly bool) ([]byte, error) {
+func (ec *ExchangeContract) Run(evm *vm.EVM, contract *vm.Contract, readonly bool) (output []byte, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = ErrPrecompilePanic
+			output = nil
+		}
+	}()
+
 	// parse input
 	methodID := contract.Input[:4]
 	method, err := exchangeABI.MethodById(methodID)
@@ -179,13 +194,13 @@ func (ec *ExchangeContract) Run(evm *vm.EVM, contract *vm.Contract, readonly boo
 		return nil, errors.New("fail to unpack input arguments")
 	}
 
-	caller := sdk.AccAddress(contract.CallerAddress.Bytes())
+	caller := sdk.AccAddress(contract.Caller().Bytes())
 
 	switch method.Name {
 	case ApproveMethodName:
-		return ec.approve(evm, evm.Origin, method, args, readonly)
+		return ec.approve(evm, caller, method, args, readonly)
 	case RevokeMethodName:
-		return ec.revoke(evm, evm.Origin, method, args, readonly)
+		return ec.revoke(evm, caller, method, args, readonly)
 	case AllowanceQueryName:
 		return ec.queryAllowance(evm, evm.Origin, method, args, readonly)
 	case DepositMethodName:
@@ -244,7 +259,7 @@ AUTHZ TRANSACTIONS
 
 func (ec *ExchangeContract) approve(
 	evm *vm.EVM,
-	origin common.Address,
+	caller sdk.AccAddress,
 	method *abi.Method,
 	args []interface{},
 	readonly bool,
@@ -258,21 +273,19 @@ func (ec *ExchangeContract) approve(
 		return nil, err
 	}
 
-	duration := time.Duration(params.DurationSeconds) * time.Second
-
 	stateDB := evm.StateDB.(precompiles.ExtStateDB)
 
-	for _, msgType := range params.MsgTypes {
+	for _, auth := range params.Authorizations {
 		err = stateDB.ExecuteNativeAction(
 			common.Address{},
 			nil,
 			func(ctx sdk.Context) (err error) {
 				blockTime := ctx.BlockTime()
-				expiration := blockTime.Add(duration)
+				expiration := blockTime.Add(time.Duration(auth.DurationSeconds) * time.Second)
 
 				grant, err := authz.NewGrant(
 					blockTime,
-					exchangetypesv2.NewGenericExchangeAuthorization(msgType.URL(), params.SpendLimit),
+					exchangetypesv2.NewGenericExchangeAuthorization(auth.MsgType.URL(), auth.SpendLimit),
 					&expiration,
 				)
 				if err != nil {
@@ -282,7 +295,7 @@ func (ec *ExchangeContract) approve(
 				_, err = ec.authzKeeper.Grant(
 					ctx,
 					&authz.MsgGrant{
-						Granter: sdk.AccAddress(origin.Bytes()).String(),
+						Granter: caller.String(),
 						Grantee: sdk.AccAddress(params.Grantee.Bytes()).String(),
 						Grant:   grant,
 					},
@@ -300,7 +313,7 @@ func (ec *ExchangeContract) approve(
 
 func (ec *ExchangeContract) revoke(
 	evm *vm.EVM,
-	origin common.Address,
+	caller sdk.AccAddress,
 	method *abi.Method,
 	args []any,
 	readonly bool,
@@ -324,7 +337,7 @@ func (ec *ExchangeContract) revoke(
 				_, err = ec.authzKeeper.Revoke(
 					ctx,
 					&authz.MsgRevoke{
-						Granter:    sdk.AccAddress(origin.Bytes()).String(),
+						Granter:    caller.String(),
 						Grantee:    sdk.AccAddress(grantee.Bytes()).String(),
 						MsgTypeUrl: msgType.URL(),
 					},
@@ -379,7 +392,7 @@ func (ec *ExchangeContract) queryAllowance(
 
 	res := false
 	blockTime := stateDB.Context().BlockTime()
-	if auth != nil && blockTime.Before(*expiration) {
+	if auth != nil && (expiration == nil || blockTime.Before(*expiration)) {
 		res = true
 	}
 

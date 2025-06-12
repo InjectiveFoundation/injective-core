@@ -45,6 +45,7 @@ injective-chain/modules/exchange/testexchange/test.properties
 injective-chain/modules/evm/precompiles/bindings/src
 interchaintest/coverage/
 interchaintest/security/coverage
+interchaintest/injective_data/
 
 vendor/
 

@@ -1,10 +1,17 @@
 package filters
 
 import (
+	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/eth/filters"
+)
+
+const (
+	maxAddresses = 32
+	maxTopics    = 4
 )
 
 // FilterLogs creates a slice of logs matching the given criteria.
@@ -103,4 +110,14 @@ func returnLogs(logs []*ethtypes.Log) []*ethtypes.Log {
 		return []*ethtypes.Log{}
 	}
 	return logs
+}
+
+func validateFilterCriteria(criteria filters.FilterCriteria) error {
+	if len(criteria.Addresses) > maxAddresses {
+		return fmt.Errorf("max filter addresses exceeded: %d > %d", len(criteria.Addresses), maxAddresses)
+	}
+	if len(criteria.Topics) > maxTopics {
+		return fmt.Errorf("max filter topics exceeded: %d > %d", len(criteria.Topics), maxTopics)
+	}
+	return nil
 }

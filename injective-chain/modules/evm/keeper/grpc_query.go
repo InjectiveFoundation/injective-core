@@ -34,7 +34,8 @@ import (
 var _ types.QueryServer = Keeper{}
 
 const (
-	defaultTraceTimeout = 5 * time.Second
+	defaultTraceTimeout         = 5 * time.Second
+	defaultEthCallGasCap uint64 = 50_000_000
 )
 
 // Account implements the Query/Account gRPC method
@@ -239,6 +240,15 @@ func (k Keeper) EthCall(c context.Context, req *types.EthCallRequest) (*types.Ms
 		cfg.ChainConfig.ChainID = big.NewInt(req.GetChainId())
 	}
 
+	gasCap := defaultEthCallGasCap
+	params := ctx.ConsensusParams()
+	if params.Block != nil && params.Block.MaxGas > 0 {
+		gasCap = uint64(params.Block.MaxGas)
+	}
+	if req.GasCap > gasCap {
+		req.GasCap = gasCap
+	}
+
 	var overrides rpctypes.StateOverride
 	if len(req.Overrides) > 0 {
 		if err := json.Unmarshal(req.Overrides, &overrides); err != nil {
@@ -290,28 +300,23 @@ func (k Keeper) EstimateGas(c context.Context, req *types.EthCallRequest) (*type
 		lo     = ethparams.TxGas - 1
 		hi     uint64
 		gasCap uint64
+		params = ctx.ConsensusParams()
 	)
 
 	// Determine the highest gas limit can be used during the estimation.
-	if args.Gas != nil && uint64(*args.Gas) >= ethparams.TxGas {
+	gasCap = defaultEthCallGasCap
+	if params.Block != nil && params.Block.MaxGas > 0 {
+		gasCap = uint64(params.Block.MaxGas)
+	}
+	if req.GasCap < gasCap {
+		gasCap = req.GasCap
+	}
+
+	if args.Gas != nil && uint64(*args.Gas) >= ethparams.TxGas && uint64(*args.Gas) < gasCap {
 		hi = uint64(*args.Gas)
 	} else {
-		// Query block gas limit
-		params := ctx.ConsensusParams()
-		if params.Block != nil && params.Block.MaxGas > 0 {
-			hi = uint64(params.Block.MaxGas)
-		} else {
-			hi = req.GasCap
-		}
+		hi = gasCap
 	}
-
-	// TODO: Recap the highest gas limit with account's available balance.
-
-	// Recap the highest gas allowance with specified gascap.
-	if req.GasCap != 0 && hi > req.GasCap {
-		hi = req.GasCap
-	}
-	gasCap = hi
 
 	cfg, err := k.EVMConfig(ctx, common.Hash{})
 	if err != nil {
@@ -327,7 +332,7 @@ func (k Keeper) EstimateGas(c context.Context, req *types.EthCallRequest) (*type
 	args.Nonce = (*hexutil.Uint64)(&nonce)
 
 	// convert the tx args to an ethereum message
-	msg, err := args.ToMessage(req.GasCap)
+	msg, err := args.ToMessage(gasCap)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
@@ -641,7 +646,6 @@ func (k *Keeper) prepareTrace(
 		DisableStorage:   traceConfig.DisableStorage,
 		DisableStack:     traceConfig.DisableStack,
 		EnableReturnData: traceConfig.EnableReturnData,
-		Debug:            traceConfig.Debug,
 		Limit:            int(traceConfig.Limit),
 		Overrides:        overrides,
 	}
@@ -663,11 +667,11 @@ func (k *Keeper) prepareTrace(
 			TxIndex:   txIndex,
 			TxHash:    txConfig.TxHash,
 		}
-		var cfg json.RawMessage
+		var traceCfg json.RawMessage
 		if traceConfig.TracerJsonConfig != "" {
-			cfg = json.RawMessage(traceConfig.TracerJsonConfig)
+			traceCfg = json.RawMessage(traceConfig.TracerJsonConfig)
 		}
-		t, err := tracers.DefaultDirectory.New(traceConfig.Tracer, tCtx, cfg)
+		t, err := tracers.DefaultDirectory.New(traceConfig.Tracer, tCtx, traceCfg, cfg.ChainConfig)
 		if err != nil {
 			return nil, 0, status.Error(codes.Internal, err.Error())
 		}
