@@ -67,9 +67,8 @@ const (
 )
 
 var (
-	exchangeABI                 abi.ABI
-	exchangeContractAddress     = common.BytesToAddress([]byte{101})
-	exchangeGasRequiredByMethod = map[[4]byte]uint64{}
+	exchangeABI             abi.ABI
+	exchangeContractAddress = common.BytesToAddress([]byte{101})
 )
 
 var (
@@ -79,52 +78,6 @@ var (
 func init() {
 	if err := exchangeABI.UnmarshalJSON([]byte(exchange.ExchangeModuleMetaData.ABI)); err != nil {
 		panic(err)
-	}
-	for methodName := range exchangeABI.Methods {
-		var methodID [4]byte
-		copy(methodID[:], exchangeABI.Methods[methodName].ID[:4])
-		switch methodName {
-		case ApproveMethodName:
-			exchangeGasRequiredByMethod[methodID] = 200_000
-		case RevokeMethodName:
-			exchangeGasRequiredByMethod[methodID] = 200_000
-		case DepositMethodName:
-			exchangeGasRequiredByMethod[methodID] = 200_000
-		case WithdrawMethodName:
-			exchangeGasRequiredByMethod[methodID] = 200_000
-		case SubaccountTransferMethodName:
-			exchangeGasRequiredByMethod[methodID] = 200_000
-		case ExternalTransferMethodName:
-			exchangeGasRequiredByMethod[methodID] = 200_000
-		case CreateDerivativeLimitOrderMethodName:
-			exchangeGasRequiredByMethod[methodID] = 200_000
-		case BatchCreateDerivativeLimitOrdersMethodName:
-			exchangeGasRequiredByMethod[methodID] = 200_000
-		case CreateDerivativeMarketOrderMethodName:
-			exchangeGasRequiredByMethod[methodID] = 200_000
-		case CancelDerivativeOrderMethodName:
-			exchangeGasRequiredByMethod[methodID] = 200_000
-		case BatchCancelDerivativeOrdersMethodName:
-			exchangeGasRequiredByMethod[methodID] = 200_000
-		case IncreasePositionMarginMethodName:
-			exchangeGasRequiredByMethod[methodID] = 200_000
-		case DecreasePositionMarginMethodName:
-			exchangeGasRequiredByMethod[methodID] = 200_000
-		case BatchUpdateOrdersMethodName:
-			exchangeGasRequiredByMethod[methodID] = 200_000
-		case CreateSpotLimitOrderMethodName:
-			exchangeGasRequiredByMethod[methodID] = 200_000
-		case BatchCreateSpotLimitOrdersMethodName:
-			exchangeGasRequiredByMethod[methodID] = 200_000
-		case CreateSpotMarketOrderMethodName:
-			exchangeGasRequiredByMethod[methodID] = 200_000
-		case CancelSpotOrderMethodName:
-			exchangeGasRequiredByMethod[methodID] = 200_000
-		case BatchCancelSpotOrdersMethodName:
-			exchangeGasRequiredByMethod[methodID] = 200_000
-		default:
-			exchangeGasRequiredByMethod[methodID] = 0
-		}
 	}
 }
 
@@ -164,14 +117,88 @@ func (ec *ExchangeContract) RequiredGas(input []byte) uint64 {
 	}
 
 	// base cost to prevent large input size
-	baseCost := uint64(len(input)) * ec.kvGasConfig.WriteCostPerByte
-	var methodID [4]byte
-	copy(methodID[:], input[:4])
-	requiredGas, ok := exchangeGasRequiredByMethod[methodID]
-	if ok {
-		return requiredGas + baseCost
+	cost := uint64(len(input)) * ec.kvGasConfig.WriteCostPerByte
+
+	method, err := exchangeABI.MethodById(input[:4])
+	if err != nil {
+		return cost
 	}
-	return baseCost
+
+	args, err := method.Inputs.Unpack(input[4:])
+	if err != nil {
+		return cost
+	}
+
+	switch method.Name {
+	case ApproveMethodName:
+		cost += 200_000
+	case RevokeMethodName:
+		cost += 200_000
+	case DepositMethodName:
+		cost += exchangekeeper.MsgDepositGas
+	case WithdrawMethodName:
+		cost += exchangekeeper.MsgWithdrawGas
+	case SubaccountTransferMethodName:
+		cost += exchangekeeper.MsgSubaccountTransferGas
+	case ExternalTransferMethodName:
+		cost += exchangekeeper.MsgExternalTransferGas
+	case CreateDerivativeLimitOrderMethodName:
+		cost += exchangekeeper.MsgCreateDerivativeLimitOrderGas
+	case CreateDerivativeMarketOrderMethodName:
+		cost += exchangekeeper.MsgCreateDerivativeMarketOrderGas
+	case CancelDerivativeOrderMethodName:
+		cost += exchangekeeper.MsgCancelDerivativeOrderGas
+	case IncreasePositionMarginMethodName:
+		cost += exchangekeeper.MsgIncreasePositionMarginGas
+	case DecreasePositionMarginMethodName:
+		cost += exchangekeeper.MsgDecreasePositionMarginGas
+	case CreateSpotLimitOrderMethodName:
+		cost += exchangekeeper.MsgCreateSpotLimitOrderGas
+	case CreateSpotMarketOrderMethodName:
+		cost += exchangekeeper.MsgCreateSpotMarketOrderGas
+	case CancelSpotOrderMethodName:
+		cost += exchangekeeper.MsgCancelSpotOrderGas
+	}
+
+	switch method.Name {
+	case BatchCreateDerivativeLimitOrdersMethodName:
+		_, orders, err := CastCreateDerivativeOrdersParams(method.Inputs, args)
+		if err != nil {
+			return cost
+		}
+		cost += exchangekeeper.MsgCreateDerivativeLimitOrderGas * uint64(len(orders))
+	case BatchCancelDerivativeOrdersMethodName:
+		_, orders, err := CastBatchCancelOrdersParams(method.Inputs, args)
+		if err != nil {
+			return cost
+		}
+		cost += exchangekeeper.MsgCancelDerivativeOrderGas * uint64(len(orders))
+	case BatchCreateSpotLimitOrdersMethodName:
+		_, orders, err := CastCreateSpotOrdersParams(method.Inputs, args)
+		if err != nil {
+			return cost
+		}
+		cost += exchangekeeper.MsgCreateSpotLimitOrderGas * uint64(len(orders))
+	case BatchCancelSpotOrdersMethodName:
+		_, orders, err := CastBatchCancelOrdersParams(method.Inputs, args)
+		if err != nil {
+			return cost
+		}
+		cost += exchangekeeper.MsgCancelSpotOrderGas * uint64(len(orders))
+	case BatchUpdateOrdersMethodName:
+		_, msg, err := CastBatchUpdateOrdersParams(method.Inputs, args)
+		if err != nil {
+			return cost
+		}
+		cost += uint64(len(msg.DerivativeOrdersToCancel)) * exchangekeeper.MsgCancelDerivativeOrderGas
+		cost += uint64(len(msg.DerivativeOrdersToCreate)) * exchangekeeper.MsgCreateDerivativeLimitOrderGas
+		cost += uint64(len(msg.DerivativeMarketIdsToCancelAll)) * exchangekeeper.MsgCancelDerivativeOrderGas
+		cost += uint64(len(msg.SpotOrdersToCancel)) * exchangekeeper.MsgCancelSpotOrderGas
+		cost += uint64(len(msg.SpotOrdersToCreate)) * exchangekeeper.MsgCreateSpotLimitOrderGas
+		cost += uint64(len(msg.SpotMarketIdsToCancelAll)) * 100_000
+	}
+
+	return cost
 }
 
 func (ec *ExchangeContract) Run(evm *vm.EVM, contract *vm.Contract, readonly bool) (output []byte, err error) {

@@ -9,6 +9,7 @@ import (
 	storetypes "cosmossdk.io/store/types"
 	upgradetypes "cosmossdk.io/x/upgrade/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	authante "github.com/cosmos/cosmos-sdk/x/auth/ante"
 	stakingkeeper "github.com/cosmos/cosmos-sdk/x/staking/keeper"
 	"github.com/pkg/errors"
 
@@ -119,6 +120,7 @@ type InjectiveApplication interface {
 	GetKey(storeKey string) *storetypes.KVStoreKey
 	GetPeggyKeeper() *peggykeeper.Keeper
 	GetStakingKeeper() *stakingkeeper.Keeper
+	GetAccountKeeper() authante.AccountKeeper
 }
 
 func LogUpgradeProgress(logger log.Logger, startTime, lastUpdatedTime time.Time, currentUpdateNumber, totalUpdates int) {

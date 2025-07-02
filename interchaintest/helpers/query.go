@@ -2,6 +2,7 @@ package helpers
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	retry "github.com/avast/retry-go/v4"
@@ -62,4 +63,73 @@ func GetBlock(ctx context.Context, chainNode *cosmos.ChainNode, height int64) (*
 		return nil, err
 	}
 	return block, nil
+}
+
+// QueryAccount queries the auth module for account information
+func QueryAccount(ctx context.Context, chainNode *cosmos.ChainNode, address string) (*AccountResponse, error) {
+	stdout, stderr, err := chainNode.ExecQuery(ctx, "auth", "account", address)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to query account %s: %s", address, string(stderr))
+	}
+
+	var accountResp AccountResponse
+	if err := json.Unmarshal(stdout, &accountResp); err != nil {
+		return nil, errors.Wrap(err, "failed to unmarshal account response")
+	}
+
+	return &accountResp, nil
+}
+
+// AccountResponse represents the response structure from auth account query
+type AccountResponse struct {
+	Account Account `json:"account"`
+}
+
+// Account represents the account information with type and value
+type Account struct {
+	Type  string          `json:"type"`
+	Value json.RawMessage `json:"value"`
+}
+
+// EthAccount represents the Injective EthAccount structure
+type EthAccount struct {
+	BaseAccount BaseAccount `json:"base_account"`
+	CodeHash    string      `json:"code_hash"`
+}
+
+// BaseAccount represents the base account information
+type BaseAccount struct {
+	Address       string `json:"address"`
+	AccountNumber uint64 `json:"account_number,string"`
+	Sequence      uint64 `json:"sequence,string"`
+}
+
+// GetBaseAccount unmarshals the account value into a BaseAccount
+func (a *Account) GetBaseAccount() (*BaseAccount, error) {
+	var baseAccount BaseAccount
+
+	if a.Type != "/cosmos.auth.v1beta1.BaseAccount" {
+		return nil, errors.Errorf("account type is not /cosmos.auth.v1beta1.BaseAccount: %s", a.Type)
+	}
+
+	if err := json.Unmarshal(a.Value, &baseAccount); err != nil {
+		return nil, errors.Wrap(err, "failed to unmarshal BaseAccount")
+	}
+
+	return &baseAccount, nil
+}
+
+// GetEthAccount unmarshals the account value into an EthAccount
+func (a *Account) GetEthAccount() (*EthAccount, error) {
+	var ethAccount EthAccount
+
+	if a.Type != "/injective.types.v1beta1.EthAccount" {
+		return nil, errors.Errorf("account type is not /injective.types.v1beta1.EthAccount: %s", a.Type)
+	}
+
+	if err := json.Unmarshal(a.Value, &ethAccount); err != nil {
+		return nil, errors.Wrap(err, "failed to unmarshal EthAccount")
+	}
+
+	return &ethAccount, nil
 }

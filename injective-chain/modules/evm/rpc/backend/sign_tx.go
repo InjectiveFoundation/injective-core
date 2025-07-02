@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/signer/core/apitypes"
 
+	rpctypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/rpc/types"
 	evmtypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/types"
 )
 
@@ -40,6 +41,14 @@ func (b *Backend) SendTransaction(args evmtypes.TransactionArgs) (common.Hash, e
 	msg := args.ToTransaction()
 	if err := msg.ValidateBasic(); err != nil {
 		b.logger.Debug("tx failed basic validation", "error", err.Error())
+		return common.Hash{}, err
+	}
+
+	if err := rpctypes.CheckTxFee(
+		msg.Raw.GasPrice(),
+		msg.Raw.Gas(),
+		b.RPCTxFeeCap(),
+	); err != nil {
 		return common.Hash{}, err
 	}
 

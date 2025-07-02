@@ -15,6 +15,8 @@ yes 12345678 | injectived \
   --json-rpc.ws-address "0.0.0.0:8546" \
   --json-rpc.api "eth,web3,net,txpool,debug,personal,inj" \
   --json-rpc.enable=true \
+  --json-rpc.allow-unprotected-txs=true \
+  --json-rpc.txfee-cap=50 \
   --optimistic-execution-enabled true \
   --home "$INJHOME" \
 start

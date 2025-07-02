@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"math/big"
 	"strconv"
@@ -13,7 +12,6 @@ import (
 	"time"
 
 	"cosmossdk.io/math"
-	tokenfactorytypes "github.com/InjectiveLabs/sdk-go/chain/tokenfactory/types"
 	clienttx "github.com/cosmos/cosmos-sdk/client/tx"
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
 	"github.com/cosmos/cosmos-sdk/crypto/hd"
@@ -28,17 +26,39 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/stretchr/testify/require"
+
 	"github.com/strangelove-ventures/interchaintest/v8"
 	"github.com/strangelove-ventures/interchaintest/v8/chain/cosmos"
 	"github.com/strangelove-ventures/interchaintest/v8/chain/ethereum"
 	"github.com/strangelove-ventures/interchaintest/v8/chain/ethereum/geth"
 	"github.com/strangelove-ventures/interchaintest/v8/ibc"
 	"github.com/strangelove-ventures/interchaintest/v8/testutil"
-	"github.com/stretchr/testify/require"
 
 	"github.com/InjectiveLabs/etherman/deployer"
 	peggytypes "github.com/InjectiveLabs/sdk-go/chain/peggy/types"
+	tokenfactorytypes "github.com/InjectiveLabs/sdk-go/chain/tokenfactory/types"
 )
+
+const (
+	PeggyContractName            = "Peggy"
+	ProxyAdminContractName       = "ProxyAdmin"
+	TransparentProxyContractName = "TransparentUpgradeableProxy"
+	CosmosERC20ContractName      = "CosmosERC20"
+
+	PeggyContractPath            = "../peggo/solidity/contracts/Peggy.sol"
+	ProxyAdminContractPath       = "../peggo/solidity/contracts/@openzeppelin/contracts/ProxyAdmin.sol"
+	TransparentProxyContractPath = "../peggo/solidity/contracts/@openzeppelin/contracts/TransparentUpgradeableProxy.sol"
+	CosmosERC20ContractPath      = "../peggo/solidity/contracts/CosmosERC20.sol"
+)
+
+type PeggyContractSuite struct {
+	Peggy            common.Address
+	ProxyAdmin       common.Address
+	TransparentProxy common.Address
+	InjectiveCoin    common.Address
+	StartHeight      uint64
+}
 
 // GetCurrentValset returns the current validator set on Injective
 func GetCurrentValset(
@@ -48,7 +68,14 @@ func GetCurrentValset(
 ) *peggytypes.Valset {
 	t.Helper()
 
-	bz, _, err := chain.GetNode().ExecQuery(ctx, "peggy", "current-valset", "--chain-id", chain.Config().ChainID)
+	cmd := []string{
+		"peggy",
+		"current-valset",
+		"--chain-id",
+		chain.Config().ChainID,
+	}
+
+	bz, _, err := chain.GetNode().ExecQuery(ctx, cmd...)
 	require.NoError(t, err)
 	require.NotNil(t, bz)
 
@@ -70,13 +97,15 @@ func RegisterOrchestrator(
 	validator, err := node.AccountKeyBech32(ctx, "validator")
 	require.NoError(t, err)
 
-	txHash, err := node.ExecTx(ctx, "validator",
+	cmd := []string{
 		"peggy",
 		"set-orchestrator-address",
 		validator,
 		orchestratorAddress,
 		ethereumAddress,
-	)
+	}
+
+	txHash, err := node.ExecTx(ctx, "validator", cmd...)
 	require.NoError(t, err)
 
 	txResp, err := QueryTx(ctx, node, txHash)
@@ -110,14 +139,6 @@ func GetValidatorPrivateKey(
 	require.NoError(t, err)
 
 	return strings.TrimSpace(string(stdout))
-}
-
-type PeggyContractSuite struct {
-	Peggy            common.Address
-	ProxyAdmin       common.Address
-	TransparentProxy common.Address
-	InjectiveCoin    common.Address
-	StartHeight      uint64
 }
 
 func DeployPeggyContractSuite(
@@ -165,8 +186,8 @@ func DeployPeggyContractSuite(
 	peggyDeployOpts := deployer.ContractDeployOpts{
 		From:         common.HexToAddress(contractDeployer.FormattedAddress()),
 		FromPk:       ecdsaPK,
-		SolSource:    "../peggo/solidity/contracts/Peggy.sol",
-		ContractName: "Peggy",
+		SolSource:    PeggyContractPath,
+		ContractName: PeggyContractName,
 		Await:        true,
 	}
 
@@ -205,8 +226,8 @@ func DeployPeggyContractSuite(
 	peggyTxOpts := deployer.ContractTxOpts{
 		From:         common.HexToAddress(contractDeployer.FormattedAddress()),
 		FromPk:       ecdsaPK,
-		SolSource:    "../peggo/solidity/contracts/Peggy.sol",
-		ContractName: "Peggy",
+		SolSource:    PeggyContractPath,
+		ContractName: PeggyContractName,
 		Contract:     peggyContract.Address,
 		Await:        true,
 		BytecodeOnly: true,
@@ -227,8 +248,8 @@ func DeployPeggyContractSuite(
 	proxyAdminOpts := deployer.ContractDeployOpts{
 		From:         common.HexToAddress(contractDeployer.FormattedAddress()),
 		FromPk:       ecdsaPK,
-		SolSource:    "../peggo/solidity/contracts/@openzeppelin/contracts/ProxyAdmin.sol",
-		ContractName: "ProxyAdmin",
+		SolSource:    ProxyAdminContractPath,
+		ContractName: ProxyAdminContractName,
 		Await:        true,
 	}
 
@@ -243,8 +264,8 @@ func DeployPeggyContractSuite(
 	transparentProxyOpts := deployer.ContractDeployOpts{
 		From:         common.HexToAddress(contractDeployer.FormattedAddress()),
 		FromPk:       ecdsaPK,
-		SolSource:    "../peggo/solidity/contracts/@openzeppelin/contracts/TransparentUpgradeableProxy.sol",
-		ContractName: "TransparentUpgradeableProxy",
+		SolSource:    TransparentProxyContractPath,
+		ContractName: TransparentProxyContractName,
 		Await:        true,
 	}
 
@@ -265,8 +286,8 @@ func DeployPeggyContractSuite(
 	injectiveCoinOpts := deployer.ContractDeployOpts{
 		From:         common.HexToAddress(contractDeployer.FormattedAddress()),
 		FromPk:       ecdsaPK,
-		SolSource:    "../peggo/solidity/contracts/CosmosERC20.sol",
-		ContractName: "CosmosERC20",
+		SolSource:    CosmosERC20ContractPath,
+		ContractName: CosmosERC20ContractName,
 		Await:        true,
 	}
 
@@ -292,8 +313,8 @@ func DeployPeggyContractSuite(
 	mintOpts := deployer.ContractTxOpts{
 		From:         common.HexToAddress(contractDeployer.FormattedAddress()),
 		FromPk:       ecdsaPK,
-		SolSource:    "../peggo/solidity/contracts/CosmosERC20.sol",
-		ContractName: "CosmosERC20",
+		SolSource:    CosmosERC20ContractPath,
+		ContractName: CosmosERC20ContractName,
 		Contract:     injectiveCoinContract.Address,
 		Await:        true,
 	}
@@ -366,7 +387,7 @@ func UpdatePeggyParams(
 	_, err = cosmos.PollForProposalStatus(ctx, chain, height, height+60, proposalID, govv1beta1.StatusPassed)
 	require.NoError(t, err)
 
-	t.Log("updated peggy params")
+	t.Log("peggy params updated")
 }
 
 func GetPeggoEnvDefaults(
@@ -414,13 +435,13 @@ func GetPeggoEnvDefaults(
 	}
 }
 
-func AwaitLastObservedValset(
+func AwaitLastObservedValsetNonce(
 	t *testing.T,
 	ctx context.Context,
+	dur time.Duration,
 	chain *cosmos.CosmosChain,
 	valsetNonce uint64,
-	dur time.Duration,
-) error {
+) {
 	t.Helper()
 
 	state := GetPeggyModuleState(t, ctx, chain)
@@ -428,30 +449,34 @@ func AwaitLastObservedValset(
 		panic("nil state")
 	}
 
-	if state.LastObservedValset.Nonce == valsetNonce {
-		return nil
+	if valsetNonce <= state.LastObservedValset.Nonce {
+		return
 	}
 
-	ticker := time.NewTicker(10 * time.Second)
 	timeout := time.After(dur)
+	ticker := time.NewTicker(10 * time.Second)
 
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return
 		case <-timeout:
-			return fmt.Errorf("last observed valset is %d", state.LastObservedValset.Nonce)
+			t.Fatal("timed out waiting for last_observed_valset nonce:",
+				"expected:", valsetNonce,
+				"actual:", state.LastObservedValset.Nonce,
+			)
 		case <-ticker.C:
 			state = GetPeggyModuleState(t, ctx, chain)
-			if state == nil {
-				return errors.New("no peggy module state")
+
+			if valsetNonce <= state.LastObservedValset.Nonce {
+				t.Log("last_observed_valset nonce:", state.LastObservedValset.Nonce)
+				return
 			}
 
-			if state.LastObservedValset.Nonce == valsetNonce {
-				return nil
-			}
-
-			t.Log("peggy: last observed valset", state.LastObservedValset.Nonce)
+			t.Log("waiting for last_observed_valset nonce:",
+				"expected:", valsetNonce,
+				"actual:", state.LastObservedValset.Nonce,
+			)
 		}
 	}
 }
@@ -463,7 +488,14 @@ func GetPeggyModuleState(
 ) *peggytypes.GenesisState {
 	t.Helper()
 
-	bz, _, err := chain.GetNode().ExecQuery(ctx, "peggy", "module-state", "--chain-id", chain.Config().ChainID)
+	cmd := []string{
+		"peggy",
+		"module-state",
+		"--chain-id",
+		chain.Config().ChainID,
+	}
+
+	bz, _, err := chain.GetNode().ExecQuery(ctx, cmd...)
 	require.NoError(t, err)
 	require.NotNil(t, bz)
 
@@ -497,8 +529,8 @@ func SendToInjective(
 	opts := deployer.ContractTxOpts{
 		From:         crypto.PubkeyToAddress(senderPK.PublicKey),
 		FromPk:       senderPK,
-		SolSource:    "../peggo/solidity/contracts/CosmosERC20.sol",
-		ContractName: "CosmosERC20",
+		SolSource:    CosmosERC20ContractPath,
+		ContractName: CosmosERC20ContractName,
 		Contract:     contracts.InjectiveCoin,
 		Await:        true,
 	}
@@ -529,8 +561,8 @@ func SendToInjective(
 	opts = deployer.ContractTxOpts{
 		From:         crypto.PubkeyToAddress(senderPK.PublicKey),
 		FromPk:       senderPK,
-		SolSource:    "../peggo/solidity/contracts/Peggy.sol",
-		ContractName: "Peggy",
+		SolSource:    PeggyContractPath,
+		ContractName: PeggyContractName,
 		Contract:     contracts.TransparentProxy,
 		Await:        true,
 	}
@@ -542,11 +574,10 @@ func SendToInjective(
 }
 
 func PrependZeroBytes12(data []byte) []byte {
-	prefix := make([]byte, 12) // creates a slice of 12 zero bytes
-	return append(prefix, data...)
+	return append(make([]byte, 12), data...)
 }
 
-func PeggySendToEth(
+func SendToEth(
 	t *testing.T,
 	ctx context.Context,
 	chain *cosmos.CosmosChain,
@@ -554,198 +585,22 @@ func PeggySendToEth(
 	receiver ibc.Wallet,
 	coin sdktypes.Coin,
 	fee sdktypes.Coin,
-) []*peggytypes.OutgoingTransferTx {
+) uint64 {
 	t.Helper()
 
-	chainNode := chain.GetNode()
-	txHash, err := chainNode.ExecTx(ctx, sender.KeyName(),
+	cmd := []string{
 		"peggy",
 		"send-to-eth",
 		receiver.FormattedAddress(),
 		coin.String(),
 		fee.String(),
-	)
+	}
+
+	_, err := chain.GetNode().ExecTx(ctx, sender.KeyName(), cmd...)
 	require.NoError(t, err)
+	time.Sleep(1 * time.Second)
 
-	txResp, err := QueryTx(ctx, chainNode, txHash)
-	require.NoError(t, err)
-	require.Equal(t, uint32(0), txResp.ErrorCode)
-
-	err = testutil.WaitForBlocks(ctx, 1, chain)
-	require.NoError(t, err)
-
-	return GetPeggyModuleState(t, ctx, chain).UnbatchedTransfers
-}
-
-func AwaitTxToBeBatched(
-	t *testing.T,
-	ctx context.Context,
-	chain *cosmos.CosmosChain,
-	txID uint64,
-	dur time.Duration,
-) (uint64, error) {
-	t.Helper()
-
-	isTxIncluded := func(id uint64, batches []*peggytypes.OutgoingTxBatch) *peggytypes.OutgoingTxBatch {
-		for _, batch := range batches {
-			for _, tx := range batch.Transactions {
-				if tx.Id == id {
-					return batch
-				}
-			}
-		}
-
-		return nil
-	}
-
-	state := GetPeggyModuleState(t, ctx, chain)
-	if batch := isTxIncluded(txID, state.Batches); batch != nil {
-		return batch.BatchNonce, nil
-	}
-
-	ticker := time.NewTicker(10 * time.Second)
-	timeout := time.After(dur)
-
-	for {
-		select {
-		case <-ctx.Done():
-			return 0, ctx.Err()
-		case <-timeout:
-			return 0, errors.New("timeout waiting for batch")
-		case <-ticker.C:
-			state = GetPeggyModuleState(t, ctx, chain)
-			if state == nil {
-				return 0, errors.New("no peggy module state")
-			}
-
-			if batch := isTxIncluded(txID, state.Batches); batch != nil {
-				return batch.BatchNonce, nil
-			}
-			t.Log("waiting for tx to be included in a batch...", "txID: ", txID)
-		}
-	}
-}
-
-func AwaitBatchAttestation(
-	t *testing.T,
-	ctx context.Context,
-	chain *cosmos.CosmosChain,
-	batchID uint64,
-	dur time.Duration,
-) error {
-	t.Helper()
-
-	isBatchAttested := func(batchID uint64, attestations []*peggytypes.Attestation) *peggytypes.MsgWithdrawClaim {
-		for _, att := range attestations {
-			if !att.Observed {
-				continue
-			}
-
-			var claim peggytypes.EthereumClaim
-			require.NoError(t, chain.Config().EncodingConfig.Codec.UnpackAny(att.Claim, &claim))
-
-			if claim.GetType() != peggytypes.CLAIM_TYPE_WITHDRAW {
-				t.Log("got claim of a different type", claim.GetType(), claim.GetEventNonce())
-				continue
-			}
-
-			withdrawal := claim.(*peggytypes.MsgWithdrawClaim)
-			if withdrawal.BatchNonce == batchID {
-				return withdrawal
-			}
-		}
-
-		return nil
-	}
-
-	state := GetPeggyModuleState(t, ctx, chain)
-	if claim := isBatchAttested(batchID, state.Attestations); claim != nil {
-		return nil
-	}
-
-	ticker := time.NewTicker(10 * time.Second)
-	timeout := time.After(dur)
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-timeout:
-			return errors.New("timeout waiting for attestation")
-		case <-ticker.C:
-			state = GetPeggyModuleState(t, ctx, chain)
-			if state == nil {
-				return errors.New("no peggy module state")
-			}
-
-			if claim := isBatchAttested(batchID, state.Attestations); claim != nil {
-				return nil
-			}
-			t.Log("waiting for batch to be attested...", "batchID:", batchID)
-		}
-	}
-}
-
-func AwaitDepositAttestation(
-	t *testing.T,
-	ctx context.Context,
-	chain *cosmos.CosmosChain,
-	sender string,
-	receiver string,
-	dur time.Duration,
-) (*peggytypes.MsgDepositClaim, error) {
-	t.Helper()
-
-	isDepositAttested := func(attestations []*peggytypes.Attestation) *peggytypes.MsgDepositClaim {
-		for _, att := range attestations {
-			if !att.Observed {
-				continue
-			}
-
-			var claim peggytypes.EthereumClaim
-			require.NoError(t, chain.Config().EncodingConfig.Codec.UnpackAny(att.Claim, &claim))
-
-			if claim.GetType() != peggytypes.CLAIM_TYPE_DEPOSIT {
-				t.Log("got claim of a different type", claim.GetType(), claim.GetEventNonce())
-				continue
-			}
-
-			deposit := claim.(*peggytypes.MsgDepositClaim)
-			if deposit.EthereumSender == sender && deposit.CosmosReceiver == receiver {
-				return deposit
-			}
-		}
-
-		return nil
-	}
-
-	state := GetPeggyModuleState(t, ctx, chain)
-	if claim := isDepositAttested(state.Attestations); claim != nil {
-		return claim, nil
-	}
-
-	ticker := time.NewTicker(10 * time.Second)
-	timeout := time.After(dur)
-
-	for {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-timeout:
-			return nil, errors.New("timeout waiting for deposit attestation")
-		case <-ticker.C:
-			state = GetPeggyModuleState(t, ctx, chain)
-			if state == nil {
-				return nil, errors.New("no peggy module state")
-			}
-
-			if claim := isDepositAttested(state.Attestations); claim != nil {
-				return claim, nil
-			}
-
-			t.Log("waiting for deposit to be attested...")
-		}
-	}
+	return GetPeggyModuleState(t, ctx, chain).LastOutgoingPoolId
 }
 
 func GetIBCDenomTraces(
@@ -857,8 +712,8 @@ func DeployERC20(
 	opts := deployer.ContractTxOpts{
 		From:         crypto.PubkeyToAddress(deployerKey.PublicKey),
 		FromPk:       deployerKey,
-		SolSource:    "../peggo/solidity/contracts/Peggy.sol",
-		ContractName: "Peggy",
+		SolSource:    PeggyContractPath,
+		ContractName: PeggyContractName,
 		Contract:     peggyContract,
 		Await:        true,
 	}
@@ -879,63 +734,134 @@ func DeployERC20(
 	t.Log("deployed ERC20 on Peggy.sol", "base:", denomMetadata.Base, "display:", denomMetadata.Display)
 }
 
-func AwaitERC20Attestation(
+func AwaitLastObservedEventNonce(
 	t *testing.T,
 	ctx context.Context,
-	chain *cosmos.CosmosChain,
-	denomDisplay string,
 	dur time.Duration,
-) (*peggytypes.MsgERC20DeployedClaim, error) {
+	chain *cosmos.CosmosChain,
+	nonce uint64,
+) {
 	t.Helper()
 
-	isDepositAttested := func(attestations []*peggytypes.Attestation) *peggytypes.MsgERC20DeployedClaim {
-		for _, att := range attestations {
-			if !att.Observed {
-				continue
-			}
-
-			var claim peggytypes.EthereumClaim
-			require.NoError(t, chain.Config().EncodingConfig.Codec.UnpackAny(att.Claim, &claim))
-
-			if claim.GetType() != peggytypes.CLAIM_TYPE_ERC20_DEPLOYED {
-				t.Log("got claim of a different type", claim.GetType(), claim.GetEventNonce())
-				continue
-			}
-
-			erc20 := claim.(*peggytypes.MsgERC20DeployedClaim)
-			if denomDisplay == erc20.Name {
-				return erc20
-			}
-		}
-
-		return nil
+	isEventNonceObserved := func(stateNonce uint64) bool {
+		return nonce <= stateNonce
 	}
 
 	state := GetPeggyModuleState(t, ctx, chain)
-	if claim := isDepositAttested(state.Attestations); claim != nil {
-		return claim, nil
+	if isEventNonceObserved(state.LastObservedNonce) {
+		return
 	}
 
-	ticker := time.NewTicker(30 * time.Second)
 	timeout := time.After(dur)
+	ticker := time.NewTicker(10 * time.Second)
 
 	for {
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return
 		case <-timeout:
-			return nil, errors.New("timeout waiting for deposit attestation")
+			t.Fatal("timed out waiting for update of last_observed_nonce:",
+				"expected:", nonce,
+				"observed:", state.LastObservedNonce,
+			)
 		case <-ticker.C:
 			state = GetPeggyModuleState(t, ctx, chain)
-			if state == nil {
-				return nil, errors.New("no peggy module state")
+			if isEventNonceObserved(state.LastObservedNonce) {
+				t.Log("last_observed_nonce:", state.LastObservedNonce)
+				return
 			}
 
-			if claim := isDepositAttested(state.Attestations); claim != nil {
-				return claim, nil
-			}
-
-			t.Log("waiting for erc20 to be attested...")
+			t.Log("waiting for update of last_observed_nonce:",
+				"expected:", nonce,
+				"observed:", state.LastObservedNonce,
+			)
 		}
 	}
+}
+
+func AwaitLastOutgoingBatchID(
+	t *testing.T,
+	ctx context.Context,
+	dur time.Duration,
+	chain *cosmos.CosmosChain,
+	batchNonce uint64,
+) {
+	t.Helper()
+
+	isBatchAlreadyCreated := func(stateNonce uint64) bool {
+		return batchNonce <= stateNonce
+	}
+
+	latestBatchID := GetPeggyModuleState(t, ctx, chain).LastOutgoingBatchId
+	if isBatchAlreadyCreated(latestBatchID) {
+		return
+	}
+
+	timeout := time.After(dur)
+	ticker := time.NewTicker(10 * time.Second)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-timeout:
+			t.Fatal("timed out waiting for update of last_outgoing_batch_id:",
+				"expected:", batchNonce,
+				"observed:", latestBatchID,
+			)
+		case <-ticker.C:
+			latestBatchID = GetPeggyModuleState(t, ctx, chain).LastOutgoingBatchId
+			if isBatchAlreadyCreated(latestBatchID) {
+				t.Log("last_outgoing_batch_id:", latestBatchID)
+				return
+			}
+
+			t.Log("waiting for update of last_outgoing_batch_id:",
+				"expected:", batchNonce,
+				"observed:", latestBatchID,
+			)
+		}
+	}
+}
+
+func ParseWithdrawClaim(
+	t *testing.T,
+	chain *cosmos.CosmosChain,
+	att *peggytypes.Attestation,
+) *peggytypes.MsgWithdrawClaim {
+	t.Helper()
+
+	var claim peggytypes.EthereumClaim
+	require.NoError(t, chain.Config().EncodingConfig.Codec.UnpackAny(att.Claim, &claim))
+	require.Equal(t, peggytypes.CLAIM_TYPE_WITHDRAW.String(), claim.GetType().String())
+
+	return claim.(*peggytypes.MsgWithdrawClaim)
+}
+
+func ParseDepositClaim(
+	t *testing.T,
+	chain *cosmos.CosmosChain,
+	att *peggytypes.Attestation,
+) *peggytypes.MsgDepositClaim {
+	t.Helper()
+
+	var claim peggytypes.EthereumClaim
+	require.NoError(t, chain.Config().EncodingConfig.Codec.UnpackAny(att.Claim, &claim))
+	require.Equal(t, peggytypes.CLAIM_TYPE_DEPOSIT.String(), claim.GetType().String())
+
+	return claim.(*peggytypes.MsgDepositClaim)
+}
+
+func ParseERC20DeployedClaim(
+	t *testing.T,
+	chain *cosmos.CosmosChain,
+	att *peggytypes.Attestation,
+) *peggytypes.MsgERC20DeployedClaim {
+	t.Helper()
+
+	var claim peggytypes.EthereumClaim
+	require.NoError(t, chain.Config().EncodingConfig.Codec.UnpackAny(att.Claim, &claim))
+	require.Equal(t, peggytypes.CLAIM_TYPE_ERC20_DEPLOYED.String(), claim.GetType().String())
+
+	return claim.(*peggytypes.MsgERC20DeployedClaim)
 }

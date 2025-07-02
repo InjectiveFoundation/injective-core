@@ -226,10 +226,6 @@ func ValidateEthBasic(ctx sdk.Context, tx sdk.Tx, evmParams *evmtypes.Params) er
 			return errorsmod.Wrap(evmtypes.ErrCallDisabled, "failed to call contract")
 		}
 
-		if tx.Type() == ethtypes.DynamicFeeTxType {
-			return errorsmod.Wrap(ethtypes.ErrTxTypeNotSupported, "dynamic fee tx not supported")
-		}
-
 		if !allowUnprotectedTxs && !tx.Protected() {
 			return errorsmod.Wrapf(
 				errortypes.ErrNotSupported,

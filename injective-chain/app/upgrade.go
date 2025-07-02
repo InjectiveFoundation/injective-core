@@ -15,6 +15,7 @@ import (
 	v1dot16dot0 "github.com/InjectiveLabs/injective-core/injective-chain/app/upgrades/v1.16.0"
 	v1dot16b2 "github.com/InjectiveLabs/injective-core/injective-chain/app/upgrades/v1.16.0-beta.2"
 	v1dot16b3 "github.com/InjectiveLabs/injective-core/injective-chain/app/upgrades/v1.16.0-beta.3"
+	v1dot16b4 "github.com/InjectiveLabs/injective-core/injective-chain/app/upgrades/v1.16.0-beta.4"
 )
 
 var _ upgrades.InjectiveApplication = &InjectiveApp{}
@@ -22,12 +23,14 @@ var _ upgrades.InjectiveApplication = &InjectiveApp{}
 var upgradeNames = []string{
 	v1dot16b2.UpgradeName,
 	v1dot16b3.UpgradeName,
+	v1dot16b4.UpgradeName,
 	v1dot16dot0.UpgradeName,
 }
 
 var upgradeSteps = map[string]UpgradeStepsFn{
 	v1dot16b2.UpgradeName:   v1dot16b2.UpgradeSteps,
 	v1dot16b3.UpgradeName:   v1dot16b3.UpgradeSteps,
+	v1dot16b4.UpgradeName:   v1dot16b4.UpgradeSteps,
 	v1dot16dot0.UpgradeName: v1dot16dot0.UpgradeSteps,
 
 	// NOTE: use NoSteps for upgrades that don't have any migration steps
@@ -36,6 +39,7 @@ var upgradeSteps = map[string]UpgradeStepsFn{
 var storeUpgrades = map[string]storetypes.StoreUpgrades{
 	v1dot16b2.UpgradeName:   v1dot16b2.StoreUpgrades(),
 	v1dot16b3.UpgradeName:   v1dot16b3.StoreUpgrades(),
+	v1dot16b4.UpgradeName:   v1dot16b4.StoreUpgrades(),
 	v1dot16dot0.UpgradeName: v1dot16dot0.StoreUpgrades(),
 }
 

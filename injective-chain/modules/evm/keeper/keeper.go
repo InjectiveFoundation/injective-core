@@ -7,7 +7,6 @@ import (
 
 	cosmostracing "github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/tracing"
 
-	errorsmod "cosmossdk.io/errors"
 	"cosmossdk.io/log"
 	storetypes "cosmossdk.io/store/types"
 	"github.com/cosmos/cosmos-sdk/codec"
@@ -233,30 +232,4 @@ func (k *Keeper) GetEVMDenomBalance(ctx sdk.Context, addr common.Address) *big.I
 // GetBalance load account's balance of specified denom
 func (k *Keeper) GetBalance(ctx sdk.Context, addr sdk.AccAddress, denom string) *big.Int {
 	return k.bankKeeper.GetBalance(ctx, addr, denom).Amount.BigInt()
-}
-
-// GetTransientGasUsed returns the gas used by current cosmos tx.
-func (k Keeper) GetTransientGasUsed(ctx sdk.Context) uint64 {
-	store := ctx.ObjectStore(k.objectKey)
-	v := store.Get(types.ObjectGasUsedKey(ctx.TxIndex()))
-	if v == nil {
-		return 0
-	}
-	return v.(uint64)
-}
-
-// SetTransientGasUsed sets the gas used by current cosmos tx.
-func (k Keeper) SetTransientGasUsed(ctx sdk.Context, gasUsed uint64) {
-	store := ctx.ObjectStore(k.objectKey)
-	store.Set(types.ObjectGasUsedKey(ctx.TxIndex()), gasUsed)
-}
-
-// AddTransientGasUsed accumulate gas used by each eth msgs included in current cosmos tx.
-func (k Keeper) AddTransientGasUsed(ctx sdk.Context, gasUsed uint64) (uint64, error) {
-	result := k.GetTransientGasUsed(ctx) + gasUsed
-	if result < gasUsed {
-		return 0, errorsmod.Wrap(types.ErrGasOverflow, "transient gas used")
-	}
-	k.SetTransientGasUsed(ctx, result)
-	return result, nil
 }

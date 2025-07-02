@@ -252,10 +252,6 @@ func (k *Keeper) ApplyTransaction(ctx sdk.Context, msgEth *types.MsgEthereumTx) 
 		return nil, errorsmod.Wrapf(err, "failed to refund leftover gas to sender %s", msg.From)
 	}
 
-	if _, err = k.AddTransientGasUsed(ctx, res.GasUsed); err != nil {
-		return nil, errorsmod.Wrap(err, "failed to add transient gas used")
-	}
-
 	// consume gas on the original gas meter
 	ctx.GasMeter().ConsumeGas(res.GasUsed, "apply evm transaction")
 

@@ -281,7 +281,6 @@ func WireUpPeggo(
 	helpers.RegisterOrchestrator(t, ctx, nodes[0], v1, eth1)
 	helpers.RegisterOrchestrator(t, ctx, nodes[1], v2, eth2)
 	helpers.RegisterOrchestrator(t, ctx, nodes[2], v3, eth3)
-
 	time.Sleep(1 * time.Second)
 
 	vs := helpers.GetCurrentValset(t, ctx, cosmosChain)
@@ -367,7 +366,7 @@ func WireUpPeggo(
 	require.NoError(t, cosmosChain.StartAllValSidecars(ctx))
 	time.Sleep(1 * time.Second)
 
-	t.Log("wired up peggo orchestrators")
+	t.Log("peggo sidecars started")
 
 	return contracts
 }

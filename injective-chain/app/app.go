@@ -870,6 +870,10 @@ func (app *InjectiveApp) GetStakingKeeper() *stakingkeeper.Keeper {
 	return app.StakingKeeper
 }
 
+func (app *InjectiveApp) GetAccountKeeper() authante.AccountKeeper {
+	return app.AccountKeeper
+}
+
 // GetTKey returns the TransientStoreKey for the provided store key.
 //
 // NOTE: This is solely to be used for testing purposes.

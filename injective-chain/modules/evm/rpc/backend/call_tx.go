@@ -109,6 +109,14 @@ func (b *Backend) SendRawTransaction(data hexutil.Bytes) (common.Hash, error) {
 		return common.Hash{}, errors.New("only replay-protected (EIP-155) transactions allowed over RPC")
 	}
 
+	if err := rpctypes.CheckTxFee(
+		tx.GasPrice(),
+		tx.Gas(),
+		b.RPCTxFeeCap(),
+	); err != nil {
+		return common.Hash{}, err
+	}
+
 	var ethereumTx evmtypes.MsgEthereumTx
 	if err := ethereumTx.FromSignedEthereumTx(&tx, ethtypes.LatestSignerForChainID(b.ChainID().ToInt())); err != nil {
 		b.logger.Error("transaction converting failed", "error", err.Error())
