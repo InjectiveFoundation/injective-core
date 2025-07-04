@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/cometbft/cometbft/libs/service"
@@ -116,24 +115,22 @@ func (eis *EVMIndexerService) OnStart() error {
 		)
 		for i := lastBlock + 1; i <= latestBlock; i++ {
 			block, err = eis.client.Block(ctx, &i)
-			if err != nil {
-				if eis.allowGap && strings.Contains(err.Error(), NotFoundErr) {
-					continue
-				}
-				eis.Logger.Error("failed to fetch block", "height", i, "err", err)
-				break
+			if err != nil || block == nil {
+				eis.Logger.Error("⚠️ failed to fetch block or block is nil, skipping height", "height", i, "err", err)
+				// if it was break, the evm indexing in the node wouldn't be going well
+				continue
 			}
 			blockResult, err = eis.client.BlockResults(ctx, &i)
-			if err != nil {
-				if eis.allowGap && strings.Contains(err.Error(), NotFoundErr) {
-					continue
-				}
-				eis.Logger.Error("failed to fetch block result", "height", i, "err", err)
-				break
+			if err != nil || blockResult == nil {
+				eis.Logger.Error("⚠️ failed to fetch block result or result is nil, skipping height", "height", i, "err", err)
+				// if it was break, the evm indexing in the node wouldn't be going well
+				continue
 			}
 			if err := eis.txIdxr.IndexBlock(block.Block, blockResult.TxResults); err != nil {
-				eis.Logger.Error("failed to index block", "height", i, "err", err)
+				eis.Logger.Error("⚠️ failed to updated IndexBlock but skipped the block", "height", i, "err", err)
+				// break
 			}
+			eis.Logger.Info("✅ successfully updated evm indexer service", "height", lastBlock)
 			lastBlock = blockResult.Height
 		}
 		if err != nil {
