@@ -82,7 +82,7 @@ func (e *FeeState) SetBackupFilePath(backupFilePath string) {
 	e.backupFilePath = backupFilePath
 }
 
-// startBlock is executed at the start of each block and is responsible for resetting the state
+// StartBlock is executed at the start of each block and is responsible for resetting the state
 // of the CurBaseFee when the node reaches the reset interval
 func (e *FeeState) StartBlock(logger log.Logger, height int64) {
 	e.currentBlockHeight = height

@@ -96,7 +96,7 @@ func injectiveEncoding() *cosmtestutil.TestEncodingConfig {
 	return &cfg
 }
 
-// injectiveChainConfig returns dynamic config for injective chains, allowing to inject genesis overrides
+// InjectiveChainConfig returns dynamic config for injective chains, allowing to inject genesis overrides
 func InjectiveChainConfig(
 	genesisOverrides ...cosmos.GenesisKV,
 ) ibc.ChainConfig {

@@ -167,7 +167,7 @@ func StargateQuerier(
 	}
 }
 
-// ConvertProtoToJsonMarshal  unmarshals the given bytes into a proto message and then marshals it to json.
+// ConvertProtoToJSONMarshal  unmarshals the given bytes into a proto message and then marshals it to json.
 // This is done so that clients calling stargate queries do not need to define their own proto unmarshalers,
 // being able to use response directly by json marshalling, which is supported in cosmwasm.
 func ConvertProtoToJSONMarshal(cdc codec.Codec, protoResponse proto.Message, bz []byte) ([]byte, error) {
