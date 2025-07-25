@@ -729,6 +729,14 @@ func (app *InjectiveApp) GetPeggyKeeper() *peggyKeeper.Keeper {
 	return &app.PeggyKeeper
 }
 
+func (app *InjectiveApp) GetWasmKeeper() *wasmkeeper.Keeper {
+	return &app.WasmKeeper
+}
+
+func (app *InjectiveApp) GetWasmxKeeper() *wasmxkeeper.Keeper {
+	return &app.WasmxKeeper
+}
+
 func (app *InjectiveApp) GetTxConfig() client.TxConfig { return app.txConfig }
 
 // AutoCliOpts returns the autocli options for the app.

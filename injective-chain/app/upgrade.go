@@ -16,6 +16,8 @@ import (
 	v1dot16b2 "github.com/InjectiveLabs/injective-core/injective-chain/app/upgrades/v1.16.0-beta.2"
 	v1dot16b3 "github.com/InjectiveLabs/injective-core/injective-chain/app/upgrades/v1.16.0-beta.3"
 	v1dot16b4 "github.com/InjectiveLabs/injective-core/injective-chain/app/upgrades/v1.16.0-beta.4"
+	erc20 "github.com/InjectiveLabs/injective-core/injective-chain/modules/erc20/module"
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/evm"
 )
 
 var _ upgrades.InjectiveApplication = &InjectiveApp{}
@@ -94,6 +96,16 @@ func (app *InjectiveApp) registerUpgradeHandlers() {
 					if err := step.RunPreventingPanic(sdkCtx, upgradeInfo, app, app.Logger()); err != nil {
 						return nil, errors.Wrapf(err, "upgrade step %s failed", step.Name)
 					}
+				}
+
+				// hack to make sure that InitGenesis doesn't run for evm / erc20 modules
+				// as we do that in upgrade handlers. TODO: make this integrated with modular upgrades.
+				if sdkCtx.ChainID() == upgrades.MainnetChainID {
+					evmModule := evm.AppModule{}
+					erc20Module := erc20.AppModule{}
+
+					fromVM[evmModule.Name()] = evmModule.ConsensusVersion()
+					fromVM[erc20Module.Name()] = erc20Module.ConsensusVersion()
 				}
 
 				return app.mm.RunMigrations(ctx, app.configurator, fromVM)

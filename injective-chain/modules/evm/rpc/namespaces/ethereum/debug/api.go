@@ -3,6 +3,7 @@ package debug
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"runtime"
@@ -75,7 +76,10 @@ func (a *API) TraceBlockByNumber(height rpctypes.BlockNumber, config *rpctypes.T
 	resBlock, err := a.backend.TendermintBlockByNumber(height)
 	if err != nil {
 		a.logger.Debug("get block failed", "height", height, "error", err.Error())
-		return nil, err
+		return nil, fmt.Errorf("block not found, err: %w", err)
+	} else if resBlock == nil {
+		a.logger.Debug("block not found", "height", height)
+		return nil, errors.New("block not found")
 	}
 
 	return a.backend.TraceBlock(rpctypes.BlockNumber(resBlock.Block.Height), config, resBlock)
@@ -90,9 +94,7 @@ func (a *API) TraceBlockByHash(hash common.Hash, config *rpctypes.TraceConfig) (
 	if err != nil {
 		a.logger.Debug("get block failed", "hash", hash.Hex(), "error", err.Error())
 		return nil, err
-	}
-
-	if resBlock == nil || resBlock.Block == nil {
+	} else if resBlock == nil || resBlock.Block == nil {
 		a.logger.Debug("block not found", "hash", hash.Hex())
 		return nil, errors.New("block not found")
 	}

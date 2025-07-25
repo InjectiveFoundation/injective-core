@@ -113,9 +113,10 @@ func (b *Backend) GetBlockTransactionCountByHash(hash common.Hash) *hexutil.Uint
 	if err != nil {
 		b.logger.Debug("block not found", "hash", hash.Hex(), "error", err.Error())
 		return nil
-	}
-
-	if block.Block == nil {
+	} else if block == nil {
+		b.logger.Debug("block not found", "hash", hash.Hex())
+		return nil
+	} else if block.Block == nil {
 		b.logger.Debug("block not found", "hash", hash.Hex())
 		return nil
 	}
@@ -130,9 +131,10 @@ func (b *Backend) GetBlockTransactionCountByNumber(blockNum rpctypes.BlockNumber
 	if err != nil {
 		b.logger.Debug("block not found", "height", blockNum.Int64(), "error", err.Error())
 		return nil
-	}
-
-	if block.Block == nil {
+	} else if block == nil {
+		b.logger.Debug("block not found", "height", blockNum.Int64())
+		return nil
+	} else if block.Block == nil {
 		b.logger.Debug("block not found", "height", blockNum.Int64())
 		return nil
 	}

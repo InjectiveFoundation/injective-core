@@ -245,7 +245,7 @@ func (k Keeper) EthCall(c context.Context, req *types.EthCallRequest) (*types.Ms
 	if params.Block != nil && params.Block.MaxGas > 0 {
 		gasCap = uint64(params.Block.MaxGas)
 	}
-	if req.GasCap > gasCap {
+	if req.GasCap > gasCap || req.GasCap == 0 {
 		req.GasCap = gasCap
 	}
 

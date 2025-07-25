@@ -27,23 +27,23 @@ func (b *Backend) TraceTransaction(hash common.Hash, config *rpctypes.TraceConfi
 		return nil, errors.New("genesis is not traceable")
 	}
 
-	blk, err := b.TendermintBlockByNumber(rpctypes.BlockNumber(transaction.Height))
-	if err != nil {
+	block, err := b.TendermintBlockByNumber(rpctypes.BlockNumber(transaction.Height))
+	if err != nil || block == nil {
 		b.logger.Debug("block not found", "height", transaction.Height)
-		return nil, err
+		return nil, fmt.Errorf("block not found, err: %w", err)
 	}
 
 	// check tx index is not out of bound
-	if uint32(len(blk.Block.Txs)) < transaction.TxIndex {
-		b.logger.Debug("tx index out of bounds", "index", transaction.TxIndex, "hash", hash.String(), "height", blk.Block.Height)
-		return nil, fmt.Errorf("transaction not included in block %v", blk.Block.Height)
+	if uint32(len(block.Block.Txs)) < transaction.TxIndex {
+		b.logger.Debug("tx index out of bounds", "index", transaction.TxIndex, "hash", hash.String(), "height", block.Block.Height)
+		return nil, fmt.Errorf("transaction not included in block %v", block.Block.Height)
 	}
 
 	var predecessors []*evmtypes.MsgEthereumTx
-	for _, txBz := range blk.Block.Txs[:transaction.TxIndex] {
+	for _, txBz := range block.Block.Txs[:transaction.TxIndex] {
 		tx, err := b.clientCtx.TxConfig.TxDecoder()(txBz)
 		if err != nil {
-			b.logger.Debug("failed to decode transaction in block", "height", blk.Block.Height, "error", err.Error())
+			b.logger.Debug("failed to decode transaction in block", "height", block.Block.Height, "error", err.Error())
 			continue
 		}
 		for _, msg := range tx.GetMsgs() {
@@ -56,7 +56,7 @@ func (b *Backend) TraceTransaction(hash common.Hash, config *rpctypes.TraceConfi
 		}
 	}
 
-	tx, err := b.clientCtx.TxConfig.TxDecoder()(blk.Block.Txs[transaction.TxIndex])
+	tx, err := b.clientCtx.TxConfig.TxDecoder()(block.Block.Txs[transaction.TxIndex])
 	if err != nil {
 		b.logger.Debug("tx not found", "hash", hash)
 		return nil, err
@@ -80,10 +80,10 @@ func (b *Backend) TraceTransaction(hash common.Hash, config *rpctypes.TraceConfi
 	traceTxRequest := evmtypes.QueryTraceTxRequest{
 		Msg:             ethMessage,
 		Predecessors:    predecessors,
-		BlockNumber:     blk.Block.Height,
-		BlockTime:       blk.Block.Time,
-		BlockHash:       common.Bytes2Hex(blk.BlockID.Hash),
-		ProposerAddress: sdk.ConsAddress(blk.Block.ProposerAddress),
+		BlockNumber:     block.Block.Height,
+		BlockTime:       block.Block.Time,
+		BlockHash:       common.Bytes2Hex(block.BlockID.Hash),
+		ProposerAddress: sdk.ConsAddress(block.Block.ProposerAddress),
 		ChainId:         b.ChainID().ToInt().Int64(),
 	}
 
@@ -203,8 +203,8 @@ func (b *Backend) TraceCall(
 	if err != nil {
 		return nil, err
 	}
-	blk, err := b.TendermintBlockByNumber(blockNr)
-	if err != nil {
+	block, err := b.TendermintBlockByNumber(blockNr)
+	if err != nil || block == nil {
 		// the error message imitates geth behavior
 		return nil, errors.New("header not found")
 	}
@@ -212,10 +212,10 @@ func (b *Backend) TraceCall(
 	traceCallRequest := evmtypes.QueryTraceCallRequest{
 		Args:            bz,
 		GasCap:          b.RPCGasCap(),
-		ProposerAddress: sdk.ConsAddress(blk.Block.ProposerAddress),
-		BlockNumber:     blk.Block.Height,
-		BlockHash:       common.Bytes2Hex(blk.BlockID.Hash),
-		BlockTime:       blk.Block.Time,
+		ProposerAddress: sdk.ConsAddress(block.Block.ProposerAddress),
+		BlockNumber:     block.Block.Height,
+		BlockHash:       common.Bytes2Hex(block.BlockID.Hash),
+		BlockTime:       block.Block.Time,
 		ChainId:         b.ChainID().ToInt().Int64(),
 	}
 
@@ -224,7 +224,7 @@ func (b *Backend) TraceCall(
 	}
 
 	// get the context of provided block
-	contextHeight := blk.Block.Height
+	contextHeight := block.Block.Height
 	if contextHeight < 1 {
 		// 0 is a special value in `ContextWithHeight`
 		contextHeight = 1

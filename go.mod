@@ -56,6 +56,7 @@ require (
 	github.com/InjectiveLabs/metrics v0.0.10
 	github.com/InjectiveLabs/suplog v1.3.3
 	github.com/avast/retry-go v3.0.0+incompatible
+	github.com/avast/retry-go/v4 v4.6.1
 	github.com/btcsuite/btcd/btcutil v1.1.6
 	github.com/cockroachdb/errors v1.11.3
 	github.com/cometbft/cometbft/api v1.0.0

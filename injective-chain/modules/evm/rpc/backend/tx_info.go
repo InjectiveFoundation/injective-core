@@ -27,8 +27,8 @@ func (b *Backend) GetTxHashByEthHash(ethHash common.Hash) (common.Hash, error) {
 	}
 
 	block, err := b.TendermintBlockByNumber(rpctypes.BlockNumber(res.Height))
-	if err != nil {
-		return common.Hash{}, err
+	if err != nil || block == nil {
+		return common.Hash{}, fmt.Errorf("block not found, err: %w", err)
 	}
 
 	bftHash := block.Block.Txs[res.TxIndex].Hash()
@@ -46,6 +46,9 @@ func (b *Backend) GetTransactionByHash(txHash common.Hash) (*rpctypes.RPCTransac
 	block, err := b.TendermintBlockByNumber(rpctypes.BlockNumber(res.Height))
 	if err != nil {
 		return nil, err
+	}
+	if block == nil {
+		return nil, nil
 	}
 
 	tx, err := b.clientCtx.TxConfig.TxDecoder()(block.Block.Txs[res.TxIndex])
@@ -150,8 +153,13 @@ func (b *Backend) GetTransactionReceipt(hash common.Hash) (map[string]interface{
 	resBlock, err := b.TendermintBlockByNumber(rpctypes.BlockNumber(res.Height))
 	if err != nil {
 		b.logger.Debug("block not found", "height", res.Height, "error", err.Error())
+		return nil, err
+	}
+	if resBlock == nil {
+		b.logger.Debug("block not found", "height", res.Height)
 		return nil, nil
 	}
+
 	tx, err := b.clientCtx.TxConfig.TxDecoder()(resBlock.Block.Txs[res.TxIndex])
 	if err != nil {
 		b.logger.Warn("decoding failed", "error", err.Error())
@@ -290,10 +298,10 @@ func (b *Backend) GetTransactionByBlockNumberAndIndex(blockNum rpctypes.BlockNum
 	block, err := b.TendermintBlockByNumber(blockNum)
 	if err != nil {
 		b.logger.Debug("block not found", "height", blockNum.Int64(), "error", err.Error())
-		return nil, nil
+		return nil, err
 	}
 
-	if block.Block == nil {
+	if block == nil || block.Block == nil {
 		b.logger.Debug("block not found", "height", blockNum.Int64())
 		return nil, nil
 	}

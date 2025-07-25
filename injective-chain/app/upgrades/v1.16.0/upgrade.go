@@ -10,6 +10,7 @@ import (
 	"cosmossdk.io/log"
 	"cosmossdk.io/math"
 	storetypes "cosmossdk.io/store/types"
+	wasmtypes "github.com/CosmWasm/wasmd/x/wasm/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
@@ -210,6 +211,36 @@ func UpgradeSteps() []*upgrades.UpgradeHandlerStep {
 			UpgradeName,
 			upgrades.DevnetChainID,
 			InitERC20Params,
+		),
+		upgrades.NewUpgradeHandlerStep(
+			"ADD AUCTION EXCHANGE TRANSFER DENOM DECIMALS",
+			UpgradeName,
+			upgrades.MainnetChainID,
+			AddAuctionExchangeTransferDenomDecimals,
+		),
+		upgrades.NewUpgradeHandlerStep(
+			"UPDATE WASM ADMIN ADDRESS",
+			UpgradeName,
+			upgrades.MainnetChainID,
+			UpdateWasmAdminAddress,
+		),
+		upgrades.NewUpgradeHandlerStep(
+			"UPDATE PEGGY ADMIN ADDRESS",
+			UpgradeName,
+			upgrades.MainnetChainID,
+			UpdatePeggyAdminAddress,
+		),
+		upgrades.NewUpgradeHandlerStep(
+			"UPDATE WASMX ADMIN ADDRESS",
+			UpgradeName,
+			upgrades.MainnetChainID,
+			UpdateWasmxAdminAddress,
+		),
+		upgrades.NewUpgradeHandlerStep(
+			"APPROVED DELEGATION TRANSFER RECEIVERS",
+			UpgradeName,
+			upgrades.MainnetChainID,
+			SetDelegationTransferReceivers,
 		),
 	}
 
@@ -883,8 +914,6 @@ func UpdateExchangeParams(ctx sdk.Context, app upgrades.InjectiveApplication, _ 
 }
 
 func InitEVMParams(ctx sdk.Context, app upgrades.InjectiveApplication, _ log.Logger) error {
-	// TODO: this didn't work on the testnet, need to debug before deploying on the mainnet
-
 	evmKeeper := app.GetEvmKeeper()
 	evmParams := evmtypes.DefaultParams()
 
@@ -904,11 +933,19 @@ func InitEVMParams(ctx sdk.Context, app upgrades.InjectiveApplication, _ log.Log
 	evmParams.ChainConfig.EIP155ChainID = &ethChainID
 	evmParams.AllowUnprotectedTxs = true
 	evmParams.Permissioned = true
-	evmParams.AuthorizedDeployers = []string{}
+	evmParams.AuthorizedDeployers = []string{
+		"0x3fab184622dc19b6109349b94811493bf2a45362", // proxy 2 deployer
+		"0x05f32b3cc3888453ff71b01135b34ff8e41263f2", // multicall3 deployer
+		"0x40e6d40c9ecc1f503e89dfbb9de4f981ca1745dc", // WINJ9 deployer
+		"0xf1beb8f59c1b78080d70caf8549ac9319f525fa7", // deploy ERC20 MTS
+	}
 
 	evmParams.ChainConfig.BlobScheduleConfig = evmtypes.DefaultChainConfig().BlobScheduleConfig
 
-	evmKeeper.SetParams(ctx, evmParams)
+	if err := evmKeeper.SetParams(ctx, evmParams); err != nil {
+		return errors.Wrap(err, "failed to set evm params")
+	}
+
 	return nil
 }
 
@@ -975,6 +1012,213 @@ func UpdateFeeDiscountsInfo(ctx sdk.Context, app upgrades.InjectiveApplication, 
 		totalRewardsPendingPool := exchangeKeeper.GetTotalTradingRewardPendingPoints(ctx, rewardPool.StartTimestamp)
 		humanReadableValue := types.NotionalFromChainFormat(totalRewardsPendingPool, 6)
 		exchangeKeeper.SetTotalTradingRewardPendingPoints(ctx, humanReadableValue, rewardPool.StartTimestamp)
+	}
+
+	return nil
+}
+
+func UpdateWasmAdminAddress(ctx sdk.Context, app upgrades.InjectiveApplication, _ log.Logger) error {
+	wasmParams := app.GetWasmKeeper().GetParams(ctx)
+
+	currentCodeUploadAccessAddresses := wasmParams.CodeUploadAccess.Addresses
+	for i, address := range currentCodeUploadAccessAddresses {
+		if address == "inj1cdxahanvu3ur0s9ehwqqcu9heleztf2jh4azwr" {
+			currentCodeUploadAccessAddresses[i] = "inj1ez42atafr3ujpudsuk666jpjj9t53sehcynh3a"
+		}
+	}
+	wasmParams.CodeUploadAccess.Addresses = currentCodeUploadAccessAddresses
+
+	err := app.GetWasmKeeper().SetParams(ctx, wasmParams)
+	if err != nil {
+		err = errors.Wrap(err, "failed to set wasm params")
+		return err
+	}
+
+	return nil
+}
+
+func UpdatePeggyAdminAddress(ctx sdk.Context, app upgrades.InjectiveApplication, _ log.Logger) error {
+	peggyParams := app.GetPeggyKeeper().GetParams(ctx)
+
+	for i, address := range peggyParams.Admins {
+		if address == "inj1cdxahanvu3ur0s9ehwqqcu9heleztf2jh4azwr" {
+			peggyParams.Admins[i] = "inj1ez42atafr3ujpudsuk666jpjj9t53sehcynh3a"
+		}
+	}
+	app.GetPeggyKeeper().SetParams(ctx, peggyParams)
+
+	return nil
+}
+
+func UpdateWasmxAdminAddress(ctx sdk.Context, app upgrades.InjectiveApplication, _ log.Logger) error {
+	wasmxParams := app.GetWasmxKeeper().GetParams(ctx)
+	wasmxParams.RegisterContractAccess = wasmtypes.AccessConfig{
+		Permission: wasmtypes.AccessTypeAnyOfAddresses,
+		Addresses: []string{
+			"inj1ez42atafr3ujpudsuk666jpjj9t53sehcynh3a",
+		},
+	}
+	app.GetWasmxKeeper().SetParams(ctx, wasmxParams)
+
+	return nil
+}
+
+var NewDenomDecimals = []exchangev2.DenomDecimals{
+	{
+		Denom:    "factory/inj1n636d9gzrqggdk66n2f97th0x8yuhfrtx520e7/ausd",
+		Decimals: 6,
+	}, // AUSD
+	{
+		Denom:    "peggy0x57F5E098CaD7A3D1Eed53991D4d66C45C9AF7812",
+		Decimals: 18,
+	}, // Wrapped USDM
+	{
+		Denom:    "ibc/2CBC2EA121AE42563B08028466F37B600F2D7D4282342DE938283CC3FB2BC00E",
+		Decimals: 6,
+	}, // USD Coin
+	{
+		Denom:    "peggy0xf9a06dE3F6639E6ee4F079095D5093644Ad85E8b",
+		Decimals: 18,
+	}, // Puggo
+	{
+		Denom:    "ibc/4ABBEF4C8926DDDB320AE5188CFD63267ABBCEFC0583E4AE05D6E5AA2401DDAB",
+		Decimals: 6,
+	}, // Tether USDTkv
+	{
+		Denom:    "factory/inj127l5a2wmkyvucxdlupqyac3y0v6wqfhq03ka64/qunt",
+		Decimals: 6,
+	}, // Injective Quants QUNT
+	{
+		Denom:    "factory/inj14ejqjyq8um4p3xfqj74yld5waqljf88f9eneuk/inj18luqttqyckgpddndh8hvaq25d5nfwjc78m56lc",
+		Decimals: 18,
+	}, // Hydro Wrapped INJ hINJ
+	{
+		Denom:    "factory/inj14ejqjyq8um4p3xfqj74yld5waqljf88f9eneuk/inj1tjcf9497fwmrnk22jfu5hsdq82qshga54ajvzy",
+		Decimals: 6,
+	}, // Pyth Network (legacy) PYTHlegacy
+	{
+		Denom:    "factory/inj1xy3kvlr4q4wdd6lrelsrw2fk2ged0any44hhwq/KIRA",
+		Decimals: 6,
+	}, // KIRA
+	{
+		Denom:    "ibc/F51BB221BAA275F2EBF654F70B005627D7E713AFFD6D86AFD1E43CAA886149F4",
+		Decimals: 6,
+	}, // Celestia TIA
+	{
+		Denom:    "factory/inj14ejqjyq8um4p3xfqj74yld5waqljf88f9eneuk/inj1q6zlut7gtkzknkk773jecujwsdkgq882akqksk",
+		Decimals: 6,
+	}, // USD Coin (legacy) USDCet
+	{
+		Denom:    "factory/inj16eckaf75gcu9uxdglyvmh63k9t0l7chd0qmu85/black",
+		Decimals: 6,
+	}, // Black
+	{
+		Denom:    "factory/inj1nw35hnkz5j74kyrfq9ejlh2u4f7y7gt7c3ckde/PUGGO",
+		Decimals: 18,
+	}, // Puggo Coin PUGGO
+	{
+		Denom:    "factory/inj14ejqjyq8um4p3xfqj74yld5waqljf88f9eneuk/inj1300xcg9naqy00fujsr9r8alwk7dh65uqu87xm8",
+		Decimals: 18,
+	}, // shroomin SHROOM
+	{
+		Denom:    "factory/inj14ejqjyq8um4p3xfqj74yld5waqljf88f9eneuk/inj1c6lxety9hqn9q4khwqvjcfa24c2qeqvvfsg4fm",
+		Decimals: 18,
+	}, // Pedro PEDRO
+	{
+		Denom:    "factory/inj14ejqjyq8um4p3xfqj74yld5waqljf88f9eneuk/inj1fu5u29slsg2xtsj7v5la22vl4mr4ywl7wlqeck",
+		Decimals: 18,
+	}, // NONJA
+	{
+		Denom:    "factory/inj14ejqjyq8um4p3xfqj74yld5waqljf88f9eneuk/inj14eaxewvy7a3fk948c3g3qham98mcqpm8v5y0dp",
+		Decimals: 6,
+	}, // COKE
+	{
+		Denom:    "factory/inj1xtel2knkt8hmc9dnzpjz6kdmacgcfmlv5f308w/ninja",
+		Decimals: 6,
+	}, // Dog Wif Nunchucks NINJA
+	{
+		Denom:    "factory/inj10aa0h5s0xwzv95a8pjhwluxcm5feeqygdk3lkm/SAI",
+		Decimals: 18,
+	}, // SAI
+	{
+		Denom:    "peggy0x4d224452801ACEd8B2F0aebE155379bb5D594381",
+		Decimals: 18,
+	}, // Ape Coin APE
+	{
+		Denom:    "peggy0x4c9EDD5852cd905f086C759E8383e09bff1E68B3",
+		Decimals: 18,
+	}, // Ethena USDe USDe
+	{
+		Denom:    "factory/inj1etz0laas6h7vemg3qtd67jpr6lh8v7xz7gfzqw/hdro",
+		Decimals: 6,
+	}, // Hydro HDRO
+	{
+		Denom:    "factory/inj16dd5xzszud3u5wqphr3tq8eaz00gjdn3d4mvj8/agent",
+		Decimals: 6,
+	}, // First Injective AI token AGENT
+	{
+		Denom:    "peggy0x57e114B691Db790C35207b2e685D4A43181e6061",
+		Decimals: 18,
+	}, // Ethena ENA
+	{
+		Denom:    "factory/inj1maeyvxfamtn8lfyxpjca8kuvauuf2qeu6gtxm3/Talis",
+		Decimals: 6,
+	}, // Talis TALIS
+	{
+		Denom:    "ibc/4971C5E4786D5995EC7EF894FCFA9CF2E127E95D5D53A982F6A062F3F410EDB8",
+		Decimals: 6,
+	}, // Levana LVN
+	{
+		Denom:    "factory/inj14ejqjyq8um4p3xfqj74yld5waqljf88f9eneuk/inj1zdj9kqnknztl2xclm5ssv25yre09f8908d4923",
+		Decimals: 18,
+	}, // Dojo Token DOJO
+	{
+		Denom:    "factory/inj18flmwwaxxqj8m8l5zl8xhjrnah98fcjp3gcy3e/XIII",
+		Decimals: 6,
+	}, // XIIICOIN XIII
+	{
+		Denom:    "ibc/47245D9854589FADE02554744F387D24E6D7B3D3E7B7DA5596F6C27B8458B7AA",
+		Decimals: 8,
+	}, // Bitoro BTORO
+}
+
+func AddAuctionExchangeTransferDenomDecimals(ctx sdk.Context, app upgrades.InjectiveApplication, _ log.Logger) error {
+	exchangeKeeper := app.GetExchangeKeeper()
+
+	for _, denomDecimal := range NewDenomDecimals {
+		exchangeKeeper.SetDenomDecimals(ctx, denomDecimal.Denom, denomDecimal.Decimals)
+	}
+
+	return nil
+}
+
+func SetDelegationTransferReceivers(ctx sdk.Context, app upgrades.InjectiveApplication, _ log.Logger) error {
+	stakingKeeper := app.GetStakingKeeper()
+
+	receivers := []string{
+		"inj1uwcg40mte6s2hsnx7rsh70rds4qdytytkcusml",
+		"inj1uexwvxjza2jwfxdsdav4esklfqksl3ma5kwc5p",
+		"inj10uky6rcn43xf9ux6uears7v3grd39qx55v7hju",
+		"inj1zh2g8g57nvhxyp94l6uce6reaxdf4eaf9p7jcx",
+		"inj1e5hmjawcazdg4feugfkcp6whh3v5n3y76cv9fv",
+		"inj1xz59gzywv4s5uqmqgfd0mevfwdjg64zmuwaax5",
+		"inj1gy5rvqxsmwszcxrewul7ygadrhfmgha2dt06tc",
+		"inj1wsklxz4cqvn0e4h2q8aj6fgt2u2z8u2qp5dx3a",
+		"inj10fmfess0kxw948yxyn47f47l4wgc3pl53z4s27",
+		"inj1vk4rk9zhd35k6cya9rrf6mh4fll3h97jazj69q",
+		"inj15xn4zgs76ex3zkmvzq3hsq7y79fsp99cwwywah",
+		"inj1jspyv2g0http8rz92k42fys4wz933t3z5ex6jz",
+		"inj14grxu0gvd7n20w3n60c6vcwn4ywupayfrsrn4x",
+		"inj17tpwtfua6ujpxsxwgzqqjzpljel7uqfw9w4xcr",
+		"inj152ye2a6v3j2drct4hta9z4tkljngfacp39e5t7",
+		"inj1c8h0lpuzz4z00zm2pxkpu33580tnupdx9gnqme",
+		"inj1huh3nvl4lmtxdyr7n33h3h80pm7xv07ewvug9g",
+		"inj1ezhjtuh8v3zw8vctx5tq8amsyrq8w0qcfzwhey",
+	}
+
+	for _, receiver := range receivers {
+		receiverAccAddress := sdk.MustAccAddressFromBech32(receiver)
+		stakingKeeper.SetDelegationTransferReceiver(ctx, receiverAccAddress)
 	}
 
 	return nil

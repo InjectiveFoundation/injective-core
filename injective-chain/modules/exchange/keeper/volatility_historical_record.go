@@ -244,7 +244,7 @@ func GetMeanForTradeRecords(tradeRecords []*v2.TradeRecord) (mean math.LegacyDec
 }
 
 // GetStandardDeviationForTradeRecords returns the volume-weighted arithmetic mean for the trade records.
-func GetStandardDeviationForTradeRecords(tradeRecords []*v2.TradeRecord, temporaryPriceScalingFactor uint64) *math.LegacyDec {
+func GetStandardDeviationForTradeRecords(tradeRecords []*v2.TradeRecord) *math.LegacyDec {
 	if len(tradeRecords) == 1 {
 		standardDeviationValue := math.LegacyZeroDec()
 		return &standardDeviationValue
@@ -256,7 +256,7 @@ func GetStandardDeviationForTradeRecords(tradeRecords []*v2.TradeRecord, tempora
 	scaledSum, aggregateQuantity := math.LegacyZeroDec(), math.LegacyZeroDec()
 
 	for _, tradeRecord := range tradeRecords {
-		scaledDeviation := tradeRecord.Price.Sub(mean).Mul(math.LegacyNewDec(10).Power(temporaryPriceScalingFactor))
+		scaledDeviation := tradeRecord.Price.Sub(mean)
 		scaledSum = scaledSum.Add(tradeRecord.Quantity.Mul(scaledDeviation.Mul(scaledDeviation)))
 		aggregateQuantity = aggregateQuantity.Add(tradeRecord.Quantity)
 	}
@@ -270,9 +270,7 @@ func GetStandardDeviationForTradeRecords(tradeRecords []*v2.TradeRecord, tempora
 		return nil
 	}
 
-	scaledBackStandardDeviation := scaledStandardDeviationValue.Quo((math.LegacyNewDec(10).Power(temporaryPriceScalingFactor)))
-
-	return &scaledBackStandardDeviation
+	return &scaledStandardDeviationValue
 }
 
 // CalculateStatistics returns statistics metadata over given trade records and grouped trade records.
@@ -351,8 +349,7 @@ func (k *Keeper) GetMarketVolatility(
 
 	tradesGrouped := GetRecordsGroupedBy(trades, groupingSec)
 
-	temporaryPriceScalingFactor := k.getTemporaryPriceScalingFactor(ctx, marketID)
-	vol = GetStandardDeviationForTradeRecords(tradesGrouped, temporaryPriceScalingFactor)
+	vol = GetStandardDeviationForTradeRecords(tradesGrouped)
 
 	if includeRawHistory {
 		rawTrades = trades
@@ -383,34 +380,4 @@ func (*Keeper) getHistoricalTradeRecordsSearchParams(
 		}
 	}
 	return maxAge, groupingSec, includeRawHistory, includeMetadata
-}
-
-func (k *Keeper) getTemporaryPriceScalingFactor(
-	ctx sdk.Context,
-	marketID common.Hash,
-) uint64 {
-	marketType, err := k.GetMarketType(ctx, marketID, true)
-	if err != nil {
-		marketType, err = k.GetMarketType(ctx, marketID, false)
-		if err != nil {
-			return 1
-		}
-	}
-
-	switch *marketType {
-	case types.MarketType_Expiry, types.MarketType_Perpetual, types.MarketType_BinaryOption:
-		return 1
-	case types.MarketType_Spot:
-		spotMarket := k.GetSpotMarket(ctx, marketID, true)
-		baseDecimals := k.GetDenomDecimals(ctx, spotMarket.BaseDenom)
-		quoteDecimals := k.GetDenomDecimals(ctx, spotMarket.QuoteDenom)
-
-		hasPricesBelowOne := baseDecimals > quoteDecimals
-
-		if hasPricesBelowOne {
-			return baseDecimals - quoteDecimals
-		}
-	}
-
-	return 1
 }

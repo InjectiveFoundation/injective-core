@@ -777,23 +777,6 @@ func (k DerivativesMsgServer) DerivativeMarketParamUpdate(
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
-	if k.IsFixedGasEnabled() {
-		gasConsumedBefore := ctx.GasMeter().GasConsumed()
-		ctx.GasMeter().ConsumeGas(DetermineGas(msg), "MsgDerivativeMarketParamUpdate")
-		totalGas := ctx.GasMeter().GasConsumed()
-
-		// todo: remove after QA
-		defer func() {
-			k.Logger(ctx).Info("DerivativeMarketParamUpdate",
-				"gas_ante", gasConsumedBefore,
-				"gas_msg", totalGas-gasConsumedBefore,
-				"gas_total", totalGas,
-				"sender", msg.Sender,
-			)
-		}()
-
-		ctx = ctx.WithGasMeter(storetypes.NewInfiniteGasMeter())
-	}
 
 	if !k.IsGovernanceAuthorityAddress(msg.Sender) {
 		return nil, sdkerrors.ErrUnauthorized

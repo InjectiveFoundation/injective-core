@@ -36,6 +36,8 @@ Ref: https://keepachangelog.com/en/1.1.0/
 
 ## [Unreleased]
 
+## [v1.16.0](https://github.com/InjectiveFoundation/injective-core/releases/tag/v1.16.0) - 2025-07-24
+
 ### Bug Fixes
 
 - (evm) [#2250](https://github.com/InjectiveLabs/injective-core/pull/2250) Fixed EVM nonce increment for any type of EVM txns when tx contains multiple msgs.
@@ -47,13 +49,15 @@ Ref: https://keepachangelog.com/en/1.1.0/
 - (exchange) [#2246](https://github.com/InjectiveLabs/injective-core/pull/2246) Fixed incorrect emptiness check for conditional orderbooks.
 - (exchange) [#2254](https://github.com/InjectiveLabs/injective-core/pull/2254) Fixed incorrect max derivative order value usage.
 - (wasm) [#2260](https://github.com/InjectiveLabs/injective-core/pull/2260) Fixed issue in few wasm queries (human readable format).
+- (exchange) [#2306](https://github.com/InjectiveLabs/injective-core/pull/2306) Fixed boundary constraints for IMR in `PerpetualMarketLaunchProposal` and `ExpiryFuturesMarketLaunchProposal`.
 
 ### Features
 
+- (evm) [#2099](https://github.com/InjectiveLabs/injective-core/pull/2099) Native EVM support
+- (ante) [#2275](https://github.com/InjectiveLabs/injective-core/pull/2275) Added support for Injective EVM Mainnet and Testnet in EIP712 Tx (chainID 1776 and 1439)
 - (evm) [#2269](https://github.com/InjectiveLabs/injective-core/pull/2269) Added denom creation fee for STR erc20 denoms.
-- (evm) [#2099](https://github.com/InjectiveLabs/injective-core/pull/2099) EVM support
 - (cmd) [#2143](https://github.com/InjectiveLabs/injective-core/pull/2143) Devnetify existing state via CLI `bootstrap-devnet` command.
-- (chain-stream) [#2229](https://github.com/InjectiveLabs/injective-core/pull/2229)
+- (chain-stream) [#2229](https://github.com/InjectiveLabs/injective-core/pull/2229) Added the gas price to the v2 chain stream response
 - (exchange) [#2100](https://github.com/InjectiveLabs/injective-core/pull/2100) Refactoring of Exchange module to use human-readable values in all places except for deposits.
 - (exchange) [#2175](https://github.com/InjectiveLabs/injective-core/pull/2175) Added GTB (Good-Til-Block) limit orders
 - (exchange) [#2192](https://github.com/InjectiveLabs/injective-core/pull/2192) Added new reduce margin ratio for derivative markets
@@ -61,16 +65,16 @@ Ref: https://keepachangelog.com/en/1.1.0/
 
 ### Improvements
 
+- (cometbft) [#2215](https://github.com/InjectiveLabs/injective-core/pull/2215) Upgraded CometBFT to v1.0.1
+- (cosmos-sdk) [#2183](https://github.com/InjectiveLabs/injective-core/pull/2183) Updated to Cosmos SDK v0.50.13
+- (peggo) Moved InjectiveLabs/peggo to injective-core repo.
+- (peggo) [#2209](https://github.com/InjectiveLabs/injective-core/pull/2209) Expose loop durations through .env vars. Clients should not change the default values.
+- (peggo) [#2219](https://github.com/InjectiveLabs/injective-core/pull/2219) Removed sdk-go dependency.
 - (evm) [#2238](https://github.com/InjectiveLabs/injective-core/pull/2238) Migrated precompiles bindings generation to forge
 - (cmd) [#2250](https://github.com/InjectiveLabs/injective-core/pull/2250) Added support for batching of multiple raw evm txns in `tx evm raw` CLI command.
 - (evm) [#2241](https://github.com/InjectiveLabs/injective-core/pull/2241) Upgraded go-ethereum to v1.15.11
 - (evm) [#2211](https://github.com/InjectiveLabs/injective-core/pull/2211) Disable unused gas refunds for MsgEthereumTx
-- (peggo) Moved InjectiveLabs/peggo to injective-core repo.
-- (cosmos-sdk) [#2183](https://github.com/InjectiveLabs/injective-core/pull/2183) Updated dependencies to use Cosmos SDK v0.50.13
 - (cmd) [#2207](https://github.com/InjectiveLabs/injective-core/pull/2207) Removed rosetta dependency.
-- (peggo) [#2209](https://github.com/InjectiveLabs/injective-core/pull/2209) Expose loop durations through .env vars. Clients should not change the default values.
-- (peggo) [#2219](https://github.com/InjectiveLabs/injective-core/pull/2219) Removed sdk-go dependency.
-- (ante) [#2275](https://github.com/InjectiveLabs/injective-core/pull/2275) Added support for Injective EVM Mainnet and Testnet in EIP712 Tx (chainID 1776 and 1439)
 
 ## [v1.15.0](https://github.com/InjectiveFoundation/injective-core/releases/tag/v1.15.0) - 2025-04-17
 

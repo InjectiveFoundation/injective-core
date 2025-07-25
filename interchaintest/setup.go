@@ -58,6 +58,10 @@ var (
 
 	defaultGenesisOverridesKV = []cosmos.GenesisKV{
 		{
+			Key:   "consensus.params.block.max_gas",
+			Value: "150000000", // matches mainnet
+		},
+		{
 			Key:   "app_state.gov.params.voting_period",
 			Value: "15s",
 		},

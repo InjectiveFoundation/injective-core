@@ -738,6 +738,7 @@ func NewV1ExchangeParamsFromV2(params v2.Params) types.Params {
 		MarginDecreasePriceTimestampThresholdSeconds: params.MarginDecreasePriceTimestampThresholdSeconds,
 		ExchangeAdmins:                               params.ExchangeAdmins,
 		InjAuctionMaxCap:                             params.InjAuctionMaxCap,
+		FixedGasEnabled:                              params.FixedGasEnabled,
 	}
 }
 

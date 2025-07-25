@@ -13,10 +13,12 @@ import (
 	stakingkeeper "github.com/cosmos/cosmos-sdk/x/staking/keeper"
 	"github.com/pkg/errors"
 
+	wasmkeeper "github.com/CosmWasm/wasmd/x/wasm/keeper"
 	erc20keeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/erc20/keeper"
 	evmkeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/keeper"
 	exchangekeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/keeper"
 	peggykeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/peggy/keeper"
+	wasmxkeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/keeper"
 )
 
 type UpgradeHandlerStep struct {
@@ -54,12 +56,12 @@ func (s *UpgradeHandlerStep) Run(ctx sdk.Context, upgradeInfo upgradetypes.Plan,
 
 	if err != nil {
 		stepLogger.Error("Upgrade handler step finished with an error", "error", err)
-	} else {
-		writeCache()
-		stepLogger.Info("Upgrade handler step finished")
+		return err
 	}
 
-	return err
+	writeCache()
+	stepLogger.Info("Upgrade handler step finished")
+	return nil
 }
 
 func (s *UpgradeHandlerStep) RunPreventingPanic(
@@ -121,6 +123,8 @@ type InjectiveApplication interface {
 	GetPeggyKeeper() *peggykeeper.Keeper
 	GetStakingKeeper() *stakingkeeper.Keeper
 	GetAccountKeeper() authante.AccountKeeper
+	GetWasmKeeper() *wasmkeeper.Keeper
+	GetWasmxKeeper() *wasmxkeeper.Keeper
 }
 
 func LogUpgradeProgress(logger log.Logger, startTime, lastUpdatedTime time.Time, currentUpdateNumber, totalUpdates int) {
