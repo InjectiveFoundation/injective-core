@@ -40,8 +40,6 @@ contract Peggy is
 {
     using SafeERC20 for IERC20;
 
-    // ⚠️ ONLY APPEND TO STATE VARIABLES AND DON'T CHANGE VARIABLE ORDER/DEFINITIONS INCL NOT MAKING THEM IMMUTABLE ⚠️
-
     // These are updated often
     bytes32 public state_lastValsetCheckpoint;
     mapping(address => uint256) public state_lastBatchNonces;
@@ -52,10 +50,6 @@ contract Peggy is
     // These are set once at initialization
     bytes32 public state_peggyId;
     uint256 public state_powerThreshold;
-
-    mapping(address => bool) public isInjectiveNativeToken;
-
-    uint256 private constant MAX_NONCE_JUMP_LIMIT = 10_000_000_000_000;
 
     // TransactionBatchExecutedEvent and SendToInjectiveEvent both include the field _eventNonce.
     // This is incremented every time one of these events is emitted. It is checked by the
@@ -77,6 +71,7 @@ contract Peggy is
         string _data
     );
     event ERC20DeployedEvent(
+        // TODO(xlab): _cosmosDenom can be represented as bytes32 to allow indexing
         string _cosmosDenom,
         address indexed _tokenContract,
         string _name,
@@ -93,12 +88,21 @@ contract Peggy is
         uint256[] _powers
     );
 
-    function _validateValidatorSet(
+    function initialize(
+        // A unique identifier for this peggy instance to use in signatures
+        bytes32 _peggyId,
+        // How much voting power is needed to approve operations
+        uint256 _powerThreshold,
+        // The validator set, not in valset args format since many of it's
+        // arguments would never be used in this case
         address[] calldata _validators,
-        uint256[] calldata _powers,
-        uint256 _powerThreshold
-    ) private pure {
-        // Check that validators and powers set is well-formed
+        uint256[] calldata _powers
+    ) external initializer {
+        __Context_init_unchained();
+        __Ownable_init_unchained();
+        // CHECKS
+
+        // Check that validators, powers, and signatures (v,r,s) set is well-formed
         require(
             _validators.length == _powers.length,
             "Malformed current validator set"
@@ -118,24 +122,6 @@ contract Peggy is
             cumulativePower > _powerThreshold,
             "Submitted validator set signatures do not have enough power."
         );
-    }
-
-    function initialize(
-        // A unique identifier for this peggy instance to use in signatures
-        bytes32 _peggyId,
-        // How much voting power is needed to approve operations
-        uint256 _powerThreshold,
-        // The validator set, not in valset args format since many of it's
-        // arguments would never be used in this case
-        address[] calldata _validators,
-        uint256[] calldata _powers
-    ) external initializer {
-        __Context_init_unchained();
-        __Ownable_init_unchained();
-
-        // CHECKS
-
-        _validateValidatorSet(_validators, _powers, _powerThreshold);
 
         ValsetArgs memory _valset;
         _valset = ValsetArgs(_validators, _powers, 0, 0, address(0));
@@ -148,7 +134,6 @@ contract Peggy is
         state_powerThreshold = _powerThreshold;
         state_lastValsetCheckpoint = newCheckpoint;
         state_lastEventNonce = state_lastEventNonce + 1;
-
         // LOGS
 
         emit ValsetUpdatedEvent(
@@ -161,9 +146,11 @@ contract Peggy is
         );
     }
 
-    function lastBatchNonce(
-        address _erc20Address
-    ) public view returns (uint256) {
+    function lastBatchNonce(address _erc20Address)
+        public
+        view
+        returns (uint256)
+    {
         return state_lastBatchNonces[_erc20Address];
     }
 
@@ -189,10 +176,11 @@ contract Peggy is
     // Where h is the keccak256 hash function.
     // The validator powers must be decreasing or equal. This is important for checking the signatures on the
     // next valset, since it allows the caller to stop verifying signatures once a quorum of signatures have been verified.
-    function makeCheckpoint(
-        ValsetArgs memory _valsetArgs,
-        bytes32 _peggyId
-    ) private pure returns (bytes32) {
+    function makeCheckpoint(ValsetArgs memory _valsetArgs, bytes32 _peggyId)
+        private
+        pure
+        returns (bytes32)
+    {
         // bytes32 encoding of the string "checkpoint"
         bytes32 methodName = 0x636865636b706f696e7400000000000000000000000000000000000000000000;
 
@@ -281,6 +269,12 @@ contract Peggy is
             "New valset nonce must be greater than the current nonce"
         );
 
+        // Check that new validators and powers set is well-formed
+        require(
+            _newValset.validators.length == _newValset.powers.length,
+            "Malformed new validator set"
+        );
+
         // Check that current validators, powers, and signatures (v,r,s) set is well-formed
         require(
             _currentValset.validators.length == _currentValset.powers.length &&
@@ -288,13 +282,6 @@ contract Peggy is
                 _currentValset.validators.length == _r.length &&
                 _currentValset.validators.length == _s.length,
             "Malformed current validator set"
-        );
-
-        // Prevent insane jumps potentially leaving the contract unable to process further valset updates
-        require(
-            _newValset.valsetNonce <
-                _currentValset.valsetNonce + MAX_NONCE_JUMP_LIMIT,
-            "New valset nonce must be less than 10_000_000_000_000 greater than the current nonce"
         );
 
         // Check that the supplied current validator set matches the saved checkpoint
@@ -313,12 +300,6 @@ contract Peggy is
             _r,
             _s,
             newCheckpoint,
-            state_powerThreshold
-        );
-
-        _validateValidatorSet(
-            _newValset.validators,
-            _newValset.powers,
             state_powerThreshold
         );
 
@@ -380,14 +361,6 @@ contract Peggy is
             require(
                 state_lastBatchNonces[_tokenContract] < _batchNonce,
                 "New batch nonce must be greater than the current nonce"
-            );
-
-            // Prevent insane jumps potentially leaving the contract unable to process further batches
-            require(
-                _batchNonce <
-                    state_lastBatchNonces[_tokenContract] +
-                        MAX_NONCE_JUMP_LIMIT,
-                "New batch nonce must be less than 10_000_000_000_000 greater than the current nonce"
             );
 
             // Check that the block height is less than the timeout height
@@ -453,34 +426,16 @@ contract Peggy is
                 // Send transaction amounts to destinations
                 uint256 totalFee;
                 for (uint256 i = 0; i < _amounts.length; i++) {
-                    if (isInjectiveNativeToken[_tokenContract]) {
-                        CosmosERC20(_tokenContract).mint(
-                            _destinations[i],
-                            _amounts[i]
-                        );
-                    } else {
-                        IERC20(_tokenContract).safeTransfer(
-                            _destinations[i],
-                            _amounts[i]
-                        );
-                    }
-
+                    IERC20(_tokenContract).safeTransfer(
+                        _destinations[i],
+                        _amounts[i]
+                    );
                     totalFee = totalFee + _fees[i];
                 }
 
                 if (totalFee > 0) {
                     // Send transaction fees to msg.sender
-                    if (isInjectiveNativeToken[_tokenContract]) {
-                        CosmosERC20(_tokenContract).mint(
-                            msg.sender,
-                            totalFee
-                        );
-                    } else {
-                        IERC20(_tokenContract).safeTransfer(
-                            msg.sender,
-                            totalFee
-                        );
-                    }
+                    IERC20(_tokenContract).safeTransfer(msg.sender, totalFee);
                 }
             }
         }
@@ -502,60 +457,29 @@ contract Peggy is
         uint256 _amount,
         string calldata _data
     ) external whenNotPaused nonReentrant {
-        uint256 transferAmount;
-
-        if (isInjectiveNativeToken[_tokenContract]) {
-            CosmosERC20(_tokenContract).burn(msg.sender, _amount);
-
-            transferAmount = _amount;
-        } else {
-            uint256 balanceBeforeTransfer = IERC20(_tokenContract).balanceOf(
-                address(this)
-            );
-
-            IERC20(_tokenContract).safeTransferFrom(
-                msg.sender,
-                address(this),
-                _amount
-            );
-
-            uint256 balanceAfterTransfer = IERC20(_tokenContract).balanceOf(
-                address(this)
-            );
-            transferAmount = balanceAfterTransfer - balanceBeforeTransfer;
-        }
-
+        IERC20(_tokenContract).safeTransferFrom(
+            msg.sender,
+            address(this),
+            _amount
+        );
         state_lastEventNonce = state_lastEventNonce + 1;
-
         emit SendToInjectiveEvent(
             _tokenContract,
             msg.sender,
             _destination,
-            transferAmount,
+            _amount,
             state_lastEventNonce,
             _data
         );
     }
 
     function deployERC20(
-        string calldata _cosmosDenom,
-        string calldata _name,
-        string calldata _symbol,
-        uint8 _decimals
+        string calldata, //_cosmosDenom
+        string calldata, //_name
+        string calldata, //_symbol
+        uint8 //_decimals
     ) external {
-        CosmosERC20 erc20 = new CosmosERC20(_name, _symbol, _decimals);
-        isInjectiveNativeToken[address(erc20)] = true;
-
-        // Fire an event to let the Cosmos module know
-        state_lastEventNonce = state_lastEventNonce + 1;
-        emit ERC20DeployedEvent(
-            _cosmosDenom,
-            address(erc20),
-            _name,
-            _symbol,
-            _decimals,
-            state_lastEventNonce
-        );
+        revert("Not implemented");
     }
 
     function emergencyPause() external onlyOwner {
