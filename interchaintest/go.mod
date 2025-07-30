@@ -6,7 +6,7 @@ require (
 	cosmossdk.io/math v1.4.0
 	cosmossdk.io/x/upgrade v0.1.4
 	github.com/CosmWasm/wasmd v0.53.2
-	github.com/InjectiveLabs/etherman v1.8.0
+	github.com/InjectiveLabs/etherman v1.9.0
 	github.com/InjectiveLabs/sdk-go v1.58.0-rc4
 	github.com/avast/retry-go/v4 v4.6.0
 	github.com/cometbft/cometbft v1.0.1

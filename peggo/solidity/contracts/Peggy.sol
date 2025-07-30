@@ -9,7 +9,7 @@ import "./@openzeppelin/contracts/utils/Initializable.sol";
 import "./@openzeppelin/contracts/utils/Pausable.sol";
 import "./@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-import "./CosmosERC20.sol";
+import "./CosmosToken.sol";
 import "./@openzeppelin/contracts/OwnableUpgradeableWithExpiry.sol";
 
 // This is used purely to avoid stack too deep errors

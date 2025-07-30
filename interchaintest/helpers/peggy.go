@@ -49,7 +49,7 @@ const (
 	PeggyContractPath            = "../peggo/solidity/contracts/Peggy.sol"
 	ProxyAdminContractPath       = "../peggo/solidity/contracts/@openzeppelin/contracts/ProxyAdmin.sol"
 	TransparentProxyContractPath = "../peggo/solidity/contracts/@openzeppelin/contracts/TransparentUpgradeableProxy.sol"
-	CosmosERC20ContractPath      = "../peggo/solidity/contracts/CosmosERC20.sol"
+	CosmosERC20ContractPath      = "../peggo/solidity/contracts/CosmosToken.sol"
 )
 
 type PeggyContractSuite struct {
@@ -292,6 +292,7 @@ func DeployPeggyContractSuite(
 	}
 
 	injectiveCoinArgs := []any{
+		transparentProxyContract.Address,
 		"Injective",
 		"INJ",
 		uint8(18),
@@ -302,29 +303,7 @@ func DeployPeggyContractSuite(
 	})
 	require.NoError(t, err)
 
-	t.Log("deployed Injective Token (CosmosERC20.sol)", injectiveCoinContract.Address.String())
-	time.Sleep(1 * time.Second)
-
-	deployArgs = []any{
-		transparentProxyContract.Address,
-		math.LegacyMustNewDecFromStr("100000000000000000000000000").BigInt(), // 100 mil
-	}
-
-	mintOpts := deployer.ContractTxOpts{
-		From:         common.HexToAddress(contractDeployer.FormattedAddress()),
-		FromPk:       ecdsaPK,
-		SolSource:    CosmosERC20ContractPath,
-		ContractName: CosmosERC20ContractName,
-		Contract:     injectiveCoinContract.Address,
-		Await:        true,
-	}
-
-	_, _, err = d.Tx(ctx, mintOpts, "mint", func(_ abi.Arguments) []interface{} {
-		return deployArgs
-	})
-	require.NoError(t, err)
-
-	t.Log("minted 100_000_000 Injective coins to Transparent proxy")
+	t.Log("deployed Injective Token (CosmosToken.sol)", injectiveCoinContract.Address.String())
 
 	return PeggyContractSuite{
 		Peggy:            peggyContract.Address,
