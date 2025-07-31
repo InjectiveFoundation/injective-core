@@ -15,7 +15,7 @@ var (
 	KeyDenomCreationFee = []byte("DenomCreationFee")
 )
 
-// ParamTable for tokenfactory module.
+// ParamKeyTable for tokenfactory module.
 func ParamKeyTable() paramtypes.KeyTable {
 	return paramtypes.NewKeyTable().RegisterParamSet(&Params{})
 }
