@@ -179,7 +179,7 @@ func (eis *EVMIndexerService) OnStart() error {
 			)
 			if err != nil {
 				if eis.allowGap {
-					eis.Logger.Info("failed to fetch block result, skipping", "height", i, "err", err)
+					eis.Logger.Debug("failed to fetch block result, skipping", "height", i, "err", err)
 					continue
 				}
 
