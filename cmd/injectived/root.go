@@ -400,7 +400,15 @@ func newApp(logger log.Logger, db dbm.DB, traceStore io.Writer, appOpts serverty
 	if envWatchdogEnabled := os.Getenv("INJECTIVE_WATCHDOG_ENABLED"); envWatchdogEnabled != "" {
 		watchdogEnabled, err = cast.ToBoolE(envWatchdogEnabled)
 		if err != nil {
-			logger.Error("failed to parse INJECTIVE_WATCHDOG_ENABLED, using default", "error", err)
+			logger.Error("failed to parse INJECTIVE_WATCHDOG_ENABLED, using default (true)", "error", err)
+		}
+	}
+
+	watchdogDump := false
+	if envWatchdogDump := os.Getenv("INJECTIVE_WATCHDOG_DUMP_ENABLED"); envWatchdogDump != "" {
+		watchdogDump, err = cast.ToBoolE(envWatchdogDump)
+		if err != nil {
+			logger.Error("failed to parse INJECTIVE_WATCHDOG_DUMP_ENABLED, using default (false)", "error", err)
 		}
 	}
 
@@ -429,6 +437,7 @@ func newApp(logger log.Logger, db dbm.DB, traceStore io.Writer, appOpts serverty
 			logger,
 			maxStuckTime,
 			tmRPCAddr,
+			watchdogDump,
 		)
 
 		go func() {

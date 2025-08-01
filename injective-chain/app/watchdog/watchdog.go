@@ -34,6 +34,7 @@ type watchdogProcess struct {
 
 	lastBlock          int64
 	timestampLastBlock time.Time
+	watchdogDump       bool
 }
 
 // bftRPCAddr is the address of the cometbft rpc server, usually tcp://localhost:26657
@@ -42,6 +43,7 @@ func NewWatchdogProcess(
 	logger log.Logger,
 	maxStuckTime time.Duration,
 	bftRPCAddr string,
+	watchdogDump bool,
 ) *watchdogProcess {
 	rootCtx, rootCancel := context.WithCancel(ctx)
 	return &watchdogProcess{
@@ -54,6 +56,7 @@ func NewWatchdogProcess(
 		isHealthy:    true,
 		lastBlock:    -1,
 		maxStuckTime: maxStuckTime,
+		watchdogDump: watchdogDump,
 	}
 }
 
@@ -82,16 +85,27 @@ func (w *watchdogProcess) lastBlockFromRPC(ctx context.Context) (int64, time.Tim
 func (w *watchdogProcess) Start() error {
 	time.Sleep(10 * time.Second)
 
-	lastBlock, timestamp, err := w.lastBlockFromRPC(w.rootCtx)
-	if err != nil {
-		return errors.Wrap(err, "failed to get last block from rpc")
+	var lastBlock int64
+	var timestamp time.Time
+	var err error
+
+	// Initial init loop
+	for {
+		lastBlock, timestamp, err = w.lastBlockFromRPC(w.rootCtx)
+		if err != nil {
+			w.logger.Error("===== WATCHDOG: failed to get last block from rpc", "error", err)
+			time.Sleep(10 * time.Second)
+			continue
+		}
+
+		w.stateMux.Lock()
+		w.lastBlock = lastBlock
+		w.timestampLastBlock = timestamp
+		w.isRunning = true
+		w.stateMux.Unlock()
+		break
 	}
 
-	w.stateMux.Lock()
-	w.lastBlock = lastBlock
-	w.timestampLastBlock = timestamp
-	w.isRunning = true
-	w.stateMux.Unlock()
 	w.logger.Info("===== WATCHDOG: read last block from rpc", "last_block", lastBlock, "timestamp_last_block", timestamp)
 
 	// Wait for the first block change to consider chain progressing.
@@ -159,6 +173,14 @@ func (w *watchdogProcess) Start() error {
 			// and timeout is reached from last seen timestamp
 			if timestamp.Before(time.Now().Add(-w.maxStuckTime)) {
 				w.logger.Error("===== WATCHDOG: DETECTED A STUCK BLOCK =====", "last_block", previousKnownBlock, "timestamp_last_block", previousKnownTimestamp)
+
+				// simply exist if dump not requested
+				if !w.watchdogDump {
+					w.logger.Error("===== WATCHDOG: RESTARTING")
+					os.Exit(1)
+					return nil
+				}
+
 				w.logger.Error("===== PLEASE SHARE STACK TRACE BELOW WITH INJECTIVE TEAM =====")
 
 				if err := w.stopProcessSIGQUIT(); err != nil {
