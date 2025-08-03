@@ -590,7 +590,9 @@ func (k *Keeper) emitLegacyPerpetualMarketFundingUpdate(ctx sdk.Context, event *
 	v1Event.Funding = v1Funding
 
 	if event.FundingRate != nil {
-		v1Event.FundingRate = event.FundingRate
+		// The FundingRate variable is really a price (it is markPrice * fundingRate), so we need to convert it to chain format
+		chainFormattedFundingRate := market.PriceToChainFormat(*event.FundingRate)
+		v1Event.FundingRate = &chainFormattedFundingRate
 	}
 
 	if event.MarkPrice != nil {

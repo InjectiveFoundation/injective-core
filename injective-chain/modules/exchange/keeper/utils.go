@@ -435,7 +435,7 @@ func NewV1PositionFromV2(market MarketInterface, position v2.Position) types.Pos
 		Quantity:               market.QuantityToChainFormat(position.Quantity),
 		EntryPrice:             market.PriceToChainFormat(position.EntryPrice),
 		Margin:                 market.NotionalToChainFormat(position.Margin),
-		CumulativeFundingEntry: market.NotionalFromChainFormat(position.CumulativeFundingEntry),
+		CumulativeFundingEntry: market.NotionalToChainFormat(position.CumulativeFundingEntry),
 	}
 }
 

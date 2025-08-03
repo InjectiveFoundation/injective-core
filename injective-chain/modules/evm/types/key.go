@@ -1,8 +1,6 @@
 package types
 
 import (
-	"encoding/binary"
-
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -15,9 +13,9 @@ const (
 	// The EVM module should use a prefix store.
 	StoreKey = ModuleName
 
-	// ObjectStoreKey is the key to access the EVM object store, that is reset
+	// TStoreKey is the key to access the EVM transient store, that is reset
 	// during the Commit phase.
-	ObjectStoreKey = "object:" + ModuleName
+	TStoreKey = "transient:" + ModuleName
 
 	// RouterKey uses module name for routing
 	RouterKey = ModuleName
@@ -30,11 +28,11 @@ const (
 	prefixParams
 )
 
-// prefix bytes for the EVM object store
+// prefix bytes for the EVM transient store
 const (
-	prefixObjectBloom = iota + 1
-	prefixObjectGasUsed
-	prefixObjectParams
+	prefixTransientBloom = iota + 1
+	prefixTransientGasUsed
+	prefixTransientParams
 )
 
 // KVStore key prefixes
@@ -44,13 +42,14 @@ var (
 	KeyPrefixParams  = []byte{prefixParams}
 )
 
-// Object Store key prefixes
+// Transient Store key prefixes
 var (
-	KeyPrefixObjectBloom   = []byte{prefixObjectBloom}
-	KeyPrefixObjectGasUsed = []byte{prefixObjectGasUsed}
-	// cache the `EVMBlockConfig` during the whole block execution
-	KeyPrefixObjectParams = []byte{prefixObjectParams}
+	KeyPrefixTransientBloom   = []byte{prefixTransientBloom}
+	KeyPrefixTransientGasUsed = []byte{prefixTransientGasUsed}
 )
+
+// Object Store key prefixes
+var ()
 
 // AddressStoragePrefix returns a prefix to iterate over a given account storage.
 func AddressStoragePrefix(address common.Address) []byte {
@@ -60,12 +59,4 @@ func AddressStoragePrefix(address common.Address) []byte {
 // StateKey defines the full key under which an account state is stored.
 func StateKey(address common.Address, key []byte) []byte {
 	return append(AddressStoragePrefix(address), key...)
-}
-
-func ObjectBloomKey(txIndex, msgIndex int) []byte {
-	var key [1 + 8 + 8]byte
-	key[0] = prefixObjectBloom
-	binary.BigEndian.PutUint64(key[1:], uint64(txIndex))
-	binary.BigEndian.PutUint64(key[9:], uint64(msgIndex))
-	return key[:]
 }
