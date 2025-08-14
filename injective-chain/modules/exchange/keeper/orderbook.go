@@ -177,14 +177,14 @@ func (k *Keeper) IterateTransientOrderbookPriceLevels(
 		priceLevelStore = prefix.NewStore(store, types.DerivativeOrderbookLevelsPrefix)
 	}
 
-	iterator := priceLevelStore.Iterator(nil, nil)
 	keys := [][]byte{}
 	values := [][]byte{}
-	for ; iterator.Valid(); iterator.Next() {
-		keys = append(keys, iterator.Key())
-		values = append(values, iterator.Value())
-	}
-	iterator.Close()
+
+	iterateSafe(priceLevelStore.Iterator(nil, nil), func(k, v []byte) bool {
+		keys = append(keys, k)
+		values = append(values, v)
+		return false
+	})
 
 	for idx, key := range keys {
 		marketID := common.BytesToHash(key[:common.HashLength])

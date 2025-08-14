@@ -105,17 +105,22 @@ func (k *Keeper) IterateTransientSpotLimitOrdersBySubaccount(
 
 	store := k.getTransientStore(ctx)
 	orderIndexStore := prefix.NewStore(store, types.GetTransientLimitOrderIndexIteratorPrefix(marketID, isBuy, subaccountID))
+
+	orderKeys := [][]byte{}
+
 	var iterator storetypes.Iterator
 	if isBuy {
 		iterator = orderIndexStore.ReverseIterator(nil, nil)
 	} else {
 		iterator = orderIndexStore.Iterator(nil, nil)
 	}
-	orderKeys := [][]byte{}
-	for ; iterator.Valid(); iterator.Next() {
-		orderKeys = append(orderKeys, iterator.Value())
-	}
-	iterator.Close()
+
+	iterateSafe(iterator, func(_, v []byte) bool {
+		orderKeys = append(orderKeys, v)
+		return false
+	})
+
+	// iterator is closed at this point
 
 	for _, orderKeyBz := range orderKeys {
 		if process(orderKeyBz) {
@@ -289,22 +294,23 @@ func (k *Keeper) IterateSpotMarketOrders(
 	prefixKey := types.SpotMarketOrdersPrefix
 	prefixKey = append(prefixKey, types.MarketDirectionPrefix(marketID, isBuy)...)
 	ordersStore := prefix.NewStore(store, prefixKey)
-	var iterator storetypes.Iterator
 
+	orders := []*v2.SpotMarketOrder{}
+
+	var iterator storetypes.Iterator
 	if isBuy {
 		// iterate over market buy orders from highest to lowest price
 		iterator = ordersStore.ReverseIterator(nil, nil)
 	} else {
 		iterator = ordersStore.Iterator(nil, nil)
 	}
-	orders := []*v2.SpotMarketOrder{}
-	for ; iterator.Valid(); iterator.Next() {
+
+	iterateSafe(iterator, func(_, v []byte) bool {
 		var order v2.SpotMarketOrder
-		bz := iterator.Value()
-		k.cdc.MustUnmarshal(bz, &order)
+		k.cdc.MustUnmarshal(v, &order)
 		orders = append(orders, &order)
-	}
-	iterator.Close()
+		return false
+	})
 
 	for _, order := range orders {
 		if process(order) {

@@ -298,3 +298,31 @@ func (k GeneralMsgServer) UpdateAtomicMarketOrderFeeMultiplierSchedule(
 
 	return &v2.MsgAtomicMarketOrderFeeMultiplierScheduleResponse{}, nil
 }
+
+// SetDelegationTransferReceivers sets delegation transfer receivers via the staking keeper
+// This method can only be called by exchange admin.
+func (k GeneralMsgServer) SetDelegationTransferReceivers(
+	goCtx context.Context,
+	msg *v2.MsgSetDelegationTransferReceivers,
+) (*v2.MsgSetDelegationTransferReceiversResponse, error) {
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
+
+	ctx := sdk.UnwrapSDKContext(goCtx)
+
+	// Check if sender is exchange admin
+	if !k.IsAdmin(ctx, msg.Sender) {
+		return nil, errortypes.ErrUnauthorized.Wrap("sender is not an exchange admin")
+	}
+
+	// Set delegation transfer receivers via staking keeper
+	for _, receiverAddr := range msg.Receivers {
+		receiver, err := sdk.AccAddressFromBech32(receiverAddr)
+		if err != nil {
+			return nil, errors.Wrapf(errortypes.ErrInvalidAddress, "invalid receiver address: %s", receiverAddr)
+		}
+
+		k.StakingKeeper.SetDelegationTransferReceiver(goCtx, receiver)
+	}
+
+	return &v2.MsgSetDelegationTransferReceiversResponse{}, nil
+}

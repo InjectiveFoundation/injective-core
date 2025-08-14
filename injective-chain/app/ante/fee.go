@@ -111,6 +111,9 @@ func DeductFees(bankKeeper authtypes.BankKeeper, ctx sdk.Context, acc sdk.Accoun
 		return errors.Wrap(sdkerrors.ErrInsufficientFunds, err.Error())
 	}
 
+	// Alternative way (from EVM support): doesn't work for now in wasmx tests.
+	// err = bankKeeper.SendCoinsFromAccountToModuleVirtual(ctx, acc.GetAddress(), authtypes.FeeCollectorName, fees)
+
 	events := sdk.Events{
 		sdk.NewEvent(
 			sdk.EventTypeTx,

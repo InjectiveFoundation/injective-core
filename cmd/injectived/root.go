@@ -396,11 +396,11 @@ func newApp(logger log.Logger, db dbm.DB, traceStore io.Writer, appOpts serverty
 		}
 	}
 
-	watchdogEnabled := true
+	watchdogEnabled := false
 	if envWatchdogEnabled := os.Getenv("INJECTIVE_WATCHDOG_ENABLED"); envWatchdogEnabled != "" {
 		watchdogEnabled, err = cast.ToBoolE(envWatchdogEnabled)
 		if err != nil {
-			logger.Error("failed to parse INJECTIVE_WATCHDOG_ENABLED, using default (true)", "error", err)
+			logger.Error("failed to parse INJECTIVE_WATCHDOG_ENABLED, using default (false)", "error", err)
 		}
 	}
 

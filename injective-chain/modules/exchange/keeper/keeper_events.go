@@ -214,14 +214,18 @@ func (k *Keeper) emitLegacyInvalidGrant(ctx sdk.Context, event *v2.EventInvalidG
 }
 
 func (k *Keeper) emitLegacySpotMarketUpdate(ctx sdk.Context, event *v2.EventSpotMarketUpdate) {
-	v1Market := NewV1SpotMarketFromV2(event.Market)
+	valuesConverter := NewChainValuesConverter(ctx, k, &event.Market)
+
+	v1Market := NewV1SpotMarketFromV2(valuesConverter, event.Market)
 	k.emitEvent(ctx, &v1.EventSpotMarketUpdate{
 		Market: v1Market,
 	})
 }
 
 func (k *Keeper) emitLegacyPerpetualMarketUpdate(ctx sdk.Context, event *v2.EventPerpetualMarketUpdate) {
-	v1Market := NewV1DerivativeMarketFromV2(event.Market)
+	valuesConverter := NewChainValuesConverter(ctx, k, &event.Market)
+
+	v1Market := NewV1DerivativeMarketFromV2(valuesConverter, event.Market)
 	v1Event := v1.EventPerpetualMarketUpdate{
 		Market: v1Market,
 	}
@@ -232,7 +236,7 @@ func (k *Keeper) emitLegacyPerpetualMarketUpdate(ctx sdk.Context, event *v2.Even
 	}
 
 	if event.Funding != nil {
-		v1Funding := NewV1PerpetualMarketFundingFromV2(event.Market, *event.Funding)
+		v1Funding := NewV1PerpetualMarketFundingFromV2(&event.Market, *event.Funding)
 		v1Event.Funding = &v1Funding
 	}
 
@@ -240,13 +244,15 @@ func (k *Keeper) emitLegacyPerpetualMarketUpdate(ctx sdk.Context, event *v2.Even
 }
 
 func (k *Keeper) emitLegacyExpiryFuturesMarketUpdate(ctx sdk.Context, event *v2.EventExpiryFuturesMarketUpdate) {
-	v1Market := NewV1DerivativeMarketFromV2(event.Market)
+	valuesConverter := NewChainValuesConverter(ctx, k, &event.Market)
+
+	v1Market := NewV1DerivativeMarketFromV2(valuesConverter, event.Market)
 	v1Event := v1.EventExpiryFuturesMarketUpdate{
 		Market: v1Market,
 	}
 
 	if event.ExpiryFuturesMarketInfo != nil {
-		v1ExpiryFuturesMarketInfo := NewV1ExpiryFuturesMarketInfoFromV2(event.Market, *event.ExpiryFuturesMarketInfo)
+		v1ExpiryFuturesMarketInfo := NewV1ExpiryFuturesMarketInfoFromV2(&event.Market, *event.ExpiryFuturesMarketInfo)
 		v1Event.ExpiryFuturesMarketInfo = &v1ExpiryFuturesMarketInfo
 	}
 
@@ -254,7 +260,9 @@ func (k *Keeper) emitLegacyExpiryFuturesMarketUpdate(ctx sdk.Context, event *v2.
 }
 
 func (k *Keeper) emitLegacyBinaryOptionsMarketUpdate(ctx sdk.Context, event *v2.EventBinaryOptionsMarketUpdate) {
-	v1Market := NewV1BinaryOptionsMarketFromV2(event.Market)
+	valuesConverter := NewChainValuesConverter(ctx, k, &event.Market)
+
+	v1Market := NewV1BinaryOptionsMarketFromV2(valuesConverter, event.Market)
 	k.emitEvent(ctx, &v1.EventBinaryOptionsMarketUpdate{
 		Market: v1Market,
 	})
@@ -275,12 +283,12 @@ func (k *Keeper) emitLegacyNewSpotOrders(ctx sdk.Context, event *v2.EventNewSpot
 	}
 
 	for i, order := range event.BuyOrders {
-		v1Order := NewV1SpotLimitOrderFromV2(*market, *order)
+		v1Order := NewV1SpotLimitOrderFromV2(market, *order)
 		v1Event.BuyOrders[i] = &v1Order
 	}
 
 	for i, order := range event.SellOrders {
-		v1Order := NewV1SpotLimitOrderFromV2(*market, *order)
+		v1Order := NewV1SpotLimitOrderFromV2(market, *order)
 		v1Event.SellOrders[i] = &v1Order
 	}
 
@@ -327,7 +335,7 @@ func (k *Keeper) emitLegacyCancelSpotOrder(ctx sdk.Context, event *v2.EventCance
 		return
 	}
 
-	v1Order := NewV1SpotLimitOrderFromV2(*market, event.Order)
+	v1Order := NewV1SpotLimitOrderFromV2(market, event.Order)
 
 	k.emitEvent(ctx, &v1.EventCancelSpotOrder{
 		MarketId: event.MarketId,
@@ -586,7 +594,7 @@ func (k *Keeper) emitLegacyPerpetualMarketFundingUpdate(ctx sdk.Context, event *
 		IsHourlyFunding: event.IsHourlyFunding,
 	}
 
-	v1Funding := NewV1PerpetualMarketFundingFromV2(*market, event.Funding)
+	v1Funding := NewV1PerpetualMarketFundingFromV2(market, event.Funding)
 	v1Event.Funding = v1Funding
 
 	if event.FundingRate != nil {
