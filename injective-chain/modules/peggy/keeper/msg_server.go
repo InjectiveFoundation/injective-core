@@ -119,16 +119,6 @@ func (k msgServer) ValsetConfirm(c context.Context, msg *types.MsgValsetConfirm)
 		return nil, errors.Wrap(types.ErrEmpty, "no eth address found")
 	}
 
-	// associated eth address must match provided
-	if ethAddress.Hex() != msg.EthAddress {
-		metrics.ReportFuncError(k.svcTags)
-		return nil, errors.Wrapf(types.ErrInvalid,
-			"eth address does not match provided: got %s, want %s",
-			msg.EthAddress,
-			ethAddress.Hex(),
-		)
-	}
-
 	if err = types.ValidateEthereumSignature(checkpoint, sigBytes, ethAddress); err != nil {
 		description := fmt.Sprintf(
 			"signature verification failed expected sig by %s with peggy-id %s with checkpoint %s found %s",
@@ -261,16 +251,6 @@ func (k msgServer) ConfirmBatch(c context.Context, msg *types.MsgConfirmBatch) (
 	if !found {
 		metrics.ReportFuncError(k.svcTags)
 		return nil, errors.Wrap(types.ErrEmpty, "eth address not found")
-	}
-
-	// associated eth address must match provided
-	if ethAddress.Hex() != msg.EthSigner {
-		metrics.ReportFuncError(k.svcTags)
-		return nil, errors.Wrapf(types.ErrInvalid,
-			"eth address does not match provided: got %s, want %s",
-			msg.EthSigner,
-			ethAddress.Hex(),
-		)
 	}
 
 	err = types.ValidateEthereumSignature(checkpoint, sigBytes, ethAddress)

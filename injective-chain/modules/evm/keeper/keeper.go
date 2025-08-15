@@ -35,8 +35,11 @@ type Keeper struct {
 	// - storing module parameters
 	storeKey storetypes.StoreKey
 
-	// key to access the object store, which is reset on every block during Commit
-	objectKey storetypes.StoreKey
+	// KVStore Keys for modules wired to app
+	storeKeys map[string]*storetypes.KVStoreKey
+
+	// key to access the transient store, which is reset on every block during Commit
+	transientKey storetypes.StoreKey
 
 	// the address capable of executing a MsgUpdateParams message. Typically, this should be the x/gov module account.
 	authority sdk.AccAddress
@@ -56,12 +59,14 @@ type Keeper struct {
 	// Legacy subspace
 	ss                paramstypes.Subspace
 	customContractFns []CustomContractFn
+	blockParamsCache  *EVMBlockConfig
 }
 
 // NewKeeper generates new evm module keeper
 func NewKeeper(
 	cdc codec.Codec,
-	storeKey, objectKey storetypes.StoreKey,
+	storeKey, transientKey storetypes.StoreKey,
+	keys map[string]*storetypes.KVStoreKey,
 	authority sdk.AccAddress,
 	ak types.AccountKeeper,
 	bankKeeper types.BankKeeper,
@@ -87,7 +92,8 @@ func NewKeeper(
 		bankKeeper:        bankKeeper,
 		stakingKeeper:     sk,
 		storeKey:          storeKey,
-		objectKey:         objectKey,
+		transientKey:      transientKey,
+		storeKeys:         keys,
 		ss:                ss,
 		customContractFns: customContractFns,
 	}
@@ -232,4 +238,9 @@ func (k *Keeper) GetEVMDenomBalance(ctx sdk.Context, addr common.Address) *big.I
 // GetBalance load account's balance of specified denom
 func (k *Keeper) GetBalance(ctx sdk.Context, addr sdk.AccAddress, denom string) *big.Int {
 	return k.bankKeeper.GetBalance(ctx, addr, denom).Amount.BigInt()
+}
+
+// KVStoreKeys returns KVStore keys injected to keeper
+func (k Keeper) KVStoreKeys() map[string]*storetypes.KVStoreKey {
+	return k.storeKeys
 }

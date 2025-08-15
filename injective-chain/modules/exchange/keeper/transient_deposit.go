@@ -36,14 +36,19 @@ func (k *Keeper) EmitAllTransientDepositUpdates(
 	store := k.getTransientStore(ctx)
 	depositStore := prefix.NewStore(store, types.DepositsPrefix)
 
+	iterator := depositStore.Iterator(nil, nil)
+	defer iterator.Close()
+
 	subaccountDeposits := make(map[string][]*v2.SubaccountDeposit)
+
 	denoms := make([]string, 0)
 
-	iterateSafe(depositStore.Iterator(nil, nil), func(key, value []byte) bool {
+	for ; iterator.Valid(); iterator.Next() {
 		var deposit v2.Deposit
-		k.cdc.MustUnmarshal(value, &deposit)
+		bz := iterator.Value()
+		k.cdc.MustUnmarshal(bz, &deposit)
 
-		subaccountID, denom := types.ParseDepositStoreKey(key)
+		subaccountID, denom := types.ParseDepositStoreKey(iterator.Key())
 
 		subaccountDeposit := &v2.SubaccountDeposit{
 			SubaccountId: subaccountID.Bytes(),
@@ -55,9 +60,8 @@ func (k *Keeper) EmitAllTransientDepositUpdates(
 			subaccountDeposits[denom] = []*v2.SubaccountDeposit{subaccountDeposit}
 			denoms = append(denoms, denom)
 		}
-
-		return false
-	})
+	}
+	iterator.Close()
 
 	if len(denoms) > 0 {
 		depositUpdates := make([]*v2.DepositUpdate, len(denoms))

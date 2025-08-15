@@ -189,14 +189,16 @@ func (k *Keeper) IterateSpotMarketParamUpdates(ctx sdk.Context, process func(*v2
 
 	store := k.getTransientStore(ctx)
 	paramUpdateStore := prefix.NewStore(store, types.SpotMarketParamUpdateScheduleKey)
-	proposals := []*v2.SpotMarketParamUpdateProposal{}
 
-	iterateSafe(paramUpdateStore.Iterator(nil, nil), func(_, v []byte) bool {
+	iterator := paramUpdateStore.Iterator(nil, nil)
+	proposals := []*v2.SpotMarketParamUpdateProposal{}
+	for ; iterator.Valid(); iterator.Next() {
 		var proposal v2.SpotMarketParamUpdateProposal
-		k.cdc.MustUnmarshal(v, &proposal)
+		bz := iterator.Value()
+		k.cdc.MustUnmarshal(bz, &proposal)
 		proposals = append(proposals, &proposal)
-		return false
-	})
+	}
+	iterator.Close()
 
 	for _, proposal := range proposals {
 		if process(proposal) {

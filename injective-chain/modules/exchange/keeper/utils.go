@@ -10,7 +10,6 @@ import (
 
 	"cosmossdk.io/collections"
 	"cosmossdk.io/math"
-	storetypes "cosmossdk.io/store/types"
 	"github.com/InjectiveLabs/metrics"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/tx"
@@ -28,10 +27,7 @@ func CheckIfExceedDecimals(dec math.LegacyDec, maxDecimals uint32) bool {
 }
 
 // GetIsOrderLess returns true if the order is less than the other order
-func GetIsOrderLess(
-	referencePrice, order1Price, order2Price math.LegacyDec,
-	order1IsBuy, order2IsBuy, isSortingFromWorstToBest bool, //revive:disable:flag-parameter // we are keeping this logic for now
-) bool {
+func GetIsOrderLess(referencePrice, order1Price, order2Price math.LegacyDec, order1IsBuy, order2IsBuy, isSortingFromWorstToBest bool) bool {
 	var firstDistanceToReferencePrice, secondDistanceToReferencePrice math.LegacyDec
 
 	if order1IsBuy {
@@ -182,8 +178,7 @@ func ReadFile(path string) []byte {
 	return b
 }
 
-// GetReadableSlice is a test utility function to return a readable representation of any arbitrary slice,
-// by applying formatter function to each slice element
+// GetReadableSlice is a test utility function to return a readable representation of any arbitrary slice, by applying formatter function to each slice element
 func GetReadableSlice[T any](slice []T, sep string, formatter func(T) string) string {
 	stringsArr := make([]string, len(slice))
 	for i, t := range slice {
@@ -312,26 +307,26 @@ func AddBitToPrefix(prefix []byte) []byte {
 	return newPrefix
 }
 
-func NewV1MarketVolumeFromV2(valuesConverter ChainValuesConverter, v2MarketVolume v2.MarketVolume) types.MarketVolume {
+func NewV1MarketVolumeFromV2(market MarketInterface, v2MarketVolume v2.MarketVolume) types.MarketVolume {
 	return types.MarketVolume{
 		MarketId: v2MarketVolume.MarketId,
-		Volume:   NewV1VolumeRecordFromV2(valuesConverter, v2MarketVolume.Volume),
+		Volume:   NewV1VolumeRecordFromV2(market, v2MarketVolume.Volume),
 	}
 }
 
-func NewV1VolumeRecordFromV2(valuesConverter ChainValuesConverter, v2VolumeRecord v2.VolumeRecord) types.VolumeRecord {
-	chainFormatMakerVolume := valuesConverter.NotionalToChainFormat(v2VolumeRecord.MakerVolume)
-	chainFormatTakerVolume := valuesConverter.NotionalToChainFormat(v2VolumeRecord.TakerVolume)
+func NewV1VolumeRecordFromV2(market MarketInterface, v2VolumeRecord v2.VolumeRecord) types.VolumeRecord {
+	chainFormatMakerVolume := market.NotionalToChainFormat(v2VolumeRecord.MakerVolume)
+	chainFormatTakerVolume := market.NotionalToChainFormat(v2VolumeRecord.TakerVolume)
 	return types.VolumeRecord{
 		MakerVolume: chainFormatMakerVolume,
 		TakerVolume: chainFormatTakerVolume,
 	}
 }
 
-func NewV1SpotMarketFromV2(valuesConverter ChainValuesConverter, spotMarket v2.SpotMarket) types.SpotMarket {
-	chainFormattedMinPriceTickSize := valuesConverter.PriceToChainFormat(spotMarket.MinPriceTickSize)
-	chainFormattedMinQuantityTickSize := valuesConverter.QuantityToChainFormat(spotMarket.MinQuantityTickSize)
-	chainFormattedMinNotional := valuesConverter.NotionalToChainFormat(spotMarket.MinNotional)
+func NewV1SpotMarketFromV2(spotMarket v2.SpotMarket) types.SpotMarket {
+	chainFormattedMinPriceTickSize := spotMarket.PriceToChainFormat(spotMarket.MinPriceTickSize)
+	chainFormattedMinQuantityTickSize := spotMarket.QuantityToChainFormat(spotMarket.MinQuantityTickSize)
+	chainFormattedMinNotional := spotMarket.NotionalToChainFormat(spotMarket.MinNotional)
 	return types.SpotMarket{
 		Ticker:              spotMarket.Ticker,
 		BaseDenom:           spotMarket.BaseDenom,
@@ -351,36 +346,36 @@ func NewV1SpotMarketFromV2(valuesConverter ChainValuesConverter, spotMarket v2.S
 	}
 }
 
-func NewV1DerivativeMarketOrderFromV2(valuesConverter ChainValuesConverter, order v2.DerivativeMarketOrder) types.DerivativeMarketOrder {
-	v1OrderInfo := NewV1OrderInfoFromV2(valuesConverter, order.OrderInfo)
+func NewV1DerivativeMarketOrderFromV2(market MarketInterface, order v2.DerivativeMarketOrder) types.DerivativeMarketOrder {
+	v1OrderInfo := NewV1OrderInfoFromV2(market, order.OrderInfo)
 	v1Order := types.DerivativeMarketOrder{
 		OrderInfo:  v1OrderInfo,
 		OrderType:  types.OrderType(order.OrderType),
-		Margin:     valuesConverter.NotionalToChainFormat(order.Margin),
-		MarginHold: valuesConverter.NotionalToChainFormat(order.MarginHold),
+		Margin:     market.NotionalToChainFormat(order.Margin),
+		MarginHold: market.NotionalToChainFormat(order.MarginHold),
 		OrderHash:  order.OrderHash,
 	}
 
 	if order.TriggerPrice != nil {
-		chainFormatTriggerPrice := valuesConverter.PriceToChainFormat(*order.TriggerPrice)
+		chainFormatTriggerPrice := market.PriceToChainFormat(*order.TriggerPrice)
 		v1Order.TriggerPrice = &chainFormatTriggerPrice
 	}
 
 	return v1Order
 }
 
-func NewV1DerivativeLimitOrderFromV2(valuesConverter ChainValuesConverter, order v2.DerivativeLimitOrder) types.DerivativeLimitOrder {
-	v1OrderInfo := NewV1OrderInfoFromV2(valuesConverter, order.OrderInfo)
+func NewV1DerivativeLimitOrderFromV2(market MarketInterface, order v2.DerivativeLimitOrder) types.DerivativeLimitOrder {
+	v1OrderInfo := NewV1OrderInfoFromV2(market, order.OrderInfo)
 	v1Order := types.DerivativeLimitOrder{
 		OrderInfo: v1OrderInfo,
 		OrderType: types.OrderType(order.OrderType),
-		Margin:    valuesConverter.NotionalToChainFormat(order.Margin),
-		Fillable:  valuesConverter.QuantityToChainFormat(order.Fillable),
+		Margin:    market.NotionalToChainFormat(order.Margin),
+		Fillable:  order.Fillable,
 		OrderHash: order.OrderHash,
 	}
 
 	if order.TriggerPrice != nil {
-		chainFormatTriggerPrice := valuesConverter.PriceToChainFormat(*order.TriggerPrice)
+		chainFormatTriggerPrice := market.PriceToChainFormat(*order.TriggerPrice)
 		v1Order.TriggerPrice = &chainFormatTriggerPrice
 	}
 
@@ -388,24 +383,21 @@ func NewV1DerivativeLimitOrderFromV2(valuesConverter ChainValuesConverter, order
 }
 
 func NewV1ExpiryFuturesMarketInfoStateFromV2(
-	valuesConverter ChainValuesConverter, marketInfoState v2.ExpiryFuturesMarketInfoState,
+	market v2.DerivativeMarket, marketInfoState v2.ExpiryFuturesMarketInfoState,
 ) types.ExpiryFuturesMarketInfoState {
 	v1State := types.ExpiryFuturesMarketInfoState{
 		MarketId: marketInfoState.MarketId,
 	}
 
 	if marketInfoState.MarketInfo != nil {
-		v1MarketInfo := NewV1ExpiryFuturesMarketInfoFromV2(valuesConverter, *marketInfoState.MarketInfo)
+		v1MarketInfo := NewV1ExpiryFuturesMarketInfoFromV2(market, *marketInfoState.MarketInfo)
 		v1State.MarketInfo = &v1MarketInfo
 	}
 
 	return v1State
 }
 
-func NewV1ExpiryFuturesMarketInfoFromV2(
-	valuesConverter ChainValuesConverter,
-	marketInfo v2.ExpiryFuturesMarketInfo,
-) types.ExpiryFuturesMarketInfo {
+func NewV1ExpiryFuturesMarketInfoFromV2(market v2.DerivativeMarket, marketInfo v2.ExpiryFuturesMarketInfo) types.ExpiryFuturesMarketInfo {
 	v1MarketInfo := types.ExpiryFuturesMarketInfo{
 		MarketId:            marketInfo.MarketId,
 		ExpirationTimestamp: marketInfo.ExpirationTimestamp,
@@ -413,41 +405,41 @@ func NewV1ExpiryFuturesMarketInfoFromV2(
 	}
 
 	if !marketInfo.ExpirationTwapStartPriceCumulative.IsNil() {
-		v1MarketInfo.ExpirationTwapStartPriceCumulative = valuesConverter.PriceToChainFormat(marketInfo.ExpirationTwapStartPriceCumulative)
+		v1MarketInfo.ExpirationTwapStartPriceCumulative = market.PriceToChainFormat(marketInfo.ExpirationTwapStartPriceCumulative)
 	}
 
 	if !marketInfo.SettlementPrice.IsNil() {
-		v1MarketInfo.SettlementPrice = valuesConverter.PriceToChainFormat(marketInfo.SettlementPrice)
+		v1MarketInfo.SettlementPrice = market.PriceToChainFormat(marketInfo.SettlementPrice)
 	}
 
 	return v1MarketInfo
 }
 
-func NewV1DerivativePositonFromV2(valuesConverter ChainValuesConverter, position v2.DerivativePosition) types.DerivativePosition {
+func NewV1DerivativePositonFromV2(market MarketInterface, position v2.DerivativePosition) types.DerivativePosition {
 	v1DerivativePosition := types.DerivativePosition{
 		SubaccountId: position.SubaccountId,
 		MarketId:     position.MarketId,
 	}
 
 	if position.Position != nil {
-		v1Position := NewV1PositionFromV2(valuesConverter, *position.Position)
+		v1Position := NewV1PositionFromV2(market, *position.Position)
 		v1DerivativePosition.Position = &v1Position
 	}
 
 	return v1DerivativePosition
 }
 
-func NewV1PositionFromV2(valuesConverter ChainValuesConverter, position v2.Position) types.Position {
+func NewV1PositionFromV2(market MarketInterface, position v2.Position) types.Position {
 	return types.Position{
 		IsLong:                 position.IsLong,
-		Quantity:               valuesConverter.QuantityToChainFormat(position.Quantity),
-		EntryPrice:             valuesConverter.PriceToChainFormat(position.EntryPrice),
-		Margin:                 valuesConverter.NotionalToChainFormat(position.Margin),
-		CumulativeFundingEntry: valuesConverter.NotionalToChainFormat(position.CumulativeFundingEntry),
+		Quantity:               market.QuantityToChainFormat(position.Quantity),
+		EntryPrice:             market.PriceToChainFormat(position.EntryPrice),
+		Margin:                 market.NotionalToChainFormat(position.Margin),
+		CumulativeFundingEntry: market.NotionalToChainFormat(position.CumulativeFundingEntry),
 	}
 }
 
-func NewV1DerivativeMarketFromV2(valuesConverter ChainValuesConverter, derivativeMarket v2.DerivativeMarket) types.DerivativeMarket {
+func NewV1DerivativeMarketFromV2(derivativeMarket v2.DerivativeMarket) types.DerivativeMarket {
 	return types.DerivativeMarket{
 		Ticker:                 derivativeMarket.Ticker,
 		OracleBase:             derivativeMarket.OracleBase,
@@ -463,9 +455,9 @@ func NewV1DerivativeMarketFromV2(valuesConverter ChainValuesConverter, derivativ
 		RelayerFeeShareRate:    derivativeMarket.RelayerFeeShareRate,
 		IsPerpetual:            derivativeMarket.IsPerpetual,
 		Status:                 types.MarketStatus(derivativeMarket.Status),
-		MinPriceTickSize:       valuesConverter.PriceToChainFormat(derivativeMarket.MinPriceTickSize),
-		MinQuantityTickSize:    valuesConverter.QuantityToChainFormat(derivativeMarket.MinQuantityTickSize),
-		MinNotional:            valuesConverter.NotionalToChainFormat(derivativeMarket.MinNotional),
+		MinPriceTickSize:       derivativeMarket.PriceToChainFormat(derivativeMarket.MinPriceTickSize),
+		MinQuantityTickSize:    derivativeMarket.QuantityToChainFormat(derivativeMarket.MinQuantityTickSize),
+		MinNotional:            derivativeMarket.NotionalToChainFormat(derivativeMarket.MinNotional),
 		Admin:                  derivativeMarket.Admin,
 		AdminPermissions:       derivativeMarket.AdminPermissions,
 		QuoteDecimals:          derivativeMarket.QuoteDecimals,
@@ -474,55 +466,48 @@ func NewV1DerivativeMarketFromV2(valuesConverter ChainValuesConverter, derivativ
 }
 
 func NewV1PerpetualMarketFundingStateFromV2(
-	valuesConverter ChainValuesConverter, fundingState v2.PerpetualMarketFundingState,
+	market v2.DerivativeMarket, fundingState v2.PerpetualMarketFundingState,
 ) types.PerpetualMarketFundingState {
 	v1State := types.PerpetualMarketFundingState{
 		MarketId: fundingState.MarketId,
 	}
 
 	if fundingState.Funding != nil {
-		v1Funding := NewV1PerpetualMarketFundingFromV2(valuesConverter, *fundingState.Funding)
+		v1Funding := NewV1PerpetualMarketFundingFromV2(market, *fundingState.Funding)
 		v1State.Funding = &v1Funding
 	}
 
 	return v1State
 }
 
-func NewV1PerpetualMarketFundingFromV2(
-	valuesConverter ChainValuesConverter,
-	funding v2.PerpetualMarketFunding,
-) types.PerpetualMarketFunding {
+func NewV1PerpetualMarketFundingFromV2(market v2.DerivativeMarket, funding v2.PerpetualMarketFunding) types.PerpetualMarketFunding {
 	return types.PerpetualMarketFunding{
-		CumulativeFunding: valuesConverter.NotionalToChainFormat(funding.CumulativeFunding),
-		// cumulative_price defines the running time-integral of the perp premium
-		// ((VWAP - mark_price) / mark_price) i.e., sum(premium * seconds)
-		// used to compute the interval’s average premium for funding
-		// NO CONVERSION REQUIRED
-		CumulativePrice: funding.CumulativePrice,
-		LastTimestamp:   funding.LastTimestamp,
+		CumulativeFunding: market.NotionalToChainFormat(funding.CumulativeFunding),
+		CumulativePrice:   market.PriceToChainFormat(funding.CumulativePrice),
+		LastTimestamp:     funding.LastTimestamp,
 	}
 }
 
 func NewV1DerivativeMarketSettlementInfoFromV2(
-	valuesConverter ChainValuesConverter, settlementInfo v2.DerivativeMarketSettlementInfo,
+	market v2.DerivativeMarket, settlementInfo v2.DerivativeMarketSettlementInfo,
 ) types.DerivativeMarketSettlementInfo {
 	return types.DerivativeMarketSettlementInfo{
 		MarketId:        settlementInfo.MarketId,
-		SettlementPrice: valuesConverter.PriceToChainFormat(settlementInfo.SettlementPrice),
+		SettlementPrice: market.PriceToChainFormat(settlementInfo.SettlementPrice),
 	}
 }
 
-func NewV1SpotLimitOrderFromV2(valuesConverter ChainValuesConverter, order v2.SpotLimitOrder) types.SpotLimitOrder {
-	v1OrderInfo := NewV1OrderInfoFromV2(valuesConverter, order.OrderInfo)
+func NewV1SpotLimitOrderFromV2(market v2.SpotMarket, order v2.SpotLimitOrder) types.SpotLimitOrder {
+	v1OrderInfo := NewV1OrderInfoFromV2(&market, order.OrderInfo)
 	v1Order := types.SpotLimitOrder{
 		OrderInfo: v1OrderInfo,
 		OrderType: types.OrderType(order.OrderType),
-		Fillable:  valuesConverter.QuantityToChainFormat(order.Fillable),
+		Fillable:  market.QuantityToChainFormat(order.Fillable),
 		OrderHash: order.OrderHash,
 	}
 
 	if order.TriggerPrice != nil {
-		chainFormatTriggerPrice := valuesConverter.PriceToChainFormat(*order.TriggerPrice)
+		chainFormatTriggerPrice := market.PriceToChainFormat(*order.TriggerPrice)
 		v1Order.TriggerPrice = &chainFormatTriggerPrice
 	}
 
@@ -545,64 +530,61 @@ func NewV2SpotOrderFromV1(market MarketInterface, order types.SpotOrder) *v2.Spo
 	return &v2Order
 }
 
-func NewV1FullSpotMarketFromV2(valuesConverter ChainValuesConverter, fullSpotMarket v2.FullSpotMarket) types.FullSpotMarket {
+func NewV1FullSpotMarketFromV2(fullSpotMarket v2.FullSpotMarket) types.FullSpotMarket {
 	newFullSpotMarket := types.FullSpotMarket{}
 
 	if fullSpotMarket.Market != nil {
-		v1SpotMarket := NewV1SpotMarketFromV2(valuesConverter, *fullSpotMarket.Market)
+		v1SpotMarket := NewV1SpotMarketFromV2(*fullSpotMarket.Market)
 		newFullSpotMarket.Market = &v1SpotMarket
 	}
 
 	if fullSpotMarket.MidPriceAndTob != nil {
-		v1MidPriceAndTOB := NewV1MidPriceAndTOBFromV2(valuesConverter, *fullSpotMarket.MidPriceAndTob)
+		v1MidPriceAndTOB := NewV1MidPriceAndTOBFromV2(fullSpotMarket.Market, *fullSpotMarket.MidPriceAndTob)
 		newFullSpotMarket.MidPriceAndTob = &v1MidPriceAndTOB
 	}
 
 	return newFullSpotMarket
 }
 
-func NewV1FullDerivativeMarketFromV2(
-	valuesConverter ChainValuesConverter,
-	fullDerivativeMarket v2.FullDerivativeMarket,
-) types.FullDerivativeMarket {
+func NewV1FullDerivativeMarketFromV2(fullDerivativeMarket v2.FullDerivativeMarket) types.FullDerivativeMarket {
 	v1FullMarket := types.FullDerivativeMarket{}
 
 	switch info := fullDerivativeMarket.Info.(type) {
 	case *v2.FullDerivativeMarket_FuturesInfo:
-		v1FuturesInfo := NewV1FuturesInfoFromV2(valuesConverter, *info)
+		v1FuturesInfo := NewV1FuturesInfoFromV2(fullDerivativeMarket.Market, *info)
 		v1FullMarket.Info = &v1FuturesInfo
 	case *v2.FullDerivativeMarket_PerpetualInfo:
-		v1PerpetualInfo := NewV1PerpetualInfoFromV2(valuesConverter, *info)
+		v1PerpetualInfo := NewV1PerpetualInfoFromV2(fullDerivativeMarket.Market, *info)
 		v1FullMarket.Info = &v1PerpetualInfo
 	}
 
-	if fullDerivativeMarket.Market != nil {
-		v1DerivativeMarket := NewV1DerivativeMarketFromV2(valuesConverter, *fullDerivativeMarket.Market)
-		v1FullMarket.Market = &v1DerivativeMarket
+	v1FullMarket.MarkPrice = fullDerivativeMarket.Market.PriceToChainFormat(fullDerivativeMarket.MarkPrice)
 
-		v1FullMarket.MarkPrice = valuesConverter.PriceToChainFormat(fullDerivativeMarket.MarkPrice)
+	if fullDerivativeMarket.Market != nil {
+		v1DerivativeMarket := NewV1DerivativeMarketFromV2(*fullDerivativeMarket.Market)
+		v1FullMarket.Market = &v1DerivativeMarket
 	}
 
 	if fullDerivativeMarket.MidPriceAndTob != nil {
-		v1MidPriceAndTOB := NewV1MidPriceAndTOBFromV2(valuesConverter, *fullDerivativeMarket.MidPriceAndTob)
+		v1MidPriceAndTOB := NewV1MidPriceAndTOBFromV2(fullDerivativeMarket.Market, *fullDerivativeMarket.MidPriceAndTob)
 		v1FullMarket.MidPriceAndTob = &v1MidPriceAndTOB
 	}
 
 	return v1FullMarket
 }
 
-func NewV1MidPriceAndTOBFromV2(valuesConverter ChainValuesConverter, midPriceAndTOB v2.MidPriceAndTOB) types.MidPriceAndTOB {
+func NewV1MidPriceAndTOBFromV2(market MarketInterface, midPriceAndTOB v2.MidPriceAndTOB) types.MidPriceAndTOB {
 	var v1MidPrice, v1BestBuyPrice, v1BestSellPrice *math.LegacyDec
 	if midPriceAndTOB.MidPrice != nil {
-		chainFormatMidPrice := valuesConverter.PriceToChainFormat(*midPriceAndTOB.MidPrice)
+		chainFormatMidPrice := market.PriceToChainFormat(*midPriceAndTOB.MidPrice)
 		v1MidPrice = &chainFormatMidPrice
 	}
 	if midPriceAndTOB.BestBuyPrice != nil {
-		chainFormatBestBuyPrice := valuesConverter.PriceToChainFormat(*midPriceAndTOB.BestBuyPrice)
+		chainFormatBestBuyPrice := market.PriceToChainFormat(*midPriceAndTOB.BestBuyPrice)
 		v1BestBuyPrice = &chainFormatBestBuyPrice
 	}
 	if midPriceAndTOB.BestSellPrice != nil {
-		chainFormatBestSellPrice := valuesConverter.PriceToChainFormat(*midPriceAndTOB.BestSellPrice)
+		chainFormatBestSellPrice := market.PriceToChainFormat(*midPriceAndTOB.BestSellPrice)
 		v1BestSellPrice = &chainFormatBestSellPrice
 	}
 	return types.MidPriceAndTOB{
@@ -612,21 +594,23 @@ func NewV1MidPriceAndTOBFromV2(valuesConverter ChainValuesConverter, midPriceAnd
 	}
 }
 
-func NewV1FuturesInfoFromV2(
-	valuesConverter ChainValuesConverter,
-	info v2.FullDerivativeMarket_FuturesInfo,
-) types.FullDerivativeMarket_FuturesInfo {
+func NewV1FuturesInfoFromV2(market MarketInterface, info v2.FullDerivativeMarket_FuturesInfo) types.FullDerivativeMarket_FuturesInfo {
 	v1FullFuturesInfo := types.FullDerivativeMarket_FuturesInfo{}
 
 	if info.FuturesInfo != nil {
-		v1FuturesInfo := NewV1ExpiryFuturesMarketInfoFromV2(valuesConverter, *info.FuturesInfo)
-		v1FullFuturesInfo.FuturesInfo = &v1FuturesInfo
+		v1FullFuturesInfo.FuturesInfo = &types.ExpiryFuturesMarketInfo{
+			MarketId:                           info.FuturesInfo.MarketId,
+			ExpirationTimestamp:                info.FuturesInfo.ExpirationTimestamp,
+			TwapStartTimestamp:                 info.FuturesInfo.TwapStartTimestamp,
+			ExpirationTwapStartPriceCumulative: market.PriceToChainFormat(info.FuturesInfo.ExpirationTwapStartPriceCumulative),
+			SettlementPrice:                    market.PriceToChainFormat(info.FuturesInfo.SettlementPrice),
+		}
 	}
 	return v1FullFuturesInfo
 }
 
 func NewV1PerpetualInfoFromV2(
-	valuesConverter ChainValuesConverter, perpetualInfo v2.FullDerivativeMarket_PerpetualInfo,
+	market MarketInterface, perpetualInfo v2.FullDerivativeMarket_PerpetualInfo,
 ) types.FullDerivativeMarket_PerpetualInfo {
 	v1PerpetualInfo := types.FullDerivativeMarket_PerpetualInfo{}
 
@@ -637,13 +621,21 @@ func NewV1PerpetualInfoFromV2(
 			v1PerpetualMarketState.MarketInfo = &v1PerpetualMarketInfo
 		}
 		if perpetualInfo.PerpetualInfo.FundingInfo != nil {
-			v1FundingInfo := NewV1PerpetualMarketFundingFromV2(valuesConverter, *perpetualInfo.PerpetualInfo.FundingInfo)
+			v1FundingInfo := NewV1FundingInfoFromV2(market, *perpetualInfo.PerpetualInfo.FundingInfo)
 			v1PerpetualMarketState.FundingInfo = &v1FundingInfo
 		}
 		v1PerpetualInfo.PerpetualInfo = &v1PerpetualMarketState
 	}
 
 	return v1PerpetualInfo
+}
+
+func NewV1FundingInfoFromV2(market MarketInterface, fundingInfo v2.PerpetualMarketFunding) types.PerpetualMarketFunding {
+	return types.PerpetualMarketFunding{
+		CumulativeFunding: market.NotionalToChainFormat(fundingInfo.CumulativeFunding),
+		CumulativePrice:   market.PriceToChainFormat(fundingInfo.CumulativePrice),
+		LastTimestamp:     fundingInfo.LastTimestamp,
+	}
 }
 
 func NewV1PerpetualMarketInfoFromV2(perpetualMarketInfo v2.PerpetualMarketInfo) types.PerpetualMarketInfo {
@@ -657,12 +649,12 @@ func NewV1PerpetualMarketInfoFromV2(perpetualMarketInfo v2.PerpetualMarketInfo) 
 }
 
 func NewV1TrimmedDerivativeLimitOrderFromV2(
-	valuesConverter ChainValuesConverter, trimmedOrder v2.TrimmedDerivativeLimitOrder,
+	market MarketInterface, trimmedOrder v2.TrimmedDerivativeLimitOrder,
 ) types.TrimmedDerivativeLimitOrder {
-	chainFormatPrice := valuesConverter.PriceToChainFormat(trimmedOrder.Price)
-	chainFormatQuantity := valuesConverter.QuantityToChainFormat(trimmedOrder.Quantity)
-	chainFormatMargin := valuesConverter.NotionalToChainFormat(trimmedOrder.Margin)
-	chainFormatFillable := valuesConverter.QuantityToChainFormat(trimmedOrder.Fillable)
+	chainFormatPrice := market.PriceToChainFormat(trimmedOrder.Price)
+	chainFormatQuantity := market.QuantityToChainFormat(trimmedOrder.Quantity)
+	chainFormatMargin := market.NotionalToChainFormat(trimmedOrder.Margin)
+	chainFormatFillable := market.QuantityToChainFormat(trimmedOrder.Fillable)
 	return types.TrimmedDerivativeLimitOrder{
 		Price:     chainFormatPrice,
 		Quantity:  chainFormatQuantity,
@@ -674,21 +666,18 @@ func NewV1TrimmedDerivativeLimitOrderFromV2(
 	}
 }
 
-func NewV1TrimmedSpotLimitOrderFromV2(
-	valuesConverter ChainValuesConverter,
-	trimmedOrder *v2.TrimmedSpotLimitOrder,
-) *types.TrimmedSpotLimitOrder {
+func NewV1TrimmedSpotLimitOrderFromV2(market MarketInterface, trimmedOrder *v2.TrimmedSpotLimitOrder) *types.TrimmedSpotLimitOrder {
 	return &types.TrimmedSpotLimitOrder{
-		Price:     valuesConverter.PriceToChainFormat(trimmedOrder.Price),
-		Quantity:  valuesConverter.QuantityToChainFormat(trimmedOrder.Quantity),
-		Fillable:  valuesConverter.QuantityToChainFormat(trimmedOrder.Fillable),
+		Price:     market.PriceToChainFormat(trimmedOrder.Price),
+		Quantity:  market.QuantityToChainFormat(trimmedOrder.Quantity),
+		Fillable:  market.QuantityToChainFormat(trimmedOrder.Fillable),
 		IsBuy:     trimmedOrder.IsBuy,
 		OrderHash: trimmedOrder.OrderHash,
 		Cid:       trimmedOrder.Cid,
 	}
 }
 
-func NewV1BinaryOptionsMarketFromV2(valuesConverter ChainValuesConverter, market v2.BinaryOptionsMarket) types.BinaryOptionsMarket {
+func NewV1BinaryOptionsMarketFromV2(market v2.BinaryOptionsMarket) types.BinaryOptionsMarket {
 	v1Market := types.BinaryOptionsMarket{
 		Ticker:              market.Ticker,
 		OracleSymbol:        market.OracleSymbol,
@@ -704,15 +693,15 @@ func NewV1BinaryOptionsMarketFromV2(valuesConverter ChainValuesConverter, market
 		TakerFeeRate:        market.TakerFeeRate,
 		RelayerFeeShareRate: market.RelayerFeeShareRate,
 		Status:              types.MarketStatus(market.Status),
-		MinPriceTickSize:    valuesConverter.PriceToChainFormat(market.MinPriceTickSize),
-		MinQuantityTickSize: valuesConverter.QuantityToChainFormat(market.MinQuantityTickSize),
-		MinNotional:         valuesConverter.NotionalToChainFormat(market.MinNotional),
+		MinPriceTickSize:    market.PriceToChainFormat(market.MinPriceTickSize),
+		MinQuantityTickSize: market.QuantityToChainFormat(market.MinQuantityTickSize),
+		MinNotional:         market.NotionalToChainFormat(market.MinNotional),
 		AdminPermissions:    market.AdminPermissions,
 		QuoteDecimals:       market.QuoteDecimals,
 	}
 
 	if market.SettlementPrice != nil {
-		chainFormatSettlementPrice := valuesConverter.PriceToChainFormat(*market.SettlementPrice)
+		chainFormatSettlementPrice := market.PriceToChainFormat(*market.SettlementPrice)
 		v1Market.SettlementPrice = &chainFormatSettlementPrice
 	}
 
@@ -753,25 +742,25 @@ func NewV1ExchangeParamsFromV2(params v2.Params) types.Params {
 	}
 }
 
-func NewV1OrderInfoFromV2(valuesConverter ChainValuesConverter, orderInfo v2.OrderInfo) types.OrderInfo {
+func NewV1OrderInfoFromV2(market MarketInterface, orderInfo v2.OrderInfo) types.OrderInfo {
 	return types.OrderInfo{
 		SubaccountId: orderInfo.SubaccountId,
 		FeeRecipient: orderInfo.FeeRecipient,
-		Price:        valuesConverter.PriceToChainFormat(orderInfo.Price),
-		Quantity:     valuesConverter.QuantityToChainFormat(orderInfo.Quantity),
+		Price:        market.PriceToChainFormat(orderInfo.Price),
+		Quantity:     market.QuantityToChainFormat(orderInfo.Quantity),
 		Cid:          orderInfo.Cid,
 	}
 }
 
-func NewV1SubaccountOrderDataFromV2(valuesConverter ChainValuesConverter, orderData *v2.SubaccountOrderData) *types.SubaccountOrderData {
+func NewV1SubaccountOrderDataFromV2(market MarketInterface, orderData *v2.SubaccountOrderData) *types.SubaccountOrderData {
 	v1OrderData := types.SubaccountOrderData{
 		OrderHash: orderData.OrderHash,
 	}
 
 	if orderData.Order != nil {
 		v1Order := &types.SubaccountOrder{
-			Price:        valuesConverter.PriceToChainFormat(orderData.Order.Price),
-			Quantity:     valuesConverter.QuantityToChainFormat(orderData.Order.Quantity),
+			Price:        market.PriceToChainFormat(orderData.Order.Price),
+			Quantity:     market.QuantityToChainFormat(orderData.Order.Quantity),
 			IsReduceOnly: orderData.Order.IsReduceOnly,
 			Cid:          orderData.Order.Cid,
 		}
@@ -780,32 +769,32 @@ func NewV1SubaccountOrderDataFromV2(valuesConverter ChainValuesConverter, orderD
 	return &v1OrderData
 }
 
-func NewV1LevelFromV2(valuesConverter ChainValuesConverter, level *v2.Level) *types.Level {
+func NewV1LevelFromV2(market MarketInterface, level *v2.Level) *types.Level {
 	return &types.Level{
-		P: valuesConverter.PriceToChainFormat(level.P),
-		Q: valuesConverter.QuantityToChainFormat(level.Q),
+		P: market.PriceToChainFormat(level.P),
+		Q: market.QuantityToChainFormat(level.Q),
 	}
 }
 
-func NewV1TradeRecordsFromV2(valuesConverter ChainValuesConverter, tradeRecords v2.TradeRecords) types.TradeRecords {
+func NewV1TradeRecordsFromV2(market MarketInterface, tradeRecords v2.TradeRecords) types.TradeRecords {
 	v1TradeRecords := types.TradeRecords{
 		MarketId:           tradeRecords.MarketId,
 		LatestTradeRecords: make([]*types.TradeRecord, 0, len(tradeRecords.LatestTradeRecords)),
 	}
 
 	for _, tradeRecord := range tradeRecords.LatestTradeRecords {
-		v1TradeRecord := NewV1TradeRecordFromV2(valuesConverter, *tradeRecord)
+		v1TradeRecord := NewV1TradeRecordFromV2(market, *tradeRecord)
 		v1TradeRecords.LatestTradeRecords = append(v1TradeRecords.LatestTradeRecords, &v1TradeRecord)
 	}
 
 	return v1TradeRecords
 }
 
-func NewV1TradeRecordFromV2(valuesConverter ChainValuesConverter, record v2.TradeRecord) types.TradeRecord {
+func NewV1TradeRecordFromV2(market MarketInterface, record v2.TradeRecord) types.TradeRecord {
 	v1TradeRecord := types.TradeRecord{
 		Timestamp: record.Timestamp,
-		Price:     valuesConverter.PriceToChainFormat(record.Price),
-		Quantity:  valuesConverter.QuantityToChainFormat(record.Quantity),
+		Price:     market.PriceToChainFormat(record.Price),
+		Quantity:  market.QuantityToChainFormat(record.Quantity),
 	}
 
 	return v1TradeRecord
@@ -887,28 +876,4 @@ func NewV1TradingRewardCampaignInfoFromV2(campaignInfo *v2.TradingRewardCampaign
 	}
 
 	return v1CampaignInfo
-}
-
-type iterCb func(k, v []byte) (stop bool)
-
-// iterateSafe ensures the Iterator is closed even if the work done inside the callback panics.
-func iterateSafe(iter storetypes.Iterator, callback iterCb) {
-	defer iter.Close()
-	for ; iter.Valid(); iter.Next() {
-		if callback(iter.Key(), iter.Value()) {
-			return
-		}
-	}
-}
-
-type iterKeyCb func(k []byte) (stop bool)
-
-// iterateKeysSafe only iterates over keys and ensures the Iterator is closed even if the work done inside the callback panics.
-func iterateKeysSafe(iter storetypes.Iterator, callback iterKeyCb) {
-	defer iter.Close()
-	for ; iter.Valid(); iter.Next() {
-		if callback(iter.Key()) {
-			return
-		}
-	}
 }

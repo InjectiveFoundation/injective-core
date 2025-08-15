@@ -1,14 +1,12 @@
 package testutil
 
 import (
-	"encoding/binary"
 	"encoding/json"
 	"math/big"
 	"time"
 
 	coreheader "cosmossdk.io/core/header"
 	sdkmath "cosmossdk.io/math"
-	storetypes "cosmossdk.io/store/types"
 	abci "github.com/cometbft/cometbft/abci/types"
 	cmtproto "github.com/cometbft/cometbft/api/cometbft/types/v1"
 	cmtypes "github.com/cometbft/cometbft/types"
@@ -48,28 +46,16 @@ type BaseTestSuite struct {
 	App *app.InjectiveApp
 }
 
-func (suite *BaseTestSuite) MintFeeCollectorVirtual(coins sdk.Coins) {
-	// add some virtual balance to the fee collector for refunding
-	addVirtualCoins(
-		suite.Ctx.ObjectStore(suite.App.GetStoreKey(banktypes.ObjectStoreKey)),
-		suite.Ctx.TxIndex(),
-		authtypes.NewModuleAddress(authtypes.FeeCollectorName),
+func (suite *BaseTestSuite) MintFeeCollector(coins sdk.Coins) {
+	// add some balance to the fee collector for refunding
+	err := suite.App.BankKeeper.SendCoinsFromModuleToModule(
+		suite.Ctx,
+		banktypes.ModuleName,
+		authtypes.FeeCollectorName,
 		coins,
 	)
-}
 
-func addVirtualCoins(store storetypes.ObjKVStore, txIndex int, addr sdk.AccAddress, amt sdk.Coins) {
-	key := make([]byte, len(addr)+8)
-	copy(key, addr)
-	binary.BigEndian.PutUint64(key[len(addr):], uint64(txIndex))
-
-	var coins sdk.Coins
-	value := store.Get(key)
-	if value != nil {
-		coins = value.(sdk.Coins)
-	}
-	coins = coins.Add(amt...)
-	store.Set(key, coins)
+	suite.Require().NoError(err)
 }
 
 func (suite *BaseTestSuite) SetupTest() {

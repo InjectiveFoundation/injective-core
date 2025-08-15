@@ -270,7 +270,7 @@ func NewV1DerivativeTradeFromV2(derivativeTrade *v2.DerivativeTrade, market keep
 func NewV1SpotOrderUpdateFromV2(orderUpdate *v2.SpotOrderUpdate, market *v3.SpotMarket) *types2.SpotOrderUpdate {
 	v1SpotOrder := &types2.SpotOrder{
 		MarketId: orderUpdate.Order.MarketId,
-		Order:    keeper.NewV1SpotLimitOrderFromV2(market, orderUpdate.Order.Order),
+		Order:    keeper.NewV1SpotLimitOrderFromV2(*market, orderUpdate.Order.Order),
 	}
 	return &types2.SpotOrderUpdate{
 		Status:    types2.OrderUpdateStatus(orderUpdate.Status),

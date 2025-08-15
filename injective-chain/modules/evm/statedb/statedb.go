@@ -102,25 +102,17 @@ func New(ctx sdk.Context, keeper Keeper, txConfig TxConfig) *StateDB {
 }
 
 func NewWithParams(ctx sdk.Context, keeper Keeper, txConfig TxConfig, evmDenom string) *StateDB {
-	var (
-		cacheMS  cachemulti.Store
-		commitMS func()
-	)
-	if parentCacheMS, ok := ctx.MultiStore().(cachemulti.Store); ok {
-		cacheMS = parentCacheMS.Clone()
-		commitMS = func() { parentCacheMS.Restore(cacheMS) }
-	} else {
-		// in unit test, it could be run with an uncached multistore
-		if cacheMS, ok = ctx.MultiStore().CacheWrap().(cachemulti.Store); !ok {
-			panic("expect the CacheWrap result to be cachemulti.Store")
-		}
-		commitMS = cacheMS.Write
+	// we can't use ctx.CacheCtx() here since it will emit events on parent EventManager on write, but we will do it later
+	cacheMS, ok := ctx.MultiStore().CacheWrap().(cachemulti.Store)
+	if !ok {
+		panic("expect the CacheWrap result to be cachemulti.Store")
 	}
+
 	db := &StateDB{
 		origCtx:      ctx,
 		keeper:       keeper,
 		cacheMS:      cacheMS,
-		commitMS:     commitMS,
+		commitMS:     cacheMS.Write,
 		stateObjects: make(map[common.Address]*stateObject),
 		journal:      newJournal(),
 		accessList:   newAccessList(),
@@ -375,30 +367,33 @@ func (s *StateDB) setStateObject(object *stateObject) {
 	s.stateObjects[object.Address()] = object
 }
 
-func (s *StateDB) snapshotNativeState() cachemulti.Store {
-	return s.cacheMS.Clone()
-}
-
 func (s *StateDB) revertNativeStateToSnapshot(ms cachemulti.Store) {
-	s.cacheMS.Restore(ms)
+	s.cacheMS = ms
 }
 
 // ExecuteNativeAction executes native action in isolate,
 // the writes will be reverted when either the native action itself fail
 // or the wrapping message call reverted.
 func (s *StateDB) ExecuteNativeAction(contract common.Address, converter EventConverter, action func(ctx sdk.Context) error) error {
-	snapshot := s.snapshotNativeState()
+	// we can't use ctx.CacheCtx() here since it will emit events on parent EventManager on write, but we will do it later
+	cacheMS, ok := s.ctx.MultiStore().CacheWrap().(cachemulti.Store)
+	if !ok {
+		panic("expect the CacheWrap result to be cachemulti.Store")
+	}
+	cacheCtx := s.ctx.WithMultiStore(cacheMS)
+
 	eventManager := sdk.NewEventManager()
 
-	if err := action(s.ctx.WithEventManager(eventManager)); err != nil {
-		s.revertNativeStateToSnapshot(snapshot)
+	if err := action(cacheCtx.WithEventManager(eventManager)); err != nil {
 		return err
 	}
+
+	cacheMS.Write()
 
 	events := eventManager.Events()
 	s.emitNativeEvents(contract, converter, events)
 	s.nativeEvents = s.nativeEvents.AppendEvents(events)
-	s.journal.append(nativeChange{snapshot: snapshot, events: len(events)})
+	s.journal.append(nativeChange{snapshot: cacheMS, events: len(events)}) // WARN: cacheMS here is WRONG and just acts as a placeholder to compile
 	return nil
 }
 

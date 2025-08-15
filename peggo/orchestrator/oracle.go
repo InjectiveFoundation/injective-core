@@ -21,18 +21,16 @@ const (
 	// Maximum block range for Ethereum event query. If the orchestrator has been offline for a long time,
 	// the oracle loop can potentially run longer than defaultLoopDur due to a surge of events. This usually happens
 	// when there are more than ~50 events to claim in a single run.
-	defaultBlocksToSearch uint64 = 100
-
-	maxAmountOfEventsToRelayAtOnce = 20
+	defaultBlocksToSearch uint64 = 2000
 )
 
 // runOracle is responsible for making sure that Ethereum events are retrieved from the Ethereum blockchain
 // and ferried over to Cosmos where they will be used to issue tokens or process batches.
 func (s *Orchestrator) runOracle(ctx context.Context, lastObservedBlock uint64) error {
 	oracle := oracle{
-		Orchestrator:               s,
-		lastRecordedEthEventHeight: lastObservedBlock,
-		queryRange:                 defaultBlocksToSearch,
+		Orchestrator:            s,
+		lastObservedEthHeight:   lastObservedBlock,
+		lastResyncWithInjective: time.Now(),
 	}
 
 	s.logger.WithField("loop_duration", s.cfg.LoopDuration.String()).Debugln("starting Oracle...")
@@ -44,8 +42,8 @@ func (s *Orchestrator) runOracle(ctx context.Context, lastObservedBlock uint64) 
 
 type oracle struct {
 	*Orchestrator
-	lastRecordedEthEventHeight uint64
-	queryRange                 uint64
+	lastResyncWithInjective time.Time
+	lastObservedEthHeight   uint64
 }
 
 func (l *oracle) Log() log.Logger {
@@ -87,23 +85,19 @@ func (l *oracle) observeEthEvents(ctx context.Context) error {
 		return nil
 	}
 
-	// ensure that the latest block has minimum confirmations
+	// ensure that latest block has minimum confirmations
 	latestHeight = latestHeight - ethBlockConfirmationDelay
-	if latestHeight <= l.lastRecordedEthEventHeight {
-		l.Log().WithFields(log.Fields{
-			"latest":   latestHeight,
-			"observed": l.lastRecordedEthEventHeight},
-		).Debugln("latest Ethereum height already observed")
+	if latestHeight <= l.lastObservedEthHeight {
+		l.Log().WithFields(log.Fields{"latest": latestHeight, "observed": l.lastObservedEthHeight}).Debugln("latest Ethereum height already observed")
 		return nil
 	}
 
-	// ensure the block range is within query range
-	latestBlockAllowedForQuery := l.lastRecordedEthEventHeight + l.queryRange
-	if latestHeight > latestBlockAllowedForQuery {
-		latestHeight = latestBlockAllowedForQuery
+	// ensure the block range is within defaultBlocksToSearch
+	if latestHeight > l.lastObservedEthHeight+defaultBlocksToSearch {
+		latestHeight = l.lastObservedEthHeight + defaultBlocksToSearch
 	}
 
-	events, err := l.getEthEvents(ctx, l.lastRecordedEthEventHeight, latestHeight)
+	events, err := l.getEthEvents(ctx, l.lastObservedEthHeight, latestHeight)
 	if err != nil {
 		return err
 	}
@@ -119,32 +113,14 @@ func (l *oracle) observeEthEvents(ctx context.Context) error {
 	})
 
 	if len(newEvents) == 0 {
-		l.Log().WithFields(log.Fields{
-			"last_claimed_event_nonce": lastClaim.EthereumEventNonce,
-			"eth_block_start":          l.lastRecordedEthEventHeight,
-			"eth_block_end":            latestHeight,
-		}).Infoln("no new events on Ethereum")
-
-		l.lastRecordedEthEventHeight = latestHeight
-		l.resetQueryRange()
-
+		l.Log().WithFields(log.Fields{"last_claimed_event_nonce": lastClaim.EthereumEventNonce, "eth_block_start": l.lastObservedEthHeight, "eth_block_end": latestHeight}).Infoln("no new events on Ethereum")
+		l.lastObservedEthHeight = latestHeight
 		return nil
 	}
 
-	if len(newEvents) > maxAmountOfEventsToRelayAtOnce {
-		newEvents = newEvents[:maxAmountOfEventsToRelayAtOnce]
-		l.Log().WithField("new_events", len(newEvents)).Debugln("trimming number of new events to 20")
-	}
-
 	if expected, actual := lastClaim.EthereumEventNonce+1, newEvents[0].Nonce(); expected != actual {
-		l.Log().WithFields(log.Fields{
-			"expected":                 expected,
-			"actual":                   actual,
-			"last_claimed_event_nonce": lastClaim.EthereumEventNonce,
-		}).Debugln("orchestrator missed an Ethereum event. Restarting block search from last claim...")
-
-		l.lastRecordedEthEventHeight = lastClaim.EthereumEventHeight
-
+		l.Log().WithFields(log.Fields{"expected": expected, "actual": actual, "last_claimed_event_nonce": lastClaim.EthereumEventNonce}).Debugln("orchestrator missed an Ethereum event. Restarting block search from last attested claim...")
+		l.lastObservedEthHeight = lastClaim.EthereumEventHeight
 		return nil
 	}
 
@@ -152,27 +128,10 @@ func (l *oracle) observeEthEvents(ctx context.Context) error {
 		return err
 	}
 
-	l.Log().WithFields(log.Fields{
-		"claims":          len(newEvents),
-		"eth_block_start": l.lastRecordedEthEventHeight,
-		"eth_block_end":   latestHeight,
-	}).Infoln("sent new event claims to Injective")
-
-	lastEvent := newEvents[len(newEvents)-1]
-	l.lastRecordedEthEventHeight = lastEvent.BlockHeight()
-	l.resetQueryRange()
+	l.Log().WithFields(log.Fields{"claims": len(newEvents), "eth_block_start": l.lastObservedEthHeight, "eth_block_end": latestHeight}).Infoln("sent new event claims to Injective")
+	l.lastObservedEthHeight = latestHeight
 
 	return nil
-}
-
-func (l *oracle) resetQueryRange() {
-	if l.queryRange < defaultBlocksToSearch {
-		l.queryRange *= 2
-	}
-
-	if l.queryRange > defaultBlocksToSearch {
-		l.queryRange = defaultBlocksToSearch // we never want to exceed the default value
-	}
 }
 
 func (l *oracle) getEthEvents(ctx context.Context, startBlock, endBlock uint64) ([]event, error) {
@@ -180,23 +139,12 @@ func (l *oracle) getEthEvents(ctx context.Context, startBlock, endBlock uint64) 
 	scanEthEventsFn := func() error {
 		events = nil // clear previous result in case a retry occurred
 
-		// Given the provider limit on eth_getLogs (10k logs max) and a spam attack of SendToInjective events on Peggy.sol,
-		// it is possible for the following call to fail if the range is even 5 blocks long. In case this happens,
-		// the query range is reduced to length of 1 and eventually increases back to defaultBlocksToSearch.
-		depositEvents, err := l.ethereum.GetSendToInjectiveEvents(startBlock, endBlock)
+		oldDepositEvents, err := l.ethereum.GetSendToCosmosEvents(startBlock, endBlock)
 		if err != nil {
-
-			l.queryRange = 1
-			endBlock = startBlock + l.queryRange
-			l.Log().WithFields(log.Fields{
-				"start": startBlock,
-				"end":   endBlock,
-			}).Debugln("failed to query deposit events, retrying with decreased range...")
-
 			return err
 		}
 
-		oldDepositEvents, err := l.ethereum.GetSendToCosmosEvents(startBlock, endBlock)
+		depositEvents, err := l.ethereum.GetSendToInjectiveEvents(startBlock, endBlock)
 		if err != nil {
 			return err
 		}
@@ -348,7 +296,6 @@ type (
 
 	event interface {
 		Nonce() uint64
-		BlockHeight() uint64
 	}
 )
 
@@ -380,24 +327,4 @@ func (o *withdrawal) Nonce() uint64 {
 
 func (o *erc20Deployment) Nonce() uint64 {
 	return o.EventNonce.Uint64()
-}
-
-func (o *oldDeposit) BlockHeight() uint64 {
-	return o.Raw.BlockNumber
-}
-
-func (o *deposit) BlockHeight() uint64 {
-	return o.Raw.BlockNumber
-}
-
-func (o *valsetUpdate) BlockHeight() uint64 {
-	return o.Raw.BlockNumber
-}
-
-func (o *withdrawal) BlockHeight() uint64 {
-	return o.Raw.BlockNumber
-}
-
-func (o *erc20Deployment) BlockHeight() uint64 {
-	return o.Raw.BlockNumber
 }

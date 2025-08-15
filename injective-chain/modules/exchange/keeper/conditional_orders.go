@@ -905,12 +905,12 @@ func (k *Keeper) IterateInvalidConditionalOrderFlags(
 	store := k.getTransientStore(ctx)
 	flagsStore := prefix.NewStore(store, types.ConditionalOrderInvalidationFlagPrefix)
 
+	iterator := flagsStore.Iterator(nil, nil)
 	keys := [][]byte{}
-
-	iterateKeysSafe(flagsStore.Iterator(nil, nil), func(k []byte) bool {
-		keys = append(keys, k)
-		return false
-	})
+	for ; iterator.Valid(); iterator.Next() {
+		keys = append(keys, iterator.Key())
+	}
+	iterator.Close()
 
 	for _, key := range keys {
 		marketID, subaccountID, isBuy := types.ParseMarketIDSubaccountIDDirectionSuffix(key)

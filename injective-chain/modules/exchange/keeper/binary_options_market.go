@@ -547,14 +547,15 @@ func (k *Keeper) IterateBinaryOptionsMarketParamUpdates(
 	store := k.getTransientStore(ctx)
 	paramUpdateStore := prefix.NewStore(store, types.BinaryOptionsMarketParamUpdateSchedulePrefix)
 
+	iterator := paramUpdateStore.Iterator(nil, nil)
 	proposals := []*v2.BinaryOptionsMarketParamUpdateProposal{}
-
-	iterateSafe(paramUpdateStore.Iterator(nil, nil), func(_, v []byte) bool {
+	for ; iterator.Valid(); iterator.Next() {
 		var proposal v2.BinaryOptionsMarketParamUpdateProposal
-		k.cdc.MustUnmarshal(v, &proposal)
+		bz := iterator.Value()
+		k.cdc.MustUnmarshal(bz, &proposal)
 		proposals = append(proposals, &proposal)
-		return false
-	})
+	}
+	iterator.Close()
 
 	for _, p := range proposals {
 		if process(p) {
