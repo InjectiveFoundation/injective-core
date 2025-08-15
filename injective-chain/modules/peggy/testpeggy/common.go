@@ -357,6 +357,7 @@ func CreateTestEnv(t *testing.T) TestInput {
 	keyStaking := storetypes.NewKVStoreKey(stakingtypes.StoreKey)
 	keyBank := storetypes.NewKVStoreKey(banktypes.StoreKey)
 	tkeyBank := storetypes.NewTransientStoreKey(banktypes.TStoreKey)
+	okeyBank := storetypes.NewObjectStoreKey(banktypes.ObjectStoreKey)
 	keyDistro := storetypes.NewKVStoreKey(distrtypes.StoreKey)
 	keyParams := storetypes.NewKVStoreKey(paramstypes.StoreKey)
 	tkeyParams := storetypes.NewTransientStoreKey(paramstypes.TStoreKey)
@@ -440,6 +441,7 @@ func CreateTestEnv(t *testing.T) TestInput {
 		marshaler,
 		runtime.NewKVStoreService(keyBank),
 		runtime.NewTransientKVStoreService(tkeyBank),
+		okeyBank,
 		accountKeeper,
 		blockedAddr,
 		authority,

@@ -684,16 +684,14 @@ func (k *Keeper) IterateDerivativeMarketParamUpdates(ctx sdk.Context, process fu
 
 	store := k.getTransientStore(ctx)
 	paramUpdateStore := prefix.NewStore(store, types.DerivativeMarketParamUpdateScheduleKey)
-
-	iterator := paramUpdateStore.Iterator(nil, nil)
 	proposals := []*v2.DerivativeMarketParamUpdateProposal{}
-	for ; iterator.Valid(); iterator.Next() {
+
+	iterateSafe(paramUpdateStore.Iterator(nil, nil), func(_, v []byte) bool {
 		var proposal v2.DerivativeMarketParamUpdateProposal
-		bz := iterator.Value()
-		k.cdc.MustUnmarshal(bz, &proposal)
+		k.cdc.MustUnmarshal(v, &proposal)
 		proposals = append(proposals, &proposal)
-	}
-	iterator.Close()
+		return false
+	})
 
 	for _, p := range proposals {
 		if process(p) {

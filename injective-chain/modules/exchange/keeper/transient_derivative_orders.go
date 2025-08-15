@@ -198,22 +198,25 @@ func (k *Keeper) IterateTransientDerivativeLimitOrdersByMarketDirectionBySubacco
 	prefixKey := types.DerivativeLimitOrdersPrefix
 	prefixKey = append(prefixKey, types.MarketDirectionPrefix(marketID, isBuy)...)
 	ordersStore := prefix.NewStore(store, prefixKey)
-	var iterator storetypes.Iterator
 
+	orders := []*v2.DerivativeLimitOrder{}
+
+	var iterator storetypes.Iterator
 	if isBuy {
 		// iterate over limit buy orders from highest (best) to lowest (worst) price
 		iterator = ordersStore.ReverseIterator(nil, nil)
 	} else {
 		iterator = ordersStore.Iterator(nil, nil)
 	}
-	orders := []*v2.DerivativeLimitOrder{}
-	for ; iterator.Valid(); iterator.Next() {
+
+	iterateSafe(iterator, func(_, v []byte) bool {
 		var order v2.DerivativeLimitOrder
-		bz := iterator.Value()
-		k.cdc.MustUnmarshal(bz, &order)
+		k.cdc.MustUnmarshal(v, &order)
 		orders = append(orders, &order)
-	}
-	iterator.Close()
+
+		return false
+	})
+	// iterator is closed at this point
 
 	for _, order := range orders {
 		if process(order) {
@@ -485,6 +488,7 @@ func (k *Keeper) IterateTransientDerivativeLimitOrdersBySubaccount(
 
 	store := k.getTransientStore(ctx)
 	orderIndexStore := prefix.NewStore(store, types.GetDerivativeLimitOrderIndexPrefix(marketID, isBuy, subaccountID))
+	orderKeys := [][]byte{}
 
 	var iter storetypes.Iterator
 	if isBuy {
@@ -493,10 +497,14 @@ func (k *Keeper) IterateTransientDerivativeLimitOrdersBySubaccount(
 		iter = orderIndexStore.Iterator(nil, nil)
 	}
 
-	defer iter.Close()
+	iterateSafe(iter, func(_, v []byte) bool {
+		orderKeys = append(orderKeys, v)
+		return false
+	})
 
-	for ; iter.Valid(); iter.Next() {
-		orderKeyBz := iter.Value()
+	// iter is closed at this point
+
+	for _, orderKeyBz := range orderKeys {
 		if process(orderKeyBz) {
 			return
 		}
@@ -836,22 +844,25 @@ func (k *Keeper) IterateDerivativeMarketOrders(
 	prefixKey := types.DerivativeMarketOrdersPrefix
 	prefixKey = append(prefixKey, types.MarketDirectionPrefix(marketID, isBuy)...)
 	ordersStore := prefix.NewStore(store, prefixKey)
-	var iterator storetypes.Iterator
 
+	orders := []*v2.DerivativeMarketOrder{}
+
+	var iterator storetypes.Iterator
 	if isBuy {
 		// iterate over market buy orders from highest to lowest price
 		iterator = ordersStore.ReverseIterator(nil, nil)
 	} else {
 		iterator = ordersStore.Iterator(nil, nil)
 	}
-	orders := []*v2.DerivativeMarketOrder{}
-	for ; iterator.Valid(); iterator.Next() {
+
+	iterateSafe(iterator, func(_, v []byte) bool {
 		var order v2.DerivativeMarketOrder
-		bz := iterator.Value()
-		k.cdc.MustUnmarshal(bz, &order)
+		k.cdc.MustUnmarshal(v, &order)
 		orders = append(orders, &order)
-	}
-	iterator.Close()
+		return false
+	})
+
+	// iterator is closed at this point
 
 	for _, order := range orders {
 		if process(order) {

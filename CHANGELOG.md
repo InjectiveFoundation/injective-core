@@ -36,10 +36,17 @@ Ref: https://keepachangelog.com/en/1.1.0/
 
 ## [Unreleased]
 
+## [v1.16.3]() todo link and date
+
+### Bug Fixes
+
+- (exchange)  Fixed historical v1 Exchange queries for pre v1.16 blocks
+
 ## [v1.16.0](https://github.com/InjectiveFoundation/injective-core/releases/tag/v1.16.0) - 2025-07-24
 
 ### Bug Fixes
 
+- (exchange)  Fixed deadlock on transient store iterator mutex not being released on panic (out-of-gas).
 - (evm)  Fixed EVM nonce increment for any type of EVM txns when tx contains multiple msgs.
 - (exchange)  Fixed CLI commands to support `ExpirationBlock` while maintaining backwards compatibility.
 - (exchange)  Fixed propogation of AdminInfo inputs to governance launches for Perpetuals and Expiry Futures markets.

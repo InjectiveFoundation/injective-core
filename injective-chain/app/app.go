@@ -1,7 +1,6 @@
 package app
 
 import (
-	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
@@ -310,6 +309,7 @@ type InjectiveApp struct {
 	keys    map[string]*storetypes.KVStoreKey
 	tKeys   map[string]*storetypes.TransientStoreKey
 	memKeys map[string]*storetypes.MemoryStoreKey
+	okeys   map[string]*storetypes.ObjectStoreKey
 
 	// cosmos keepers
 	AuthzKeeper           authzkeeper.Keeper
@@ -432,6 +432,7 @@ func NewInjectiveApp(
 	app.MountKVStores(app.keys)
 	app.MountTransientStores(app.tKeys)
 	app.MountMemoryStores(app.memKeys)
+	app.MountObjectStores(app.okeys)
 
 	// initialize BaseApp
 	app.SetInitChainer(app.InitChainer)
@@ -589,10 +590,11 @@ func initInjectiveApp(
 			banktypes.TStoreKey,
 			exchangetypes.TStoreKey,
 			ocrtypes.TStoreKey,
-			evmtypes.TStoreKey,
 		)
 
 		memKeys = storetypes.NewMemoryStoreKeys(capabilitytypes.MemStoreKey)
+
+		okeys = storetypes.NewObjectStoreKeys(banktypes.ObjectStoreKey, evmtypes.ObjectStoreKey)
 	)
 
 	bApp := baseapp.NewBaseApp(
@@ -620,6 +622,7 @@ func initInjectiveApp(
 		keys:              keys,
 		tKeys:             tKeys,
 		memKeys:           memKeys,
+		okeys:             okeys,
 	}
 
 	return app
@@ -809,8 +812,7 @@ func (app *InjectiveApp) GetStoreKey(name string) storetypes.StoreKey {
 	if ok {
 		return mkey
 	}
-
-	panic(fmt.Sprintf("store key %s not found", name))
+	return app.okeys[name]
 }
 
 // LoadHeight loads state at a particular height
@@ -1007,6 +1009,7 @@ func (app *InjectiveApp) initKeepers(authority string, appOpts servertypes.AppOp
 		app.codec,
 		runtime.NewKVStoreService(app.keys[banktypes.StoreKey]),
 		runtime.NewTransientKVStoreService(app.tKeys[banktypes.TStoreKey]),
+		app.okeys[banktypes.ObjectStoreKey],
 		app.AccountKeeper,
 		app.BlockedAddrs(),
 		authority,
@@ -1121,9 +1124,7 @@ func (app *InjectiveApp) initKeepers(authority string, appOpts servertypes.AppOp
 
 	app.EvmKeeper = evmkeeper.NewKeeper(
 		app.codec,
-		app.keys[evmtypes.StoreKey], app.tKeys[evmtypes.TStoreKey],
-		app.keys,
-		authtypes.NewModuleAddress(govtypes.ModuleName),
+		app.keys[evmtypes.StoreKey], app.okeys[evmtypes.ObjectStoreKey], authtypes.NewModuleAddress(govtypes.ModuleName),
 		app.AccountKeeper, app.BankKeeper, app.StakingKeeper,
 		evmSubspace,
 		[]evmkeeper.CustomContractFn{

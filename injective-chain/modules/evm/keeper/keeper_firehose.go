@@ -14,13 +14,13 @@ import (
 )
 
 func BlocksBloom(k *Keeper, ctx sdk.Context) *big.Int {
-	store := prefix.NewStore(ctx.TransientStore(k.transientKey), types.KeyPrefixTransientBloom)
+	store := prefix.NewObjStore(ctx.ObjectStore(k.objectKey), types.KeyPrefixObjectBloom)
 	it := store.Iterator(nil, nil)
 	defer it.Close()
 
 	bloom := new(big.Int)
 	for ; it.Valid(); it.Next() {
-		bloom.Or(bloom, new(big.Int).SetBytes(it.Value()))
+		bloom.Or(bloom, it.Value().(*big.Int))
 	}
 	return bloom
 }

@@ -17,9 +17,9 @@ const (
 	// DefaultAllowUnprotectedTxs rejects all unprotected txs (true = allow, false = reject)
 	DefaultAllowUnprotectedTxs = true
 	// DefaultEnableCreate enables contract creation (i.e true)
-	DefaultEnableCreate = false
+	DefaultEnableCreate = true
 	// DefaultEnableCall enables contract calls (i.e true)
-	DefaultEnableCall = false
+	DefaultEnableCall = true
 	// DefaultGasPrice is default gas price for evm transactions
 	DefaultGasPrice = 160000000
 	// DefaultRPCGasLimit is default gas limit for RPC call operations

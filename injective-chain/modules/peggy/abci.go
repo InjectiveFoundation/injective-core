@@ -107,7 +107,6 @@ func (h *BlockHandler) slashing(ctx sdk.Context, params *types.Params) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, h.svcTags)
 	defer doneFn()
 
-	// Slash validator for not confirming valset requests, batch requests and not attesting claims rightfully
 	h.valsetSlashing(ctx, params)
 	h.batchSlashing(ctx, params)
 
@@ -235,18 +234,11 @@ func (h *BlockHandler) valsetSlashing(ctx sdk.Context, params *types.Params) {
 						break
 					}
 				}
-				// slash validators for not confirming valsets
+
+				// jail validators for not confirming valsets
 				if !found {
 					cons, _ := currentBondedSet[i].GetConsAddr()
 					consPower := currentBondedSet[i].ConsensusPower(h.k.StakingKeeper.PowerReduction(ctx))
-
-					_, _ = h.k.StakingKeeper.Slash(
-						ctx,
-						cons,
-						ctx.BlockHeight(),
-						consPower,
-						params.SlashFractionValset,
-					)
 
 					if !currentBondedSet[i].IsJailed() {
 						_ = h.k.StakingKeeper.Jail(ctx, cons)
@@ -298,11 +290,9 @@ func (h *BlockHandler) valsetSlashing(ctx sdk.Context, params *types.Params) {
 						}
 					}
 
-					// slash validators for not confirming valsets
+					// jail validators for not confirming valsets
 					if !found {
 						consPower := validator.ConsensusPower(h.k.StakingKeeper.PowerReduction(ctx))
-
-						_, _ = h.k.StakingKeeper.Slash(ctx, valConsAddr, ctx.BlockHeight(), consPower, params.SlashFractionValset)
 
 						if !validator.IsJailed() {
 							_ = h.k.StakingKeeper.Jail(ctx, valConsAddr)
@@ -373,8 +363,6 @@ func (h *BlockHandler) batchSlashing(ctx sdk.Context, params *types.Params) {
 			if !found {
 				cons, _ := currentBondedSet[i].GetConsAddr()
 				consPower := currentBondedSet[i].ConsensusPower(h.k.StakingKeeper.PowerReduction(ctx))
-
-				_, _ = h.k.StakingKeeper.Slash(ctx, cons, ctx.BlockHeight(), consPower, params.SlashFractionBatch)
 
 				if !currentBondedSet[i].IsJailed() {
 					_ = h.k.StakingKeeper.Jail(ctx, cons)
