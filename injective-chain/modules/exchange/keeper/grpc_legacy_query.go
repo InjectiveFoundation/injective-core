@@ -38,7 +38,7 @@ func (q legacyQueryServer) L3DerivativeOrderBook(
 	if err != nil {
 		return nil, err
 	}
-	valuesConverter := NewChainValuesConverter(unwrappedContext, q.v2QueryServer.Keeper, market)
+	valuesConverter := NewChainValuesConverter(unwrappedContext, market)
 
 	reqV2 := &v2.QueryFullDerivativeOrderbookRequest{
 		MarketId: req.MarketId,
@@ -87,7 +87,7 @@ func (q legacyQueryServer) L3SpotOrderBook(
 	if err != nil {
 		return nil, err
 	}
-	valuesConverter := NewChainValuesConverter(unwrappedContext, q.v2QueryServer.Keeper, market)
+	valuesConverter := NewChainValuesConverter(unwrappedContext, market)
 
 	reqV2 := &v2.QueryFullSpotOrderbookRequest{
 		MarketId: req.MarketId,
@@ -260,7 +260,7 @@ func (q legacyQueryServer) AggregateVolume(
 			return nil, err
 		}
 
-		valuesConverter := NewChainValuesConverter(unwrappedContext, q.v2QueryServer.Keeper, market)
+		valuesConverter := NewChainValuesConverter(unwrappedContext, market)
 
 		v1Volume := NewV1MarketVolumeFromV2(valuesConverter, *volume)
 		volumes = append(volumes, &v1Volume)
@@ -318,7 +318,7 @@ func (q legacyQueryServer) convertAggregateAccountVolumeRecords(
 				return nil, err
 			}
 
-			valuesConverter := NewChainValuesConverter(ctx, q.v2QueryServer.Keeper, market)
+			valuesConverter := NewChainValuesConverter(ctx, market)
 
 			v1Volume := NewV1MarketVolumeFromV2(valuesConverter, *marketVolume)
 			marketVolumes = append(marketVolumes, &v1Volume)
@@ -344,7 +344,7 @@ func (q legacyQueryServer) convertAggregateMarketVolumeRecords(
 			return nil, err
 		}
 
-		valuesConverter := NewChainValuesConverter(ctx, q.v2QueryServer.Keeper, market)
+		valuesConverter := NewChainValuesConverter(ctx, market)
 
 		v1VolumeRecord := NewV1VolumeRecordFromV2(valuesConverter, volume.Volume)
 		v := &v1.MarketVolume{
@@ -376,7 +376,7 @@ func (q legacyQueryServer) AggregateMarketVolume(
 		return nil, err
 	}
 
-	valuesConverter := NewChainValuesConverter(unwrappedContext, q.v2QueryServer.Keeper, market)
+	valuesConverter := NewChainValuesConverter(unwrappedContext, market)
 
 	v1VolumeRecord := NewV1VolumeRecordFromV2(valuesConverter, respV2.Volume)
 	resp := &v1.QueryAggregateMarketVolumeResponse{Volume: v1VolumeRecord}
@@ -405,7 +405,7 @@ func (q legacyQueryServer) AggregateMarketVolumes(
 			return nil, err
 		}
 
-		valuesConverter := NewChainValuesConverter(unwrappedContext, q.v2QueryServer.Keeper, market)
+		valuesConverter := NewChainValuesConverter(unwrappedContext, market)
 
 		v1Volume := NewV1MarketVolumeFromV2(valuesConverter, *v)
 		volumes = append(volumes, &v1Volume)
@@ -480,7 +480,7 @@ func (q legacyQueryServer) SpotMarkets(
 	}
 
 	for _, market := range respV2.Markets {
-		valuesConverter := NewChainValuesConverter(unwrappedContext, q.v2QueryServer.Keeper, market)
+		valuesConverter := NewChainValuesConverter(unwrappedContext, market)
 
 		v1Market := NewV1SpotMarketFromV2(valuesConverter, *market)
 		resp.Markets = append(resp.Markets, &v1Market)
@@ -504,7 +504,7 @@ func (q legacyQueryServer) SpotMarket(ctx context.Context, request *v1.QuerySpot
 	resp := &v1.QuerySpotMarketResponse{}
 
 	if respV2.Market != nil {
-		valuesConverter := NewChainValuesConverter(unwrappedContext, q.v2QueryServer.Keeper, respV2.Market)
+		valuesConverter := NewChainValuesConverter(unwrappedContext, respV2.Market)
 
 		v1Market := NewV1SpotMarketFromV2(valuesConverter, *respV2.Market)
 		resp.Market = &v1Market
@@ -537,7 +537,7 @@ func (q legacyQueryServer) FullSpotMarkets(
 	}
 
 	for _, market := range respV2.Markets {
-		valuesConverter := NewChainValuesConverter(unwrappedContext, q.v2QueryServer.Keeper, market.Market)
+		valuesConverter := NewChainValuesConverter(unwrappedContext, market.Market)
 
 		v1FullMarket := NewV1FullSpotMarketFromV2(valuesConverter, *market)
 		resp.Markets = append(resp.Markets, &v1FullMarket)
@@ -567,7 +567,7 @@ func (q legacyQueryServer) FullSpotMarket(
 	resp := &v1.QueryFullSpotMarketResponse{}
 
 	if respV2.Market != nil {
-		valuesConverter := NewChainValuesConverter(unwrappedContext, q.v2QueryServer.Keeper, respV2.Market.Market)
+		valuesConverter := NewChainValuesConverter(unwrappedContext, respV2.Market.Market)
 
 		v1FullSpotMarket := NewV1FullSpotMarketFromV2(valuesConverter, *respV2.Market)
 		resp.Market = &v1FullSpotMarket
@@ -590,7 +590,7 @@ func (q legacyQueryServer) SpotOrderbook(
 		return nil, err
 	}
 
-	valuesConverter := NewChainValuesConverter(unwrappedContext, q.v2QueryServer.Keeper, market)
+	valuesConverter := NewChainValuesConverter(unwrappedContext, market)
 
 	reqV2 := &v2.QuerySpotOrderbookRequest{
 		MarketId:  request.MarketId,
@@ -652,7 +652,7 @@ func (q legacyQueryServer) TraderSpotOrders(
 		return nil, err
 	}
 
-	valuesConverter := NewChainValuesConverter(unwrappedContext, q.v2QueryServer.Keeper, market)
+	valuesConverter := NewChainValuesConverter(unwrappedContext, market)
 
 	reqV2 := &v2.QueryTraderSpotOrdersRequest{
 		MarketId:     request.MarketId,
@@ -690,7 +690,7 @@ func (q legacyQueryServer) AccountAddressSpotOrders(
 		return nil, err
 	}
 
-	valuesConverter := NewChainValuesConverter(unwrappedContext, q.v2QueryServer.Keeper, market)
+	valuesConverter := NewChainValuesConverter(unwrappedContext, market)
 
 	reqV2 := &v2.QueryAccountAddressSpotOrdersRequest{
 		MarketId:       request.MarketId,
@@ -728,7 +728,7 @@ func (q legacyQueryServer) SpotOrdersByHashes(
 		return nil, err
 	}
 
-	valuesConverter := NewChainValuesConverter(unwrappedContext, q.v2QueryServer.Keeper, market)
+	valuesConverter := NewChainValuesConverter(unwrappedContext, market)
 
 	reqV2 := &v2.QuerySpotOrdersByHashesRequest{
 		MarketId:     request.MarketId,
@@ -767,7 +767,7 @@ func (q legacyQueryServer) SubaccountOrders(
 		return nil, err
 	}
 
-	valuesConverter := NewChainValuesConverter(unwrappedContext, q.v2QueryServer.Keeper, market)
+	valuesConverter := NewChainValuesConverter(unwrappedContext, market)
 
 	reqV2 := &v2.QuerySubaccountOrdersRequest{
 		SubaccountId: request.SubaccountId,
@@ -829,7 +829,7 @@ func (q legacyQueryServer) TraderSpotTransientOrders(
 		return nil, err
 	}
 
-	valuesConverter := NewChainValuesConverter(unwrappedContext, q.v2QueryServer.Keeper, market)
+	valuesConverter := NewChainValuesConverter(unwrappedContext, market)
 
 	reqV2 := &v2.QueryTraderSpotOrdersRequest{
 		MarketId:     request.MarketId,
@@ -867,7 +867,7 @@ func (q legacyQueryServer) SpotMidPriceAndTOB(
 		return nil, err
 	}
 
-	valuesConverter := NewChainValuesConverter(unwrappedContext, q.v2QueryServer.Keeper, market)
+	valuesConverter := NewChainValuesConverter(unwrappedContext, market)
 
 	reqV2 := &v2.QuerySpotMidPriceAndTOBRequest{MarketId: request.MarketId}
 	respV2, err := q.v2QueryServer.SpotMidPriceAndTOB(ctx, reqV2)
@@ -907,7 +907,7 @@ func (q legacyQueryServer) DerivativeMidPriceAndTOB(
 		return nil, err
 	}
 
-	valuesConverter := NewChainValuesConverter(unwrappedContext, q.v2QueryServer.Keeper, market)
+	valuesConverter := NewChainValuesConverter(unwrappedContext, market)
 
 	reqV2 := &v2.QueryDerivativeMidPriceAndTOBRequest{MarketId: request.MarketId}
 	respV2, err := q.v2QueryServer.DerivativeMidPriceAndTOB(ctx, reqV2)
@@ -947,7 +947,7 @@ func (q legacyQueryServer) DerivativeOrderbook(
 		return nil, err
 	}
 
-	valuesConverter := NewChainValuesConverter(unwrappedContext, q.v2QueryServer.Keeper, market)
+	valuesConverter := NewChainValuesConverter(unwrappedContext, market)
 
 	reqV2 := &v2.QueryDerivativeOrderbookRequest{
 		MarketId: request.MarketId,
@@ -1003,7 +1003,7 @@ func (q legacyQueryServer) TraderDerivativeOrders(
 		return nil, err
 	}
 
-	valuesConverter := NewChainValuesConverter(unwrappedContext, q.v2QueryServer.Keeper, market)
+	valuesConverter := NewChainValuesConverter(unwrappedContext, market)
 
 	reqV2 := &v2.QueryTraderDerivativeOrdersRequest{
 		MarketId:     request.MarketId,
@@ -1040,7 +1040,7 @@ func (q legacyQueryServer) AccountAddressDerivativeOrders(
 		return nil, err
 	}
 
-	valuesConverter := NewChainValuesConverter(unwrappedContext, q.v2QueryServer.Keeper, market)
+	valuesConverter := NewChainValuesConverter(unwrappedContext, market)
 
 	reqV2 := &v2.QueryAccountAddressDerivativeOrdersRequest{
 		MarketId:       request.MarketId,
@@ -1077,7 +1077,7 @@ func (q legacyQueryServer) DerivativeOrdersByHashes(
 		return nil, err
 	}
 
-	valuesConverter := NewChainValuesConverter(unwrappedContext, q.v2QueryServer.Keeper, market)
+	valuesConverter := NewChainValuesConverter(unwrappedContext, market)
 
 	reqV2 := &v2.QueryDerivativeOrdersByHashesRequest{
 		MarketId:     request.MarketId,
@@ -1116,7 +1116,7 @@ func (q legacyQueryServer) TraderDerivativeTransientOrders(
 		return nil, err
 	}
 
-	valuesConverter := NewChainValuesConverter(unwrappedContext, q.v2QueryServer.Keeper, market)
+	valuesConverter := NewChainValuesConverter(unwrappedContext, market)
 
 	reqV2 := &v2.QueryTraderDerivativeOrdersRequest{
 		MarketId:     request.MarketId,
@@ -1162,7 +1162,7 @@ func (q legacyQueryServer) DerivativeMarkets(
 	}
 
 	for _, market := range respV2.Markets {
-		valuesConverter := NewChainValuesConverter(unwrappedContext, q.v2QueryServer.Keeper, market.Market)
+		valuesConverter := NewChainValuesConverter(unwrappedContext, market.Market)
 
 		v1FullMarket := NewV1FullDerivativeMarketFromV2(valuesConverter, *market)
 		resp.Markets = append(resp.Markets, &v1FullMarket)
@@ -1185,7 +1185,7 @@ func (q legacyQueryServer) DerivativeMarket(
 		return nil, err
 	}
 
-	valuesConverter := NewChainValuesConverter(unwrappedContext, q.v2QueryServer.Keeper, respV2.Market.Market)
+	valuesConverter := NewChainValuesConverter(unwrappedContext, respV2.Market.Market)
 
 	v1FullMarket := NewV1FullDerivativeMarketFromV2(valuesConverter, *respV2.Market)
 	resp := &v1.QueryDerivativeMarketResponse{Market: &v1FullMarket}
@@ -1254,21 +1254,21 @@ func (q legacyQueryServer) ExchangeModuleState(
 
 	resp.State.Params = NewV1ExchangeParamsFromV2(respV2.State.Params)
 
-	q.convertMarkets(unwrappedContext, respV2, resp)
-	q.convertOrderbooks(unwrappedContext, marketFinder, respV2, resp)
+	convertMarkets(unwrappedContext, respV2, resp)
+	convertOrderbooks(unwrappedContext, marketFinder, respV2, resp)
 	convertBalances(respV2, resp)
-	q.convertPositions(unwrappedContext, marketFinder, respV2, resp)
+	convertPositions(unwrappedContext, marketFinder, respV2, resp)
 	convertSubaccountTradeNonces(respV2, resp)
-	q.convertMarketInfoStates(unwrappedContext, marketFinder, respV2, resp)
-	q.convertTradingRewardCampaignInfo(unwrappedContext, respV2, resp)
-	q.convertFeeDiscountSchedule(unwrappedContext, respV2, resp)
-	q.convertHistoricalTradeRecords(unwrappedContext, marketFinder, respV2, resp)
+	convertMarketInfoStates(unwrappedContext, marketFinder, respV2, resp)
+	convertTradingRewardCampaignInfo(unwrappedContext, respV2, resp)
+	convertFeeDiscountSchedule(unwrappedContext, respV2, resp)
+	convertHistoricalTradeRecords(unwrappedContext, marketFinder, respV2, resp)
 	convertDenomDecimals(respV2, resp)
-	q.convertConditionalDerivativeOrderbooks(unwrappedContext, marketFinder, respV2, resp)
+	convertConditionalDerivativeOrderbooks(unwrappedContext, marketFinder, respV2, resp)
 	convertMarketFeeMultipliers(respV2, resp)
 	convertOrderbookSequences(respV2, resp)
-	q.convertSubaccountVolumes(unwrappedContext, marketFinder, respV2, resp)
-	q.convertMarketVolumes(unwrappedContext, marketFinder, respV2, resp)
+	convertSubaccountVolumes(unwrappedContext, marketFinder, respV2, resp)
+	convertMarketVolumes(unwrappedContext, marketFinder, respV2, resp)
 	convertGrantAuthorizations(respV2, resp)
 	convertActiveGrants(respV2, resp)
 
@@ -1276,10 +1276,10 @@ func (q legacyQueryServer) ExchangeModuleState(
 }
 
 // Helper functions for conversion
-func (q legacyQueryServer) convertMarkets(ctx sdk.Context, respV2 *v2.QueryModuleStateResponse, resp *v1.QueryModuleStateResponse) {
+func convertMarkets(ctx sdk.Context, respV2 *v2.QueryModuleStateResponse, resp *v1.QueryModuleStateResponse) {
 	resp.State.SpotMarkets = make([]*v1.SpotMarket, 0, len(respV2.State.SpotMarkets))
 	for _, market := range respV2.State.SpotMarkets {
-		valuesConverter := NewChainValuesConverter(ctx, q.v2QueryServer.Keeper, market)
+		valuesConverter := NewChainValuesConverter(ctx, market)
 
 		v1Market := NewV1SpotMarketFromV2(valuesConverter, *market)
 		resp.State.SpotMarkets = append(resp.State.SpotMarkets, &v1Market)
@@ -1287,7 +1287,7 @@ func (q legacyQueryServer) convertMarkets(ctx sdk.Context, respV2 *v2.QueryModul
 
 	resp.State.DerivativeMarkets = make([]*v1.DerivativeMarket, 0, len(respV2.State.DerivativeMarkets))
 	for _, market := range respV2.State.DerivativeMarkets {
-		valuesConverter := NewChainValuesConverter(ctx, q.v2QueryServer.Keeper, market)
+		valuesConverter := NewChainValuesConverter(ctx, market)
 
 		v1DerivativeMarket := NewV1DerivativeMarketFromV2(valuesConverter, *market)
 		resp.State.DerivativeMarkets = append(resp.State.DerivativeMarkets, &v1DerivativeMarket)
@@ -1295,21 +1295,21 @@ func (q legacyQueryServer) convertMarkets(ctx sdk.Context, respV2 *v2.QueryModul
 
 	resp.State.BinaryOptionsMarkets = make([]*v1.BinaryOptionsMarket, 0, len(respV2.State.BinaryOptionsMarkets))
 	for _, market := range respV2.State.BinaryOptionsMarkets {
-		valuesConverter := NewChainValuesConverter(ctx, q.v2QueryServer.Keeper, market)
+		valuesConverter := NewChainValuesConverter(ctx, market)
 
 		v1Market := NewV1BinaryOptionsMarketFromV2(valuesConverter, *market)
 		resp.State.BinaryOptionsMarkets = append(resp.State.BinaryOptionsMarkets, &v1Market)
 	}
 }
 
-func (q legacyQueryServer) convertOrderbooks(
+func convertOrderbooks(
 	ctx sdk.Context, marketFinder *CachedMarketFinder, respV2 *v2.QueryModuleStateResponse, resp *v1.QueryModuleStateResponse,
 ) {
-	q.convertSpotOrderbooks(ctx, marketFinder, respV2, resp)
-	q.convertDerivativeOrderbooks(ctx, marketFinder, respV2, resp)
+	convertSpotOrderbooks(ctx, marketFinder, respV2, resp)
+	convertDerivativeOrderbooks(ctx, marketFinder, respV2, resp)
 }
 
-func (q legacyQueryServer) convertSpotOrderbooks(
+func convertSpotOrderbooks(
 	ctx sdk.Context, marketFinder *CachedMarketFinder, respV2 *v2.QueryModuleStateResponse, resp *v1.QueryModuleStateResponse,
 ) {
 	resp.State.SpotOrderbook = make([]v1.SpotOrderBook, 0, len(respV2.State.SpotOrderbook))
@@ -1319,7 +1319,7 @@ func (q legacyQueryServer) convertSpotOrderbooks(
 			return
 		}
 
-		valuesConverter := NewChainValuesConverter(ctx, q.v2QueryServer.Keeper, market)
+		valuesConverter := NewChainValuesConverter(ctx, market)
 
 		ob := v1.SpotOrderBook{
 			MarketId:  orderBook.MarketId,
@@ -1336,7 +1336,7 @@ func (q legacyQueryServer) convertSpotOrderbooks(
 	}
 }
 
-func (q legacyQueryServer) convertDerivativeOrderbooks(
+func convertDerivativeOrderbooks(
 	ctx sdk.Context, marketFinder *CachedMarketFinder, respV2 *v2.QueryModuleStateResponse, resp *v1.QueryModuleStateResponse,
 ) {
 	resp.State.DerivativeOrderbook = make([]v1.DerivativeOrderBook, 0, len(respV2.State.DerivativeOrderbook))
@@ -1346,7 +1346,7 @@ func (q legacyQueryServer) convertDerivativeOrderbooks(
 			return
 		}
 
-		valuesConverter := NewChainValuesConverter(ctx, q.v2QueryServer.Keeper, market)
+		valuesConverter := NewChainValuesConverter(ctx, market)
 
 		ob := v1.DerivativeOrderBook{
 			MarketId:  orderBook.MarketId,
@@ -1382,7 +1382,7 @@ func convertBalances(respV2 *v2.QueryModuleStateResponse, resp *v1.QueryModuleSt
 	}
 }
 
-func (q legacyQueryServer) convertPositions(
+func convertPositions(
 	ctx sdk.Context, marketFinder *CachedMarketFinder, respV2 *v2.QueryModuleStateResponse, resp *v1.QueryModuleStateResponse,
 ) {
 	resp.State.Positions = make([]v1.DerivativePosition, 0, len(respV2.State.Positions))
@@ -1392,7 +1392,7 @@ func (q legacyQueryServer) convertPositions(
 			return
 		}
 
-		valuesConverter := NewChainValuesConverter(ctx, q.v2QueryServer.Keeper, market)
+		valuesConverter := NewChainValuesConverter(ctx, market)
 
 		v1DerivativePosition := NewV1DerivativePositonFromV2(valuesConverter, position)
 		resp.State.Positions = append(resp.State.Positions, v1DerivativePosition)
@@ -1411,16 +1411,16 @@ func convertSubaccountTradeNonces(respV2 *v2.QueryModuleStateResponse, resp *v1.
 	}
 }
 
-func (q legacyQueryServer) convertMarketInfoStates(
+func convertMarketInfoStates(
 	ctx sdk.Context, marketFinder *CachedMarketFinder, respV2 *v2.QueryModuleStateResponse, resp *v1.QueryModuleStateResponse,
 ) {
-	q.convertExpiryFuturesMarketInfoState(ctx, marketFinder, respV2, resp)
+	convertExpiryFuturesMarketInfoState(ctx, marketFinder, respV2, resp)
 	convertPerpetualMarketInfo(respV2, resp)
-	q.convertPerpetualMarketFundingState(ctx, marketFinder, respV2, resp)
-	q.convertDerivativeMarketSettlementScheduled(ctx, marketFinder, respV2, resp)
+	convertPerpetualMarketFundingState(ctx, marketFinder, respV2, resp)
+	convertDerivativeMarketSettlementScheduled(ctx, marketFinder, respV2, resp)
 }
 
-func (q legacyQueryServer) convertExpiryFuturesMarketInfoState(
+func convertExpiryFuturesMarketInfoState(
 	ctx sdk.Context, marketFinder *CachedMarketFinder, respV2 *v2.QueryModuleStateResponse, resp *v1.QueryModuleStateResponse,
 ) {
 	resp.State.ExpiryFuturesMarketInfoState = make([]v1.ExpiryFuturesMarketInfoState, 0, len(respV2.State.ExpiryFuturesMarketInfoState))
@@ -1430,7 +1430,7 @@ func (q legacyQueryServer) convertExpiryFuturesMarketInfoState(
 			return
 		}
 
-		valuesConverter := NewChainValuesConverter(ctx, q.v2QueryServer.Keeper, market)
+		valuesConverter := NewChainValuesConverter(ctx, market)
 
 		v1InfoState := NewV1ExpiryFuturesMarketInfoStateFromV2(valuesConverter, infoState)
 		resp.State.ExpiryFuturesMarketInfoState = append(resp.State.ExpiryFuturesMarketInfoState, v1InfoState)
@@ -1452,7 +1452,7 @@ func convertPerpetualMarketInfo(respV2 *v2.QueryModuleStateResponse, resp *v1.Qu
 	}
 }
 
-func (q legacyQueryServer) convertPerpetualMarketFundingState(
+func convertPerpetualMarketFundingState(
 	ctx sdk.Context, marketFinder *CachedMarketFinder, respV2 *v2.QueryModuleStateResponse, resp *v1.QueryModuleStateResponse,
 ) {
 	resp.State.PerpetualMarketFundingState = make([]v1.PerpetualMarketFundingState, 0, len(respV2.State.PerpetualMarketFundingState))
@@ -1462,7 +1462,7 @@ func (q legacyQueryServer) convertPerpetualMarketFundingState(
 			return
 		}
 
-		valuesConverter := NewChainValuesConverter(ctx, q.v2QueryServer.Keeper, market)
+		valuesConverter := NewChainValuesConverter(ctx, market)
 
 		v1FundingState := NewV1PerpetualMarketFundingStateFromV2(valuesConverter, state)
 
@@ -1470,7 +1470,7 @@ func (q legacyQueryServer) convertPerpetualMarketFundingState(
 	}
 }
 
-func (q legacyQueryServer) convertDerivativeMarketSettlementScheduled(
+func convertDerivativeMarketSettlementScheduled(
 	ctx sdk.Context, marketFinder *CachedMarketFinder, respV2 *v2.QueryModuleStateResponse, resp *v1.QueryModuleStateResponse,
 ) {
 	resp.State.DerivativeMarketSettlementScheduled = make(
@@ -1484,14 +1484,14 @@ func (q legacyQueryServer) convertDerivativeMarketSettlementScheduled(
 			return
 		}
 
-		valuesConverter := NewChainValuesConverter(ctx, q.v2QueryServer.Keeper, market)
+		valuesConverter := NewChainValuesConverter(ctx, market)
 
 		v1SettlementInfo := NewV1DerivativeMarketSettlementInfoFromV2(valuesConverter, settlement)
 		resp.State.DerivativeMarketSettlementScheduled = append(resp.State.DerivativeMarketSettlementScheduled, v1SettlementInfo)
 	}
 }
 
-func (q legacyQueryServer) convertTradingRewardCampaignInfo(
+func convertTradingRewardCampaignInfo(
 	ctx sdk.Context,
 	respV2 *v2.QueryModuleStateResponse,
 	resp *v1.QueryModuleStateResponse,
@@ -1508,12 +1508,12 @@ func (q legacyQueryServer) convertTradingRewardCampaignInfo(
 	}
 
 	resp.State.TradingRewardPoolCampaignSchedule = convertCampaignRewardPools(respV2.State.TradingRewardPoolCampaignSchedule)
-	resp.State.TradingRewardCampaignAccountPoints = q.convertTradingRewardCampaignAccountPoints(
+	resp.State.TradingRewardCampaignAccountPoints = convertTradingRewardCampaignAccountPoints(
 		ctx,
 		respV2.State.TradingRewardCampaignAccountPoints,
 	)
 	resp.State.PendingTradingRewardPoolCampaignSchedule = convertCampaignRewardPools(respV2.State.PendingTradingRewardPoolCampaignSchedule)
-	resp.State.PendingTradingRewardCampaignAccountPoints = q.convertPendingTradingRewardPoints(
+	resp.State.PendingTradingRewardCampaignAccountPoints = convertPendingTradingRewardPoints(
 		ctx,
 		respV2.State.PendingTradingRewardCampaignAccountPoints,
 	)
@@ -1569,7 +1569,7 @@ func convertCampaignRewardPools(pools []*v2.CampaignRewardPool) []*v1.CampaignRe
 	return result
 }
 
-func (q legacyQueryServer) convertTradingRewardCampaignAccountPoints(
+func convertTradingRewardCampaignAccountPoints(
 	ctx sdk.Context,
 	points []*v2.TradingRewardCampaignAccountPoints,
 ) []*v1.TradingRewardCampaignAccountPoints {
@@ -1578,7 +1578,7 @@ func (q legacyQueryServer) convertTradingRewardCampaignAccountPoints(
 		p := &v1.TradingRewardCampaignAccountPoints{
 			Account: point.Account,
 			// Historically all tokens with FeeDiscount had 6 decimals (until the migration to exchange v2 - v1.16.0)
-			Points: ConditionalNotionalToChainFormat(ctx, q.v2QueryServer.Keeper, point.Points, 6),
+			Points: ConditionalNotionalToChainFormat(ctx, point.Points, 6),
 		}
 
 		result = append(result, p)
@@ -1586,7 +1586,7 @@ func (q legacyQueryServer) convertTradingRewardCampaignAccountPoints(
 	return result
 }
 
-func (q legacyQueryServer) convertPendingTradingRewardPoints(
+func convertPendingTradingRewardPoints(
 	ctx sdk.Context,
 	pendingPoints []*v2.TradingRewardCampaignAccountPendingPoints,
 ) []*v1.TradingRewardCampaignAccountPendingPoints {
@@ -1601,7 +1601,7 @@ func (q legacyQueryServer) convertPendingTradingRewardPoints(
 			p.AccountPoints = append(p.AccountPoints, &v1.TradingRewardCampaignAccountPoints{
 				Account: accountPoint.Account,
 				// Historically all tokens with FeeDiscount had 6 decimals (until the migration to exchange v2 - v1.16.0)
-				Points: ConditionalNotionalToChainFormat(ctx, q.v2QueryServer.Keeper, accountPoint.Points, 6),
+				Points: ConditionalNotionalToChainFormat(ctx, accountPoint.Points, 6),
 			})
 		}
 
@@ -1610,7 +1610,7 @@ func (q legacyQueryServer) convertPendingTradingRewardPoints(
 	return result
 }
 
-func (q legacyQueryServer) convertFeeDiscountSchedule(
+func convertFeeDiscountSchedule(
 	ctx sdk.Context,
 	respV2 *v2.QueryModuleStateResponse,
 	resp *v1.QueryModuleStateResponse,
@@ -1626,7 +1626,7 @@ func (q legacyQueryServer) convertFeeDiscountSchedule(
 
 		for _, info := range respV2.State.FeeDiscountSchedule.TierInfos {
 			// Historically all tokens with FeeDiscount had 6 decimals (until the migration to exchange v2 - v1.16.0)
-			chainFormatVolume := ConditionalNotionalToChainFormat(ctx, q.v2QueryServer.Keeper, info.Volume, 6)
+			chainFormatVolume := ConditionalNotionalToChainFormat(ctx, info.Volume, 6)
 			feeDiscount.TierInfos = append(feeDiscount.TierInfos, &v1.FeeDiscountTierInfo{
 				MakerDiscountRate: info.MakerDiscountRate,
 				TakerDiscountRate: info.TakerDiscountRate,
@@ -1662,7 +1662,7 @@ func (q legacyQueryServer) convertFeeDiscountSchedule(
 
 		for _, volume := range account.AccountVolume {
 			// Historically all tokens with FeeDiscount had 6 decimals (until the migration to exchange v2 - v1.16.0)
-			chainFormatVolume := ConditionalNotionalToChainFormat(ctx, q.v2QueryServer.Keeper, volume.Volume, 6)
+			chainFormatVolume := ConditionalNotionalToChainFormat(ctx, volume.Volume, 6)
 			a.AccountVolume = append(a.AccountVolume, &v1.AccountVolume{
 				Account: volume.Account,
 				Volume:  chainFormatVolume,
@@ -1673,7 +1673,7 @@ func (q legacyQueryServer) convertFeeDiscountSchedule(
 	}
 }
 
-func (q legacyQueryServer) convertHistoricalTradeRecords(
+func convertHistoricalTradeRecords(
 	ctx sdk.Context, marketFinder *CachedMarketFinder, respV2 *v2.QueryModuleStateResponse, resp *v1.QueryModuleStateResponse,
 ) {
 	resp.State.HistoricalTradeRecords = make([]*v1.TradeRecords, 0, len(resp.State.HistoricalTradeRecords))
@@ -1683,7 +1683,7 @@ func (q legacyQueryServer) convertHistoricalTradeRecords(
 			return
 		}
 
-		valuesConverter := NewChainValuesConverter(ctx, q.v2QueryServer.Keeper, market)
+		valuesConverter := NewChainValuesConverter(ctx, market)
 
 		v1TradeRecords := NewV1TradeRecordsFromV2(valuesConverter, *record)
 		resp.State.HistoricalTradeRecords = append(resp.State.HistoricalTradeRecords, &v1TradeRecords)
@@ -1718,7 +1718,7 @@ func convertMarketOrders(valuesConverter ChainValuesConverter, v2Orders []*v2.De
 	return v1Orders
 }
 
-func (q legacyQueryServer) convertConditionalDerivativeOrderbooks(
+func convertConditionalDerivativeOrderbooks(
 	ctx sdk.Context, marketFinder *CachedMarketFinder, respV2 *v2.QueryModuleStateResponse, resp *v1.QueryModuleStateResponse,
 ) {
 	resp.State.ConditionalDerivativeOrderbooks = make(
@@ -1732,7 +1732,7 @@ func (q legacyQueryServer) convertConditionalDerivativeOrderbooks(
 			return
 		}
 
-		valuesConverter := NewChainValuesConverter(ctx, q.v2QueryServer.Keeper, market)
+		valuesConverter := NewChainValuesConverter(ctx, market)
 
 		v1LimitBuyOrders := convertLimitOrders(valuesConverter, orderbook.LimitBuyOrders)
 		v1MarketBuyOrders := convertMarketOrders(valuesConverter, orderbook.MarketBuyOrders)
@@ -1771,7 +1771,7 @@ func convertOrderbookSequences(respV2 *v2.QueryModuleStateResponse, resp *v1.Que
 	}
 }
 
-func (q legacyQueryServer) convertSubaccountVolumes(
+func convertSubaccountVolumes(
 	ctx sdk.Context, marketFinder *CachedMarketFinder, respV2 *v2.QueryModuleStateResponse, resp *v1.QueryModuleStateResponse,
 ) {
 	resp.State.SubaccountVolumes = make([]*v1.AggregateSubaccountVolumeRecord, 0, len(respV2.State.SubaccountVolumes))
@@ -1787,7 +1787,7 @@ func (q legacyQueryServer) convertSubaccountVolumes(
 				return
 			}
 
-			valuesConverter := NewChainValuesConverter(ctx, q.v2QueryServer.Keeper, market)
+			valuesConverter := NewChainValuesConverter(ctx, market)
 
 			v1Volume := NewV1MarketVolumeFromV2(valuesConverter, *marketVolume)
 			v.MarketVolumes = append(v.MarketVolumes, &v1Volume)
@@ -1797,7 +1797,7 @@ func (q legacyQueryServer) convertSubaccountVolumes(
 	}
 }
 
-func (q legacyQueryServer) convertMarketVolumes(
+func convertMarketVolumes(
 	ctx sdk.Context, marketFinder *CachedMarketFinder, respV2 *v2.QueryModuleStateResponse, resp *v1.QueryModuleStateResponse,
 ) {
 	resp.State.MarketVolumes = make([]*v1.MarketVolume, 0, len(respV2.State.MarketVolumes))
@@ -1807,7 +1807,7 @@ func (q legacyQueryServer) convertMarketVolumes(
 			return
 		}
 
-		valuesConverter := NewChainValuesConverter(ctx, q.v2QueryServer.Keeper, market)
+		valuesConverter := NewChainValuesConverter(ctx, market)
 
 		v1Volume := NewV1MarketVolumeFromV2(valuesConverter, *volume)
 		resp.State.MarketVolumes = append(resp.State.MarketVolumes, &v1Volume)
@@ -1875,7 +1875,7 @@ func (q legacyQueryServer) Positions(ctx context.Context, _ *v1.QueryPositionsRe
 			return nil, err
 		}
 
-		valuesConverter := NewChainValuesConverter(unwrappedContext, q.v2QueryServer.Keeper, market)
+		valuesConverter := NewChainValuesConverter(unwrappedContext, market)
 
 		v1DerivativePosition := NewV1DerivativePositonFromV2(valuesConverter, position)
 		resp.State = append(resp.State, v1DerivativePosition)
@@ -1909,7 +1909,7 @@ func (q legacyQueryServer) SubaccountPositions(
 			return nil, err
 		}
 
-		valuesConverter := NewChainValuesConverter(unwrappedContext, q.v2QueryServer.Keeper, market)
+		valuesConverter := NewChainValuesConverter(unwrappedContext, market)
 
 		v1DerivativePosition := NewV1DerivativePositonFromV2(valuesConverter, position)
 		resp.State = append(resp.State, v1DerivativePosition)
@@ -1932,7 +1932,7 @@ func (q legacyQueryServer) SubaccountPositionInMarket(
 		return nil, err
 	}
 
-	valuesConverter := NewChainValuesConverter(unwrappedContext, q.v2QueryServer.Keeper, market)
+	valuesConverter := NewChainValuesConverter(unwrappedContext, market)
 
 	reqV2 := &v2.QuerySubaccountPositionInMarketRequest{
 		SubaccountId: request.SubaccountId,
@@ -1968,7 +1968,7 @@ func (q legacyQueryServer) SubaccountEffectivePositionInMarket(
 		return nil, err
 	}
 
-	valuesConverter := NewChainValuesConverter(unwrappedContext, q.v2QueryServer.Keeper, market)
+	valuesConverter := NewChainValuesConverter(unwrappedContext, market)
 
 	reqV2 := &v2.QuerySubaccountEffectivePositionInMarketRequest{
 		SubaccountId: request.SubaccountId,
@@ -2025,7 +2025,7 @@ func (q legacyQueryServer) ExpiryFuturesMarketInfo(
 		return nil, err
 	}
 
-	valuesConverter := NewChainValuesConverter(unwrappedContext, q.v2QueryServer.Keeper, market)
+	valuesConverter := NewChainValuesConverter(unwrappedContext, market)
 
 	reqV2 := &v2.QueryExpiryFuturesMarketInfoRequest{MarketId: request.MarketId}
 	respV2, err := q.v2QueryServer.ExpiryFuturesMarketInfo(ctx, reqV2)
@@ -2052,7 +2052,7 @@ func (q legacyQueryServer) PerpetualMarketFunding(
 		return nil, err
 	}
 
-	valuesConverter := NewChainValuesConverter(unwrappedContext, q.v2QueryServer.Keeper, market)
+	valuesConverter := NewChainValuesConverter(unwrappedContext, market)
 
 	reqV2 := &v2.QueryPerpetualMarketFundingRequest{MarketId: request.MarketId}
 	respV2, err := q.v2QueryServer.PerpetualMarketFunding(ctx, reqV2)
@@ -2090,7 +2090,7 @@ func (q legacyQueryServer) SubaccountOrderMetadata(
 			return nil, err
 		}
 
-		valuesConverter := NewChainValuesConverter(unwrappedContext, q.v2QueryServer.Keeper, market)
+		valuesConverter := NewChainValuesConverter(unwrappedContext, market)
 
 		v1Metadata := v1.SubaccountOrderbookMetadataWithMarket{
 			MarketId: metadata.MarketId,
@@ -2135,7 +2135,7 @@ func (q legacyQueryServer) TradeRewardPoints(
 	for _, points := range respV2.AccountTradeRewardPoints {
 		resp.AccountTradeRewardPoints = append(
 			resp.AccountTradeRewardPoints,
-			ConditionalNotionalToChainFormat(unwrappedContext, q.v2QueryServer.Keeper, points, 6),
+			ConditionalNotionalToChainFormat(unwrappedContext, points, 6),
 		)
 	}
 
@@ -2165,7 +2165,7 @@ func (q legacyQueryServer) PendingTradeRewardPoints(
 	for _, points := range respV2.AccountTradeRewardPoints {
 		resp.AccountTradeRewardPoints = append(
 			resp.AccountTradeRewardPoints,
-			ConditionalNotionalToChainFormat(unwrappedContext, q.v2QueryServer.Keeper, points, 6),
+			ConditionalNotionalToChainFormat(unwrappedContext, points, 6),
 		)
 	}
 
@@ -2190,7 +2190,6 @@ func (q legacyQueryServer) TradeRewardCampaign(
 		// Historically all tokens with FeeDiscount had 6 decimals (until the migration to exchange v2 - v1.16.0)
 		TotalTradeRewardPoints: ConditionalNotionalToChainFormat(
 			unwrappedContext,
-			q.v2QueryServer.Keeper,
 			respV2.TotalTradeRewardPoints,
 			6,
 		),
@@ -2217,7 +2216,7 @@ func (q legacyQueryServer) TradeRewardCampaign(
 
 	for _, totalRewardPoints := range respV2.PendingTotalTradeRewardPoints {
 		// Historically all tokens with FeeDiscount had 6 decimals (until the migration to exchange v2 - v1.16.0)
-		chainFormattedPoints := ConditionalNotionalToChainFormat(unwrappedContext, q.v2QueryServer.Keeper, totalRewardPoints, 6)
+		chainFormattedPoints := ConditionalNotionalToChainFormat(unwrappedContext, totalRewardPoints, 6)
 		resp.PendingTotalTradeRewardPoints = append(resp.PendingTotalTradeRewardPoints, chainFormattedPoints)
 	}
 
@@ -2248,7 +2247,7 @@ func (q legacyQueryServer) FeeDiscountAccountInfo(
 			TakerDiscountRate: respV2.AccountInfo.TakerDiscountRate,
 			StakedAmount:      respV2.AccountInfo.StakedAmount,
 			// Historically all tokens with FeeDiscount had 6 decimals (until the migration to exchange v2 - v1.16.0)
-			Volume: ConditionalNotionalToChainFormat(unwrappedContext, q.v2QueryServer.Keeper, respV2.AccountInfo.Volume, 6),
+			Volume: ConditionalNotionalToChainFormat(unwrappedContext, respV2.AccountInfo.Volume, 6),
 		}
 	}
 
@@ -2290,7 +2289,7 @@ func (q legacyQueryServer) FeeDiscountSchedule(
 			TakerDiscountRate: info.TakerDiscountRate,
 			StakedAmount:      info.StakedAmount,
 			// Historically all tokens with FeeDiscount had 6 decimals (until the migration to exchange v2 - v1.16.0)
-			Volume: ConditionalNotionalToChainFormat(unwrappedContext, q.v2QueryServer.Keeper, info.Volume, 6),
+			Volume: ConditionalNotionalToChainFormat(unwrappedContext, info.Volume, 6),
 		})
 	}
 
@@ -2434,7 +2433,7 @@ func (q legacyQueryServer) HistoricalTradeRecords(
 		return nil, err
 	}
 
-	valuesConverter := NewChainValuesConverter(unwrappedContext, q.v2QueryServer.Keeper, market)
+	valuesConverter := NewChainValuesConverter(unwrappedContext, market)
 
 	reqV2 := &v2.QueryHistoricalTradeRecordsRequest{MarketId: request.MarketId}
 	respV2, err := q.v2QueryServer.HistoricalTradeRecords(ctx, reqV2)
@@ -2497,7 +2496,7 @@ func (q legacyQueryServer) MarketVolatility(
 		return nil, err
 	}
 
-	valuesConverter := NewChainValuesConverter(unwrappedContext, q.v2QueryServer.Keeper, market)
+	valuesConverter := NewChainValuesConverter(unwrappedContext, market)
 
 	reqV2 := &v2.QueryMarketVolatilityRequest{
 		MarketId: request.MarketId,
@@ -2569,7 +2568,7 @@ func (q legacyQueryServer) BinaryOptionsMarkets(
 	}
 
 	for _, market := range respV2.Markets {
-		valuesConverter := NewChainValuesConverter(unwrappedContext, q.v2QueryServer.Keeper, market)
+		valuesConverter := NewChainValuesConverter(unwrappedContext, market)
 
 		v1Market := NewV1BinaryOptionsMarketFromV2(valuesConverter, *market)
 		resp.Markets = append(resp.Markets, &v1Market)
@@ -2591,7 +2590,7 @@ func (q legacyQueryServer) TraderDerivativeConditionalOrders(
 		return nil, err
 	}
 
-	valuesConverter := NewChainValuesConverter(unwrappedContext, q.v2QueryServer.Keeper, market)
+	valuesConverter := NewChainValuesConverter(unwrappedContext, market)
 
 	reqV2 := &v2.QueryTraderDerivativeConditionalOrdersRequest{
 		SubaccountId: request.SubaccountId,
@@ -2783,7 +2782,7 @@ func (q legacyQueryServer) DenomMinNotional(
 	}
 
 	res := &v1.QueryDenomMinNotionalResponse{
-		Amount: ConditionalNotionalToChainFormat(ctx, q.v2QueryServer.Keeper, respV2.Amount, denomDecimals),
+		Amount: ConditionalNotionalToChainFormat(ctx, respV2.Amount, denomDecimals),
 	}
 
 	return res, nil
@@ -2823,7 +2822,6 @@ func (q legacyQueryServer) DenomMinNotionals(
 			Denom: v2DenomMinNotional.Denom,
 			MinNotional: ConditionalNotionalToChainFormat(
 				unwrappedContext,
-				q.v2QueryServer.Keeper,
 				v2DenomMinNotional.MinNotional,
 				denomDecimals,
 			),

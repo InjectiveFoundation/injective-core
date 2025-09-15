@@ -100,6 +100,7 @@ func NewTxCmd() *cobra.Command {
 		NewIncreasePositionMarginTxCmd(),
 		NewDecreasePositionMarginTxCmd(),
 		NewMsgLiquidatePositionTxCmd(),
+		NewCancelPostOnlyModeTxCmd(),
 	)
 	return cmd
 }
@@ -2395,151 +2396,6 @@ Where proposal.json contains:
 	return cmd
 }
 
-func getDerivativeMarketParamUpdateFlagsMapping() cli.FlagsMapping {
-	return cli.FlagsMapping{
-		"Title":                  cli.Flag{Flag: govcli.FlagTitle},
-		"Description":            cli.Flag{Flag: govcli.FlagDescription},
-		"MarketId":               cli.Flag{Flag: FlagMarketID},
-		"InitialMarginRatio":     cli.Flag{Flag: FlagInitialMarginRatio},
-		"MaintenanceMarginRatio": cli.Flag{Flag: FlagMaintenanceMarginRatio},
-		"ReduceMarginRatio":      cli.Flag{Flag: FlagReduceMarginRatio},
-		"MakerFeeRate":           cli.Flag{Flag: FlagMakerFeeRate},
-		"TakerFeeRate":           cli.Flag{Flag: FlagTakerFeeRate},
-		"RelayerFeeShareRate":    cli.Flag{Flag: FlagRelayerFeeShareRate},
-		"MinPriceTickSize":       cli.Flag{Flag: FlagMinPriceTickSize},
-		"MinQuantityTickSize":    cli.Flag{Flag: FlagMinQuantityTickSize},
-		"HourlyInterestRate":     cli.Flag{Flag: FlagHourlyInterestRate},
-		"HourlyFundingRateCap":   cli.Flag{Flag: FlagHourlyFundingRateCap},
-		"Status": cli.Flag{
-			Flag: FlagMarketStatus,
-			Transform: func(origV string, _ grpc.ClientConn) (transformedV any, err error) {
-				var status exchangev2.MarketStatus
-				if origV != "" {
-					newStatus, ok := exchangev2.MarketStatus_value[origV]
-					if !ok {
-						return nil, fmt.Errorf("incorrect market status: %s", origV)
-					}
-					status = exchangev2.MarketStatus(newStatus)
-				} else {
-					status = exchangev2.MarketStatus_Unspecified
-				}
-				return fmt.Sprintf("%v", int32(status)), nil
-			},
-		},
-		"OracleBase":        cli.Flag{Flag: FlagOracleBase},
-		"OracleQuote":       cli.Flag{Flag: FlagOracleQuote},
-		"OracleScaleFactor": cli.Flag{Flag: FlagOracleScaleFactor},
-		"OracleType": cli.Flag{
-			Flag: FlagOracleType,
-			Transform: func(origV string, _ grpc.ClientConn) (transformedV any, err error) {
-				oracleType, err := oracletypes.GetOracleType(origV)
-				if err != nil {
-					return nil, fmt.Errorf("error parsing oracle type: %w", err)
-				}
-				return fmt.Sprintf("%v", int32(oracleType)), nil
-			},
-		},
-		"Ticker":           cli.Flag{Flag: FlagTicker},
-		"MinNotional":      cli.Flag{Flag: FlagMinNotional},
-		"Admin":            cli.Flag{Flag: FlagAdmin},
-		"AdminPermissions": cli.Flag{Flag: FlagAdminPermissions},
-		"BaseDecimals":     cli.Flag{Flag: FlagBaseDecimals},
-		"QuoteDecimals":    cli.Flag{Flag: FlagQuoteDecimals},
-	}
-}
-
-func setupDerivativeMarketParamUpdateFlags(cmd *cobra.Command) {
-	cmd.Flags().String(FlagMarketID, "", "ID of market to update params")
-	cmd.Flags().String(FlagInitialMarginRatio, "", "initial margin ratio")
-	cmd.Flags().String(FlagMaintenanceMarginRatio, "", "maintenance margin ratio")
-	cmd.Flags().String(FlagReduceMarginRatio, "", "reduce margin ratio")
-	cmd.Flags().String(FlagMakerFeeRate, "", "maker fee rate")
-	cmd.Flags().String(FlagTakerFeeRate, "", "taker fee rate")
-	cmd.Flags().String(FlagRelayerFeeShareRate, "", "relayer fee share rate")
-	cmd.Flags().String(FlagMinPriceTickSize, "0.01", "min price tick size")
-	cmd.Flags().String(FlagMinQuantityTickSize, "0.01", "min quantity tick size")
-	cmd.Flags().String(FlagMinNotional, "0", "min notional")
-	cmd.Flags().String(FlagHourlyInterestRate, "", "hourly interest rate")
-	cmd.Flags().String(FlagHourlyFundingRateCap, "", "hourly funding rate cap")
-	cmd.Flags().String(FlagOracleBase, "", "oracle base")
-	cmd.Flags().String(FlagOracleQuote, "", "oracle quote")
-	cmd.Flags().String(FlagOracleType, "", "oracle type")
-	cmd.Flags().Uint32(FlagOracleScaleFactor, 0, "oracle scale factor")
-	cmd.Flags().String(FlagMarketStatus, "", "market status")
-	cmd.Flags().String(FlagTicker, "", "market ticker")
-	cmd.Flags().String(FlagAdmin, "", "market admin")
-	cmd.Flags().Uint32(FlagAdminPermissions, 0, "admin permissions level")
-	cmd.Flags().Bool(FlagExpedited, false, "set the expedited value for the governance proposal")
-	cliflags.AddGovProposalFlags(cmd)
-	cliflags.AddTxFlagsToCmd(cmd)
-}
-
-func createDerivativeMarketParamUpdateProposal(
-	cmd *cobra.Command, args []string, clientCtx client.Context,
-) (*exchangev2.DerivativeMarketParamUpdateProposal, error) {
-	flagsMapping := getDerivativeMarketParamUpdateFlagsMapping()
-	argsMapping := cli.ArgsMapping{}
-
-	proposal := &exchangev2.DerivativeMarketParamUpdateProposal{
-		OracleParams: &exchangev2.OracleParams{},
-		AdminInfo:    &exchangev2.AdminInfo{},
-	}
-
-	err := cli.ParseFieldsFromFlagsAndArgs(proposal, flagsMapping, argsMapping, cmd.Flags(), args, clientCtx)
-	if err != nil {
-		return nil, err
-	}
-
-	return proposal, nil
-}
-
-func createDerivativeMarketParamUpdateMessage(proposal *exchangev2.DerivativeMarketParamUpdateProposal) sdk.Msg {
-	return &exchangev2.MsgDerivativeMarketParamUpdate{
-		Sender:   authtypes.NewModuleAddress(govgeneraltypes.ModuleName).String(),
-		Proposal: proposal,
-	}
-}
-
-func executeDerivativeMarketParamUpdate(cmd *cobra.Command, args []string, clientCtx client.Context) error {
-	depositStr, err := cmd.Flags().GetString(govcli.FlagDeposit)
-	if err != nil {
-		return err
-	}
-
-	amount, err := sdk.ParseCoinsNormalized(depositStr)
-	if err != nil {
-		return err
-	}
-
-	proposal, err := createDerivativeMarketParamUpdateProposal(cmd, args, clientCtx)
-	if err != nil {
-		return err
-	}
-
-	message := createDerivativeMarketParamUpdateMessage(proposal)
-	messages := []sdk.Msg{message}
-
-	expedited, err := cmd.Flags().GetBool(FlagExpedited)
-	if err != nil {
-		return err
-	}
-
-	msg, err := govtypesv1.NewMsgSubmitProposal(
-		messages,
-		amount,
-		clientCtx.GetFromAddress().String(),
-		"",
-		proposal.Title,
-		proposal.Description,
-		expedited,
-	)
-	if err != nil {
-		return fmt.Errorf("invalid message: %w", err)
-	}
-
-	return tx.GenerateOrBroadcastTxCLI(clientCtx, cmd.Flags(), msg)
-}
-
 func NewDerivativeMarketParamUpdateProposalTxCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "update-derivative-market-params [flags]",
@@ -3622,6 +3478,166 @@ func NewMsgLiquidatePositionTxCmd() *cobra.Command {
 	}
 	cliflags.AddTxFlagsToCmd(cmd)
 	return cmd
+}
+
+func NewCancelPostOnlyModeTxCmd() *cobra.Command {
+	cmd := cli.TxCmd(
+		"cancel-post-only-mode",
+		"Cancel the post-only mode if it's currently active",
+		&exchangev2.MsgCancelPostOnlyMode{},
+		nil,
+		cli.ArgsMapping{},
+	)
+	cmd.Example = `injectived tx exchange cancel-post-only-mode \
+		--from=genesis \
+		--keyring-backend=file \
+		--yes`
+	return cmd
+}
+
+func getDerivativeMarketParamUpdateFlagsMapping() cli.FlagsMapping {
+	return cli.FlagsMapping{
+		"Title":                  cli.Flag{Flag: govcli.FlagTitle},
+		"Description":            cli.Flag{Flag: govcli.FlagDescription},
+		"MarketId":               cli.Flag{Flag: FlagMarketID},
+		"InitialMarginRatio":     cli.Flag{Flag: FlagInitialMarginRatio},
+		"MaintenanceMarginRatio": cli.Flag{Flag: FlagMaintenanceMarginRatio},
+		"ReduceMarginRatio":      cli.Flag{Flag: FlagReduceMarginRatio},
+		"MakerFeeRate":           cli.Flag{Flag: FlagMakerFeeRate},
+		"TakerFeeRate":           cli.Flag{Flag: FlagTakerFeeRate},
+		"RelayerFeeShareRate":    cli.Flag{Flag: FlagRelayerFeeShareRate},
+		"MinPriceTickSize":       cli.Flag{Flag: FlagMinPriceTickSize},
+		"MinQuantityTickSize":    cli.Flag{Flag: FlagMinQuantityTickSize},
+		"HourlyInterestRate":     cli.Flag{Flag: FlagHourlyInterestRate},
+		"HourlyFundingRateCap":   cli.Flag{Flag: FlagHourlyFundingRateCap},
+		"Status": cli.Flag{
+			Flag: FlagMarketStatus,
+			Transform: func(origV string, _ grpc.ClientConn) (transformedV any, err error) {
+				var status exchangev2.MarketStatus
+				if origV != "" {
+					newStatus, ok := exchangev2.MarketStatus_value[origV]
+					if !ok {
+						return nil, fmt.Errorf("incorrect market status: %s", origV)
+					}
+					status = exchangev2.MarketStatus(newStatus)
+				} else {
+					status = exchangev2.MarketStatus_Unspecified
+				}
+				return fmt.Sprintf("%v", int32(status)), nil
+			},
+		},
+		"OracleBase":        cli.Flag{Flag: FlagOracleBase},
+		"OracleQuote":       cli.Flag{Flag: FlagOracleQuote},
+		"OracleScaleFactor": cli.Flag{Flag: FlagOracleScaleFactor},
+		"OracleType": cli.Flag{
+			Flag: FlagOracleType,
+			Transform: func(origV string, _ grpc.ClientConn) (transformedV any, err error) {
+				oracleType, err := oracletypes.GetOracleType(origV)
+				if err != nil {
+					return nil, fmt.Errorf("error parsing oracle type: %w", err)
+				}
+				return fmt.Sprintf("%v", int32(oracleType)), nil
+			},
+		},
+		"Ticker":           cli.Flag{Flag: FlagTicker},
+		"MinNotional":      cli.Flag{Flag: FlagMinNotional},
+		"Admin":            cli.Flag{Flag: FlagAdmin},
+		"AdminPermissions": cli.Flag{Flag: FlagAdminPermissions},
+		"BaseDecimals":     cli.Flag{Flag: FlagBaseDecimals},
+		"QuoteDecimals":    cli.Flag{Flag: FlagQuoteDecimals},
+	}
+}
+
+func setupDerivativeMarketParamUpdateFlags(cmd *cobra.Command) {
+	cmd.Flags().String(FlagMarketID, "", "ID of market to update params")
+	cmd.Flags().String(FlagInitialMarginRatio, "", "initial margin ratio")
+	cmd.Flags().String(FlagMaintenanceMarginRatio, "", "maintenance margin ratio")
+	cmd.Flags().String(FlagReduceMarginRatio, "", "reduce margin ratio")
+	cmd.Flags().String(FlagMakerFeeRate, "", "maker fee rate")
+	cmd.Flags().String(FlagTakerFeeRate, "", "taker fee rate")
+	cmd.Flags().String(FlagRelayerFeeShareRate, "", "relayer fee share rate")
+	cmd.Flags().String(FlagMinPriceTickSize, "0.01", "min price tick size")
+	cmd.Flags().String(FlagMinQuantityTickSize, "0.01", "min quantity tick size")
+	cmd.Flags().String(FlagMinNotional, "0", "min notional")
+	cmd.Flags().String(FlagHourlyInterestRate, "", "hourly interest rate")
+	cmd.Flags().String(FlagHourlyFundingRateCap, "", "hourly funding rate cap")
+	cmd.Flags().String(FlagOracleBase, "", "oracle base")
+	cmd.Flags().String(FlagOracleQuote, "", "oracle quote")
+	cmd.Flags().String(FlagOracleType, "", "oracle type")
+	cmd.Flags().Uint32(FlagOracleScaleFactor, 0, "oracle scale factor")
+	cmd.Flags().String(FlagMarketStatus, "", "market status")
+	cmd.Flags().String(FlagTicker, "", "market ticker")
+	cmd.Flags().String(FlagAdmin, "", "market admin")
+	cmd.Flags().Uint32(FlagAdminPermissions, 0, "admin permissions level")
+	cmd.Flags().Bool(FlagExpedited, false, "set the expedited value for the governance proposal")
+	cliflags.AddGovProposalFlags(cmd)
+	cliflags.AddTxFlagsToCmd(cmd)
+}
+
+func createDerivativeMarketParamUpdateProposal(
+	cmd *cobra.Command, args []string, clientCtx client.Context,
+) (*exchangev2.DerivativeMarketParamUpdateProposal, error) {
+	flagsMapping := getDerivativeMarketParamUpdateFlagsMapping()
+	argsMapping := cli.ArgsMapping{}
+
+	proposal := &exchangev2.DerivativeMarketParamUpdateProposal{
+		OracleParams: &exchangev2.OracleParams{},
+		AdminInfo:    &exchangev2.AdminInfo{},
+	}
+
+	err := cli.ParseFieldsFromFlagsAndArgs(proposal, flagsMapping, argsMapping, cmd.Flags(), args, clientCtx)
+	if err != nil {
+		return nil, err
+	}
+
+	return proposal, nil
+}
+
+func createDerivativeMarketParamUpdateMessage(proposal *exchangev2.DerivativeMarketParamUpdateProposal) sdk.Msg {
+	return &exchangev2.MsgDerivativeMarketParamUpdate{
+		Sender:   authtypes.NewModuleAddress(govgeneraltypes.ModuleName).String(),
+		Proposal: proposal,
+	}
+}
+
+func executeDerivativeMarketParamUpdate(cmd *cobra.Command, args []string, clientCtx client.Context) error {
+	depositStr, err := cmd.Flags().GetString(govcli.FlagDeposit)
+	if err != nil {
+		return err
+	}
+
+	amount, err := sdk.ParseCoinsNormalized(depositStr)
+	if err != nil {
+		return err
+	}
+
+	proposal, err := createDerivativeMarketParamUpdateProposal(cmd, args, clientCtx)
+	if err != nil {
+		return err
+	}
+
+	message := createDerivativeMarketParamUpdateMessage(proposal)
+	messages := []sdk.Msg{message}
+
+	expedited, err := cmd.Flags().GetBool(FlagExpedited)
+	if err != nil {
+		return err
+	}
+
+	msg, err := govtypesv1.NewMsgSubmitProposal(
+		messages,
+		amount,
+		clientCtx.GetFromAddress().String(),
+		"",
+		proposal.Title,
+		proposal.Description,
+		expedited,
+	)
+	if err != nil {
+		return fmt.Errorf("invalid message: %w", err)
+	}
+
+	return tx.GenerateOrBroadcastTxCLI(clientCtx, cmd.Flags(), msg)
 }
 
 func getSpotMarketIdFromTicker(ticker string, ctx grpc.ClientConn) (any, error) {

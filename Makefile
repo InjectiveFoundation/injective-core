@@ -226,9 +226,14 @@ ictest-chainstream: rm-testcache
 	cd interchaintest && go test -timeout 30m -v -run Test_ChainStream_ConnectsAndReceivesEvents .
 	./scripts/coverage-html.sh interchaintest/coverage/Test_ChainStream_ConnectsAndReceivesEvents
 
+ictest-downtime-detector: rm-testcache
+	rm -rf interchaintest/coverage/TestDowntimeDetector
+	cd interchaintest && go test -timeout 30m -v -run TestDowntimeDetector .
+	./scripts/coverage-html.sh interchaintest/coverage/TestDowntimeDetector
+
 .PHONY: rm-testcache rm-ic-coverage
 .PHONY: ictest-all ictest-basic ictest-upgrade ictest-ibchooks ictest-permissions-wasm-hook ictest-pfm ictest-lanes
-.PHONY: ictest-fixed-gas ictest-fixed-gas-regression ictest-peggo ictest-peggo-ibc ictest-evm ictest-chainstream
+.PHONY: ictest-fixed-gas ictest-fixed-gas-regression ictest-peggo ictest-peggo-ibc ictest-evm ictest-chainstream ictest-downtime-detector
 
 ###############################################################################
 

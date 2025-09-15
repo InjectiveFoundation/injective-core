@@ -30,11 +30,13 @@ perl -i -pe 's/^minimum-gas-prices = ".*?"/minimum-gas-prices = "1inj"/' $INJHOM
 INITIAL_GENESIS_DIR="./scripts/local-genesis"
 if [ -d $INITIAL_GENESIS_DIR ]; then
 	echo "loading initial genesis files from $INITIAL_GENESIS_DIR..."
+	DOWNTIMEDETECTOR_GENESIS_STATE=$(cat $INITIAL_GENESIS_DIR/initial_downtime_detector_genesis.json | jq -r '.state')
 	EXCHANGE_GENESIS_STATE=$(cat $INITIAL_GENESIS_DIR/initial_exchange_genesis.json | jq -r '.state')
 	INSURANCE_GENESIS_STATE=$(cat $INITIAL_GENESIS_DIR/initial_insurance_genesis.json | jq -r '.state')
 	ORACLE_GENESIS_STATE=$(cat $INITIAL_GENESIS_DIR/initial_oracle_genesis.json | jq -r '.state')
 	WASMX_GENESIS_STATE=$(cat $INITIAL_GENESIS_DIR/initial_wasmx_genesis.json | jq -r '.state')
 
+	cat $INJHOME/config/genesis.json | jq '.app_state["downtimedetector"]='"${DOWNTIMEDETECTOR_GENESIS_STATE}" > $INJHOME/config/tmp_genesis.json && mv $INJHOME/config/tmp_genesis.json $INJHOME/config/genesis.json
 	cat $INJHOME/config/genesis.json | jq '.app_state["exchange"]='"${EXCHANGE_GENESIS_STATE}" > $INJHOME/config/tmp_genesis.json && mv $INJHOME/config/tmp_genesis.json $INJHOME/config/genesis.json
 	cat $INJHOME/config/genesis.json | jq '.app_state["insurance"]='"${INSURANCE_GENESIS_STATE}" > $INJHOME/config/tmp_genesis.json && mv $INJHOME/config/tmp_genesis.json $INJHOME/config/genesis.json
 	cat $INJHOME/config/genesis.json | jq '.app_state["oracle"]='"${ORACLE_GENESIS_STATE}" > $INJHOME/config/tmp_genesis.json && mv $INJHOME/config/tmp_genesis.json $INJHOME/config/genesis.json

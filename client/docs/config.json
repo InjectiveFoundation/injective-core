@@ -192,6 +192,14 @@
       }
     },
     {
+      "url": "./tmp-swagger-gen/injective/downtimedetector/v1beta1/query.swagger.json",
+      "operationIds": {
+        "rename": {
+          "Params": "DowntimeDetectorParams"
+        }
+      }
+    },
+    {
       "url": "./tmp-swagger-gen/cosmos/bank/v1beta1/query.swagger.json",
       "operationIds": {
         "rename": {

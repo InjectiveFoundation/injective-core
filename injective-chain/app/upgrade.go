@@ -12,58 +12,24 @@ import (
 	"github.com/cosmos/cosmos-sdk/types/module"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/app/upgrades"
-	v1dot16dot0 "github.com/InjectiveLabs/injective-core/injective-chain/app/upgrades/v1.16.0"
-	v1dot16b2 "github.com/InjectiveLabs/injective-core/injective-chain/app/upgrades/v1.16.0-beta.2"
-	v1dot16b3 "github.com/InjectiveLabs/injective-core/injective-chain/app/upgrades/v1.16.0-beta.3"
-	v1dot16b4 "github.com/InjectiveLabs/injective-core/injective-chain/app/upgrades/v1.16.0-beta.4"
-	v1dot16dot1 "github.com/InjectiveLabs/injective-core/injective-chain/app/upgrades/v1.16.1"
-	v1dot16dot3 "github.com/InjectiveLabs/injective-core/injective-chain/app/upgrades/v1.16.3"
+	v1dot16dot4 "github.com/InjectiveLabs/injective-core/injective-chain/app/upgrades/v1.16.4"
 )
 
 var _ upgrades.InjectiveApplication = &InjectiveApp{}
 
 var upgradeNames = []string{
-	v1dot16b2.UpgradeName,
-	v1dot16b3.UpgradeName,
-	v1dot16b4.UpgradeName,
-	v1dot16dot0.UpgradeName,
-	v1dot16dot1.UpgradeName,
-	v1dot16dot3.UpgradeName,
+	v1dot16dot4.UpgradeName,
 }
 
 var upgradeSteps = map[string]UpgradeStepsFn{
-	v1dot16b2.UpgradeName:   v1dot16b2.UpgradeSteps,
-	v1dot16b3.UpgradeName:   v1dot16b3.UpgradeSteps,
-	v1dot16b4.UpgradeName:   v1dot16b4.UpgradeSteps,
-	v1dot16dot0.UpgradeName: v1dot16dot0.UpgradeSteps,
-	v1dot16dot1.UpgradeName: v1dot16dot1.UpgradeSteps,
-	v1dot16dot3.UpgradeName: v1dot16dot3.UpgradeSteps,
-
-	// NOTE: use NoSteps for upgrades that don't have any migration steps
+	v1dot16dot4.UpgradeName: v1dot16dot4.UpgradeSteps,
 }
 
 var storeUpgrades = map[string]storetypes.StoreUpgrades{
-	v1dot16b2.UpgradeName:   v1dot16b2.StoreUpgrades(),
-	v1dot16b3.UpgradeName:   v1dot16b3.StoreUpgrades(),
-	v1dot16b4.UpgradeName:   v1dot16b4.StoreUpgrades(),
-	v1dot16dot0.UpgradeName: v1dot16dot0.StoreUpgrades(),
-	v1dot16dot1.UpgradeName: v1dot16dot1.StoreUpgrades(),
-	v1dot16dot3.UpgradeName: NoStoreUpgrades(),
+	v1dot16dot4.UpgradeName: v1dot16dot4.StoreUpgrades(),
 }
 
 type UpgradeStepsFn func() []*upgrades.UpgradeHandlerStep
-
-func NoSteps() []*upgrades.UpgradeHandlerStep {
-	return []*upgrades.UpgradeHandlerStep{}
-}
-
-func NoStoreUpgrades() storetypes.StoreUpgrades {
-	return storetypes.StoreUpgrades{
-		Added:   nil,
-		Renamed: nil,
-		Deleted: nil,
-	}
-}
 
 func (app *InjectiveApp) registerUpgradeHandlers() {
 	validUpgradeNames := make(map[string]bool, len(upgradeNames))
@@ -128,7 +94,14 @@ func configurePostOnlyModeFunction(
 	return func(ctx sdk.Context, app upgrades.InjectiveApplication, _ log.Logger) error {
 		keeper := app.GetExchangeKeeper()
 		exchangeParams := keeper.GetParams(ctx)
-		exchangeParams.PostOnlyModeHeightThreshold = upgradeInfo.Height + 2000
+
+		// Use configured PostOnlyModeBlocksAmount, fallback to 2000 if not set
+		blocksAmount := exchangeParams.PostOnlyModeBlocksAmount
+		if blocksAmount == 0 {
+			blocksAmount = 2000
+		}
+
+		exchangeParams.PostOnlyModeHeightThreshold = upgradeInfo.Height + int64(blocksAmount)
 		keeper.SetParams(ctx, exchangeParams)
 
 		return nil

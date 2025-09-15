@@ -56,7 +56,6 @@ import (
 	authtx "github.com/cosmos/cosmos-sdk/x/auth/tx"
 	tx "github.com/cosmos/cosmos-sdk/x/auth/tx/config"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
-
 	vestingtypes "github.com/cosmos/cosmos-sdk/x/auth/vesting/types"
 	"github.com/cosmos/cosmos-sdk/x/authz"
 	authzcdc "github.com/cosmos/cosmos-sdk/x/authz/codec"
@@ -95,15 +94,6 @@ import (
 	"github.com/cosmos/cosmos-sdk/x/staking"
 	stakingkeeper "github.com/cosmos/cosmos-sdk/x/staking/keeper"
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
-
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/evm"
-	evmkeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/keeper"
-	evmtypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/types"
-	"github.com/ethereum/go-ethereum/core/vm"
-	_ "github.com/ethereum/go-ethereum/eth/tracers/js"
-	_ "github.com/ethereum/go-ethereum/eth/tracers/native"
-	ethparams "github.com/ethereum/go-ethereum/params"
-
 	"github.com/cosmos/ibc-apps/middleware/packet-forward-middleware/v8/packetforward"
 	packetforwardkeeper "github.com/cosmos/ibc-apps/middleware/packet-forward-middleware/v8/packetforward/keeper"
 	packetforwardtypes "github.com/cosmos/ibc-apps/middleware/packet-forward-middleware/v8/packetforward/types"
@@ -133,6 +123,10 @@ import (
 	ibcexported "github.com/cosmos/ibc-go/v8/modules/core/exported"
 	ibckeeper "github.com/cosmos/ibc-go/v8/modules/core/keeper"
 	ibctm "github.com/cosmos/ibc-go/v8/modules/light-clients/07-tendermint"
+	"github.com/ethereum/go-ethereum/core/vm"
+	_ "github.com/ethereum/go-ethereum/eth/tracers/js"     //revive:disable:blank-imports // This is required
+	_ "github.com/ethereum/go-ethereum/eth/tracers/native" //revive:disable:blank-imports // This is required
+	ethparams "github.com/ethereum/go-ethereum/params"
 	"github.com/gorilla/mux"
 	skipabci "github.com/skip-mev/block-sdk/v2/abci"
 	skipchecktx "github.com/skip-mev/block-sdk/v2/abci/checktx"
@@ -152,13 +146,19 @@ import (
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/auction"
 	auctionkeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/auction/keeper"
 	auctiontypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/auction/types"
+	downtimedetector "github.com/InjectiveLabs/injective-core/injective-chain/modules/downtime-detector"
+	downtimedetectormodule "github.com/InjectiveLabs/injective-core/injective-chain/modules/downtime-detector/module"
+	downtimedetectortypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/downtime-detector/types"
 	erc20keeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/erc20/keeper"
 	erc20module "github.com/InjectiveLabs/injective-core/injective-chain/modules/erc20/module"
 	erc20types "github.com/InjectiveLabs/injective-core/injective-chain/modules/erc20/types"
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/evm"
+	evmkeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/keeper"
 	bankpc "github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/precompiles/bank"
 	exchangepc "github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/precompiles/exchange"
 	stakingpc "github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/precompiles/staking"
 	cosmostracing "github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/tracing"
+	evmtypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/types"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange"
 	exchangekeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/keeper"
 	exchangetypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
@@ -240,6 +240,7 @@ var (
 		authzmodule.AppModuleBasic{},
 		packetforward.AppModuleBasic{},
 
+		downtimedetectormodule.AppModuleBasic{},
 		insurance.AppModuleBasic{},
 		exchange.AppModuleBasic{},
 		auction.AppModuleBasic{},
@@ -328,19 +329,20 @@ type InjectiveApp struct {
 	ConsensusParamsKeeper consensusparamkeeper.Keeper
 
 	// injective keepers
-	AuctionKeeper      auctionkeeper.Keeper
-	ExchangeKeeper     *exchangekeeper.Keeper
-	InsuranceKeeper    insurancekeeper.Keeper
-	TokenFactoryKeeper tokenfactorykeeper.Keeper
-	PermissionsKeeper  permissionskeeper.Keeper
-	EvmKeeper          *evmkeeper.Keeper
-	PeggyKeeper        peggyKeeper.Keeper
-	OracleKeeper       oraclekeeper.Keeper
-	OcrKeeper          ocrkeeper.Keeper
-	WasmKeeper         wasmkeeper.Keeper
-	WasmxKeeper        wasmxkeeper.Keeper
-	TxFeesKeeper       txfeeskeeper.Keeper
-	ERC20Keeper        erc20keeper.Keeper
+	AuctionKeeper          auctionkeeper.Keeper
+	ExchangeKeeper         *exchangekeeper.Keeper
+	InsuranceKeeper        insurancekeeper.Keeper
+	TokenFactoryKeeper     tokenfactorykeeper.Keeper
+	PermissionsKeeper      permissionskeeper.Keeper
+	EvmKeeper              *evmkeeper.Keeper
+	PeggyKeeper            peggyKeeper.Keeper
+	OracleKeeper           oraclekeeper.Keeper
+	OcrKeeper              ocrkeeper.Keeper
+	WasmKeeper             wasmkeeper.Keeper
+	WasmxKeeper            wasmxkeeper.Keeper
+	TxFeesKeeper           txfeeskeeper.Keeper
+	ERC20Keeper            erc20keeper.Keeper
+	DowntimeDetectorKeeper *downtimedetector.Keeper
 
 	// ibc keepers
 	IBCKeeper           *ibckeeper.Keeper // IBC Keeper must be a pointer in the app, so we can SetRouter on it correctly
@@ -570,6 +572,7 @@ func initInjectiveApp(
 			icahosttypes.StoreKey, ibcfeetypes.StoreKey, crisistypes.StoreKey,
 			consensustypes.StoreKey, packetforwardtypes.StoreKey, ibchookstypes.StoreKey,
 			// Injective keys
+			downtimedetectortypes.StoreKey,
 			exchangetypes.StoreKey,
 			oracletypes.StoreKey,
 			insurancetypes.StoreKey,
@@ -713,6 +716,10 @@ func (app *InjectiveApp) GetScopedIBCKeeper() capabilitykeeper.ScopedKeeper {
 	return app.ScopedIBCKeeper
 }
 
+func (app *InjectiveApp) GetBankKeeper() bankkeeper.Keeper {
+	return app.BankKeeper
+}
+
 func (app *InjectiveApp) GetExchangeKeeper() *exchangekeeper.Keeper {
 	return app.ExchangeKeeper
 }
@@ -735,6 +742,14 @@ func (app *InjectiveApp) GetWasmKeeper() *wasmkeeper.Keeper {
 
 func (app *InjectiveApp) GetWasmxKeeper() *wasmxkeeper.Keeper {
 	return &app.WasmxKeeper
+}
+
+func (app *InjectiveApp) GetAuctionKeeper() *auctionkeeper.Keeper {
+	return &app.AuctionKeeper
+}
+
+func (app *InjectiveApp) GetDowntimeDetectorKeeper() *downtimedetector.Keeper {
+	return app.DowntimeDetectorKeeper
 }
 
 func (app *InjectiveApp) GetTxConfig() client.TxConfig { return app.txConfig }
@@ -876,6 +891,10 @@ func (app *InjectiveApp) GetKey(storeKey string) *storetypes.KVStoreKey {
 
 func (app *InjectiveApp) GetStakingKeeper() *stakingkeeper.Keeper {
 	return app.StakingKeeper
+}
+
+func (app *InjectiveApp) GetSlashingKeeper() *slashingkeeper.Keeper {
+	return &app.SlashingKeeper
 }
 
 func (app *InjectiveApp) GetAccountKeeper() authante.AccountKeeper {
@@ -1203,6 +1222,10 @@ func (app *InjectiveApp) initKeepers(authority string, appOpts servertypes.AppOp
 		authority,
 	)
 
+	app.DowntimeDetectorKeeper = downtimedetector.NewKeeper(
+		app.keys[downtimedetectortypes.StoreKey],
+	)
+
 	app.WasmxKeeper = wasmxkeeper.NewKeeper(
 		app.codec,
 		app.keys[wasmxtypes.StoreKey],
@@ -1231,6 +1254,7 @@ func (app *InjectiveApp) initKeepers(authority string, appOpts servertypes.AppOp
 		&app.InsuranceKeeper,
 		app.DistrKeeper,
 		app.StakingKeeper,
+		app.DowntimeDetectorKeeper,
 		authority,
 	)
 
@@ -1489,6 +1513,7 @@ func (app *InjectiveApp) initManagers(oracleModule oracle.AppModule) {
 		ica.NewAppModule(nil, &app.ICAHostKeeper),
 		packetforward.NewAppModule(app.PacketForwardKeeper, app.GetSubspace(packetforwardtypes.ModuleName)),
 		// Injective app modules
+		downtimedetectormodule.NewAppModule(*app.DowntimeDetectorKeeper),
 		exchange.NewAppModule(app.ExchangeKeeper, app.AccountKeeper, app.BankKeeper, app.GetSubspace(exchangetypes.ModuleName)),
 		//nolint:revive // this is fine
 		auction.NewAppModule(app.AuctionKeeper, app.AccountKeeper, app.BankKeeper, *app.ExchangeKeeper, app.GetSubspace(auctiontypes.ModuleName)),
@@ -1617,6 +1642,7 @@ func initGenesisOrder() []string {
 		packetforwardtypes.ModuleName,
 
 		// Injective modules
+		downtimedetectortypes.ModuleName,
 		auctiontypes.ModuleName,
 		oracletypes.ModuleName,
 		tokenfactorytypes.ModuleName,
@@ -1671,6 +1697,7 @@ func beginBlockerOrder() []string {
 		ibcfeetypes.ModuleName,
 		ibchookstypes.ModuleName,
 		packetforwardtypes.ModuleName,
+		downtimedetectortypes.ModuleName,
 		exchangetypes.ModuleName,
 		oracletypes.ModuleName,
 		ocrtypes.ModuleName,
@@ -1723,6 +1750,7 @@ func endBlockerOrder() []string {
 		wasmxtypes.ModuleName,
 		txfeestypes.ModuleName,
 		banktypes.ModuleName,
+		downtimedetectortypes.ModuleName,
 	}
 }
 

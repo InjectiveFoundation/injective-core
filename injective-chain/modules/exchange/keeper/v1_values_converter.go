@@ -16,14 +16,27 @@ type ChainValuesConverter interface {
 	NotionalToChainFormat(humanReadableValue math.LegacyDec) math.LegacyDec
 }
 
+const (
+	MainnetChainID = "injective-1"
+	TestnetChainID = "injective-888"
+	DevnetChainID  = "injective-777"
+)
+
 var (
+	HumanReadableUpgradeBlockHeightPerChainID = map[string]int64{
+		MainnetChainID: 127250000, // Human readable upgrade height taken from https://injhub.com/proposal/541
+		TestnetChainID: 76832674,  // Human readable upgrade height taken from https://testnet.hub.injective.network/proposal/609
+		DevnetChainID:  490,       // This value has to be changed when testing on devnet
+	}
+
 	_ ChainValuesConverter = PreHumanReadableUpgradeValuesConverter{}
 	_ ChainValuesConverter = PostHumanReadableUpgradeValuesConverter{}
 )
 
-func NewChainValuesConverter(ctx sdk.Context, k *Keeper, market MarketInterface) ChainValuesConverter {
+func NewChainValuesConverter(ctx sdk.Context, market MarketInterface) ChainValuesConverter {
 	var converter ChainValuesConverter
-	if ctx.BlockHeight() < k.GetParams(ctx).HumanReadableUpgradeBlockHeight {
+
+	if isPreHumanReadableUpgradeBlock(ctx) {
 		converter = PreHumanReadableUpgradeValuesConverter{market}
 	} else {
 		converter = PostHumanReadableUpgradeValuesConverter{market}
@@ -31,9 +44,9 @@ func NewChainValuesConverter(ctx sdk.Context, k *Keeper, market MarketInterface)
 	return converter
 }
 
-func ConditionalNotionalToChainFormat(ctx sdk.Context, k *Keeper, value math.LegacyDec, decimals uint32) math.LegacyDec {
+func ConditionalNotionalToChainFormat(ctx sdk.Context, value math.LegacyDec, decimals uint32) math.LegacyDec {
 	var notional math.LegacyDec
-	if isPreHumanReadableUpgradeBlock(ctx, k) {
+	if isPreHumanReadableUpgradeBlock(ctx) {
 		notional = value
 	} else {
 		notional = types.NotionalToChainFormat(value, decimals)
@@ -41,8 +54,13 @@ func ConditionalNotionalToChainFormat(ctx sdk.Context, k *Keeper, value math.Leg
 	return notional
 }
 
-func isPreHumanReadableUpgradeBlock(ctx sdk.Context, k *Keeper) bool {
-	return ctx.BlockHeight() < k.GetParams(ctx).HumanReadableUpgradeBlockHeight
+func isPreHumanReadableUpgradeBlock(ctx sdk.Context) bool {
+	chainID := ctx.ChainID()
+	humanReadableUpgradeBlockHeight, found := HumanReadableUpgradeBlockHeightPerChainID[chainID]
+	if !found {
+		humanReadableUpgradeBlockHeight = 0
+	}
+	return ctx.BlockHeight() < humanReadableUpgradeBlockHeight
 }
 
 type PreHumanReadableUpgradeValuesConverter struct {

@@ -103,11 +103,14 @@ func (b *Backend) FeeHistory(
 	lastBlock rpc.BlockNumber, // the block to start search , to oldest
 	rewardPercentiles []float64, // percentiles to fetch reward
 ) (*rpctypes.FeeHistoryResult, error) {
+	if len(rewardPercentiles) > 100 {
+		return nil, fmt.Errorf("%w: exceed max length", errInvalidPercentile)
+	}
 	for i, p := range rewardPercentiles {
 		if p < 0 || p > 100 {
 			return nil, fmt.Errorf("%w: %f", errInvalidPercentile, p)
 		}
-		if i > 0 && p < rewardPercentiles[i-1] {
+		if i > 0 && p <= rewardPercentiles[i-1] {
 			return nil, fmt.Errorf("%w: #%d:%f > #%d:%f", errInvalidPercentile, i-1, rewardPercentiles[i-1], i, p)
 		}
 	}

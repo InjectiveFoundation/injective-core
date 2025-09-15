@@ -65,6 +65,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	injcodectypes "github.com/InjectiveLabs/injective-core/injective-chain/codec/types"
+	downtimedetector "github.com/InjectiveLabs/injective-core/injective-chain/modules/downtime-detector"
+	downtimedetectortypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/downtime-detector/types"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange"
 	exchangekeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/keeper"
 	exchangetypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
@@ -370,6 +372,7 @@ func CreateTestEnv(t *testing.T) TestInput {
 	keyInsurance := storetypes.NewKVStoreKey(insurancetypes.StoreKey)
 	keyExchange := storetypes.NewKVStoreKey(exchangetypes.StoreKey)
 	tkeyExchange := storetypes.NewTransientStoreKey(exchangetypes.TStoreKey)
+	keyDowntime := storetypes.NewKVStoreKey(downtimedetectortypes.StoreKey)
 
 	// Initialize memory database and mount stores on it
 	db := dbm.NewMemDB()
@@ -559,6 +562,8 @@ func CreateTestEnv(t *testing.T) TestInput {
 		authority,
 	)
 
+	downtimeDetectorKeeper := downtimedetector.NewKeeper(keyDowntime)
+
 	exchangeKeeper = exchangekeeper.NewKeeper(
 		marshaler,
 		keyExchange,
@@ -569,6 +574,7 @@ func CreateTestEnv(t *testing.T) TestInput {
 		&insuranceKeeper,
 		distKeeper,
 		stakingKeeper,
+		downtimeDetectorKeeper,
 		authority,
 	)
 

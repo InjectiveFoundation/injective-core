@@ -48,7 +48,7 @@ func (k *Keeper) ExpiryFuturesMarketLaunch(
 	}
 
 	marketID := types.NewExpiryFuturesMarketID(ticker, quoteDenom, oracleBase, oracleQuote, oracleType, expiry)
-	if k.HasDerivativeMarket(ctx, marketID, true) || k.HasDerivativeMarket(ctx, marketID, false) {
+	if market, _ := NewCachedMarketFinder(k).FindMarket(ctx, marketID.Hex()); market != nil {
 		metrics.ReportFuncError(k.svcTags)
 		return nil, nil, errors.Wrapf(
 			types.ErrExpiryFuturesMarketExists,

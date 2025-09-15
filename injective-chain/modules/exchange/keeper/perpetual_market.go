@@ -46,7 +46,7 @@ func (k *Keeper) PerpetualMarketLaunch(
 
 	marketID := types.NewPerpetualMarketID(ticker, quoteDenom, oracleBase, oracleQuote, oracleType)
 
-	if k.HasDerivativeMarket(ctx, marketID, true) || k.HasDerivativeMarket(ctx, marketID, false) {
+	if market, _ := NewCachedMarketFinder(k).FindMarket(ctx, marketID.Hex()); market != nil {
 		metrics.ReportFuncError(k.svcTags)
 		return nil, nil, errors.Wrapf(types.ErrPerpetualMarketExists, "ticker %s quoteDenom %s", ticker, quoteDenom)
 	}

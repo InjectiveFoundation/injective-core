@@ -2,6 +2,7 @@ package bank
 
 import (
 	"errors"
+	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -373,6 +374,9 @@ func (bc *Contract) transfer(stateDB precompiles.ExtStateDB, method *abi.Method,
 	err = stateDB.ExecuteNativeAction(precompileAddress, nil, func(ctx sdk.Context) error {
 		if err := bc.bankKeeper.IsSendEnabledCoins(ctx, amt); err != nil {
 			return err
+		}
+		if bc.bankKeeper.BlockedAddr(to) {
+			return fmt.Errorf("%s is not allowed to receive funds", to)
 		}
 		if err := bc.bankKeeper.SendCoins(ctx, from, to, sdk.NewCoins(amt)); err != nil {
 			return errorsmod.Wrap(err, "fail to send coins in precompiled contract")

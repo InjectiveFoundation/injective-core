@@ -9,6 +9,7 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 
+	downtimetypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/downtime-detector/types"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/keeper"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
@@ -36,6 +37,13 @@ func (h *BlockHandler) BeginBlocker(ctx sdk.Context) {
 
 	// swap the gas meter with a threadsafe version
 
+	// Check for downtime-based post-only mode activation (execute first to ensure immediate response to downtime)
+	params := h.k.GetParams(ctx)
+	h.processDowntimePostOnlyMode(ctx, params)
+
+	// Check for post-only mode cancellation flag and disable post-only mode if set
+	h.processPostOnlyModeCancellation(ctx)
+
 	h.k.ProcessExpiredOrders(ctx)
 	h.k.ProcessHourlyFundings(ctx)
 	h.k.ProcessForceClosedSpotMarkets(ctx)
@@ -50,7 +58,6 @@ func (h *BlockHandler) BeginBlocker(ctx sdk.Context) {
 	}
 
 	// update cached fixed_gas enabled flag based on params (gov proposal might have changed it)
-	params := h.k.GetParams(ctx)
 	if params.FixedGasEnabled != h.k.IsFixedGasEnabled() {
 		h.k.SetFixedGasEnabled(params.FixedGasEnabled)
 	}
@@ -499,6 +506,73 @@ func triggerLimitOrderWithoutCache(
 			},
 		)
 	}
+}
+
+// processDowntimePostOnlyMode checks if the current block is the first block after a detected downtime
+// and activates post-only mode if the downtime exceeds the configured MinPostOnlyModeDowntimeDuration
+func (h *BlockHandler) processDowntimePostOnlyMode(ctx sdk.Context, params v2.Params) {
+	// Skip if MinPostOnlyModeDowntimeDuration is empty
+	if params.MinPostOnlyModeDowntimeDuration == "" {
+		return
+	}
+
+	// Get the Downtime enum value from the string parameter
+	downtimeValue, exists := downtimetypes.Downtime_value[params.MinPostOnlyModeDowntimeDuration]
+	if !exists {
+		ctx.Logger().Error("Invalid MinPostOnlyModeDowntimeDuration", "value", params.MinPostOnlyModeDowntimeDuration)
+		return
+	}
+	downtimeEnum := downtimetypes.Downtime(downtimeValue)
+
+	// Get the last downtime of the specified duration from the downtime detector
+	lastDowntimeBlockTime, err := h.k.DowntimeKeeper.GetLastDowntimeOfLength(ctx, downtimeEnum)
+	if err != nil {
+		// No downtime recorded for this duration, nothing to do
+		return
+	}
+
+	// Check if the current block time matches the last recorded downtime block time
+	// This means this is the first block after the detected downtime
+	if ctx.BlockTime().Equal(lastDowntimeBlockTime) {
+		// Activate post-only mode by setting PostOnlyModeHeightThreshold
+		newThreshold := ctx.BlockHeight() + int64(params.PostOnlyModeBlocksAmount)
+
+		// Update the params with the new threshold
+		updatedParams := params
+		updatedParams.PostOnlyModeHeightThreshold = newThreshold
+		h.k.SetParams(ctx, updatedParams)
+
+		ctx.Logger().Info(
+			"Post-only mode activated due to downtime detection",
+			"downtime_duration", params.MinPostOnlyModeDowntimeDuration,
+			"current_height", ctx.BlockHeight(),
+			"post_only_until_height", newThreshold,
+			"downtime_block_time", lastDowntimeBlockTime,
+		)
+	}
+}
+
+// processPostOnlyModeCancellation checks if the post-only mode cancellation flag is set
+// and disables post-only mode if requested by governance or exchange admins
+func (h *BlockHandler) processPostOnlyModeCancellation(ctx sdk.Context) {
+	// Check if the cancellation flag is set
+	if !h.k.HasPostOnlyModeCancellationFlag(ctx) {
+		return
+	}
+
+	// Disable post-only mode by setting threshold to current height - 1
+	params := h.k.GetParams(ctx) // Get fresh params in case downtime processing updated them
+	params.PostOnlyModeHeightThreshold = ctx.BlockHeight() - 1
+	h.k.SetParams(ctx, params)
+
+	// Remove the cancellation flag
+	h.k.DeletePostOnlyModeCancellationFlag(ctx)
+
+	ctx.Logger().Info(
+		"Post-only mode cancelled via governance/admin action",
+		"current_height", ctx.BlockHeight(),
+		"new_post_only_mode_threshold", ctx.BlockHeight()-1,
+	)
 }
 
 func RecoverEndBlocker(ctx sdk.Context, isPanicked *bool) {

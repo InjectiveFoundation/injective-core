@@ -13,6 +13,7 @@ import (
 
 	wasmtypes "github.com/CosmWasm/wasmd/x/wasm/types"
 
+	downtimetypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/downtime-detector/types"
 	insurancetypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/insurance/types"
 	oracletypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/types"
 	wasmxtypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/types"
@@ -80,4 +81,9 @@ type WasmContractOpsKeeper interface {
 
 type WasmxExecutionKeeper interface {
 	InjectiveExec(ctx sdk.Context, contractAddress sdk.AccAddress, funds sdk.Coins, msg *wasmxtypes.InjectiveExecMsg) ([]byte, error)
+}
+
+type DowntimeKeeper interface {
+	GetLastDowntimeOfLength(ctx sdk.Context, dur downtimetypes.Downtime) (time.Time, error)
+	GetLastBlockTime(ctx sdk.Context) (time.Time, error)
 }

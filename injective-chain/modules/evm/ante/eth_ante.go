@@ -403,6 +403,18 @@ func CheckEthGasConsume(
 	evmDenom string,
 ) (sdk.Context, error) {
 	gasWanted := uint64(0)
+
+	// safeAddGas is a helper function to add gas to the gas wanted and returns
+	// an error if the gas wanted overflows the maximum uint64 value.
+	safeAddGas := func(gas uint64) error {
+		if gas > math.MaxUint64-gasWanted {
+			return errorsmod.Wrapf(
+				errortypes.ErrOutOfGas, "gas wanted overflow: %d + %d > %v", gasWanted, gas, uint64(math.MaxUint64))
+		}
+		gasWanted += gas
+		return nil
+	}
+
 	var events sdk.Events
 
 	// Use the lowest priority of all the messages as the final one.
@@ -424,12 +436,18 @@ func CheckEthGasConsume(
 		if ctx.IsCheckTx() && maxGasWanted != 0 {
 			// We can't trust the tx gas limit, because we'll refund the unused gas.
 			if gasLimit > maxGasWanted {
-				gasWanted += maxGasWanted
+				if err := safeAddGas(maxGasWanted); err != nil {
+					return ctx, err
+				}
 			} else {
-				gasWanted += gasLimit
+				if err := safeAddGas(gasLimit); err != nil {
+					return ctx, err
+				}
 			}
 		} else {
-			gasWanted += gasLimit
+			if err := safeAddGas(gasLimit); err != nil {
+				return ctx, err
+			}
 		}
 
 		// user balance is already checked during CheckTx so there's no need to

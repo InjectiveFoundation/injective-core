@@ -125,7 +125,7 @@ func (s *Sender) SendTx(ctx context.Context, wrapAuthz bool, gasLimit *uint64, m
 	}
 }
 
-// MustBroadcastTx broadcasts a transaction and ensures it is valid, failing the test if it is not.
+// MustBroadcastMsg broadcasts a transaction and ensures it is valid, failing the test if it is not.
 func MustBroadcastMsg(t *testing.T, chain *cosmos.CosmosChain, ctx context.Context, broadcastingUser ibc.Wallet, msg types.Msg) {
 	broadcaster := cosmos.NewBroadcaster(t, chain)
 	txResponse, err := cosmos.BroadcastTx(
@@ -143,6 +143,28 @@ func EnsureValidTx(t *testing.T, chain *cosmos.CosmosChain, txResponse types.TxR
 	transaction, err := QueryTx(context.Background(), chain.Nodes()[0], txResponse.TxHash)
 	require.NoError(t, err)
 	require.EqualValues(t, 0, transaction.ErrorCode)
+}
+
+// MustFailMsg broadcasts a transaction and ensures it fails with the expected error message, failing the test if it succeeds.
+func MustFailMsg(t *testing.T, chain *cosmos.CosmosChain, ctx context.Context, broadcastingUser ibc.Wallet, msg types.Msg, errorMsg string) {
+	broadcaster := cosmos.NewBroadcaster(t, chain)
+	txResponse, err := cosmos.BroadcastTx(
+		ctx,
+		broadcaster,
+		broadcastingUser,
+		msg,
+	)
+	require.NoError(t, err, errorMsg)
+
+	EnsureInvalidTx(t, chain, txResponse, errorMsg)
+}
+
+// EnsureInvalidTx verifies that a transaction failed with the expected error message.
+func EnsureInvalidTx(t *testing.T, chain *cosmos.CosmosChain, txResponse types.TxResponse, errorMsg string) {
+	transaction, err := QueryTx(context.Background(), chain.Nodes()[0], txResponse.TxHash)
+	require.Error(t, err)
+	require.NotEqual(t, 0, transaction.ErrorCode)
+	require.Contains(t, err.Error(), errorMsg)
 }
 
 func MustSucceedProposal(t *testing.T, chain *cosmos.CosmosChain, ctx context.Context, user ibc.Wallet, proposal proto.Message, proposalName string) {

@@ -225,7 +225,7 @@ func initRootCmd(
 		sdkserver.NewRollbackCmd(newApp, app.DefaultNodeHome),
 	)
 
-	rootCmd.AddCommand(bootstrapDevnetStateCmd(app.NewDevnetApp))
+	rootCmd.AddCommand(devnetifyCmd(app.NewDevnetApp))
 
 	wasmcli.ExtendUnsafeResetAllCmd(rootCmd)
 

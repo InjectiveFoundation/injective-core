@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"sort"
+	"slices"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -587,10 +587,28 @@ func convertAndSortSubaccountDeposits(
 	// It is necessary to sort the output of the map iteration because iterating
 	// through a map is not deterministic. Even if this is a query, the result
 	// needs to be deterministic because it could be called and used by a
-	// smart-contract
-	sort.Slice(solDeposits, func(i, j int) bool {
-		return solDeposits[i].TotalBalance.Cmp(solDeposits[j].TotalBalance) < 0
-	})
+	// smart-contract.
+	// SortStable only guarantees the original order of equal elements. But the
+	// original order (solDeposits, output of map iteration) is not deterministic,
+	// so we add a secondary index (denom) to break ties deterministically.
+	slices.SortStableFunc(
+		solDeposits,
+		func(left, right exchangeabi.IExchangeModuleSubaccountDepositData) int {
+			if c := left.TotalBalance.Cmp(right.TotalBalance); c != 0 {
+				return c
+			}
+			// Tie-break by denom to make ordering deterministic across runs.
+			if left.Denom < right.Denom {
+				return -1
+			}
+			if left.Denom > right.Denom {
+				return 1
+			}
+			// There is maximum one occurrence of each denom in the deposits map
+			// so we never get here.
+			return 0
+		},
+	)
 
 	return solDeposits
 }

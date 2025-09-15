@@ -33,7 +33,9 @@
         "amount": "100000000000000000000"
       },
       "minimal_protocol_fee_rate": "0.000050000000000000",
-      "is_instant_derivative_market_launch_enabled": true
+      "is_instant_derivative_market_launch_enabled": true,
+      "post_only_mode_blocks_amount": 2000,
+      "min_post_only_mode_downtime_duration": "DURATION_10M"
     },
     "spot_markets": [
       {

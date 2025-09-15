@@ -1,9 +1,11 @@
 package types
 
 import (
+	"errors"
 	"fmt"
 
 	"cosmossdk.io/math"
+	sdk "github.com/cosmos/cosmos-sdk/types"
 	paramtypes "github.com/cosmos/cosmos-sdk/x/params/types"
 )
 
@@ -17,6 +19,8 @@ var (
 	DefaultMinNextBidIncrementRate = math.LegacyNewDecWithPrec(25, 4)
 	// DefaultInjBasketMaxCap represents default inj basket max cap
 	DefaultInjBasketMaxCap = math.NewIntWithDecimal(10_000, 18)
+	// DefaultBiddersWhitelist represents default bidders whitelist (empty = all allowed)
+	DefaultBiddersWhitelist = []string{}
 )
 
 // Parameter keys
@@ -24,6 +28,7 @@ var (
 	KeyAuctionPeriod           = []byte("AuctionPeriod")
 	KeyMinNextBidIncrementRate = []byte("MinNextBidIncrementRate")
 	KeyInjBasketMaxCap         = []byte("InjBasketMaxCap")
+	KeyBiddersWhitelist        = []byte("BiddersWhitelist")
 )
 
 // ParamKeyTable returns the parameter key table.
@@ -36,11 +41,13 @@ func NewParams(
 	auctionPeriod int64,
 	minNextBidIncrementRate math.LegacyDec,
 	injBasketMaxCap math.Int,
+	biddersWhitelist []string,
 ) Params {
 	return Params{
 		AuctionPeriod:           auctionPeriod,
 		MinNextBidIncrementRate: minNextBidIncrementRate,
 		InjBasketMaxCap:         injBasketMaxCap,
+		BiddersWhitelist:        biddersWhitelist,
 	}
 }
 
@@ -50,6 +57,7 @@ func (p *Params) ParamSetPairs() paramtypes.ParamSetPairs {
 		paramtypes.NewParamSetPair(KeyAuctionPeriod, &p.AuctionPeriod, validateAuctionPeriodDuration),
 		paramtypes.NewParamSetPair(KeyMinNextBidIncrementRate, &p.MinNextBidIncrementRate, validateMinNextBidIncrementRate),
 		paramtypes.NewParamSetPair(KeyInjBasketMaxCap, &p.InjBasketMaxCap, validateInjBasketMaxCap),
+		paramtypes.NewParamSetPair(KeyBiddersWhitelist, &p.BiddersWhitelist, validateBiddersWhitelist),
 	}
 }
 
@@ -59,6 +67,7 @@ func DefaultParams() Params {
 		AuctionPeriod:           DefaultAuctionPeriod,
 		MinNextBidIncrementRate: DefaultMinNextBidIncrementRate,
 		InjBasketMaxCap:         DefaultInjBasketMaxCap,
+		BiddersWhitelist:        DefaultBiddersWhitelist,
 	}
 }
 
@@ -76,7 +85,7 @@ func (p Params) Validate() error {
 		return err
 	}
 
-	return nil
+	return validateBiddersWhitelist(p.BiddersWhitelist)
 }
 
 func validateAuctionPeriodDuration(i interface{}) error {
@@ -125,5 +134,32 @@ func validateInjBasketMaxCap(i interface{}) error {
 	if v.IsNegative() {
 		return fmt.Errorf("InjBasketMaxCap cannot be negative")
 	}
+	return nil
+}
+
+func validateBiddersWhitelist(i any) error {
+	v, ok := i.([]string)
+	if !ok {
+		return fmt.Errorf("invalid parameter type: %T", i)
+	}
+
+	// Check for duplicate addresses and validate address format
+	seen := make(map[string]bool)
+	for _, addr := range v {
+		if addr == "" {
+			return errors.New("empty address in bidders whitelist")
+		}
+
+		// Validate address format
+		if _, err := sdk.AccAddressFromBech32(addr); err != nil {
+			return fmt.Errorf("invalid address format in bidders whitelist: %s", addr)
+		}
+
+		if seen[addr] {
+			return fmt.Errorf("duplicate address in bidders whitelist: %s", addr)
+		}
+		seen[addr] = true
+	}
+
 	return nil
 }

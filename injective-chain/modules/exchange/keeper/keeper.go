@@ -40,6 +40,7 @@ type Keeper struct {
 	govKeeper            govkeeper.Keeper
 	wasmViewKeeper       types.WasmViewKeeper
 	wasmxExecutionKeeper types.WasmxExecutionKeeper
+	DowntimeKeeper       types.DowntimeKeeper
 
 	svcTags   metrics.Tags
 	authority string
@@ -59,6 +60,7 @@ func NewKeeper(
 	ik types.InsuranceKeeper,
 	dk distrkeeper.Keeper,
 	sk types.StakingKeeper,
+	downtimeK types.DowntimeKeeper,
 	authority string,
 ) *Keeper {
 	return &Keeper{
@@ -71,6 +73,7 @@ func NewKeeper(
 		StakingKeeper:      sk,
 		bankKeeper:         bk,
 		insuranceKeeper:    ik,
+		DowntimeKeeper:     downtimeK,
 		authority:          authority,
 		svcTags: metrics.Tags{
 			"svc": "exchange_k",
@@ -1644,4 +1647,23 @@ func (k *Keeper) IsFixedGasEnabled() bool {
 
 func (k *Keeper) SetFixedGasEnabled(enabled bool) {
 	k.fixedGas = enabled
+}
+
+// SetPostOnlyModeCancellationFlag sets a flag in the store to indicate that post-only mode
+// should be cancelled in the next BeginBlock
+func (k *Keeper) SetPostOnlyModeCancellationFlag(ctx sdk.Context) {
+	store := k.getStore(ctx)
+	store.Set(types.PostOnlyModeCancellationKey, []byte{1})
+}
+
+// HasPostOnlyModeCancellationFlag checks if the post-only mode cancellation flag is set
+func (k *Keeper) HasPostOnlyModeCancellationFlag(ctx sdk.Context) bool {
+	store := k.getStore(ctx)
+	return store.Has(types.PostOnlyModeCancellationKey)
+}
+
+// DeletePostOnlyModeCancellationFlag removes the post-only mode cancellation flag from the store
+func (k *Keeper) DeletePostOnlyModeCancellationFlag(ctx sdk.Context) {
+	store := k.getStore(ctx)
+	store.Delete(types.PostOnlyModeCancellationKey)
 }

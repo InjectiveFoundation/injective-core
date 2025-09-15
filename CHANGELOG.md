@@ -36,7 +36,16 @@ Ref: https://keepachangelog.com/en/1.1.0/
 
 ## [Unreleased]
 
-## [v1.16.3]() todo link and date
+## [v1.16.4](https://github.com/InjectiveFoundation/injective-core/releases/tag/v1.16.4) - 2025-09-14
+
+### Features
+
+- (downtime-detector)  Added the downtime-detector module
+
+### Improvements
+
+- (exchange)  Added logic in exchange module BeginBlock to enable the post-only mode after a downtime of configurable length
+- (auction)  Added a bidders whitelist to the auction module. If the whitelist is configured, only the addresses in it will be able to bid
 
 ### Bug Fixes
 

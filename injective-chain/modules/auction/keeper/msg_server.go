@@ -55,6 +55,26 @@ func (k msgServer) Bid(goCtx context.Context, msg *types.MsgBid) (*types.MsgBidR
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
+
+	// Get params first to check whitelist before revealing any auction information
+	params := k.GetParams(ctx)
+
+	// check bidders whitelist FIRST to prevent information leakage
+	if len(params.BiddersWhitelist) > 0 {
+		// If whitelist is populated, only allow whitelisted addresses to bid
+		isWhitelisted := false
+		for _, whitelistedAddr := range params.BiddersWhitelist {
+			if msg.Sender == whitelistedAddr {
+				isWhitelisted = true
+				break
+			}
+		}
+		if !isWhitelisted {
+			metrics.ReportFuncError(k.svcTags)
+			return nil, errors.Wrapf(sdkerrors.ErrUnauthorized, "sender %s is not in bidders whitelist", msg.Sender)
+		}
+	}
+
 	round := k.GetAuctionRound(ctx)
 
 	if round == 0 {
@@ -74,7 +94,6 @@ func (k msgServer) Bid(goCtx context.Context, msg *types.MsgBid) (*types.MsgBidR
 	}
 
 	// ensure last_bid * (1+min_next_increment_rate) <= new_bid
-	params := k.GetParams(ctx)
 	if lastBid.Amount.Amount.ToLegacyDec().Mul(math.LegacyOneDec().Add(params.MinNextBidIncrementRate)).GT(msg.BidAmount.Amount.ToLegacyDec()) {
 		metrics.ReportFuncError(k.svcTags)
 		return nil, errors.Wrapf(sdkerrors.ErrInvalidRequest, "new bid should be bigger than last bid + min increment percentage")

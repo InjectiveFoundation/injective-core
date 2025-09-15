@@ -92,8 +92,6 @@ func injectiveEncoding() *cosmtestutil.TestEncodingConfig {
 	tokenfactorytypes.RegisterInterfaces(cfg.InterfaceRegistry)
 	wasmxtypes.RegisterInterfaces(cfg.InterfaceRegistry)
 	authztypes.RegisterInterfaces(cfg.InterfaceRegistry)
-
-	// TODO: types dependency shall be moved to sdk-go
 	evmtypes.RegisterInterfaces(cfg.InterfaceRegistry)
 	erc20types.RegisterInterfaces(cfg.InterfaceRegistry)
 

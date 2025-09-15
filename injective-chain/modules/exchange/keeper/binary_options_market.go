@@ -47,7 +47,7 @@ func (k *Keeper) BinaryOptionsMarketLaunch(
 		return nil, err
 	}
 
-	if market, _ := k.GetBinaryOptionsMarketAndStatus(ctx, marketID); market != nil {
+	if market, _ := NewCachedMarketFinder(k).FindMarket(ctx, marketID.Hex()); market != nil {
 		metrics.ReportFuncError(k.svcTags)
 		return nil, errors.Wrapf(types.ErrBinaryOptionsMarketExists, "ticker %s quoteDenom %s", ticker, quoteDenom)
 	}
