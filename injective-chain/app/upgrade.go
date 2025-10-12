@@ -12,21 +12,21 @@ import (
 	"github.com/cosmos/cosmos-sdk/types/module"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/app/upgrades"
-	v1dot16dot4 "github.com/InjectiveLabs/injective-core/injective-chain/app/upgrades/v1.16.4"
+	v1dot16dot5 "github.com/InjectiveLabs/injective-core/injective-chain/app/upgrades/v1.16.5"
 )
 
 var _ upgrades.InjectiveApplication = &InjectiveApp{}
 
 var upgradeNames = []string{
-	v1dot16dot4.UpgradeName,
+	v1dot16dot5.UpgradeName,
 }
 
 var upgradeSteps = map[string]UpgradeStepsFn{
-	v1dot16dot4.UpgradeName: v1dot16dot4.UpgradeSteps,
+	v1dot16dot5.UpgradeName: v1dot16dot5.UpgradeSteps,
 }
 
 var storeUpgrades = map[string]storetypes.StoreUpgrades{
-	v1dot16dot4.UpgradeName: v1dot16dot4.StoreUpgrades(),
+	v1dot16dot5.UpgradeName: v1dot16dot5.StoreUpgrades(),
 }
 
 type UpgradeStepsFn func() []*upgrades.UpgradeHandlerStep

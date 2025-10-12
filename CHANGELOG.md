@@ -36,6 +36,12 @@ Ref: https://keepachangelog.com/en/1.1.0/
 
 ## [Unreleased]
 
+## [v1.16.5](https://github.com/InjectiveFoundation/injective-core/releases/tag/v1.16.5) - 2025-10-13
+
+### Bug Fixes
+
+- (exchange)  Fix the validation for minimum valid order prices value, causing issues for stop loss and take profit orders
+
 ## [v1.16.4](https://github.com/InjectiveFoundation/injective-core/releases/tag/v1.16.4) - 2025-09-14
 
 ### Features

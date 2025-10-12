@@ -352,7 +352,7 @@ replace (
 
 	github.com/CosmWasm/wasmd => github.com/InjectiveLabs/wasmd v0.53.3-evm-comet1-inj
 
-	github.com/InjectiveLabs/sdk-go => github.com/InjectiveLabs/sdk-go v1.58.2-0.20250814023842-21e02b676e40
+	github.com/InjectiveLabs/sdk-go => github.com/InjectiveLabs/sdk-go v1.58.3-rc1
 	github.com/bandprotocol/bandchain-packet => github.com/InjectiveLabs/bandchain-packet v0.0.4-inj-1
 
 	// Use CometBFT v1.0.1 with Mempool lanes and DOG

@@ -376,10 +376,6 @@ func (m *OrderInfo) ValidateBasic(senderAddr sdk.AccAddress, hasBinaryPriceBand,
 		}
 	}
 
-	if isDerivative && !hasBinaryPriceBand && m.Price.LT(types.MinDerivativeOrderPrice) {
-		return errors.Wrap(types.ErrInvalidPrice, m.Price.String())
-	}
-
 	return nil
 }
 
@@ -417,7 +413,7 @@ func (m *DerivativeOrder) ValidateBasic(senderAddr sdk.AccAddress, hasBinaryPric
 		return types.ErrInvalidTriggerPrice
 	}
 
-	if m.IsConditional() && (m.TriggerPrice == nil || m.TriggerPrice.LT(types.MinDerivativeOrderPrice)) {
+	if m.IsConditional() && (m.TriggerPrice == nil || m.TriggerPrice.LTE(math.LegacyZeroDec())) {
 		/*||!o.IsConditional() && o.TriggerPrice != nil */
 		// commented out this check since FE is sending to us 0.0 trigger price for all orders
 		return errors.Wrapf(

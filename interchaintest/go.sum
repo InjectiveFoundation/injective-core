@@ -304,8 +304,8 @@ github.com/InjectiveLabs/interchaintest/v8 v8.0.1-evm-comet1-inj h1:E9D+s7URwh46
 github.com/InjectiveLabs/interchaintest/v8 v8.0.1-evm-comet1-inj/go.mod h1:qv6XHBGyyYj2CwfD5YX022bVBAyd+cwyWjYhzoCQtWM=
 github.com/InjectiveLabs/metrics v0.0.10 h1:BoOwXnCtRRIPmq06jcI20pXZYE758eusaCI5jDOoN4U=
 github.com/InjectiveLabs/metrics v0.0.10/go.mod h1:eYu++0DVUjk/jjV9WgvCo8gQU+16Yoyhp1iu+ghKNME=
-github.com/InjectiveLabs/sdk-go v1.58.2-0.20250814023842-21e02b676e40 h1:SsYimCPM0B+B1FC3QO/DZvJLbS6pRJEif2iHVLC0jEg=
-github.com/InjectiveLabs/sdk-go v1.58.2-0.20250814023842-21e02b676e40/go.mod h1:/LNZhVsHMpb3YUnWcLu7+p3fUUz9XLxhEzFfebFR9Mg=
+github.com/InjectiveLabs/sdk-go v1.58.3-rc1 h1:tGBKXr4LsWtUFlqgVHthnunUans9P3j6mxGpoUAwDGQ=
+github.com/InjectiveLabs/sdk-go v1.58.3-rc1/go.mod h1:/LNZhVsHMpb3YUnWcLu7+p3fUUz9XLxhEzFfebFR9Mg=
 github.com/InjectiveLabs/suplog v1.3.3 h1:ARIR3lWD9BxcrmqTwgcGBt8t7e10gwOqllUAXa/MfxI=
 github.com/InjectiveLabs/suplog v1.3.3/go.mod h1:+I9WRgUhzmo1V/n7IkW24kFBFB9ZTPAiXXXCogWxmTM=
 github.com/InjectiveLabs/wasmd v0.53.3-evm-comet1-inj h1:Rkn+Bh8ea+LQfXyO+DNpkZdzJKF+qdSjhCFrvV/Mki4=
