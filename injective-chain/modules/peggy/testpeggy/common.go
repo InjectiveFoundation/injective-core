@@ -306,42 +306,6 @@ func GenerateNewValidatorInfo() ValidatorInfo {
 	}
 }
 
-func AddAnotherValidator(t *testing.T, input TestInput, valInfo ValidatorInfo) TestInput {
-	t.Helper()
-
-	sh := stakingkeeper.NewMsgServerImpl(&input.StakingKeeper)
-
-	// Initialize the account for the key
-	acc := input.AccountKeeper.NewAccount(
-		input.Context,
-		authtypes.NewBaseAccount(valInfo.AccAddr, valInfo.PubKey, 0, 0),
-	)
-
-	// Set the balance for the account
-	input.BankKeeper.MintCoins(input.Context, minttypes.ModuleName, InitCoins)
-	input.BankKeeper.SendCoinsFromModuleToAccount(input.Context, minttypes.ModuleName, acc.GetAddress(), InitCoins)
-
-	// Set the account in state
-	input.AccountKeeper.SetAccount(input.Context, acc)
-
-	// Create a validator for that account using some of the tokens in the account
-	// and the staking handler
-	_, err := sh.CreateValidator(
-		input.Context,
-		NewTestMsgCreateValidator(valInfo.ValAddr, valInfo.ConsKey, StakingAmount),
-	)
-
-	// Return error if one exists
-	require.NoError(t, err)
-
-	// Run the staking endblocker to ensure valset is correct in state
-	_, err = input.StakingKeeper.EndBlocker(input.Context)
-
-	require.NoError(t, err)
-
-	return input
-}
-
 // CreateTestEnv creates the keeper testing environment for peggy
 func CreateTestEnv(t *testing.T) TestInput {
 	t.Helper()
@@ -586,6 +550,7 @@ func CreateTestEnv(t *testing.T) TestInput {
 		slashingKeeper,
 		distKeeper,
 		exchangeKeeper,
+		&oracleKeeper,
 		authority,
 		accountKeeper,
 	)

@@ -48,6 +48,10 @@ func (k DerivativesV1MsgServer) CreateDerivativeLimitOrder(
 		Order:  *v2Order,
 	}
 
+	if err := v2Msg.ValidateBasic(); err != nil {
+		return nil, err
+	}
+
 	v2Response, err := k.server.CreateDerivativeLimitOrder(goCtx, v2Msg)
 	if err != nil {
 		return nil, err
@@ -83,6 +87,10 @@ func (k DerivativesV1MsgServer) BatchCreateDerivativeLimitOrders(
 		Orders: v2Orders,
 	}
 
+	if err := v2Msg.ValidateBasic(); err != nil {
+		return nil, err
+	}
+
 	v2Response, err := k.server.BatchCreateDerivativeLimitOrders(goCtx, v2Msg)
 	if err != nil {
 		return nil, err
@@ -113,6 +121,10 @@ func (k DerivativesV1MsgServer) CreateDerivativeMarketOrder(
 	v2Msg := &v2.MsgCreateDerivativeMarketOrder{
 		Sender: msg.Sender,
 		Order:  *v2Order,
+	}
+
+	if err := v2Msg.ValidateBasic(); err != nil {
+		return nil, err
 	}
 
 	v2Response, err := k.server.CreateDerivativeMarketOrder(goCtx, v2Msg)
@@ -165,6 +177,10 @@ func (k DerivativesV1MsgServer) CancelDerivativeOrder(
 		Cid:          msg.Cid,
 	}
 
+	if err := v2Msg.ValidateBasic(); err != nil {
+		return nil, err
+	}
+
 	_, err := k.server.CancelDerivativeOrder(goCtx, v2Msg)
 	if err != nil {
 		return nil, err
@@ -192,6 +208,10 @@ func (k DerivativesV1MsgServer) BatchCancelDerivativeOrders(
 	v2Msg := &v2.MsgBatchCancelDerivativeOrders{
 		Sender: msg.Sender,
 		Data:   v2OrderDataList,
+	}
+
+	if err := v2Msg.ValidateBasic(); err != nil {
+		return nil, err
 	}
 
 	v2Response, err := k.server.BatchCancelDerivativeOrders(goCtx, v2Msg)
@@ -229,6 +249,10 @@ func (k DerivativesV1MsgServer) IncreasePositionMargin(
 		Amount:                  humanMargin,
 	}
 
+	if err := v2Msg.ValidateBasic(); err != nil {
+		return nil, err
+	}
+
 	_, err := k.server.IncreasePositionMargin(goCtx, v2Msg)
 	if err != nil {
 		return nil, err
@@ -262,6 +286,10 @@ func (k DerivativesV1MsgServer) DecreasePositionMargin(
 		Amount:                  humanMargin,
 	}
 
+	if err := v2Msg.ValidateBasic(); err != nil {
+		return nil, err
+	}
+
 	_, err := k.server.DecreasePositionMargin(goCtx, v2Msg)
 	if err != nil {
 		return nil, err
@@ -279,6 +307,10 @@ func (k DerivativesV1MsgServer) EmergencySettleMarket(
 		Sender:       msg.Sender,
 		SubaccountId: msg.SubaccountId,
 		MarketId:     msg.MarketId,
+	}
+
+	if err := v2Msg.ValidateBasic(); err != nil {
+		return nil, err
 	}
 
 	_, err := k.server.EmergencySettleMarket(goCtx, v2Msg)
@@ -311,6 +343,10 @@ func (k DerivativesV1MsgServer) LiquidatePosition(
 
 		v2Order := NewV2DerivativeOrderFromV1(market, *msg.Order)
 		v2Msg.Order = v2Order
+	}
+
+	if err := v2Msg.ValidateBasic(); err != nil {
+		return nil, err
 	}
 
 	_, err := k.server.LiquidatePosition(goCtx, v2Msg)

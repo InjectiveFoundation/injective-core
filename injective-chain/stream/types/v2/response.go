@@ -5,43 +5,49 @@ import (
 )
 
 type StreamResponseMap struct {
-	tradeEventsCounter                   uint64
-	BlockHeight                          uint64
-	BlockTime                            time.Time
-	BankBalancesByAccount                map[string][]*BankBalance
-	SpotOrdersBySubaccount               map[string][]*SpotOrderUpdate
-	SpotOrdersByMarketID                 map[string][]*SpotOrderUpdate
-	DerivativeOrdersBySubaccount         map[string][]*DerivativeOrderUpdate
-	DerivativeOrdersByMarketID           map[string][]*DerivativeOrderUpdate
-	SpotOrderbookUpdatesByMarketID       map[string][]*OrderbookUpdate
-	DerivativeOrderbookUpdatesByMarketID map[string][]*OrderbookUpdate
-	SubaccountDepositsBySubaccountID     map[string][]*SubaccountDeposits
-	SpotTradesBySubaccount               map[string][]*SpotTrade
-	SpotTradesByMarketID                 map[string][]*SpotTrade
-	DerivativeTradesBySubaccount         map[string][]*DerivativeTrade
-	DerivativeTradesByMarketID           map[string][]*DerivativeTrade
-	PositionsBySubaccount                map[string][]*Position
-	PositionsByMarketID                  map[string][]*Position
-	OraclePriceBySymbol                  map[string][]*OraclePrice
+	tradeEventsCounter                          uint64
+	BlockHeight                                 uint64
+	BlockTime                                   time.Time
+	BankBalancesByAccount                       map[string][]*BankBalance
+	SpotOrdersBySubaccount                      map[string][]*SpotOrderUpdate
+	SpotOrdersByMarketID                        map[string][]*SpotOrderUpdate
+	DerivativeOrdersBySubaccount                map[string][]*DerivativeOrderUpdate
+	DerivativeOrdersByMarketID                  map[string][]*DerivativeOrderUpdate
+	SpotOrderbookUpdatesByMarketID              map[string][]*OrderbookUpdate
+	DerivativeOrderbookUpdatesByMarketID        map[string][]*OrderbookUpdate
+	SubaccountDepositsBySubaccountID            map[string][]*SubaccountDeposits
+	SpotTradesBySubaccount                      map[string][]*SpotTrade
+	SpotTradesByMarketID                        map[string][]*SpotTrade
+	DerivativeTradesBySubaccount                map[string][]*DerivativeTrade
+	DerivativeTradesByMarketID                  map[string][]*DerivativeTrade
+	PositionsBySubaccount                       map[string][]*Position
+	PositionsByMarketID                         map[string][]*Position
+	OraclePriceBySymbol                         map[string][]*OraclePrice
+	OrderFailuresByAccount                      map[string][]*OrderFailureUpdate
+	ConditionalOrderTriggerFailuresBySubaccount map[string][]*ConditionalOrderTriggerFailureUpdate
+	ConditionalOrderTriggerFailuresByMarketID   map[string][]*ConditionalOrderTriggerFailureUpdate
 }
 
 func NewStreamResponseMap() StreamResponseMap {
 	return StreamResponseMap{
-		BankBalancesByAccount:                map[string][]*BankBalance{},
-		SpotOrdersBySubaccount:               map[string][]*SpotOrderUpdate{},
-		SpotOrdersByMarketID:                 map[string][]*SpotOrderUpdate{},
-		DerivativeOrdersBySubaccount:         map[string][]*DerivativeOrderUpdate{},
-		DerivativeOrdersByMarketID:           map[string][]*DerivativeOrderUpdate{},
-		SpotOrderbookUpdatesByMarketID:       map[string][]*OrderbookUpdate{},
-		DerivativeOrderbookUpdatesByMarketID: map[string][]*OrderbookUpdate{},
-		SubaccountDepositsBySubaccountID:     map[string][]*SubaccountDeposits{},
-		SpotTradesBySubaccount:               map[string][]*SpotTrade{},
-		SpotTradesByMarketID:                 map[string][]*SpotTrade{},
-		DerivativeTradesBySubaccount:         map[string][]*DerivativeTrade{},
-		DerivativeTradesByMarketID:           map[string][]*DerivativeTrade{},
-		PositionsBySubaccount:                map[string][]*Position{},
-		PositionsByMarketID:                  map[string][]*Position{},
-		OraclePriceBySymbol:                  map[string][]*OraclePrice{},
+		BankBalancesByAccount:                       map[string][]*BankBalance{},
+		SpotOrdersBySubaccount:                      map[string][]*SpotOrderUpdate{},
+		SpotOrdersByMarketID:                        map[string][]*SpotOrderUpdate{},
+		DerivativeOrdersBySubaccount:                map[string][]*DerivativeOrderUpdate{},
+		DerivativeOrdersByMarketID:                  map[string][]*DerivativeOrderUpdate{},
+		SpotOrderbookUpdatesByMarketID:              map[string][]*OrderbookUpdate{},
+		DerivativeOrderbookUpdatesByMarketID:        map[string][]*OrderbookUpdate{},
+		SubaccountDepositsBySubaccountID:            map[string][]*SubaccountDeposits{},
+		SpotTradesBySubaccount:                      map[string][]*SpotTrade{},
+		SpotTradesByMarketID:                        map[string][]*SpotTrade{},
+		DerivativeTradesBySubaccount:                map[string][]*DerivativeTrade{},
+		DerivativeTradesByMarketID:                  map[string][]*DerivativeTrade{},
+		PositionsBySubaccount:                       map[string][]*Position{},
+		PositionsByMarketID:                         map[string][]*Position{},
+		OraclePriceBySymbol:                         map[string][]*OraclePrice{},
+		OrderFailuresByAccount:                      map[string][]*OrderFailureUpdate{},
+		ConditionalOrderTriggerFailuresBySubaccount: map[string][]*ConditionalOrderTriggerFailureUpdate{},
+		ConditionalOrderTriggerFailuresByMarketID:   map[string][]*ConditionalOrderTriggerFailureUpdate{},
 	}
 }
 
@@ -53,15 +59,17 @@ func (m *StreamResponseMap) NextTradeEventNumber() (tradeNumber uint64) {
 
 func NewChainStreamResponse() *StreamResponse {
 	return &StreamResponse{
-		BankBalances:               []*BankBalance{},
-		SubaccountDeposits:         []*SubaccountDeposits{},
-		SpotTrades:                 []*SpotTrade{},
-		DerivativeTrades:           []*DerivativeTrade{},
-		SpotOrders:                 []*SpotOrderUpdate{},
-		DerivativeOrders:           []*DerivativeOrderUpdate{},
-		SpotOrderbookUpdates:       []*OrderbookUpdate{},
-		DerivativeOrderbookUpdates: []*OrderbookUpdate{},
-		Positions:                  []*Position{},
-		OraclePrices:               []*OraclePrice{},
+		BankBalances:                    []*BankBalance{},
+		SubaccountDeposits:              []*SubaccountDeposits{},
+		SpotTrades:                      []*SpotTrade{},
+		DerivativeTrades:                []*DerivativeTrade{},
+		SpotOrders:                      []*SpotOrderUpdate{},
+		DerivativeOrders:                []*DerivativeOrderUpdate{},
+		SpotOrderbookUpdates:            []*OrderbookUpdate{},
+		DerivativeOrderbookUpdates:      []*OrderbookUpdate{},
+		Positions:                       []*Position{},
+		OraclePrices:                    []*OraclePrice{},
+		OrderFailures:                   []*OrderFailureUpdate{},
+		ConditionalOrderTriggerFailures: []*ConditionalOrderTriggerFailureUpdate{},
 	}
 }

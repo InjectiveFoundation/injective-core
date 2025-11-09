@@ -199,13 +199,13 @@ func NewUnderwriteInsuranceFundTxCmd() *cobra.Command {
 
 func NewRequestRedemptionTxCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "underwrite-insurance-fund [flags]",
+		Use:   "request-redemption [flags]",
 		Args:  cobra.ExactArgs(0),
-		Short: "Create and broadcast a message to underwrite insurance fund",
-		Long: `Create and broadcast a message to underwrite insurance fund.
+		Short: "Create and broadcast a message to request redemption",
+		Long: `Create and broadcast a message to request redemption.
 
 		Example:
-		$ %s tx insurance underwrite-insurance-fund
+		$ %s tx insurance request-redemption
 			--market-id="0x000001"
 			--share-token="1000000share1"
 			--from=genesis --keyring-backend=file --yes
@@ -223,12 +223,12 @@ func NewRequestRedemptionTxCmd() *cobra.Command {
 				return err
 			}
 
-			shareTokenStr, err := cmd.Flags().GetString(FlagShareToken)
+			amountStr, err := cmd.Flags().GetString(FlagAmount)
 			if err != nil {
 				return err
 			}
 
-			shareToken, err := sdk.ParseCoinNormalized(shareTokenStr)
+			amount, err := sdk.ParseCoinNormalized(amountStr)
 			if err != nil {
 				return err
 			}
@@ -236,7 +236,7 @@ func NewRequestRedemptionTxCmd() *cobra.Command {
 			msg := &types.MsgRequestRedemption{
 				Sender:   from.String(),
 				MarketId: marketId,
-				Amount:   shareToken,
+				Amount:   amount,
 			}
 			if err != nil {
 				return err
@@ -250,8 +250,8 @@ func NewRequestRedemptionTxCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().String(FlagMarketId, "", "marketId to add deposit to.")
-	cmd.Flags().String(FlagShareToken, "", "the amount of share token to make redemption.")
+	cmd.Flags().String(FlagMarketId, "", "marketId to make redemption from.")
+	cmd.Flags().String(FlagAmount, "", "the amount of share token to make redemption.")
 
 	cliflags.AddTxFlagsToCmd(cmd)
 	return cmd

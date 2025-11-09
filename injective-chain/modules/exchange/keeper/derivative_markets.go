@@ -499,6 +499,7 @@ func (k *Keeper) ExecuteDerivativeMarketParamUpdateProposal(ctx sdk.Context, p *
 		p.MinNotional,
 		p.HourlyInterestRate,
 		p.HourlyFundingRateCap,
+		p.OpenNotionalCap,
 		p.Status,
 		p.OracleParams,
 		p.Ticker,
@@ -557,6 +558,7 @@ func (k *Keeper) UpdateDerivativeMarketParam(
 	initialMarginRatio, maintenanceMarginRatio, reduceMarginRatio *math.LegacyDec,
 	makerFeeRate, takerFeeRate, relayerFeeShareRate, minPriceTickSize *math.LegacyDec,
 	minQuantityTickSize, minNotional, hourlyInterestRate, hourlyFundingRateCap *math.LegacyDec,
+	openNotionalCap *v2.OpenNotionalCap,
 	status v2.MarketStatus,
 	oracleParams *v2.OracleParams,
 	ticker string,
@@ -594,6 +596,9 @@ func (k *Keeper) UpdateDerivativeMarketParam(
 	if reduceMarginRatio == nil {
 		return errors.Wrap(types.ErrInvalidMarginRatio, "reduce_margin_ratio is nil")
 	}
+	if openNotionalCap == nil {
+		return errors.Wrap(types.ErrInvalidOpenNotionalCap, "open_notional_cap is nil")
+	}
 
 	market.InitialMarginRatio = *initialMarginRatio
 	market.MaintenanceMarginRatio = *maintenanceMarginRatio
@@ -604,6 +609,7 @@ func (k *Keeper) UpdateDerivativeMarketParam(
 	market.MinPriceTickSize = *minPriceTickSize
 	market.MinQuantityTickSize = *minQuantityTickSize
 	market.MinNotional = *minNotional
+	market.OpenNotionalCap = *openNotionalCap
 	market.Status = status
 	market.Ticker = ticker
 
@@ -1031,6 +1037,7 @@ func (k *Keeper) handlePerpetualMarketLaunchProposal(ctx sdk.Context, p *v2.Perp
 		p.MinPriceTickSize,
 		p.MinQuantityTickSize,
 		p.MinNotional,
+		p.OpenNotionalCap,
 		&adminInfo,
 	)
 	return err
@@ -1063,6 +1070,7 @@ func (k *Keeper) handleExpiryFuturesMarketLaunchProposal(ctx sdk.Context, p *v2.
 		p.MinPriceTickSize,
 		p.MinQuantityTickSize,
 		p.MinNotional,
+		p.OpenNotionalCap,
 		&adminInfo,
 	)
 	return err
@@ -1167,6 +1175,9 @@ func (*Keeper) setDefaultParamsForDerivativeMarketParamUpdateProposal(
 	}
 	if p.MinNotional == nil || p.MinNotional.IsNil() {
 		p.MinNotional = &market.MinNotional
+	}
+	if p.OpenNotionalCap == nil {
+		p.OpenNotionalCap = &market.OpenNotionalCap
 	}
 
 	if p.AdminInfo == nil {

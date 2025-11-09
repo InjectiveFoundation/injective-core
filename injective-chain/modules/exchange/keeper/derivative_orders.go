@@ -1021,6 +1021,17 @@ func (k *Keeper) createDerivativeLimitOrder(
 	return orderHash, nil
 }
 
+func (k *Keeper) createDerivativeMarketOrderWithoutResultsForAtomicExecution(
+	ctx sdk.Context,
+	sender sdk.AccAddress,
+	derivativeOrder *v2.DerivativeOrder,
+	market DerivativeMarketInterface,
+	markPrice math.LegacyDec,
+) (orderHash common.Hash, err error) {
+	orderHash, _, err = k.createDerivativeMarketOrder(ctx, sender, derivativeOrder, market, markPrice)
+	return orderHash, err
+}
+
 func (k *Keeper) createDerivativeMarketOrder(
 	ctx sdk.Context,
 	sender sdk.AccAddress,
@@ -1106,9 +1117,10 @@ func (k *Keeper) processAtomicDerivativeMarketOrder(
 		funding = k.GetPerpetualMarketFunding(ctx, marketID)
 	}
 	positionStates := NewPositionStates()
+	positionQuantities := make(map[common.Hash]*math.LegacyDec)
 
 	results, isMarketSolvent, err := k.ExecuteDerivativeMarketOrderImmediately(
-		ctx, market, markPrice, funding, marketOrder, positionStates, false,
+		ctx, market, markPrice, funding, marketOrder, positionStates, positionQuantities, false,
 	)
 	if err != nil {
 		return orderHash, nil, err

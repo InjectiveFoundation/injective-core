@@ -6,16 +6,18 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
+	"math"
 	"strconv"
 	"strings"
 
-	ethCrypto "github.com/ethereum/go-ethereum/crypto"
-	"github.com/spf13/cobra"
-
 	"cosmossdk.io/errors"
+	sdkmath "cosmossdk.io/math"
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/client/tx"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	gethcommon "github.com/ethereum/go-ethereum/common"
+	gethcrypto "github.com/ethereum/go-ethereum/crypto"
+	"github.com/spf13/cobra"
 
 	cliflags "github.com/InjectiveLabs/injective-core/cli/flags"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/peggy/types"
@@ -38,6 +40,9 @@ func GetTxCmd(storeKey string) *cobra.Command {
 		NewCancelSendToEth(),
 		BlacklistEthereumAddresses(),
 		RevokeBlacklistEthereumAddresses(),
+		CmdCreateRateLimit(),
+		CmdUpdateRateLimit(),
+		CmdRemoveRateLimit(),
 	}...)
 
 	return peggyTxCmd
@@ -64,11 +69,11 @@ func CmdUnsafeETHPrivKey() *cobra.Command {
 		Use:   "gen-eth-key",
 		Short: "Generate and print a new ecdsa key",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			key, err := ethCrypto.GenerateKey()
+			key, err := gethcrypto.GenerateKey()
 			if err != nil {
 				return errors.Wrap(err, "can not generate key")
 			}
-			k := "0x" + hex.EncodeToString(ethCrypto.FromECDSA(key))
+			k := "0x" + hex.EncodeToString(gethcrypto.FromECDSA(key))
 			fmt.Println(k)
 			return nil
 		},
@@ -82,7 +87,7 @@ func CmdUnsafeETHAddr() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			privKeyString := args[0][2:]
-			privateKey, err := ethCrypto.HexToECDSA(privKeyString)
+			privateKey, err := gethcrypto.HexToECDSA(privKeyString)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -92,7 +97,7 @@ func CmdUnsafeETHAddr() *cobra.Command {
 			if !ok {
 				log.Fatal("error casting public key to ECDSA")
 			}
-			ethAddress := ethCrypto.PubkeyToAddress(*publicKeyECDSA).Hex()
+			ethAddress := gethcrypto.PubkeyToAddress(*publicKeyECDSA).Hex()
 			fmt.Println(ethAddress)
 			return nil
 		},
@@ -279,6 +284,148 @@ func RevokeBlacklistEthereumAddresses() *cobra.Command {
 			return tx.GenerateOrBroadcastTxCLI(cliCtx, cmd.Flags(), &msg)
 		},
 	}
+	cliflags.AddTxFlagsToCmd(cmd)
+	return cmd
+}
+
+func CmdCreateRateLimit() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "create-rate-limit [token-contract] [token-decimals] [token-price-id] [rate-limit-usd] [rate-limit-window]",
+		Short: "Sets a (withdrawal) rate limit for a specific Peggy asset (admin/gov only)",
+		Args:  cobra.ExactArgs(5),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clientCtx, err := client.GetClientTxContext(cmd)
+			if err != nil {
+				return err
+			}
+
+			if !gethcommon.IsHexAddress(args[0]) {
+				return fmt.Errorf("invalid token address: %s", args[0])
+			}
+
+			tokenContract := gethcommon.HexToAddress(args[0])
+			tokenDecimals, err := strconv.ParseUint(args[1], 10, 64)
+			if err != nil {
+				return errors.Wrap(err, "invalid decimals")
+			}
+
+			if tokenDecimals > math.MaxUint32 {
+				return fmt.Errorf("decimals higher than MaxUint32: %d", tokenDecimals)
+			}
+
+			tokenPriceID := args[2]
+
+			rateLimitUSD, err := sdkmath.LegacyNewDecFromStr(args[3])
+			if err != nil {
+				return errors.Wrap(err, "invalid notional limit")
+			}
+
+			rateLimitWindow, err := strconv.ParseUint(args[4], 10, 64)
+			if err != nil {
+				return errors.Wrap(err, "invalid notional limit")
+			}
+
+			// Make the message
+			msg := &types.MsgCreateRateLimit{
+				Authority:       clientCtx.GetFromAddress().String(),
+				TokenAddress:    tokenContract.Hex(),
+				TokenDecimals:   uint32(tokenDecimals),
+				TokenPriceId:    tokenPriceID,
+				RateLimitUsd:    rateLimitUSD,
+				RateLimitWindow: rateLimitWindow,
+			}
+
+			if err := msg.ValidateBasic(); err != nil {
+				return err
+			}
+
+			return tx.GenerateOrBroadcastTxCLI(clientCtx, cmd.Flags(), msg)
+		},
+	}
+
+	cliflags.AddTxFlagsToCmd(cmd)
+	return cmd
+}
+
+func CmdUpdateRateLimit() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "update-rate-limit [token-contract] [new-token-price-id] [new-rate-limit-usd] [new-rate-limit-window]",
+		Short: "Updates fields of a particular rate limit (admin/gov only)",
+		Args:  cobra.ExactArgs(4),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clientCtx, err := client.GetClientTxContext(cmd)
+			if err != nil {
+				return err
+			}
+
+			if !gethcommon.IsHexAddress(args[0]) {
+				return fmt.Errorf("invalid token address: %s", args[0])
+			}
+
+			tokenContract := gethcommon.HexToAddress(args[0])
+			newTokenPriceID := args[1]
+
+			newRateLimitUSD, err := sdkmath.LegacyNewDecFromStr(args[2])
+			if err != nil {
+				return errors.Wrap(err, "invalid rate limit")
+			}
+
+			newRateLimitWindow, err := strconv.ParseUint(args[3], 10, 64)
+			if err != nil {
+				return errors.Wrap(err, "invalid rate limit window")
+			}
+
+			// Make the message
+			msg := &types.MsgUpdateRateLimit{
+				Authority:          clientCtx.GetFromAddress().String(),
+				TokenAddress:       tokenContract.Hex(),
+				NewTokenPriceId:    newTokenPriceID,
+				NewRateLimitUsd:    newRateLimitUSD,
+				NewRateLimitWindow: newRateLimitWindow,
+			}
+
+			if err := msg.ValidateBasic(); err != nil {
+				return err
+			}
+
+			return tx.GenerateOrBroadcastTxCLI(clientCtx, cmd.Flags(), msg)
+		},
+	}
+
+	cliflags.AddTxFlagsToCmd(cmd)
+	return cmd
+}
+
+func CmdRemoveRateLimit() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "remove-rate-limit [token-contract]",
+		Short: "Remove the rate limit for a particular Peggy asset (admin/gov only)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clientCtx, err := client.GetClientTxContext(cmd)
+			if err != nil {
+				return err
+			}
+
+			if !gethcommon.IsHexAddress(args[0]) {
+				return fmt.Errorf("invalid token address: %s", args[0])
+			}
+
+			tokenContract := gethcommon.HexToAddress(args[0])
+
+			msg := &types.MsgRemoveRateLimit{
+				Authority:    clientCtx.GetFromAddress().String(),
+				TokenAddress: tokenContract.Hex(),
+			}
+
+			if err := msg.ValidateBasic(); err != nil {
+				return err
+			}
+
+			return tx.GenerateOrBroadcastTxCLI(clientCtx, cmd.Flags(), msg)
+		},
+	}
+
 	cliflags.AddTxFlagsToCmd(cmd)
 	return cmd
 }

@@ -160,7 +160,9 @@ func (k *Keeper) GetAllTransientOrderbookUpdates(
 	return orderbooks
 }
 
-// IterateTransientOrderbookPriceLevels iterates over the transient orderbook price levels (so it cointains only price levels changed in this block), calling process on each level.
+// IterateTransientOrderbookPriceLevels iterates over the transient orderbook price levels
+// so it contains only price levels changed in this block,
+// calling process on each level.
 func (k *Keeper) IterateTransientOrderbookPriceLevels(
 	ctx sdk.Context,
 	isSpot bool,

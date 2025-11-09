@@ -9,7 +9,7 @@ To run the tests, execute the following command:
 ```bash
 $ make image
 $ cd interchaintest
-$ go test -count=1 -v -timeout 6000s -run ^TestMempoolLanes$ github.com/InjectiveLabs/injective-core/interchaintest
+$ go test -count=1 -v -timeout 6000s -run ^TestMempoolLanes$ ./
 ```
 
 Note that `-count=1` is used to prevent Go caching, timeout is increased to 6000s to allow for longer test runs.

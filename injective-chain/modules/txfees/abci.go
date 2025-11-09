@@ -5,6 +5,7 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/txfees/keeper"
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/txfees/types"
 )
 
 type BlockHandler struct {
@@ -32,6 +33,15 @@ func (h *BlockHandler) BeginBlocker(ctx sdk.Context) error {
 		h.keeper.Logger(ctx).Error("BeginBlocker: failed to check and set target gas", "error", err)
 		return err
 	}
+
+	// Store current base fee in event
+	ctx.EventManager().EmitEvents(sdk.Events{
+		sdk.NewEvent(
+			types.EventTypeTxFees,
+			sdk.NewAttribute(types.AttributeKeyBaseFee, h.keeper.CurFeeState.CurBaseFee.String()),
+		),
+	})
+
 	return nil
 }
 

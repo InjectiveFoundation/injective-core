@@ -36,6 +36,7 @@ type Keeper struct {
 	DistKeeper        distrkeeper.Keeper
 	SlashingKeeper    types.SlashingKeeper
 	exchangeMsgServer exchangetypes.MsgServer
+	OracleKeeper      types.OracleKeeper
 
 	AttestationHandler interface {
 		Handle(sdk.Context, types.EthereumClaim) error
@@ -49,10 +50,6 @@ type Keeper struct {
 	accountKeeper keeper.AccountKeeper
 }
 
-func (k *Keeper) Logger(ctx sdk.Context) log.Logger {
-	return ctx.Logger().With("module", types.ModuleName)
-}
-
 // NewKeeper returns a new instance of the peggy keeper
 func NewKeeper(
 	cdc codec.Codec,
@@ -62,6 +59,7 @@ func NewKeeper(
 	slashingKeeper types.SlashingKeeper,
 	distKeeper distrkeeper.Keeper,
 	exchangeKeeper *exchangekeeper.Keeper,
+	oracleKeeper types.OracleKeeper,
 	authority string,
 	accountKeeper keeper.AccountKeeper,
 ) Keeper {
@@ -72,6 +70,7 @@ func NewKeeper(
 		bankKeeper:        bankKeeper,
 		DistKeeper:        distKeeper,
 		SlashingKeeper:    slashingKeeper,
+		OracleKeeper:      oracleKeeper,
 		exchangeMsgServer: exchangekeeper.NewV1MsgServerImpl(exchangeKeeper, exchangekeeper.NewMsgServerImpl(exchangeKeeper)),
 		authority:         authority,
 		svcTags: metrics.Tags{
@@ -86,6 +85,10 @@ func NewKeeper(
 	k.AttestationHandler = NewAttestationHandler(bankKeeper, k)
 
 	return k
+}
+
+func (*Keeper) Logger(ctx sdk.Context) log.Logger {
+	return ctx.Logger().With("module", types.ModuleName)
 }
 
 /////////////////////////////
@@ -973,24 +976,25 @@ func (k *Keeper) CreateModuleAccount(ctx sdk.Context) {
 // (most) of the module state obsolete. Valset Updates are preserved since that's coming from Peggy to Ethereum
 func (k *Keeper) ResetPeggyModuleState(ctx sdk.Context, params *types.Params) error {
 	height := params.GetBridgeContractStartHeight()
-
-	// 1. update last observed claims for all validators
-	err := k.StakingKeeper.IterateValidators(ctx, func(_ int64, validator stakingtypes.ValidatorI) (stop bool) {
+	lastObservedEventNonce := k.GetLastObservedEventNonce(ctx)
+	updateValidatorsClaims := func(_ int64, validator stakingtypes.ValidatorI) (stop bool) {
 		v, _ := sdk.ValAddressFromBech32(validator.GetOperator())
 
-		// 1. update last observed claims for all validators
 		if validator.IsBonded() {
-			// Any bonded validator must have orchestrator running, so we're ensuring they are aware
-			// of the new contract start height
-			k.setLastEventByValidator(ctx, v, 0, height)
+			// Align any active validator's last nonce to match the last observed.
+			// That way each of them can start up properly because the new Peggy.sol contract
+			// should have its state_lastEventNonce set to lastObservedEventNonce
+			k.setLastEventByValidator(ctx, v, lastObservedEventNonce, height)
 		} else {
-			// once validator bonds again, their last claim will be initialized by peggy hook
+			// Inactive validators will have their last claim set properly during AfterValidatorBonded hook
 			k.setLastEventByValidator(ctx, v, 0, 0)
 		}
 
 		return false
-	})
-	if err != nil {
+	}
+
+	// 1. update last observed claims for all validators
+	if err := k.StakingKeeper.IterateValidators(ctx, updateValidatorsClaims); err != nil {
 		return err
 	}
 

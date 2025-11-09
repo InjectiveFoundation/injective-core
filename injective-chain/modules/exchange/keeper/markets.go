@@ -39,6 +39,7 @@ type DerivativeMarketInterface interface {
 	GetInitialMarginRatio() math.LegacyDec
 	GetOracleScaleFactor() uint32
 	GetQuoteDecimals() uint32
+	GetOpenNotionalCap() v2.OpenNotionalCap
 }
 
 type MarketIDQuoteDenomMakerFee struct {

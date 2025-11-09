@@ -78,6 +78,9 @@ func SetupWithDBAndOpts(
 		appOptions = make(simtestutil.AppOptionsMap, 0)
 	}
 	appOptions[server.FlagInvCheckPeriod] = 5
+	appOptions["evm.tracetx-enabled"] = true
+	// Enable EVM gRPC tracing endpoints (TraceTx/TraceBlock/TraceCall) in tests by default
+	appOptions["evm.enable-grpc-tracing"] = true
 
 	// Make sure home dirs are unique so WASMd module is not locking same file during init
 	homePrefix := filepath.Join(os.TempDir(), fmt.Sprintf("injective-chain-evm-test-%d", rand.Intn(99999999)))

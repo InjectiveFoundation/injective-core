@@ -9,22 +9,25 @@ import (
 	"github.com/cosmos/cosmos-sdk/types/tx"
 
 	evmtypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/types"
+	txfeestypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/txfees/types"
 )
 
 // QueryClient defines a gRPC Client used for:
 //   - Transaction simulation
 //   - EVM module queries
-//   - Fee market module queries
+//   - txfees module queries
 type QueryClient struct {
 	tx.ServiceClient
 	evmtypes.QueryClient
+	TxFeesQueryClient txfeestypes.QueryClient
 }
 
 // NewQueryClient creates a new gRPC query client
 func NewQueryClient(clientCtx client.Context) *QueryClient {
 	return &QueryClient{
-		ServiceClient: tx.NewServiceClient(clientCtx),
-		QueryClient:   evmtypes.NewQueryClient(clientCtx),
+		ServiceClient:     tx.NewServiceClient(clientCtx),
+		QueryClient:       evmtypes.NewQueryClient(clientCtx),
+		TxFeesQueryClient: txfeestypes.NewQueryClient(clientCtx),
 	}
 }
 

@@ -17,6 +17,8 @@ type EVMConfig struct {
 	Tracer string `mapstructure:"tracer"`
 	// MaxTxGasWanted defines the gas wanted for each eth tx returned in ante handler in check tx mode.
 	MaxTxGasWanted uint64 `mapstructure:"max-tx-gas-wanted"`
+	// EnableGRPCTracing indicates if TraceTx/TraceBlock/TraceCall gRPC queries are enabled inside EVM keeper
+	EnableGRPCTracing bool `mapstructure:"enable-grpc-tracing"`
 }
 
 // JSONRPCConfig defines configuration for the EVM RPC server.
@@ -110,6 +112,8 @@ const (
 
 	// DefaultReturnDataLimit is maximum number of bytes returned from eth_call or similar invocations
 	DefaultReturnDataLimit = 512000
+
+	DefaultEnableGRPCTracing = false
 )
 
 var (
@@ -124,8 +128,9 @@ var (
 // DefaultEVMConfig returns the default EVM configuration
 func DefaultEVMConfig() *EVMConfig {
 	return &EVMConfig{
-		Tracer:         DefaultEVMTracer,
-		MaxTxGasWanted: DefaultMaxTxGasWanted,
+		Tracer:            DefaultEVMTracer,
+		MaxTxGasWanted:    DefaultMaxTxGasWanted,
+		EnableGRPCTracing: DefaultEnableGRPCTracing,
 	}
 }
 
@@ -265,8 +270,9 @@ func GetConfig(v *viper.Viper) (Config, error) {
 		Mempool:    cfg.Mempool,
 
 		EVM: EVMConfig{
-			Tracer:         v.GetString("evm.tracer"),
-			MaxTxGasWanted: v.GetUint64("evm.max-tx-gas-wanted"),
+			Tracer:            v.GetString("evm.tracer"),
+			MaxTxGasWanted:    v.GetUint64("evm.max-tx-gas-wanted"),
+			EnableGRPCTracing: v.GetBool("evm.enable-grpc-tracing"),
 		},
 
 		JSONRPC: JSONRPCConfig{

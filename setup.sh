@@ -79,6 +79,7 @@ cat $INJHOME/config/genesis.json | jq '.app_state["ocr"]["params"]["module_admin
 cat $INJHOME/config/genesis.json | jq '.app_state["ocr"]["params"]["payout_block_interval"]="5"' > $INJHOME/config/tmp_genesis.json && mv $INJHOME/config/tmp_genesis.json $INJHOME/config/genesis.json
 cat $INJHOME/config/genesis.json | jq '.app_state["evm"]["params"]["chain_config"]["cancun_time"]="0"' > $INJHOME/config/tmp_genesis.json && mv $INJHOME/config/tmp_genesis.json $INJHOME/config/genesis.json
 cat $INJHOME/config/genesis.json | jq '.app_state["evm"]["params"]["chain_config"]["prague_time"]="0"' > $INJHOME/config/tmp_genesis.json && mv $INJHOME/config/tmp_genesis.json $INJHOME/config/genesis.json
+cat $INJHOME/config/genesis.json | jq '.app_state["txfees"]["params"]["mempool1559_enabled"]=false' > $INJHOME/config/tmp_genesis.json && mv $INJHOME/config/tmp_genesis.json $INJHOME/config/genesis.json
 cat $INJHOME/config/genesis.json | jq '.consensus["params"]["block"]["max_gas"]="150000000"' > $INJHOME/config/tmp_genesis.json && mv $INJHOME/config/tmp_genesis.json $INJHOME/config/genesis.json
 
 INJ='{"denom":"inj","decimals":18}'
@@ -141,7 +142,7 @@ PEGGY_DENOM_DECIMALS="${USDT},${USDC},${ONEINCH},${AXS},${BAT},${BNB},${WBTC},${
 IBC_DENOM_DECIMALS="${ATOM},${USTC},${AXL},${XPRT},${SCRT},${OSMO},${LUNC},${HUAHUA},${EVMOS},${DOT}"
 DENOM_DECIMALS='['${INJ},${PEGGY_DENOM_DECIMALS},${IBC_DENOM_DECIMALS}']'
 
-cat $INJHOME/config/genesis.json | jq '.app_state["exchange"]["denom_decimals"]='${DENOM_DECIMALS} > $INJHOME/config/tmp_genesis.json && mv $INJHOME/config/tmp_genesis.json $INJHOME/config/genesis.json
+cat $INJHOME/config/genesis.json | jq '.app_state["exchange"]["auction_exchange_transfer_denom_decimals"]='${DENOM_DECIMALS} > $INJHOME/config/tmp_genesis.json && mv $INJHOME/config/tmp_genesis.json $INJHOME/config/genesis.json
 
 yes $PASSPHRASE | injectived keys add genesis --home $INJHOME
 yes $PASSPHRASE | injectived add-genesis-account --chain-id $CHAINID --home $INJHOME $(yes $PASSPHRASE | injectived keys show genesis -a --home $INJHOME) 1000000000000000000000000inj,1000000000000000000000000atom,100000000000000000000000000peggy0xdAC17F958D2ee523a2206206994597C13D831ec7,100000000000000000000000000peggy0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599

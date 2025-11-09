@@ -134,9 +134,12 @@ func (k *Keeper) ExecuteBatchUpdateOrders(
 	spotOrdersToCancel []*v2.OrderData,
 	derivativeOrdersToCancel []*v2.OrderData,
 	binaryOptionsOrdersToCancel []*v2.OrderData,
-	spotOrdersToCreate []*v2.SpotOrder,
-	derivativeOrdersToCreate []*v2.DerivativeOrder,
-	binaryOptionsOrdersToCreate []*v2.DerivativeOrder,
+	spotLimitOrdersToCreate []*v2.SpotOrder,
+	derivativeLimitOrdersToCreate []*v2.DerivativeOrder,
+	binaryOptionsLimitOrdersToCreate []*v2.DerivativeOrder,
+	spotMarketOrdersToCreate []*v2.SpotOrder,
+	derivativeMarketOrdersToCreate []*v2.DerivativeOrder,
+	binaryOptionsMarketOrdersToCreate []*v2.DerivativeOrder,
 ) (*v2.MsgBatchUpdateOrdersResponse, error) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
@@ -146,18 +149,27 @@ func (k *Keeper) ExecuteBatchUpdateOrders(
 		derivativeMarkets    = make(map[common.Hash]*v2.DerivativeMarket)
 		binaryOptionsMarkets = make(map[common.Hash]*v2.BinaryOptionsMarket)
 
-		spotCancelSuccesses            = make([]bool, len(spotOrdersToCancel))
-		derivativeCancelSuccesses      = make([]bool, len(derivativeOrdersToCancel))
-		binaryOptionsCancelSuccesses   = make([]bool, len(binaryOptionsOrdersToCancel))
-		spotOrderHashes                = make([]string, len(spotOrdersToCreate))
-		createdSpotOrdersCids          = make([]string, 0)
-		failedSpotOrdersCids           = make([]string, 0)
-		derivativeOrderHashes          = make([]string, len(derivativeOrdersToCreate))
-		createdDerivativeOrdersCids    = make([]string, 0)
-		failedDerivativeOrdersCids     = make([]string, 0)
-		binaryOptionsOrderHashes       = make([]string, len(binaryOptionsOrdersToCreate))
-		createdBinaryOptionsOrdersCids = make([]string, 0)
-		failedBinaryOptionsOrdersCids  = make([]string, 0)
+		spotCancelSuccesses                  = make([]bool, len(spotOrdersToCancel))
+		derivativeCancelSuccesses            = make([]bool, len(derivativeOrdersToCancel))
+		binaryOptionsCancelSuccesses         = make([]bool, len(binaryOptionsOrdersToCancel))
+		spotLimitOrderHashes                 = make([]string, len(spotLimitOrdersToCreate))
+		createdSpotLimitOrdersCids           = make([]string, 0)
+		failedSpotLimitOrdersCids            = make([]string, 0)
+		spotMarketOrderHashes                = make([]string, len(spotMarketOrdersToCreate))
+		createdSpotMarketOrdersCids          = make([]string, 0)
+		failedSpotMarketOrdersCids           = make([]string, 0)
+		derivativeOrderHashes                = make([]string, len(derivativeLimitOrdersToCreate))
+		createdDerivativeOrdersCids          = make([]string, 0)
+		failedDerivativeOrdersCids           = make([]string, 0)
+		derivativeMarketOrderHashes          = make([]string, len(derivativeMarketOrdersToCreate))
+		createdDerivativeMarketOrdersCids    = make([]string, 0)
+		failedDerivativeMarketOrdersCids     = make([]string, 0)
+		binaryOptionsOrderHashes             = make([]string, len(binaryOptionsLimitOrdersToCreate))
+		createdBinaryOptionsOrdersCids       = make([]string, 0)
+		failedBinaryOptionsOrdersCids        = make([]string, 0)
+		binaryOptionsMarketOrderHashes       = make([]string, len(binaryOptionsMarketOrdersToCreate))
+		createdBinaryOptionsMarketOrdersCids = make([]string, 0)
+		failedBinaryOptionsMarketOrdersCids  = make([]string, 0)
 	)
 
 	//  Derive the subaccountID.
@@ -185,30 +197,74 @@ func (k *Keeper) ExecuteBatchUpdateOrders(
 	}
 
 	k.processCreateSpotOrders(
-		ctx, sender, spotOrdersToCreate, spotOrderHashes, &orderFailEvent, &createdSpotOrdersCids, &failedSpotOrdersCids, spotMarkets,
+		ctx,
+		sender,
+		spotMarketOrdersToCreate,
+		spotMarketOrderHashes,
+		&createdSpotMarketOrdersCids,
+		&failedSpotMarketOrdersCids,
+		&orderFailEvent,
+		spotMarkets,
+		k.createSpotMarketOrder,
+	)
+	k.processCreateSpotOrders(
+		ctx,
+		sender,
+		spotLimitOrdersToCreate,
+		spotLimitOrderHashes,
+		&createdSpotLimitOrdersCids,
+		&failedSpotLimitOrdersCids,
+		&orderFailEvent,
+		spotMarkets,
+		k.createSpotLimitOrder,
 	)
 
 	markPrices := make(map[common.Hash]math.LegacyDec)
 	k.processCreateDerivativeOrders(
 		ctx,
 		sender,
-		derivativeOrdersToCreate,
+		derivativeMarketOrdersToCreate,
+		derivativeMarketOrderHashes,
+		&orderFailEvent,
+		&createdDerivativeMarketOrdersCids,
+		&failedDerivativeMarketOrdersCids,
+		derivativeMarkets,
+		markPrices,
+		k.createDerivativeMarketOrderWithoutResultsForAtomicExecution,
+	)
+	k.processCreateDerivativeOrders(
+		ctx,
+		sender,
+		derivativeLimitOrdersToCreate,
 		derivativeOrderHashes,
 		&orderFailEvent,
 		&createdDerivativeOrdersCids,
 		&failedDerivativeOrdersCids,
 		derivativeMarkets,
 		markPrices,
+		k.createDerivativeLimitOrder,
 	)
 	k.processCreateBinaryOptionsOrders(
 		ctx,
 		sender,
-		binaryOptionsOrdersToCreate,
+		binaryOptionsMarketOrdersToCreate,
+		binaryOptionsMarketOrderHashes,
+		&orderFailEvent,
+		&createdBinaryOptionsMarketOrdersCids,
+		&failedBinaryOptionsMarketOrdersCids,
+		binaryOptionsMarkets,
+		k.createBinaryOptionsMarketOrder,
+	)
+	k.processCreateBinaryOptionsOrders(
+		ctx,
+		sender,
+		binaryOptionsLimitOrdersToCreate,
 		binaryOptionsOrderHashes,
 		&orderFailEvent,
 		&createdBinaryOptionsOrdersCids,
 		&failedBinaryOptionsOrdersCids,
 		binaryOptionsMarkets,
+		k.createDerivativeLimitOrder,
 	)
 
 	if !orderFailEvent.IsEmpty() {
@@ -216,18 +272,27 @@ func (k *Keeper) ExecuteBatchUpdateOrders(
 	}
 
 	return &v2.MsgBatchUpdateOrdersResponse{
-		SpotCancelSuccess:              spotCancelSuccesses,
-		DerivativeCancelSuccess:        derivativeCancelSuccesses,
-		SpotOrderHashes:                spotOrderHashes,
-		DerivativeOrderHashes:          derivativeOrderHashes,
-		BinaryOptionsCancelSuccess:     binaryOptionsCancelSuccesses,
-		BinaryOptionsOrderHashes:       binaryOptionsOrderHashes,
-		CreatedSpotOrdersCids:          createdSpotOrdersCids,
-		FailedSpotOrdersCids:           failedSpotOrdersCids,
-		CreatedDerivativeOrdersCids:    createdDerivativeOrdersCids,
-		FailedDerivativeOrdersCids:     failedDerivativeOrdersCids,
-		CreatedBinaryOptionsOrdersCids: createdBinaryOptionsOrdersCids,
-		FailedBinaryOptionsOrdersCids:  failedBinaryOptionsOrdersCids,
+		SpotCancelSuccess:                    spotCancelSuccesses,
+		DerivativeCancelSuccess:              derivativeCancelSuccesses,
+		SpotOrderHashes:                      spotLimitOrderHashes,
+		DerivativeOrderHashes:                derivativeOrderHashes,
+		BinaryOptionsCancelSuccess:           binaryOptionsCancelSuccesses,
+		BinaryOptionsOrderHashes:             binaryOptionsOrderHashes,
+		CreatedSpotOrdersCids:                createdSpotLimitOrdersCids,
+		FailedSpotOrdersCids:                 failedSpotLimitOrdersCids,
+		CreatedDerivativeOrdersCids:          createdDerivativeOrdersCids,
+		FailedDerivativeOrdersCids:           failedDerivativeOrdersCids,
+		CreatedBinaryOptionsOrdersCids:       createdBinaryOptionsOrdersCids,
+		FailedBinaryOptionsOrdersCids:        failedBinaryOptionsOrdersCids,
+		SpotMarketOrderHashes:                spotMarketOrderHashes,
+		CreatedSpotMarketOrdersCids:          createdSpotMarketOrdersCids,
+		FailedSpotMarketOrdersCids:           failedSpotMarketOrdersCids,
+		DerivativeMarketOrderHashes:          derivativeMarketOrderHashes,
+		CreatedDerivativeMarketOrdersCids:    createdDerivativeMarketOrdersCids,
+		FailedDerivativeMarketOrdersCids:     failedDerivativeMarketOrdersCids,
+		BinaryOptionsMarketOrderHashes:       binaryOptionsMarketOrderHashes,
+		CreatedBinaryOptionsMarketOrdersCids: createdBinaryOptionsMarketOrdersCids,
+		FailedBinaryOptionsMarketOrdersCids:  failedBinaryOptionsMarketOrdersCids,
 	}, nil
 }
 
@@ -244,26 +309,7 @@ func (k *Keeper) FixedGasBatchUpdateOrders(
 	ctx := sdk.UnwrapSDKContext(cc)
 	sender, _ := sdk.AccAddressFromBech32(msg.Sender)
 
-	var (
-		subaccountId         = msg.SubaccountId
-		spotMarkets          = make(map[common.Hash]*v2.SpotMarket)
-		derivativeMarkets    = make(map[common.Hash]*v2.DerivativeMarket)
-		binaryOptionsMarkets = make(map[common.Hash]*v2.BinaryOptionsMarket)
-
-		spotCancelSuccesses          = make([]bool, len(msg.SpotOrdersToCancel))
-		derivativeCancelSuccesses    = make([]bool, len(msg.DerivativeOrdersToCancel))
-		binaryOptionsCancelSuccesses = make([]bool, len(msg.BinaryOptionsOrdersToCancel))
-		spotOrderHashes              = make([]string, len(msg.SpotOrdersToCreate))
-		derivativeOrderHashes        = make([]string, len(msg.DerivativeOrdersToCreate))
-		binaryOptionsOrderHashes     = make([]string, len(msg.BinaryOptionsOrdersToCreate))
-
-		createdSpotOrdersCids          = make([]string, 0)
-		failedSpotOrdersCids           = make([]string, 0)
-		createdDerivativeOrdersCids    = make([]string, 0)
-		failedDerivativeOrdersCids     = make([]string, 0)
-		createdBinaryOptionsOrdersCids = make([]string, 0)
-		failedBinaryOptionsOrdersCids  = make([]string, 0)
-	)
+	subaccountId := msg.SubaccountId
 
 	// reference the gas meter early to consume gas later on in loop iterations
 	gasMeter := ctx.GasMeter()
@@ -294,7 +340,6 @@ func (k *Keeper) FixedGasBatchUpdateOrders(
 			if market == nil {
 				continue
 			}
-			spotMarkets[marketID] = market
 
 			if !market.StatusSupportsOrderCancellations() {
 				k.Logger(ctx).Debug("failed to cancel all spot limit orders", "marketID", marketID.Hex())
@@ -335,23 +380,6 @@ func (k *Keeper) FixedGasBatchUpdateOrders(
 			gasMeter.ConsumeGas(MsgCancelSpotOrderGas*uint64(len(restingSellOrders)), "")
 			gasMeter.ConsumeGas(MsgCancelSpotOrderGas*uint64(len(transientBuyOrders)), "")
 			gasMeter.ConsumeGas(MsgCancelSpotOrderGas*uint64(len(transientSellOrders)), "")
-
-			// cancel orders
-			for idx := range restingBuyOrders {
-				k.CancelSpotLimitOrder(ctx, market, marketID, subaccountID, true, restingBuyOrders[idx])
-			}
-
-			for idx := range restingSellOrders {
-				k.CancelSpotLimitOrder(ctx, market, marketID, subaccountID, false, restingSellOrders[idx])
-			}
-
-			for idx := range transientBuyOrders {
-				k.CancelTransientSpotLimitOrder(ctx, market, marketID, subaccountID, transientBuyOrders[idx])
-			}
-
-			for idx := range transientSellOrders {
-				k.CancelTransientSpotLimitOrder(ctx, market, marketID, subaccountID, transientSellOrders[idx])
-			}
 		}
 
 		/**	1. b) Cancel all derivative limit orders in markets **/
@@ -366,7 +394,6 @@ func (k *Keeper) FixedGasBatchUpdateOrders(
 				)
 				continue
 			}
-			derivativeMarkets[marketID] = market
 
 			if !market.StatusSupportsOrderCancellations() {
 				k.Logger(ctx).Debug(
@@ -440,107 +467,6 @@ func (k *Keeper) FixedGasBatchUpdateOrders(
 			gasMeter.ConsumeGas(MsgCancelDerivativeOrderGas*uint64(len(lowerMarketOrders)), "")
 			gasMeter.ConsumeGas(MsgCancelDerivativeOrderGas*uint64(len(higherLimitOrders)), "")
 			gasMeter.ConsumeGas(MsgCancelDerivativeOrderGas*uint64(len(lowerLimitOrders)), "")
-
-			for _, hash := range restingBuyOrderHashes {
-				isBuy := true
-
-				_ = k.CancelRestingDerivativeLimitOrder(
-					ctx,
-					market,
-					subaccountID,
-					&isBuy,
-					hash,
-					true,
-					true,
-				) //nolint:errcheck // cannot possibly fail
-			}
-
-			for _, hash := range restingSellOrderHashes {
-				isBuy := false
-				_ = k.CancelRestingDerivativeLimitOrder(
-					ctx,
-					market,
-					subaccountID,
-					&isBuy,
-					hash,
-					true,
-					true,
-				) //nolint:errcheck // cannot possibly fail
-			}
-
-			for _, buyOrder := range buyOrders {
-				if err := k.CancelTransientDerivativeLimitOrder(ctx, market, buyOrder); err != nil {
-					orderHash := common.BytesToHash(buyOrder.OrderHash)
-					//nolint:revive // this is fine
-					k.Logger(ctx).Error("CancelTransientDerivativeLimitOrder for buyOrder %s failed during CancelAllTransientDerivativeLimitOrdersBySubaccountID:", orderHash.Hex(), err)
-					k.EmitEvent(ctx, v2.NewEventOrderCancelFail(
-						marketID,
-						subaccountID,
-						orderHash.Hex(),
-						buyOrder.Cid(),
-						err,
-					))
-				}
-			}
-
-			for _, sellOrder := range sellOrders {
-				if err := k.CancelTransientDerivativeLimitOrder(ctx, market, sellOrder); err != nil {
-					orderHash := common.BytesToHash(sellOrder.OrderHash)
-					//nolint:revive // this is fine
-					k.Logger(ctx).Error("CancelTransientDerivativeLimitOrder for sellOrder %s failed during CancelAllTransientDerivativeLimitOrdersBySubaccountID:", orderHash.Hex(), err)
-					k.EmitEvent(ctx, v2.NewEventOrderCancelFail(
-						marketID,
-						subaccountID,
-						orderHash.Hex(),
-						sellOrder.Cid(),
-						err,
-					))
-				}
-			}
-
-			for _, hash := range higherMarketOrders {
-				isTriggerPriceHigher := true
-				_ = k.CancelConditionalDerivativeMarketOrder(
-					ctx,
-					market,
-					subaccountID,
-					&isTriggerPriceHigher,
-					hash,
-				) //nolint:errcheck // cannot possibly fail
-			}
-
-			for _, hash := range lowerMarketOrders {
-				isTriggerPriceHigher := false
-				_ = k.CancelConditionalDerivativeMarketOrder(
-					ctx,
-					market,
-					subaccountID,
-					&isTriggerPriceHigher,
-					hash,
-				) //nolint:errcheck // cannot possibly fail
-			}
-
-			for _, hash := range higherLimitOrders {
-				isTriggerPriceHigher := true
-				_ = k.CancelConditionalDerivativeLimitOrder(
-					ctx,
-					market,
-					subaccountID,
-					&isTriggerPriceHigher,
-					hash,
-				) //nolint:errcheck // cannot possibly fail
-			}
-
-			for _, hash := range lowerLimitOrders {
-				isTriggerPriceHigher := false
-				_ = k.CancelConditionalDerivativeLimitOrder(
-					ctx,
-					market,
-					subaccountID,
-					&isTriggerPriceHigher,
-					hash,
-				) //nolint:errcheck // cannot possibly fail
-			}
 		}
 
 		/**	1. c) Cancel all bo limit orders in markets **/
@@ -555,7 +481,6 @@ func (k *Keeper) FixedGasBatchUpdateOrders(
 				)
 				continue
 			}
-			binaryOptionsMarkets[marketID] = market
 
 			if !market.StatusSupportsOrderCancellations() {
 				k.Logger(ctx).Debug(
@@ -629,440 +554,54 @@ func (k *Keeper) FixedGasBatchUpdateOrders(
 			gasMeter.ConsumeGas(MsgCancelBinaryOptionsOrderGas*uint64(len(lowerMarketOrders)), "")
 			gasMeter.ConsumeGas(MsgCancelBinaryOptionsOrderGas*uint64(len(higherLimitOrders)), "")
 			gasMeter.ConsumeGas(MsgCancelBinaryOptionsOrderGas*uint64(len(lowerLimitOrders)), "")
-
-			for _, hash := range restingBuyOrderHashes {
-				isBuy := true
-				_ = k.CancelRestingDerivativeLimitOrder(
-					ctx,
-					market,
-					subaccountID,
-					&isBuy,
-					hash,
-					true,
-					true,
-				) //nolint:errcheck // cannot possibly fail
-			}
-
-			for _, hash := range restingSellOrderHashes {
-				isBuy := false
-				_ = k.CancelRestingDerivativeLimitOrder(
-					ctx,
-					market,
-					subaccountID,
-					&isBuy,
-					hash,
-					true,
-					true,
-				) //nolint:errcheck // cannot possibly fail
-			}
-
-			for _, buyOrder := range buyOrders {
-				if err := k.CancelTransientDerivativeLimitOrder(ctx, market, buyOrder); err != nil {
-					orderHash := common.BytesToHash(buyOrder.OrderHash)
-					//nolint:revive // this is fine
-					k.Logger(ctx).Error("CancelTransientDerivativeLimitOrder for buyOrder %s failed during CancelAllTransientDerivativeLimitOrdersBySubaccountID:", orderHash.Hex(), err)
-					k.EmitEvent(
-						ctx,
-						v2.NewEventOrderCancelFail(
-							marketID,
-							subaccountID,
-							orderHash.Hex(),
-							buyOrder.Cid(),
-							err,
-						))
-				}
-			}
-
-			for _, sellOrder := range sellOrders {
-				if err := k.CancelTransientDerivativeLimitOrder(ctx, market, sellOrder); err != nil {
-					orderHash := common.BytesToHash(sellOrder.OrderHash)
-					//nolint:revive // this is fine
-					k.Logger(ctx).Error("CancelTransientDerivativeLimitOrder for sellOrder %s failed during CancelAllTransientDerivativeLimitOrdersBySubaccountID:", orderHash.Hex(), err)
-					k.EmitEvent(ctx, v2.NewEventOrderCancelFail(
-						marketID,
-						subaccountID,
-						orderHash.Hex(),
-						sellOrder.Cid(),
-						err,
-					))
-				}
-			}
-
-			for _, hash := range higherMarketOrders {
-				isTriggerPriceHigher := true
-				_ = k.CancelConditionalDerivativeMarketOrder(
-					ctx,
-					market,
-					subaccountID,
-					&isTriggerPriceHigher,
-					hash,
-				) //nolint:errcheck // cannot possibly fail
-			}
-
-			for _, hash := range lowerMarketOrders {
-				isTriggerPriceHigher := false
-				_ = k.CancelConditionalDerivativeMarketOrder(
-					ctx,
-					market,
-					subaccountID,
-					&isTriggerPriceHigher,
-					hash,
-				) //nolint:errcheck // cannot possibly fail
-			}
-
-			for _, hash := range higherLimitOrders {
-				isTriggerPriceHigher := true
-				_ = k.CancelConditionalDerivativeLimitOrder(
-					ctx,
-					market,
-					subaccountID,
-					&isTriggerPriceHigher,
-					hash,
-				) //nolint:errcheck // cannot possibly fail
-			}
-
-			for _, hash := range lowerLimitOrders {
-				isTriggerPriceHigher := false
-				_ = k.CancelConditionalDerivativeLimitOrder(
-					ctx,
-					market,
-					subaccountID,
-					&isTriggerPriceHigher,
-					hash,
-				) //nolint:errcheck // cannot possibly fail
-			}
 		}
 	}
 
-	/**	2. Cancel all spot limit orders **/
-	for idx, spotOrderToCancel := range msg.SpotOrdersToCancel {
-		marketID := common.HexToHash(spotOrderToCancel.MarketId)
+	gasMeter.ConsumeGas(MsgCancelSpotOrderGas*uint64(len(msg.SpotOrdersToCancel)), "")
+	gasMeter.ConsumeGas(MsgCancelDerivativeOrderGas*uint64(len(msg.DerivativeOrdersToCancel)), "")
+	gasMeter.ConsumeGas(MsgCancelBinaryOptionsOrderGas*uint64(len(msg.BinaryOptionsOrdersToCancel)), "")
 
-		var market *v2.SpotMarket
-		if m, ok := spotMarkets[marketID]; ok {
-			market = m
-		} else {
-			market = k.GetSpotMarketByID(ctx, marketID)
-			if market == nil {
-				k.Logger(ctx).Debug(
-					"failed to cancel spot limit order for non-existent market",
-					"marketID",
-					marketID.Hex(),
-				)
-				continue
-			}
-			spotMarkets[marketID] = market
+	gasMeter.ConsumeGas(MsgCreateSpotMarketOrderGas*uint64(len(msg.SpotMarketOrdersToCreate)), "")
+	gasMeter.ConsumeGas(MsgCreateDerivativeMarketOrderGas*uint64(len(msg.DerivativeMarketOrdersToCreate)), "")
+	gasMeter.ConsumeGas(MsgCreateBinaryOptionsMarketOrderGas*uint64(len(msg.BinaryOptionsMarketOrdersToCreate)), "")
+
+	// For limit orders creation we determine the gas using the DetermineGas function to reuse the logic
+	for _, spotOrder := range msg.SpotOrdersToCreate {
+		dummySpotOrderMessage := v2.MsgCreateSpotLimitOrder{
+			Order: *spotOrder,
 		}
-
-		subaccountID := types.MustGetSubaccountIDOrDeriveFromNonce(sender, spotOrderToCancel.SubaccountId)
-
-		err := k.cancelSpotLimitOrderWithIdentifier(ctx, subaccountID, spotOrderToCancel.GetIdentifier(), market, marketID)
-
-		if err == nil {
-			gasMeter.ConsumeGas(MsgCancelSpotOrderGas, "")
-			spotCancelSuccesses[idx] = true
-		} else {
-			ev := v2.NewEventOrderCancelFail(
-				marketID,
-				subaccountID,
-				spotOrderToCancel.GetOrderHash(),
-				spotOrderToCancel.GetCid(),
-				err,
-			)
-			k.EmitEvent(ctx, ev)
+		gasMeter.ConsumeGas(DetermineGas(&dummySpotOrderMessage), "")
+	}
+	for _, derivativeOrder := range msg.DerivativeOrdersToCreate {
+		dummyDerivativeOrderMessage := v2.MsgCreateDerivativeLimitOrder{
+			Order: *derivativeOrder,
 		}
+		gasMeter.ConsumeGas(DetermineGas(&dummyDerivativeOrderMessage), "")
+	}
+	for _, order := range msg.BinaryOptionsOrdersToCreate {
+		dummyBinaryOptionsOrderMessage := v2.MsgCreateBinaryOptionsLimitOrder{
+			Order: *order,
+		}
+		gasMeter.ConsumeGas(DetermineGas(&dummyBinaryOptionsOrderMessage), "")
 	}
 
-	/**	3. Cancel all derivative limit orders **/
-	for idx, derivativeOrderToCancel := range msg.DerivativeOrdersToCancel {
-		marketID := common.HexToHash(derivativeOrderToCancel.MarketId)
-
-		var market *v2.DerivativeMarket
-		if m, ok := derivativeMarkets[marketID]; ok {
-			market = m
-		} else {
-			market = k.GetDerivativeMarketByID(ctx, marketID)
-			if market == nil {
-				k.Logger(ctx).Debug(
-					"failed to cancel derivative limit order for non-existent market",
-					"marketID",
-					marketID.Hex(),
-				)
-				continue
-			}
-			derivativeMarkets[marketID] = market
-		}
-		subaccountID := types.MustGetSubaccountIDOrDeriveFromNonce(sender, derivativeOrderToCancel.SubaccountId)
-
-		err := k.cancelDerivativeOrder(
-			ctx,
-			subaccountID,
-			derivativeOrderToCancel.GetIdentifier(),
-			market,
-			marketID,
-			derivativeOrderToCancel.OrderMask,
-		)
-
-		if err == nil {
-			derivativeCancelSuccesses[idx] = true
-			gasMeter.ConsumeGas(MsgCancelDerivativeOrderGas, "")
-		} else {
-			ev := v2.NewEventOrderCancelFail(
-				marketID,
-				subaccountID,
-				derivativeOrderToCancel.GetOrderHash(),
-				derivativeOrderToCancel.GetCid(),
-				err,
-			)
-			k.EmitEvent(ctx, ev)
-		}
-	}
-
-	/**	4. Cancel all bo limit orders **/
-	for idx, binaryOptionsOrderToCancel := range msg.BinaryOptionsOrdersToCancel {
-		marketID := common.HexToHash(binaryOptionsOrderToCancel.MarketId)
-
-		var market *v2.BinaryOptionsMarket
-		if m, ok := binaryOptionsMarkets[marketID]; ok {
-			market = m
-		} else {
-			market = k.GetBinaryOptionsMarketByID(ctx, marketID)
-			if market == nil {
-				k.Logger(ctx).Debug(
-					"failed to cancel binary options limit order for non-existent market",
-					"marketID",
-					marketID.Hex(),
-				)
-				continue
-			}
-			binaryOptionsMarkets[marketID] = market
-		}
-		subaccountID := types.MustGetSubaccountIDOrDeriveFromNonce(sender, binaryOptionsOrderToCancel.SubaccountId)
-
-		err := k.cancelDerivativeOrder(
-			ctx,
-			subaccountID,
-			binaryOptionsOrderToCancel.GetIdentifier(),
-			market,
-			marketID,
-			binaryOptionsOrderToCancel.OrderMask,
-		)
-
-		if err == nil {
-			gasMeter.ConsumeGas(MsgCancelBinaryOptionsOrderGas, "")
-			binaryOptionsCancelSuccesses[idx] = true
-		} else {
-			ev := v2.NewEventOrderCancelFail(
-				marketID,
-				subaccountID,
-				binaryOptionsOrderToCancel.GetOrderHash(),
-				binaryOptionsOrderToCancel.GetCid(),
-				err,
-			)
-			k.EmitEvent(ctx, ev)
-		}
-	}
-
-	orderFailEvent := v2.EventOrderFail{
-		Account: sender.Bytes(),
-		Hashes:  make([][]byte, 0),
-		Flags:   make([]uint32, 0),
-		Cids:    make([]string, 0),
-	}
-
-	/**	5. Create spot limit orders **/
-	for idx, spotOrder := range msg.SpotOrdersToCreate {
-		marketID := common.HexToHash(spotOrder.MarketId)
-		var market *v2.SpotMarket
-		if m, ok := spotMarkets[marketID]; ok {
-			market = m
-		} else {
-			market = k.GetSpotMarketByID(ctx, marketID)
-			if market == nil {
-				k.Logger(ctx).Debug(
-					"failed to create spot limit order for non-existent market",
-					"marketID",
-					marketID.Hex(),
-				)
-				continue
-			}
-			spotMarkets[marketID] = market
-		}
-
-		if !market.IsActive() {
-			k.Logger(ctx).Debug(
-				"failed to create spot limit order for non-active market",
-				"marketID",
-				marketID.Hex(),
-			)
-			continue
-		}
-
-		var gasToConsume uint64
-		if spotOrder.OrderType == v2.OrderType_BUY_PO || spotOrder.OrderType == v2.OrderType_SELL_PO {
-			gasToConsume = MsgCreateSpotLimitPostOnlyOrderGas
-		} else {
-			gasToConsume = MsgCreateSpotLimitOrderGas
-		}
-
-		if orderHash, err := k.createSpotLimitOrder(ctx, sender, spotOrder, market); err != nil {
-			sdkerror := &sdkerrors.Error{}
-			if errors.As(err, &sdkerror) {
-				spotOrderHashes[idx] = fmt.Sprintf("%d", sdkerror.ABCICode())
-				orderFailEvent.AddOrderFail(orderHash, spotOrder.Cid(), sdkerror.ABCICode())
-				failedSpotOrdersCids = append(failedSpotOrdersCids, spotOrder.Cid())
-			}
-		} else {
-			gasMeter.ConsumeGas(gasToConsume, "")
-			spotOrderHashes[idx] = orderHash.Hex()
-			createdSpotOrdersCids = append(createdSpotOrdersCids, spotOrder.Cid())
-		}
-	}
-
-	markPrices := make(map[common.Hash]math.LegacyDec)
-
-	/**	6. Create derivative limit orders **/
-	for idx, derivativeOrder := range msg.DerivativeOrdersToCreate {
-		marketID := derivativeOrder.MarketID()
-
-		var market *v2.DerivativeMarket
-		var markPrice math.LegacyDec
-		if m, ok := derivativeMarkets[marketID]; ok {
-			market = m
-		} else {
-			market, markPrice = k.GetDerivativeMarketWithMarkPrice(ctx, marketID, true)
-			if market == nil {
-				k.Logger(ctx).Debug(
-					"failed to create derivative limit order for non-existent market",
-					"marketID",
-					marketID.Hex(),
-				)
-				continue
-			}
-			derivativeMarkets[marketID] = market
-			markPrices[marketID] = markPrice
-		}
-
-		if !market.IsActive() {
-			k.Logger(ctx).Debug(
-				"failed to create derivative limit orders for non-active market",
-				"marketID",
-				marketID.Hex(),
-			)
-			continue
-		}
-
-		if _, ok := markPrices[marketID]; !ok {
-			price, err := k.GetDerivativeMarketPrice(
-				ctx,
-				market.OracleBase,
-				market.OracleQuote,
-				market.OracleScaleFactor,
-				market.OracleType,
-			)
-			if err != nil {
-				k.Logger(ctx).Debug(
-					"failed to create derivative limit order for market with no mark price",
-					"marketID",
-					marketID.Hex(),
-				)
-				metrics.ReportFuncError(k.svcTags)
-				continue
-			}
-			markPrices[marketID] = *price
-		}
-		markPrice = markPrices[marketID]
-
-		var gasToConsume uint64
-		if derivativeOrder.OrderType == v2.OrderType_BUY_PO || derivativeOrder.OrderType == v2.OrderType_SELL_PO {
-			gasToConsume = MsgCreateDerivativeLimitPostOnlyOrderGas
-		} else {
-			gasToConsume = MsgCreateDerivativeLimitOrderGas
-		}
-
-		if orderHash, err := k.createDerivativeLimitOrder(ctx, sender, derivativeOrder, market, markPrice); err != nil {
-			sdkerror := &sdkerrors.Error{}
-			if errors.As(err, &sdkerror) {
-				derivativeOrderHashes[idx] = fmt.Sprintf("%d", sdkerror.ABCICode())
-				orderFailEvent.AddOrderFail(orderHash, derivativeOrder.Cid(), sdkerror.ABCICode())
-				failedDerivativeOrdersCids = append(failedDerivativeOrdersCids, derivativeOrder.Cid())
-			}
-		} else {
-			gasMeter.ConsumeGas(gasToConsume, "")
-			derivativeOrderHashes[idx] = orderHash.Hex()
-			createdDerivativeOrdersCids = append(createdDerivativeOrdersCids, derivativeOrder.Cid())
-		}
-	}
-
-	/**	7. Create bo limit orders **/
-	for idx, order := range msg.BinaryOptionsOrdersToCreate {
-		marketID := order.MarketID()
-
-		var market *v2.BinaryOptionsMarket
-		if m, ok := binaryOptionsMarkets[marketID]; ok {
-			market = m
-		} else {
-			market = k.GetBinaryOptionsMarket(ctx, marketID, true)
-			if market == nil {
-				k.Logger(ctx).Debug(
-					"failed to create binary options limit order for non-existent market",
-					"marketID",
-					marketID.Hex(),
-				)
-				continue
-			}
-			binaryOptionsMarkets[marketID] = market
-		}
-
-		if !market.IsActive() {
-			k.Logger(ctx).Debug(
-				"failed to create binary options limit orders for non-active market",
-				"marketID",
-				marketID.Hex(),
-			)
-			continue
-		}
-
-		var gasToConsume uint64
-		switch order.OrderType {
-		case v2.OrderType_BUY_PO, v2.OrderType_SELL_PO:
-			gasToConsume = MsgCreateBinaryOptionsLimitPostOnlyOrderGas
-		default:
-			gasToConsume = MsgCreateBinaryOptionsLimitOrderGas
-		}
-
-		if orderHash, err := k.createDerivativeLimitOrder(ctx, sender, order, market, math.LegacyDec{}); err != nil {
-			sdkerror := &sdkerrors.Error{}
-			if errors.As(err, &sdkerror) {
-				binaryOptionsOrderHashes[idx] = fmt.Sprintf("%d", sdkerror.ABCICode())
-				orderFailEvent.AddOrderFail(orderHash, order.Cid(), sdkerror.ABCICode())
-				failedBinaryOptionsOrdersCids = append(failedBinaryOptionsOrdersCids, order.Cid())
-			}
-		} else {
-			gasMeter.ConsumeGas(gasToConsume, "")
-			binaryOptionsOrderHashes[idx] = orderHash.Hex()
-			createdBinaryOptionsOrdersCids = append(createdBinaryOptionsOrdersCids, order.Cid())
-		}
-	}
-
-	if !orderFailEvent.IsEmpty() {
-		k.EmitEvent(ctx, &orderFailEvent)
-	}
-
-	return &v2.MsgBatchUpdateOrdersResponse{
-		SpotCancelSuccess:              spotCancelSuccesses,
-		DerivativeCancelSuccess:        derivativeCancelSuccesses,
-		SpotOrderHashes:                spotOrderHashes,
-		DerivativeOrderHashes:          derivativeOrderHashes,
-		BinaryOptionsCancelSuccess:     binaryOptionsCancelSuccesses,
-		BinaryOptionsOrderHashes:       binaryOptionsOrderHashes,
-		CreatedSpotOrdersCids:          createdSpotOrdersCids,
-		FailedSpotOrdersCids:           failedSpotOrdersCids,
-		CreatedDerivativeOrdersCids:    createdDerivativeOrdersCids,
-		FailedDerivativeOrdersCids:     failedDerivativeOrdersCids,
-		CreatedBinaryOptionsOrdersCids: createdBinaryOptionsOrdersCids,
-		FailedBinaryOptionsOrdersCids:  failedBinaryOptionsOrdersCids,
-	}, nil
+	return k.ExecuteBatchUpdateOrders(
+		ctx,
+		sender,
+		msg.SubaccountId,
+		msg.SpotMarketIdsToCancelAll,
+		msg.DerivativeMarketIdsToCancelAll,
+		msg.BinaryOptionsMarketIdsToCancelAll,
+		msg.SpotOrdersToCancel,
+		msg.DerivativeOrdersToCancel,
+		msg.BinaryOptionsOrdersToCancel,
+		msg.SpotOrdersToCreate,
+		msg.DerivativeOrdersToCreate,
+		msg.BinaryOptionsOrdersToCreate,
+		msg.SpotMarketOrdersToCreate,
+		msg.DerivativeMarketOrdersToCreate,
+		msg.BinaryOptionsMarketOrdersToCreate,
+	)
 }
 
 // ProcessExpiredDOrders processes all expired orders at the current block height
@@ -1296,7 +835,13 @@ func (k *Keeper) processCancelDerivativeOrders(
 		if err == nil {
 			derivativeCancelSuccesses[idx] = true
 		} else {
-			ev := v2.NewEventOrderCancelFail(marketID, subaccountID, derivativeOrderToCancel.GetOrderHash(), derivativeOrderToCancel.GetCid(), err)
+			ev := v2.NewEventOrderCancelFail(
+				marketID,
+				subaccountID,
+				derivativeOrderToCancel.GetOrderHash(),
+				derivativeOrderToCancel.GetCid(),
+				err,
+			)
 			k.EmitEvent(ctx, ev)
 		}
 	}
@@ -1346,10 +891,11 @@ func (k *Keeper) processCreateSpotOrders(
 	sender sdk.AccAddress,
 	spotOrdersToCreate []*v2.SpotOrder,
 	spotOrderHashes []string,
-	orderFailEvent *v2.EventOrderFail,
 	createdSpotOrdersCids *[]string,
 	failedSpotOrdersCids *[]string,
+	orderFailEvent *v2.EventOrderFail,
 	spotMarkets map[common.Hash]*v2.SpotMarket,
+	orderCreator func(ctx sdk.Context, sender sdk.AccAddress, order *v2.SpotOrder, market *v2.SpotMarket) (common.Hash, error),
 ) {
 	for idx, spotOrder := range spotOrdersToCreate {
 		marketID := common.HexToHash(spotOrder.MarketId)
@@ -1357,14 +903,22 @@ func (k *Keeper) processCreateSpotOrders(
 		if market == nil {
 			continue
 		}
-
 		if !market.IsActive() {
-			k.Logger(ctx).Debug("failed to create spot limit order for non-active market", "marketID", marketID.Hex())
+			k.Logger(ctx).Debug("failed to create spot order for non-active market", "marketID", marketID.Hex())
 			continue
 		}
 
 		k.processSpotOrderCreation(
-			ctx, sender, spotOrder, market, idx, spotOrderHashes, orderFailEvent, createdSpotOrdersCids, failedSpotOrdersCids,
+			ctx,
+			sender,
+			spotOrder,
+			market,
+			idx,
+			spotOrderHashes,
+			orderFailEvent,
+			createdSpotOrdersCids,
+			failedSpotOrdersCids,
+			orderCreator,
 		)
 	}
 }
@@ -1398,8 +952,9 @@ func (k *Keeper) processSpotOrderCreation(
 	orderFailEvent *v2.EventOrderFail,
 	createdSpotOrdersCids *[]string,
 	failedSpotOrdersCids *[]string,
+	orderCreator func(ctx sdk.Context, sender sdk.AccAddress, order *v2.SpotOrder, market *v2.SpotMarket) (common.Hash, error),
 ) {
-	if orderHash, err := k.createSpotLimitOrder(ctx, sender, spotOrder, market); err != nil {
+	if orderHash, err := orderCreator(ctx, sender, spotOrder, market); err != nil {
 		sdkerror := &sdkerrors.Error{}
 		if errors.As(err, &sdkerror) {
 			spotOrderHashes[idx] = fmt.Sprintf("%d", sdkerror.ABCICode())
@@ -1422,6 +977,9 @@ func (k *Keeper) processCreateDerivativeOrders(
 	failedDerivativeOrdersCids *[]string,
 	derivativeMarkets map[common.Hash]*v2.DerivativeMarket,
 	markPrices map[common.Hash]math.LegacyDec,
+	orderCreator func(
+		ctx sdk.Context, sender sdk.AccAddress, order *v2.DerivativeOrder, market DerivativeMarketInterface, markPrice math.LegacyDec,
+	) (common.Hash, error),
 ) {
 	for idx, derivativeOrder := range derivativeOrdersToCreate {
 		marketID := derivativeOrder.MarketID()
@@ -1432,9 +990,17 @@ func (k *Keeper) processCreateDerivativeOrders(
 		}
 
 		k.processDerivativeOrderCreation(
-			ctx, sender, derivativeOrder, market, markPrice, idx,
-			derivativeOrderHashes, orderFailEvent,
-			createdDerivativeOrdersCids, failedDerivativeOrdersCids,
+			ctx,
+			sender,
+			derivativeOrder,
+			market,
+			markPrice,
+			idx,
+			derivativeOrderHashes,
+			orderFailEvent,
+			createdDerivativeOrdersCids,
+			failedDerivativeOrdersCids,
+			orderCreator,
 		)
 	}
 }
@@ -1453,7 +1019,7 @@ func (k *Keeper) getDerivativeMarketForOrder(
 	} else {
 		market, markPrice = k.GetDerivativeMarketWithMarkPrice(ctx, marketID, true)
 		if market == nil {
-			k.Logger(ctx).Debug("failed to create derivative limit order for non-existent market", "marketID", marketID.Hex())
+			k.Logger(ctx).Debug("failed to create derivative order for non-existent market", "marketID", marketID.Hex())
 			return nil, math.LegacyDec{}
 		}
 		derivativeMarkets[marketID] = market
@@ -1461,7 +1027,7 @@ func (k *Keeper) getDerivativeMarketForOrder(
 	}
 
 	if !market.IsActive() {
-		k.Logger(ctx).Debug("failed to create derivative limit orders for non-active market", "marketID", marketID.Hex())
+		k.Logger(ctx).Debug("failed to create derivative orders for non-active market", "marketID", marketID.Hex())
 		return nil, math.LegacyDec{}
 	}
 
@@ -1470,7 +1036,7 @@ func (k *Keeper) getDerivativeMarketForOrder(
 			ctx, market.OracleBase, market.OracleQuote, market.OracleScaleFactor, market.OracleType,
 		)
 		if err != nil {
-			k.Logger(ctx).Debug("failed to create derivative limit order for market with no mark price", "marketID", marketID.Hex())
+			k.Logger(ctx).Debug("failed to create derivative order for market with no mark price", "marketID", marketID.Hex())
 			metrics.ReportFuncError(k.svcTags)
 			return nil, math.LegacyDec{}
 		}
@@ -1491,8 +1057,11 @@ func (k *Keeper) processDerivativeOrderCreation(
 	orderFailEvent *v2.EventOrderFail,
 	createdDerivativeOrdersCids *[]string,
 	failedDerivativeOrdersCids *[]string,
+	orderCreator func(
+		ctx sdk.Context, sender sdk.AccAddress, order *v2.DerivativeOrder, market DerivativeMarketInterface, markPrice math.LegacyDec,
+	) (common.Hash, error),
 ) {
-	if orderHash, err := k.createDerivativeLimitOrder(ctx, sender, derivativeOrder, market, markPrice); err != nil {
+	if orderHash, err := orderCreator(ctx, sender, derivativeOrder, market, markPrice); err != nil {
 		sdkerror := &sdkerrors.Error{}
 		if errors.As(err, &sdkerror) {
 			derivativeOrderHashes[idx] = fmt.Sprintf("%d", sdkerror.ABCICode())
@@ -1514,6 +1083,9 @@ func (k *Keeper) processCreateBinaryOptionsOrders(
 	createdBinaryOptionsOrdersCids *[]string,
 	failedBinaryOptionsOrdersCids *[]string,
 	binaryOptionsMarkets map[common.Hash]*v2.BinaryOptionsMarket,
+	orderCreator func(
+		ctx sdk.Context, sender sdk.AccAddress, order *v2.DerivativeOrder, market DerivativeMarketInterface, markPrice math.LegacyDec,
+	) (common.Hash, error),
 ) {
 	for idx, order := range binaryOptionsOrdersToCreate {
 		marketID := order.MarketID()
@@ -1538,6 +1110,7 @@ func (k *Keeper) processCreateBinaryOptionsOrders(
 			orderFailEvent,
 			createdBinaryOptionsOrdersCids,
 			failedBinaryOptionsOrdersCids,
+			orderCreator,
 		)
 	}
 }
@@ -1553,7 +1126,12 @@ func (k *Keeper) getBinaryOptionsMarketForOrder(
 
 	market := k.GetBinaryOptionsMarket(ctx, marketID, true)
 	if market == nil {
-		k.Logger(ctx).Debug("failed to create binary options limit order for non-existent market", "marketID", marketID.Hex())
+		k.Logger(ctx).Debug("failed to create binary options order for non-existent market", "marketID", marketID.Hex())
+		return nil
+	}
+
+	if !market.IsActive() {
+		k.Logger(ctx).Debug("failed to create binary options order for non-active market", "marketID", marketID.Hex())
 		return nil
 	}
 
@@ -1571,8 +1149,11 @@ func (k *Keeper) processBinaryOptionsOrderCreation(
 	orderFailEvent *v2.EventOrderFail,
 	createdBinaryOptionsOrdersCids *[]string,
 	failedBinaryOptionsOrdersCids *[]string,
+	orderCreator func(
+		ctx sdk.Context, sender sdk.AccAddress, order *v2.DerivativeOrder, market DerivativeMarketInterface, markPrice math.LegacyDec,
+	) (common.Hash, error),
 ) {
-	if orderHash, err := k.createDerivativeLimitOrder(ctx, sender, order, market, math.LegacyDec{}); err != nil {
+	if orderHash, err := orderCreator(ctx, sender, order, market, math.LegacyDec{}); err != nil {
 		sdkerror := &sdkerrors.Error{}
 		if errors.As(err, &sdkerror) {
 			binaryOptionsOrderHashes[idx] = fmt.Sprintf("%d", sdkerror.ABCICode())

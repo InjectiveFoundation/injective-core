@@ -28,10 +28,7 @@ func CheckIfExceedDecimals(dec math.LegacyDec, maxDecimals uint32) bool {
 }
 
 // GetIsOrderLess returns true if the order is less than the other order
-func GetIsOrderLess(
-	referencePrice, order1Price, order2Price math.LegacyDec,
-	order1IsBuy, order2IsBuy, isSortingFromWorstToBest bool, //revive:disable:flag-parameter // we are keeping this logic for now
-) bool {
+func GetIsOrderLess(referencePrice, order1Price, order2Price math.LegacyDec, order1IsBuy, order2IsBuy, isSortingFromWorstToBest bool) bool {
 	var firstDistanceToReferencePrice, secondDistanceToReferencePrice math.LegacyDec
 
 	if order1IsBuy {
@@ -423,7 +420,7 @@ func NewV1ExpiryFuturesMarketInfoFromV2(
 	return v1MarketInfo
 }
 
-func NewV1DerivativePositonFromV2(valuesConverter ChainValuesConverter, position v2.DerivativePosition) types.DerivativePosition {
+func NewV1DerivativePositionFromV2(valuesConverter ChainValuesConverter, position v2.DerivativePosition) types.DerivativePosition {
 	v1DerivativePosition := types.DerivativePosition{
 		SubaccountId: position.SubaccountId,
 		MarketId:     position.MarketId,
@@ -470,6 +467,34 @@ func NewV1DerivativeMarketFromV2(valuesConverter ChainValuesConverter, derivativ
 		AdminPermissions:       derivativeMarket.AdminPermissions,
 		QuoteDecimals:          derivativeMarket.QuoteDecimals,
 		ReduceMarginRatio:      derivativeMarket.ReduceMarginRatio,
+		OpenNotionalCap:        convertOpenNotionalCapV2ToV1(derivativeMarket.OpenNotionalCap),
+	}
+}
+
+func convertOpenNotionalCapV2ToV1(openNotionalCap v2.OpenNotionalCap) types.OpenNotionalCap {
+	switch {
+	case openNotionalCap.GetCapped() != nil:
+		return types.OpenNotionalCap{
+			Cap: &types.OpenNotionalCap_Capped{
+				Capped: &types.OpenNotionalCapCapped{
+					Value: openNotionalCap.GetCapped().Value,
+				},
+			},
+		}
+
+	case openNotionalCap.GetUncapped() != nil:
+		return types.OpenNotionalCap{
+			Cap: &types.OpenNotionalCap_Uncapped{
+				Uncapped: &types.OpenNotionalCapUncapped{},
+			},
+		}
+
+	default: // should not happen
+		return types.OpenNotionalCap{
+			Cap: &types.OpenNotionalCap_Uncapped{
+				Uncapped: &types.OpenNotionalCapUncapped{},
+			},
+		}
 	}
 }
 

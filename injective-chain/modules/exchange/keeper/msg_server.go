@@ -1,8 +1,6 @@
 package keeper
 
 import (
-	"context"
-
 	"github.com/InjectiveLabs/metrics"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
@@ -65,51 +63,4 @@ func NewV1MsgServerImpl(keeper *Keeper, server v2.MsgServer) types.MsgServer {
 			"svc": "exchange_v1_h",
 		},
 	}
-}
-
-func (m v1MsgServer) UpdateParams(c context.Context, msg *types.MsgUpdateParams) (*types.MsgUpdateParamsResponse, error) {
-	doneFn := metrics.ReportFuncCallAndTiming(m.svcTags)
-	defer doneFn()
-
-	v2Params := v2.Params{
-		SpotMarketInstantListingFee:                  msg.Params.SpotMarketInstantListingFee,
-		DerivativeMarketInstantListingFee:            msg.Params.DerivativeMarketInstantListingFee,
-		DefaultSpotMakerFeeRate:                      msg.Params.DefaultSpotMakerFeeRate,
-		DefaultSpotTakerFeeRate:                      msg.Params.DefaultSpotTakerFeeRate,
-		DefaultDerivativeMakerFeeRate:                msg.Params.DefaultDerivativeMakerFeeRate,
-		DefaultDerivativeTakerFeeRate:                msg.Params.DefaultDerivativeTakerFeeRate,
-		DefaultInitialMarginRatio:                    msg.Params.DefaultInitialMarginRatio,
-		DefaultMaintenanceMarginRatio:                msg.Params.DefaultMaintenanceMarginRatio,
-		DefaultFundingInterval:                       msg.Params.DefaultFundingInterval,
-		FundingMultiple:                              msg.Params.FundingMultiple,
-		RelayerFeeShareRate:                          msg.Params.RelayerFeeShareRate,
-		DefaultHourlyFundingRateCap:                  msg.Params.DefaultHourlyFundingRateCap,
-		DefaultHourlyInterestRate:                    msg.Params.DefaultHourlyInterestRate,
-		MaxDerivativeOrderSideCount:                  msg.Params.MaxDerivativeOrderSideCount,
-		InjRewardStakedRequirementThreshold:          msg.Params.InjRewardStakedRequirementThreshold,
-		TradingRewardsVestingDuration:                msg.Params.TradingRewardsVestingDuration,
-		LiquidatorRewardShareRate:                    msg.Params.LiquidatorRewardShareRate,
-		BinaryOptionsMarketInstantListingFee:         msg.Params.BinaryOptionsMarketInstantListingFee,
-		AtomicMarketOrderAccessLevel:                 v2.AtomicMarketOrderAccessLevel(msg.Params.AtomicMarketOrderAccessLevel),
-		SpotAtomicMarketOrderFeeMultiplier:           msg.Params.SpotAtomicMarketOrderFeeMultiplier,
-		DerivativeAtomicMarketOrderFeeMultiplier:     msg.Params.DerivativeAtomicMarketOrderFeeMultiplier,
-		BinaryOptionsAtomicMarketOrderFeeMultiplier:  msg.Params.BinaryOptionsAtomicMarketOrderFeeMultiplier,
-		MinimalProtocolFeeRate:                       msg.Params.MinimalProtocolFeeRate,
-		IsInstantDerivativeMarketLaunchEnabled:       msg.Params.IsInstantDerivativeMarketLaunchEnabled,
-		PostOnlyModeHeightThreshold:                  msg.Params.PostOnlyModeHeightThreshold,
-		MarginDecreasePriceTimestampThresholdSeconds: msg.Params.MarginDecreasePriceTimestampThresholdSeconds,
-		ExchangeAdmins:                               msg.Params.ExchangeAdmins,
-	}
-
-	v2Msg := &v2.MsgUpdateParams{
-		Authority: msg.Authority,
-		Params:    v2Params,
-	}
-
-	_, err := m.server.UpdateParams(c, v2Msg)
-	if err != nil {
-		return nil, err
-	}
-
-	return &types.MsgUpdateParamsResponse{}, nil
 }

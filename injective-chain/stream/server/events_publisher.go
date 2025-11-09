@@ -23,23 +23,26 @@ import (
 )
 
 var supportedEventTypes = map[string]struct{}{
-	proto.MessageName(&banktypes.EventSetBalances{}):                         {},
-	proto.MessageName(&exchangev2types.EventBatchDepositUpdate{}):            {},
-	proto.MessageName(&exchangev2types.EventOrderbookUpdate{}):               {},
-	proto.MessageName(&exchangev2types.EventNewSpotOrders{}):                 {},
-	proto.MessageName(&exchangev2types.EventNewDerivativeOrders{}):           {},
-	proto.MessageName(&exchangev2types.EventNewConditionalDerivativeOrder{}): {},
-	proto.MessageName(&exchangev2types.EventCancelSpotOrder{}):               {},
-	proto.MessageName(&exchangev2types.EventCancelDerivativeOrder{}):         {},
-	proto.MessageName(&exchangev2types.EventBatchSpotExecution{}):            {},
-	proto.MessageName(&exchangev2types.EventBatchDerivativeExecution{}):      {},
-	proto.MessageName(&exchangev2types.EventBatchDerivativePosition{}):       {},
-	proto.MessageName(&oracletypes.SetCoinbasePriceEvent{}):                  {},
-	proto.MessageName(&oracletypes.EventSetPythPrices{}):                     {},
-	proto.MessageName(&oracletypes.SetBandIBCPriceEvent{}):                   {},
-	proto.MessageName(&oracletypes.SetProviderPriceEvent{}):                  {},
-	proto.MessageName(&oracletypes.SetPriceFeedPriceEvent{}):                 {},
-	proto.MessageName(&oracletypes.EventSetStorkPrices{}):                    {},
+	proto.MessageName(&banktypes.EventSetBalances{}):                               {},
+	proto.MessageName(&exchangev2types.EventBatchDepositUpdate{}):                  {},
+	proto.MessageName(&exchangev2types.EventOrderbookUpdate{}):                     {},
+	proto.MessageName(&exchangev2types.EventNewSpotOrders{}):                       {},
+	proto.MessageName(&exchangev2types.EventNewDerivativeOrders{}):                 {},
+	proto.MessageName(&exchangev2types.EventNewConditionalDerivativeOrder{}):       {},
+	proto.MessageName(&exchangev2types.EventCancelSpotOrder{}):                     {},
+	proto.MessageName(&exchangev2types.EventCancelDerivativeOrder{}):               {},
+	proto.MessageName(&exchangev2types.EventBatchSpotExecution{}):                  {},
+	proto.MessageName(&exchangev2types.EventBatchDerivativeExecution{}):            {},
+	proto.MessageName(&exchangev2types.EventBatchDerivativePosition{}):             {},
+	proto.MessageName(&exchangev2types.EventOrderFail{}):                           {},
+	proto.MessageName(&exchangev2types.EventTriggerConditionalMarketOrderFailed{}): {},
+	proto.MessageName(&exchangev2types.EventTriggerConditionalLimitOrderFailed{}):  {},
+	proto.MessageName(&oracletypes.SetCoinbasePriceEvent{}):                        {},
+	proto.MessageName(&oracletypes.EventSetPythPrices{}):                           {},
+	proto.MessageName(&oracletypes.SetBandIBCPriceEvent{}):                         {},
+	proto.MessageName(&oracletypes.SetProviderPriceEvent{}):                        {},
+	proto.MessageName(&oracletypes.SetPriceFeedPriceEvent{}):                       {},
+	proto.MessageName(&oracletypes.EventSetStorkPrices{}):                          {},
 }
 
 type Publisher struct {
@@ -262,5 +265,11 @@ func handleParsedEvent(inBuffer *v2.StreamResponseMap, parsedEvent proto.Message
 		handleSetPriceFeedPriceEvent(inBuffer, chainEvent)
 	case *oracletypes.EventSetStorkPrices:
 		handleSetStorkPricesEvent(inBuffer, chainEvent)
+	case *exchangev2types.EventOrderFail:
+		handleOrderFailEvent(inBuffer, chainEvent)
+	case *exchangev2types.EventTriggerConditionalMarketOrderFailed:
+		handleConditionalOrderTriggerFailedEvent(inBuffer, chainEvent)
+	case *exchangev2types.EventTriggerConditionalLimitOrderFailed:
+		handleConditionalOrderTriggerFailedEvent(inBuffer, chainEvent)
 	}
 }

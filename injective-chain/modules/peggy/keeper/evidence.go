@@ -67,10 +67,10 @@ func (k *Keeper) checkBadSignatureEvidenceInternal(ctx sdk.Context, subject type
 		return errors.Wrap(types.ErrInvalid, fmt.Sprintf("validator already slashed for fake checkpoint %s and signature %s", checkpoint.Hex(), signature))
 	}
 
+	// Get eth address of the offending validator using the checkpoint and the signature
 	sigCopy := make([]byte, len(sigBytes))
 	copy(sigCopy, sigBytes)
 
-	// Get eth address of the offending validator using the checkpoint and the signature
 	ethAddress, err := types.EthAddressFromSignature(checkpoint, sigCopy)
 	if err != nil {
 		metrics.ReportFuncError(k.svcTags)

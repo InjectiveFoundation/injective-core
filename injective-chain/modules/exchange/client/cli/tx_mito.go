@@ -385,7 +385,6 @@ func NewRedeemFromSpotVaultTxCmd() *cobra.Command {
 			var execDataBytes []byte
 			execDataBytes, err = json.Marshal(execData)
 			if err != nil {
-				fmt.Println("err", err)
 				return err
 			}
 
@@ -465,7 +464,6 @@ func NewRedeemFromAmmVaultTxCmd() *cobra.Command {
 			var execDataBytes []byte
 			execDataBytes, err = json.Marshal(execData)
 			if err != nil {
-				fmt.Println("err", err)
 				return err
 			}
 
@@ -564,7 +562,6 @@ func NewSubscribeToDerivativeVaultTxCmd() *cobra.Command {
 			var execDataBytes []byte
 			execDataBytes, err = json.Marshal(execData)
 			if err != nil {
-				fmt.Println("err", err)
 				return err
 			}
 
@@ -660,7 +657,6 @@ func NewRedeemFromDerivativeVaultTxCmd() *cobra.Command {
 			var execDataBytes []byte
 			execDataBytes, err = json.Marshal(execData)
 			if err != nil {
-				fmt.Println("err", err)
 				return err
 			}
 

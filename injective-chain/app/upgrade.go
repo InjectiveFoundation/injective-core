@@ -12,24 +12,38 @@ import (
 	"github.com/cosmos/cosmos-sdk/types/module"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/app/upgrades"
-	v1dot16dot5 "github.com/InjectiveLabs/injective-core/injective-chain/app/upgrades/v1.16.5"
+	v1dot17dot0 "github.com/InjectiveLabs/injective-core/injective-chain/app/upgrades/v1.17.0"
 )
 
 var _ upgrades.InjectiveApplication = &InjectiveApp{}
 
 var upgradeNames = []string{
-	v1dot16dot5.UpgradeName,
+	v1dot17dot0.UpgradeName,
 }
 
 var upgradeSteps = map[string]UpgradeStepsFn{
-	v1dot16dot5.UpgradeName: v1dot16dot5.UpgradeSteps,
+	v1dot17dot0.UpgradeName: v1dot17dot0.UpgradeSteps,
+
+	// NOTE: use NoSteps for upgrades that don't have any migration steps
 }
 
 var storeUpgrades = map[string]storetypes.StoreUpgrades{
-	v1dot16dot5.UpgradeName: v1dot16dot5.StoreUpgrades(),
+	v1dot17dot0.UpgradeName: v1dot17dot0.StoreUpgrades(),
 }
 
 type UpgradeStepsFn func() []*upgrades.UpgradeHandlerStep
+
+func NoSteps() []*upgrades.UpgradeHandlerStep {
+	return []*upgrades.UpgradeHandlerStep{}
+}
+
+func NoStoreUpgrades() storetypes.StoreUpgrades {
+	return storetypes.StoreUpgrades{
+		Added:   nil,
+		Renamed: nil,
+		Deleted: nil,
+	}
+}
 
 func (app *InjectiveApp) registerUpgradeHandlers() {
 	validUpgradeNames := make(map[string]bool, len(upgradeNames))

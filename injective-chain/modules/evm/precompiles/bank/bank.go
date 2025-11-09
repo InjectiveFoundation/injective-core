@@ -20,6 +20,7 @@ import (
 	erc20types "github.com/InjectiveLabs/injective-core/injective-chain/modules/erc20/types"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/precompiles"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/precompiles/bindings/cosmos/precompile/bank"
+	precomptypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/precompiles/types"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/types"
 )
 
@@ -104,6 +105,10 @@ func (*Contract) Address() common.Address {
 	return bankContractAddress
 }
 
+func (*Contract) Name() string {
+	return "INJ_BANK"
+}
+
 // RequiredGas calculates the contract gas use
 func (bc *Contract) RequiredGas(input []byte) uint64 {
 	if len(input) < 4 {
@@ -132,7 +137,15 @@ func (bc *Contract) checkBlockedAddr(addr sdk.AccAddress) error {
 	return nil
 }
 
-func (bc *Contract) Run(evm *vm.EVM, contract *vm.Contract, readonly bool) (output []byte, err error) {
+func (bc *Contract) Run(evm *vm.EVM, contract *vm.Contract, readonly bool) ([]byte, error) {
+	res, err := bc.run(evm, contract, readonly)
+	if err != nil {
+		return precomptypes.RevertReasonAndError(err)
+	}
+	return res, nil
+}
+
+func (bc *Contract) run(evm *vm.EVM, contract *vm.Contract, readonly bool) (output []byte, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = ErrPrecompilePanic
@@ -330,10 +343,10 @@ func (bc *Contract) setMetadata(stateDB precompiles.ExtStateDB, method *abi.Meth
 	// add most important validation here, to avoid calling metadata.Validate
 	// which requires len(Display) >= 3 and doesn't work well with ERC20 symbols.
 
-	if len(metadata.Name) > 128 {
-		return nil, errors.New("name is too long (max 128 characters)")
-	} else if len(metadata.Symbol) > 32 {
-		return nil, errors.New("symbol is too long (max 32 characters)")
+	if len(metadata.Name) > 256 {
+		return nil, errors.New("name is too long (max 256 characters)")
+	} else if len(metadata.Symbol) > 128 {
+		return nil, errors.New("symbol is too long (max 128 characters)")
 	}
 
 	stateDB.ExecuteNativeAction(precompileAddress, nil, func(ctx sdk.Context) error { //nolint:errcheck // can't return anything

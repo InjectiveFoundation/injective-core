@@ -36,11 +36,43 @@ Ref: https://keepachangelog.com/en/1.1.0/
 
 ## [Unreleased]
 
-## [v1.16.5](https://github.com/InjectiveFoundation/injective-core/releases/tag/v1.16.5) - 2025-10-13
+## [v1.17.0](https://github.com/InjectiveFoundation/injective-core/releases/tag/v1.17.0) - 2025-11-11
 
 ### Bug Fixes
 
+- (exchange)  Fix the instant spot market launch command configuring the base and quote decimals parameters as mandatory
+- (evm)  Fix unbounded timeout in TraceXXX gRPC queries + option to completely disable them
+- (peggy)  Replace EventValidatorSlash with EventValidatorJailed to conform with the no-slashing policy in Peggy
 - (exchange)  Fix the validation for minimum valid order prices value, causing issues for stop loss and take profit orders
+- (exchange)  Improved validation of exchange module v1 messages to ensure that the provided values are valid for the v2 created to process them
+- (exchange)  Added fixes for certain edge cases for updating the virtual market balances
+- (exchange)  Added logic in the v1beta1 legacy events emission to not recover out of gas errors
+- (peggy)  Properly set validator's last claim nonce when migrating Peggy contracts
+
+### Features
+
+- (hyperlane)  Integrated Hyperlane modules (core and warp) into Injective App
+- (exchange)  Added support for market orders creation in the MsgBatchUpdateOrders message
+- (exchange)  Added new liquidation offsetting feature which allows offsetting liquidable positions against opposing positions in case of insufficient orderbook liquidity.
+- (evm)  Enable EIP-1559 DynamicFeeTx via txfees module.
+- (exchange)  Added open notional caps for derivative markets
+
+### Improvements
+
+- (exchange)  Added validation in fee discount config to only allow denoms configured with 6 decimals
+- (exchange)  Renamed the DenomDecimals list in exchange module to AuctionExchangeTransferDenomDecimals, to clarify the use of that list
+- (exchange)  Added the orderbook sequence number to the spot and derivative orderbooks endpoints (the regular ones and the L3 ones)
+- (chainstream)  Added EventOrderFailure, EventTriggerConditionalMarketOrderFailed and EventTriggerConditionalLimitOrderFailed to the chainstream
+- (auction)  Added a bidders whitelist to the auction module. If the whitelist is configured, only the addresses in it will be able to bid
+- (exchange)  Change in MsgUpdateSpotMarket and MsgUpdateDerivativeMarket to allow any of the exchange module admins to send the messages for markets that don't have an Admin configured
+- (exchange)  Improvement to the market ID generation logic to ensure no collisions between market types
+- (evm)  Geth updated to v1.16.3
+- (peggy) Extend slashing windows in peggy params to 500k blocks
+
+### Deprecated
+
+- (exchange)  Removed the v1beta1.MsgUpdateParams message. From now on only the v2.MsgUpdateParams should be used
+- (peggy)  Disable withdrawals and batches for Injective-native tokens
 
 ## [v1.16.4](https://github.com/InjectiveFoundation/injective-core/releases/tag/v1.16.4) - 2025-09-14
 

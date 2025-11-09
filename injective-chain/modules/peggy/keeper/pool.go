@@ -39,9 +39,7 @@ func (k *Keeper) AddToOutgoingPool(ctx sdk.Context, sender sdk.AccAddress, count
 	// If it is a cosmos-originated asset we lock it
 	if isCosmosOriginated {
 		// lock coins in module
-		if err := k.bankKeeper.SendCoinsFromAccountToModule(ctx, sender, types.ModuleName, totalInVouchers); err != nil {
-			return 0, err
-		}
+		return 0, errors.Wrap(types.ErrUnsupported, "withdrawing Injective-native tokens is disabled")
 	} else {
 		// If it is an ethereum-originated asset we burn it
 		// send coins to module in prep for burn
@@ -142,8 +140,8 @@ func (k *Keeper) RemoveFromOutgoingPoolAndRefund(ctx sdk.Context, txId uint64, s
 	var totalToRefundCoins sdk.Coins
 	isCosmosOriginated, denom := k.ERC20ToDenomLookup(ctx, common.HexToAddress(tx.Erc20Token.Contract))
 	// native cosmos coin denom
-	if denom == k.GetCosmosCoinDenom(ctx) {
-		// peggy denom
+	if denom == k.GetCosmosCoinDenom(ctx) || isCosmosOriginated {
+		// injective native denom (inj or something else)
 		totalToRefund := sdk.NewCoin(denom, tx.Erc20Token.Amount)
 		totalToRefund.Amount = totalToRefund.Amount.Add(tx.Erc20Fee.Amount)
 		totalToRefundCoins = sdk.NewCoins(totalToRefund)

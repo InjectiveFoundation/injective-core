@@ -5,16 +5,19 @@ import (
 	"fmt"
 
 	"cosmossdk.io/errors"
+
 	wasmkeeper "github.com/CosmWasm/wasmd/x/wasm/keeper"
+	wasmtypes "github.com/CosmWasm/wasmd/x/wasm/types"
 	wasmvmtypes "github.com/CosmWasm/wasmvm/v2/types"
+	"github.com/cosmos/cosmos-sdk/codec"
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	bankkeeper "github.com/cosmos/cosmos-sdk/x/bank/keeper"
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 
+	"github.com/InjectiveLabs/injective-core/injective-chain/app/ante"
 	exchangekeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/keeper"
-
 	tokenfactorykeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/tokenfactory/keeper"
 	tokenfactorytypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/tokenfactory/types"
 	"github.com/InjectiveLabs/injective-core/injective-chain/wasmbinding/bindings"
@@ -22,32 +25,63 @@ import (
 
 // CustomMessageDecorator returns decorator for custom CosmWasm bindings messages
 func CustomMessageDecorator(
+	cdc codec.Codec,
 	router wasmkeeper.MessageRouter,
 	bankKeeper bankkeeper.BaseKeeper,
 	exchangeKeeper *exchangekeeper.Keeper,
 	tokenFactoryKeeper *tokenfactorykeeper.Keeper,
+	disabledMsgTypes []string,
 ) func(wasmkeeper.Messenger) wasmkeeper.Messenger {
 	return func(old wasmkeeper.Messenger) wasmkeeper.Messenger {
 		return &CustomMessenger{
-			router:             router,
-			wrapped:            old,
-			bankKeeper:         &bankKeeper,
-			exchangeKeeper:     exchangeKeeper,
-			tokenFactoryKeeper: tokenFactoryKeeper,
+			cdc:                 cdc,
+			router:              router,
+			wrapped:             old,
+			bankKeeper:          &bankKeeper,
+			exchangeKeeper:      exchangeKeeper,
+			tokenFactoryKeeper:  tokenFactoryKeeper,
+			disabledMsgsLimiter: ante.NewAuthzLimiterDecorator(disabledMsgTypes),
 		}
 	}
 }
 
 type CustomMessenger struct {
-	router             wasmkeeper.MessageRouter
-	wrapped            wasmkeeper.Messenger
-	bankKeeper         *bankkeeper.BaseKeeper
-	exchangeKeeper     *exchangekeeper.Keeper
-	tokenFactoryKeeper *tokenfactorykeeper.Keeper
+	cdc                 codec.Codec
+	router              wasmkeeper.MessageRouter
+	wrapped             wasmkeeper.Messenger
+	bankKeeper          *bankkeeper.BaseKeeper
+	exchangeKeeper      *exchangekeeper.Keeper
+	tokenFactoryKeeper  *tokenfactorykeeper.Keeper
+	disabledMsgsLimiter ante.AuthzLimiterDecorator
 }
 
 func (m *CustomMessenger) DispatchMsg(ctx sdk.Context, contractAddr sdk.AccAddress, contractIBCPortID string, msg wasmvmtypes.CosmosMsg) (events []sdk.Event, data [][]byte, msgResponses [][]*codectypes.Any, err error) {
 	if msg.Custom == nil {
+		if msg.Any != nil {
+			var sdkMsg sdk.Msg
+			if err := m.cdc.UnpackAny(
+				&codectypes.Any{
+					TypeUrl: msg.Any.TypeURL,
+					Value:   msg.Any.Value,
+				},
+				&sdkMsg,
+			); err != nil {
+				return nil, nil, nil, errors.Wrap(
+					wasmtypes.ErrInvalidMsg,
+					fmt.Sprintf("Cannot unpack proto message with type URL: %s", msg.Any.TypeURL),
+				)
+			}
+			if err := codectypes.UnpackInterfaces(sdkMsg, m.cdc); err != nil {
+				return nil, nil, nil, errors.Wrap(wasmtypes.ErrInvalidMsg, fmt.Sprintf("UnpackInterfaces inside msg: %s", err))
+			}
+			if err := m.disabledMsgsLimiter.CheckDisabledMsgs(
+				[]sdk.Msg{sdkMsg},
+				true, // have to use true because MsgEthereumTx (even not wrapped in Authz) are not allowed either from wasmbinding
+				0,
+			); err != nil {
+				return nil, nil, nil, wasmvmtypes.UnsupportedRequest{Kind: err.Error()}
+			}
+		}
 		return m.wrapped.DispatchMsg(ctx, contractAddr, contractIBCPortID, msg)
 	}
 

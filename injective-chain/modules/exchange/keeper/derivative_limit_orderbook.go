@@ -14,6 +14,10 @@ import (
 
 var _ DerivativeOrderbook = &DerivativeLimitOrderbook{}
 
+type DerivativeOrderbookI interface {
+	GetAddedOpenNotional() math.LegacyDec
+}
+
 type DerivativeLimitOrderbook struct {
 	isBuy         bool
 	notional      math.LegacyDec
@@ -32,12 +36,21 @@ type DerivativeLimitOrderbook struct {
 	// pointers to the current OrderbookFills
 	currState *DerivativeOrderbookFills
 
-	k              *Keeper
-	market         DerivativeMarketInterface
-	markPrice      math.LegacyDec
-	marketID       common.Hash
-	funding        *v2.PerpetualMarketFunding
-	positionStates map[common.Hash]*PositionState
+	k                  *Keeper
+	market             DerivativeMarketInterface
+	markPrice          math.LegacyDec
+	marketID           common.Hash
+	funding            *v2.PerpetualMarketFunding
+	positionStates     map[common.Hash]*PositionState
+	positionQuantities map[common.Hash]*math.LegacyDec
+
+	addedOpenNotional       math.LegacyDec
+	cachedAddedOpenNotional math.LegacyDec
+	currentOpenNotional     math.LegacyDec
+	openInterestDelta       math.LegacyDec
+	openNotionalCap         v2.OpenNotionalCap
+
+	oppositeSideDerivativeOrderbook *DerivativeOrderbookI
 }
 
 func (k *Keeper) NewDerivativeLimitOrderbook(
@@ -47,7 +60,10 @@ func (k *Keeper) NewDerivativeLimitOrderbook(
 	market DerivativeMarketInterface,
 	markPrice math.LegacyDec,
 	funding *v2.PerpetualMarketFunding,
+	currentOpenNotional math.LegacyDec,
+	openNotionalCap v2.OpenNotionalCap,
 	positionStates map[common.Hash]*PositionState,
+	positionQuantities map[common.Hash]*math.LegacyDec,
 ) *DerivativeLimitOrderbook {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
@@ -92,6 +108,11 @@ func (k *Keeper) NewDerivativeLimitOrderbook(
 		}
 	}
 
+	if markPrice.IsNil() {
+		// allow all matching by using a mark price of zero leading to zero open notional
+		markPrice = math.LegacyZeroDec()
+	}
+
 	orderbook := DerivativeLimitOrderbook{
 		k:             k,
 		isBuy:         isBuy,
@@ -107,13 +128,23 @@ func (k *Keeper) NewDerivativeLimitOrderbook(
 		restingOrdersToCancel:   make([]*v2.DerivativeLimitOrder, 0),
 		transientOrdersToCancel: make([]*v2.DerivativeLimitOrder, 0),
 
-		currState:      nil,
-		market:         market,
-		markPrice:      markPrice,
-		marketID:       market.MarketID(),
-		funding:        funding,
-		positionStates: positionStates,
+		currState:          nil,
+		market:             market,
+		markPrice:          markPrice,
+		marketID:           market.MarketID(),
+		funding:            funding,
+		positionStates:     positionStates,
+		positionQuantities: positionQuantities,
+
+		addedOpenNotional:       math.LegacyZeroDec(),
+		cachedAddedOpenNotional: math.LegacyZeroDec(),
+		currentOpenNotional:     currentOpenNotional,
+		openNotionalCap:         openNotionalCap,
+		openInterestDelta:       math.LegacyZeroDec(),
+
+		oppositeSideDerivativeOrderbook: nil,
 	}
+
 	return &orderbook
 }
 
@@ -192,9 +223,32 @@ func (b *DerivativeLimitOrderbook) checkAndInitializePosition(
 			b.positionStates[subaccountID] = positionState
 		}
 
-		b.positionStates[subaccountID] = ApplyFundingAndGetUpdatedPositionState(position, b.funding)
+		positionStates := ApplyFundingAndGetUpdatedPositionState(position, b.funding)
+		b.positionStates[subaccountID] = positionStates
 	}
+
 	return b.positionStates[subaccountID]
+}
+
+func (b *DerivativeLimitOrderbook) initPositionQuantity(subaccountID common.Hash) {
+	if b.positionQuantities[subaccountID] != nil {
+		return
+	}
+
+	position := b.positionStates[subaccountID].Position
+
+	if position == nil {
+		zeroDec := math.LegacyZeroDec()
+		b.positionQuantities[subaccountID] = &zeroDec
+		return
+	}
+
+	if position.IsLong {
+		b.positionQuantities[subaccountID] = &position.Quantity
+	} else {
+		neg := position.Quantity.Neg()
+		b.positionQuantities[subaccountID] = &neg
+	}
 }
 
 func (b *DerivativeLimitOrderbook) getCurrOrderAndInitializeCurrState() *v2.DerivativeLimitOrder {
@@ -242,6 +296,41 @@ func (b *DerivativeLimitOrderbook) addInvalidOrderToCancelsAndAdvanceToNextOrder
 	b.advanceNewOrder(ctx)
 }
 
+func (b *DerivativeLimitOrderbook) doesBreachOpenNotionalCapForLimitOrderbook(currOrder *v2.DerivativeLimitOrder) bool {
+	doesBreachCap, notionalDelta := doesBreachOpenNotionalCap(
+		currOrder.OrderType,
+		currOrder.OrderInfo.Quantity,
+		b.markPrice,
+		b.getTotalOpenNotional(),
+		b.positionQuantities[currOrder.SubaccountID()],
+		b.openNotionalCap,
+	)
+
+	if !doesBreachCap {
+		// cache notional delta for opposite side
+		b.cachedAddedOpenNotional = notionalDelta
+	} else {
+		b.cachedAddedOpenNotional = math.LegacyZeroDec()
+	}
+
+	return doesBreachCap
+}
+
+func (b *DerivativeLimitOrderbook) updateNotionalCapValuesAfterFill(currOrder *v2.DerivativeLimitOrder, fillQuantity math.LegacyDec) {
+	positionQuantity := b.positionQuantities[currOrder.SubaccountID()]
+	notionalDelta, quantityDelta, newPositionQuantity := getValuesForNotionalCapChecks(
+		currOrder.OrderType,
+		fillQuantity,
+		b.markPrice,
+		positionQuantity,
+	)
+
+	b.openInterestDelta = b.openInterestDelta.Add(quantityDelta)
+	b.addedOpenNotional = b.addedOpenNotional.Add(notionalDelta)
+	b.positionQuantities[currOrder.SubaccountID()] = &newPositionQuantity
+	b.cachedAddedOpenNotional = math.LegacyZeroDec()
+}
+
 func (b *DerivativeLimitOrderbook) advanceNewOrder(ctx sdk.Context) {
 	currOrder := b.getCurrOrderAndInitializeCurrState()
 
@@ -254,6 +343,7 @@ func (b *DerivativeLimitOrderbook) advanceNewOrder(ctx sdk.Context) {
 	position := positionState.Position
 	isClosingPosition := position != nil && currOrder.IsBuy() != position.IsLong && position.Quantity.IsPositive()
 
+	// TODO check if we could use positionQuantities to determine if closing
 	if isClosingPosition {
 		tradeFeeRate := b.getCurrOrderTradeFeeRate()
 		closingQuantity := math.LegacyMinDec(currOrder.OrderInfo.Quantity, position.Quantity)
@@ -261,7 +351,8 @@ func (b *DerivativeLimitOrderbook) advanceNewOrder(ctx sdk.Context) {
 
 		if err := position.CheckValidPositionToReduce(
 			b.market.GetMarketType(),
-			// NOTE: must be order price, not clearing price !!! due to security reasons related to margin adjustment case after increased trading fee
+			// NOTE: must be order price, not clearing price !!!
+			// due to security reasons related to margin adjustment case after increased trading fee
 			// see `adjustPositionMarginIfNecessary` for more details
 			currOrder.OrderInfo.Price,
 			b.isBuy,
@@ -280,6 +371,13 @@ func (b *DerivativeLimitOrderbook) advanceNewOrder(ctx sdk.Context) {
 		if err != nil {
 			b.addInvalidOrderToCancelsAndAdvanceToNextOrder(ctx, currOrder)
 		}
+	}
+
+	b.initPositionQuantity(subaccountID)
+
+	if b.doesBreachOpenNotionalCapForLimitOrderbook(currOrder) {
+		b.addInvalidOrderToCancelsAndAdvanceToNextOrder(ctx, currOrder)
+		return
 	}
 }
 
@@ -325,6 +423,8 @@ func (b *DerivativeLimitOrderbook) Fill(fillQuantity math.LegacyDec) {
 	b.notional = b.notional.Add(fillNotional)
 	b.totalQuantity = b.totalQuantity.Add(fillQuantity)
 
+	b.updateNotionalCapValuesAfterFill(order, fillQuantity)
+
 	// if currState is fully filled, set to nil
 	if orderCumulativeFillQuantity.Equal(b.currState.Orders[idx].Fillable) {
 		b.currState = nil
@@ -333,6 +433,22 @@ func (b *DerivativeLimitOrderbook) Fill(fillQuantity math.LegacyDec) {
 
 func (b *DerivativeLimitOrderbook) Close() {
 	b.restingOrderIterator.Close()
+}
+
+func (b *DerivativeLimitOrderbook) SetOppositeSideDerivativeOrderbook(opposite DerivativeOrderbookI) {
+	b.oppositeSideDerivativeOrderbook = &opposite
+}
+
+func (b *DerivativeLimitOrderbook) GetAddedOpenNotional() math.LegacyDec {
+	return b.addedOpenNotional.Add(b.cachedAddedOpenNotional)
+}
+
+func (b *DerivativeLimitOrderbook) GetOpenInterestDelta() math.LegacyDec {
+	return b.openInterestDelta
+}
+
+func (b *DerivativeLimitOrderbook) getTotalOpenNotional() math.LegacyDec {
+	return b.currentOpenNotional.Add(b.addedOpenNotional).Add((*b.oppositeSideDerivativeOrderbook).GetAddedOpenNotional())
 }
 
 func (b *DerivativeLimitOrderbook) isCurrOrderResting() bool {

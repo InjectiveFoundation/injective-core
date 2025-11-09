@@ -87,8 +87,7 @@ func (k Keeper) createTokenPairTokenFactory(c context.Context, sender sdk.AccAdd
 	// deploy ERC20 contract if one was not provided in the msg
 	if pair.Erc20Address == "" {
 		denomMeta, _ := k.bankKeeper.GetDenomMetaData(c, pair.BankDenom)
-		denomCreationFee := k.GetParams(ctx).DenomCreationFee.Amount.BigInt()
-		contractAddr, err := k.DeploySmartContract(c, bank.MintBurnBankERC20MetaData, sender, denomCreationFee, common.BytesToAddress(sender.Bytes()), denomMeta.Base, denomMeta.Symbol, uint8(denomMeta.Decimals))
+		contractAddr, err := k.DeploySmartContract(c, bank.MintBurnBankERC20MetaData, sender, common.BytesToAddress(sender.Bytes()), denomMeta.Base, denomMeta.Symbol, uint8(denomMeta.Decimals))
 		if err != nil {
 			return errors.Wrap(types.ErrUploadERC20Contract, err.Error())
 		}
@@ -112,8 +111,7 @@ func (k Keeper) createTokenPairPeggy(c context.Context, sender sdk.AccAddress, p
 
 	// deploy ERC20 contract
 	denomMeta, _ := k.bankKeeper.GetDenomMetaData(c, pair.BankDenom)
-	denomCreationFee := k.GetParams(ctx).DenomCreationFee.Amount.BigInt()
-	contractAddr, err := k.DeploySmartContract(c, bank.FixedSupplyBankERC20MetaData, sender, denomCreationFee, denomMeta.Base, denomMeta.Symbol, uint8(denomMeta.Decimals), big.NewInt(0))
+	contractAddr, err := k.DeploySmartContract(c, bank.FixedSupplyBankERC20MetaData, sender, denomMeta.Base, denomMeta.Symbol, uint8(denomMeta.Decimals), big.NewInt(0))
 	if err != nil {
 		return errors.Wrap(types.ErrUploadERC20Contract, err.Error())
 	}
@@ -136,8 +134,7 @@ func (k Keeper) createTokenPairIBC(c context.Context, sender sdk.AccAddress, pai
 
 	// deploy ERC20 contract
 	denomMeta, _ := k.bankKeeper.GetDenomMetaData(c, pair.BankDenom)
-	denomCreationFee := k.GetParams(ctx).DenomCreationFee.Amount.BigInt()
-	contractAddr, err := k.DeploySmartContract(c, bank.FixedSupplyBankERC20MetaData, sender, denomCreationFee, denomMeta.Base, denomMeta.Symbol, uint8(denomMeta.Decimals), big.NewInt(0))
+	contractAddr, err := k.DeploySmartContract(c, bank.FixedSupplyBankERC20MetaData, sender, denomMeta.Base, denomMeta.Symbol, uint8(denomMeta.Decimals), big.NewInt(0))
 	if err != nil {
 		return errors.Wrap(types.ErrUploadERC20Contract, err.Error())
 	}
@@ -148,7 +145,7 @@ func (k Keeper) createTokenPairIBC(c context.Context, sender sdk.AccAddress, pai
 	return nil
 }
 
-func (k Keeper) DeploySmartContract(c context.Context, metadata *bind.MetaData, from sdk.AccAddress, amount *big.Int, args ...any) (common.Address, error) {
+func (k Keeper) DeploySmartContract(c context.Context, metadata *bind.MetaData, from sdk.AccAddress, args ...any) (common.Address, error) {
 	abi, err := metadata.GetAbi()
 	if err != nil {
 		return common.Address{}, err
@@ -170,7 +167,7 @@ func (k Keeper) DeploySmartContract(c context.Context, metadata *bind.MetaData, 
 		nil,           // chain id
 		nonce,         // nonce
 		nil,           // to
-		amount,        // amount (e.g. denom creation fee)
+		nil,           // amount
 		2_000_000,     // gas limit
 		big.NewInt(1), // gas price
 		nil,           // gas fee cap

@@ -205,6 +205,9 @@ tracer = "{{ .EVM.Tracer }}"
 # MaxTxGasWanted defines the gas wanted for each eth tx returned in ante handler in check tx mode.
 max-tx-gas-wanted = {{ .EVM.MaxTxGasWanted }}
 
+# Enabled or disable TraceTx/TraceBlock/TraceCall gRPC endpoints
+enable-grpc-tracing = {{ .EVM.EnableGRPCTracing }}
+
 ###############################################################################
 ###                           JSON RPC Configuration                        ###
 ###############################################################################

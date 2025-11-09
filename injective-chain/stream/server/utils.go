@@ -4,28 +4,28 @@ import (
 	"github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/keeper"
-	types3 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
-	v3 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
-	types2 "github.com/InjectiveLabs/injective-core/injective-chain/stream/types"
-	v2 "github.com/InjectiveLabs/injective-core/injective-chain/stream/types/v2"
+	exchangev1types "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	exchangev2types "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
+	streamv1types "github.com/InjectiveLabs/injective-core/injective-chain/stream/types"
+	streamv2types "github.com/InjectiveLabs/injective-core/injective-chain/stream/types/v2"
 )
 
 func NewV1StreamResponseFromV2(
-	ctx types.Context, resp *v2.StreamResponse, marketFinder *keeper.CachedMarketFinder,
-) (*types2.StreamResponse, error) {
-	v1Response := &types2.StreamResponse{
+	ctx types.Context, resp *streamv2types.StreamResponse, marketFinder *keeper.CachedMarketFinder,
+) (*streamv1types.StreamResponse, error) {
+	v1Response := &streamv1types.StreamResponse{
 		BlockHeight:                resp.BlockHeight,
 		BlockTime:                  resp.BlockTime,
-		BankBalances:               make([]*types2.BankBalance, len(resp.BankBalances)),
-		SubaccountDeposits:         make([]*types2.SubaccountDeposits, len(resp.SubaccountDeposits)),
-		SpotTrades:                 make([]*types2.SpotTrade, len(resp.SpotTrades)),
-		DerivativeTrades:           make([]*types2.DerivativeTrade, len(resp.DerivativeTrades)),
-		SpotOrders:                 make([]*types2.SpotOrderUpdate, len(resp.SpotOrders)),
-		DerivativeOrders:           make([]*types2.DerivativeOrderUpdate, len(resp.DerivativeOrders)),
-		SpotOrderbookUpdates:       make([]*types2.OrderbookUpdate, len(resp.SpotOrderbookUpdates)),
-		DerivativeOrderbookUpdates: make([]*types2.OrderbookUpdate, len(resp.DerivativeOrderbookUpdates)),
-		Positions:                  make([]*types2.Position, len(resp.Positions)),
-		OraclePrices:               make([]*types2.OraclePrice, len(resp.OraclePrices)),
+		BankBalances:               make([]*streamv1types.BankBalance, len(resp.BankBalances)),
+		SubaccountDeposits:         make([]*streamv1types.SubaccountDeposits, len(resp.SubaccountDeposits)),
+		SpotTrades:                 make([]*streamv1types.SpotTrade, len(resp.SpotTrades)),
+		DerivativeTrades:           make([]*streamv1types.DerivativeTrade, len(resp.DerivativeTrades)),
+		SpotOrders:                 make([]*streamv1types.SpotOrderUpdate, len(resp.SpotOrders)),
+		DerivativeOrders:           make([]*streamv1types.DerivativeOrderUpdate, len(resp.DerivativeOrders)),
+		SpotOrderbookUpdates:       make([]*streamv1types.OrderbookUpdate, len(resp.SpotOrderbookUpdates)),
+		DerivativeOrderbookUpdates: make([]*streamv1types.OrderbookUpdate, len(resp.DerivativeOrderbookUpdates)),
+		Positions:                  make([]*streamv1types.Position, len(resp.Positions)),
+		OraclePrices:               make([]*streamv1types.OraclePrice, len(resp.OraclePrices)),
 	}
 
 	convertBankBalances(resp.BankBalances, v1Response.BankBalances)
@@ -47,7 +47,9 @@ func NewV1StreamResponseFromV2(
 		return nil, err
 	}
 
-	if err := convertSpotOrderbookUpdates(ctx, resp.SpotOrderbookUpdates, v1Response.SpotOrderbookUpdates, marketFinder); err != nil {
+	if err := convertSpotOrderbookUpdates(
+		ctx, resp.SpotOrderbookUpdates, v1Response.SpotOrderbookUpdates, marketFinder,
+	); err != nil {
 		return nil, err
 	}
 
@@ -66,20 +68,26 @@ func NewV1StreamResponseFromV2(
 	return v1Response, nil
 }
 
-func convertBankBalances(bankBalances []*v2.BankBalance, v1BankBalances []*types2.BankBalance) {
+func convertBankBalances(bankBalances []*streamv2types.BankBalance, v1BankBalances []*streamv1types.BankBalance) {
 	for i, bankBalance := range bankBalances {
 		v1BankBalances[i] = NewV1BankBalanceFromV2(bankBalance)
 	}
 }
 
-func convertSubaccountDeposits(subaccountDeposits []*v2.SubaccountDeposits, v1SubaccountDeposits []*types2.SubaccountDeposits) {
+func convertSubaccountDeposits(
+	subaccountDeposits []*streamv2types.SubaccountDeposits,
+	v1SubaccountDeposits []*streamv1types.SubaccountDeposits,
+) {
 	for i, subaccountDeposit := range subaccountDeposits {
 		v1SubaccountDeposits[i] = NewV1SubaccountDepositsFromV2(subaccountDeposit)
 	}
 }
 
 func convertSpotTrades(
-	ctx types.Context, spotTrades []*v2.SpotTrade, v1SpotTrades []*types2.SpotTrade, marketFinder *keeper.CachedMarketFinder,
+	ctx types.Context,
+	spotTrades []*streamv2types.SpotTrade,
+	v1SpotTrades []*streamv1types.SpotTrade,
+	marketFinder *keeper.CachedMarketFinder,
 ) error {
 	for i, spotTrade := range spotTrades {
 		market, err := marketFinder.FindSpotMarket(ctx, spotTrade.MarketId)
@@ -93,8 +101,8 @@ func convertSpotTrades(
 
 func convertDerivativeTrades(
 	ctx types.Context,
-	derivativeTrades []*v2.DerivativeTrade,
-	v1DerivativeTrades []*types2.DerivativeTrade,
+	derivativeTrades []*streamv2types.DerivativeTrade,
+	v1DerivativeTrades []*streamv1types.DerivativeTrade,
 	marketFinder *keeper.CachedMarketFinder,
 ) error {
 	for i, derivativeTrade := range derivativeTrades {
@@ -109,8 +117,8 @@ func convertDerivativeTrades(
 
 func convertSpotOrders(
 	ctx types.Context,
-	spotOrders []*v2.SpotOrderUpdate,
-	v1SpotOrders []*types2.SpotOrderUpdate,
+	spotOrders []*streamv2types.SpotOrderUpdate,
+	v1SpotOrders []*streamv1types.SpotOrderUpdate,
 	marketFinder *keeper.CachedMarketFinder,
 ) error {
 	for i, spotOrder := range spotOrders {
@@ -125,8 +133,8 @@ func convertSpotOrders(
 
 func convertDerivativeOrders(
 	ctx types.Context,
-	derivativeOrders []*v2.DerivativeOrderUpdate,
-	v1DerivativeOrders []*types2.DerivativeOrderUpdate,
+	derivativeOrders []*streamv2types.DerivativeOrderUpdate,
+	v1DerivativeOrders []*streamv1types.DerivativeOrderUpdate,
 	marketFinder *keeper.CachedMarketFinder,
 ) error {
 	for i, derivativeOrder := range derivativeOrders {
@@ -140,7 +148,10 @@ func convertDerivativeOrders(
 }
 
 func convertPositions(
-	ctx types.Context, positions []*v2.Position, v1Positions []*types2.Position, marketFinder *keeper.CachedMarketFinder,
+	ctx types.Context,
+	positions []*streamv2types.Position,
+	v1Positions []*streamv1types.Position,
+	marketFinder *keeper.CachedMarketFinder,
 ) error {
 	for i, position := range positions {
 		market, err := marketFinder.FindMarket(ctx, position.MarketId)
@@ -152,9 +163,9 @@ func convertPositions(
 	return nil
 }
 
-func convertOraclePrices(oraclePrices []*v2.OraclePrice, v1OraclePrices []*types2.OraclePrice) {
+func convertOraclePrices(oraclePrices []*streamv2types.OraclePrice, v1OraclePrices []*streamv1types.OraclePrice) {
 	for i, oraclePrice := range oraclePrices {
-		v1OraclePrices[i] = &types2.OraclePrice{
+		v1OraclePrices[i] = &streamv1types.OraclePrice{
 			Symbol: oraclePrice.Symbol,
 			Price:  oraclePrice.Price,
 			Type:   oraclePrice.Type,
@@ -164,8 +175,8 @@ func convertOraclePrices(oraclePrices []*v2.OraclePrice, v1OraclePrices []*types
 
 func convertSpotOrderbookUpdates(
 	ctx types.Context,
-	spotOrderbookUpdates []*v2.OrderbookUpdate,
-	v1SpotOrderbookUpdates []*types2.OrderbookUpdate,
+	spotOrderbookUpdates []*streamv2types.OrderbookUpdate,
+	v1SpotOrderbookUpdates []*streamv1types.OrderbookUpdate,
 	marketFinder *keeper.CachedMarketFinder,
 ) error {
 	for i, spotOrderbookUpdate := range spotOrderbookUpdates {
@@ -182,8 +193,8 @@ func convertSpotOrderbookUpdates(
 
 func convertDerivativeOrderbookUpdates(
 	ctx types.Context,
-	derivativeOrderbookUpdates []*v2.OrderbookUpdate,
-	v1DerivativeOrderbookUpdates []*types2.OrderbookUpdate,
+	derivativeOrderbookUpdates []*streamv2types.OrderbookUpdate,
+	v1DerivativeOrderbookUpdates []*streamv1types.OrderbookUpdate,
 	marketFinder *keeper.CachedMarketFinder,
 ) error {
 	for i, derivativeOrderbookUpdate := range derivativeOrderbookUpdates {
@@ -198,23 +209,23 @@ func convertDerivativeOrderbookUpdates(
 	return nil
 }
 
-func NewV1BankBalanceFromV2(bankBalance *v2.BankBalance) *types2.BankBalance {
-	return &types2.BankBalance{
+func NewV1BankBalanceFromV2(bankBalance *streamv2types.BankBalance) *streamv1types.BankBalance {
+	return &streamv1types.BankBalance{
 		Account:  bankBalance.Account,
 		Balances: bankBalance.Balances,
 	}
 }
 
-func NewV1SubaccountDepositsFromV2(subaccountDeposits *v2.SubaccountDeposits) *types2.SubaccountDeposits {
-	v1SubaccountDeposits := &types2.SubaccountDeposits{
+func NewV1SubaccountDepositsFromV2(subaccountDeposits *streamv2types.SubaccountDeposits) *streamv1types.SubaccountDeposits {
+	v1SubaccountDeposits := &streamv1types.SubaccountDeposits{
 		SubaccountId: subaccountDeposits.SubaccountId,
-		Deposits:     make([]types2.SubaccountDeposit, len(subaccountDeposits.Deposits)),
+		Deposits:     make([]streamv1types.SubaccountDeposit, len(subaccountDeposits.Deposits)),
 	}
 
 	for i, deposit := range subaccountDeposits.Deposits {
-		v1SubaccountDeposits.Deposits[i] = types2.SubaccountDeposit{
+		v1SubaccountDeposits.Deposits[i] = streamv1types.SubaccountDeposit{
 			Denom: deposit.Denom,
-			Deposit: types3.Deposit{
+			Deposit: exchangev1types.Deposit{
 				AvailableBalance: deposit.Deposit.AvailableBalance,
 				TotalBalance:     deposit.Deposit.TotalBalance,
 			},
@@ -224,8 +235,8 @@ func NewV1SubaccountDepositsFromV2(subaccountDeposits *v2.SubaccountDeposits) *t
 	return v1SubaccountDeposits
 }
 
-func NewV1SpotTradeFromV2(spotTrade *v2.SpotTrade, market keeper.MarketInterface) *types2.SpotTrade {
-	return &types2.SpotTrade{
+func NewV1SpotTradeFromV2(spotTrade *streamv2types.SpotTrade, market keeper.MarketInterface) *streamv1types.SpotTrade {
+	return &streamv1types.SpotTrade{
 		MarketId:            spotTrade.MarketId,
 		IsBuy:               spotTrade.IsBuy,
 		ExecutionType:       spotTrade.ExecutionType,
@@ -240,8 +251,11 @@ func NewV1SpotTradeFromV2(spotTrade *v2.SpotTrade, market keeper.MarketInterface
 	}
 }
 
-func NewV1DerivativeTradeFromV2(derivativeTrade *v2.DerivativeTrade, market keeper.MarketInterface) *types2.DerivativeTrade {
-	v1DerivativeTrade := types2.DerivativeTrade{
+func NewV1DerivativeTradeFromV2(
+	derivativeTrade *streamv2types.DerivativeTrade,
+	market keeper.MarketInterface,
+) *streamv1types.DerivativeTrade {
+	v1DerivativeTrade := streamv1types.DerivativeTrade{
 		MarketId:            derivativeTrade.MarketId,
 		IsBuy:               derivativeTrade.IsBuy,
 		ExecutionType:       derivativeTrade.ExecutionType,
@@ -255,7 +269,7 @@ func NewV1DerivativeTradeFromV2(derivativeTrade *v2.DerivativeTrade, market keep
 	}
 
 	if derivativeTrade.PositionDelta != nil {
-		v1PositionDelta := types3.PositionDelta{
+		v1PositionDelta := exchangev1types.PositionDelta{
 			IsLong:            derivativeTrade.PositionDelta.IsLong,
 			ExecutionQuantity: market.QuantityToChainFormat(derivativeTrade.PositionDelta.ExecutionQuantity),
 			ExecutionMargin:   market.NotionalToChainFormat(derivativeTrade.PositionDelta.ExecutionMargin),
@@ -267,56 +281,65 @@ func NewV1DerivativeTradeFromV2(derivativeTrade *v2.DerivativeTrade, market keep
 	return &v1DerivativeTrade
 }
 
-func NewV1SpotOrderUpdateFromV2(orderUpdate *v2.SpotOrderUpdate, market *v3.SpotMarket) *types2.SpotOrderUpdate {
-	v1SpotOrder := &types2.SpotOrder{
+func NewV1SpotOrderUpdateFromV2(
+	orderUpdate *streamv2types.SpotOrderUpdate,
+	market *exchangev2types.SpotMarket,
+) *streamv1types.SpotOrderUpdate {
+	v1SpotOrder := &streamv1types.SpotOrder{
 		MarketId: orderUpdate.Order.MarketId,
 		Order:    keeper.NewV1SpotLimitOrderFromV2(market, orderUpdate.Order.Order),
 	}
-	return &types2.SpotOrderUpdate{
-		Status:    types2.OrderUpdateStatus(orderUpdate.Status),
+	return &streamv1types.SpotOrderUpdate{
+		Status:    streamv1types.OrderUpdateStatus(orderUpdate.Status),
 		OrderHash: orderUpdate.OrderHash,
 		Cid:       orderUpdate.Cid,
 		Order:     v1SpotOrder,
 	}
 }
 
-func NewV1DerivativeOrderUpdateFromV2(orderUpdate *v2.DerivativeOrderUpdate, market keeper.MarketInterface) *types2.DerivativeOrderUpdate {
-	v1DerivativeOrder := &types2.DerivativeOrder{
+func NewV1DerivativeOrderUpdateFromV2(
+	orderUpdate *streamv2types.DerivativeOrderUpdate,
+	market keeper.MarketInterface,
+) *streamv1types.DerivativeOrderUpdate {
+	v1DerivativeOrder := &streamv1types.DerivativeOrder{
 		MarketId: orderUpdate.Order.MarketId,
 		Order:    keeper.NewV1DerivativeLimitOrderFromV2(market, orderUpdate.Order.Order),
 	}
-	return &types2.DerivativeOrderUpdate{
-		Status:    types2.OrderUpdateStatus(orderUpdate.Status),
+	return &streamv1types.DerivativeOrderUpdate{
+		Status:    streamv1types.OrderUpdateStatus(orderUpdate.Status),
 		OrderHash: orderUpdate.OrderHash,
 		Cid:       orderUpdate.Cid,
 		Order:     v1DerivativeOrder,
 	}
 }
 
-func NewV1OrderbookUpdateFromV2(orderbookUpdate *v2.OrderbookUpdate, market keeper.MarketInterface) *types2.OrderbookUpdate {
+func NewV1OrderbookUpdateFromV2(
+	orderbookUpdate *streamv2types.OrderbookUpdate,
+	market keeper.MarketInterface,
+) *streamv1types.OrderbookUpdate {
 	v1Orderbook := NewV1OrderbookFromV2(orderbookUpdate.Orderbook, market)
 
-	return &types2.OrderbookUpdate{
+	return &streamv1types.OrderbookUpdate{
 		Seq:       orderbookUpdate.Seq,
 		Orderbook: v1Orderbook,
 	}
 }
 
-func NewV1OrderbookFromV2(orderbook *v2.Orderbook, market keeper.MarketInterface) *types2.Orderbook {
-	v1Orderbook := &types2.Orderbook{
+func NewV1OrderbookFromV2(orderbook *streamv2types.Orderbook, market keeper.MarketInterface) *streamv1types.Orderbook {
+	v1Orderbook := &streamv1types.Orderbook{
 		MarketId:   orderbook.MarketId,
-		BuyLevels:  make([]*types3.Level, len(orderbook.BuyLevels)),
-		SellLevels: make([]*types3.Level, len(orderbook.SellLevels)),
+		BuyLevels:  make([]*exchangev1types.Level, len(orderbook.BuyLevels)),
+		SellLevels: make([]*exchangev1types.Level, len(orderbook.SellLevels)),
 	}
 
 	for i, buyLevel := range orderbook.BuyLevels {
-		v1Orderbook.BuyLevels[i] = &types3.Level{
+		v1Orderbook.BuyLevels[i] = &exchangev1types.Level{
 			P: market.PriceToChainFormat(buyLevel.P),
 			Q: market.QuantityToChainFormat(buyLevel.Q),
 		}
 	}
 	for i, sellLevel := range orderbook.SellLevels {
-		v1Orderbook.SellLevels[i] = &types3.Level{
+		v1Orderbook.SellLevels[i] = &exchangev1types.Level{
 			P: market.PriceToChainFormat(sellLevel.P),
 			Q: market.QuantityToChainFormat(sellLevel.Q),
 		}
@@ -325,8 +348,8 @@ func NewV1OrderbookFromV2(orderbook *v2.Orderbook, market keeper.MarketInterface
 	return v1Orderbook
 }
 
-func NewV1PositionFromV2(position *v2.Position, market keeper.MarketInterface) *types2.Position {
-	return &types2.Position{
+func NewV1PositionFromV2(position *streamv2types.Position, market keeper.MarketInterface) *streamv1types.Position {
+	return &streamv1types.Position{
 		MarketId:               position.MarketId,
 		SubaccountId:           position.SubaccountId,
 		IsLong:                 position.IsLong,
@@ -337,8 +360,8 @@ func NewV1PositionFromV2(position *v2.Position, market keeper.MarketInterface) *
 	}
 }
 
-func NewV2StreamRequestFromV1(request *types2.StreamRequest) v2.StreamRequest {
-	v2Request := v2.StreamRequest{}
+func NewV2StreamRequestFromV1(request *streamv1types.StreamRequest) streamv2types.StreamRequest {
+	v2Request := streamv2types.StreamRequest{}
 
 	applyBankBalancesFilter(&v2Request, request)
 	applySubaccountDepositsFilter(&v2Request, request)
@@ -351,77 +374,77 @@ func NewV2StreamRequestFromV1(request *types2.StreamRequest) v2.StreamRequest {
 	return v2Request
 }
 
-func applyBankBalancesFilter(v2Request *v2.StreamRequest, request *types2.StreamRequest) {
+func applyBankBalancesFilter(v2Request *streamv2types.StreamRequest, request *streamv1types.StreamRequest) {
 	if request.BankBalancesFilter != nil {
-		v2Request.BankBalancesFilter = &v2.BankBalancesFilter{
+		v2Request.BankBalancesFilter = &streamv2types.BankBalancesFilter{
 			Accounts: request.BankBalancesFilter.Accounts,
 		}
 	}
 }
 
-func applySubaccountDepositsFilter(v2Request *v2.StreamRequest, request *types2.StreamRequest) {
+func applySubaccountDepositsFilter(v2Request *streamv2types.StreamRequest, request *streamv1types.StreamRequest) {
 	if request.SubaccountDepositsFilter != nil {
-		v2Request.SubaccountDepositsFilter = &v2.SubaccountDepositsFilter{
+		v2Request.SubaccountDepositsFilter = &streamv2types.SubaccountDepositsFilter{
 			SubaccountIds: request.SubaccountDepositsFilter.SubaccountIds,
 		}
 	}
 }
 
-func applyTradesFilters(v2Request *v2.StreamRequest, request *types2.StreamRequest) {
+func applyTradesFilters(v2Request *streamv2types.StreamRequest, request *streamv1types.StreamRequest) {
 	if request.SpotTradesFilter != nil {
-		v2Request.SpotTradesFilter = &v2.TradesFilter{
+		v2Request.SpotTradesFilter = &streamv2types.TradesFilter{
 			SubaccountIds: request.SpotTradesFilter.SubaccountIds,
 			MarketIds:     request.SpotTradesFilter.MarketIds,
 		}
 	}
 	if request.DerivativeTradesFilter != nil {
-		v2Request.DerivativeTradesFilter = &v2.TradesFilter{
+		v2Request.DerivativeTradesFilter = &streamv2types.TradesFilter{
 			SubaccountIds: request.DerivativeTradesFilter.SubaccountIds,
 			MarketIds:     request.DerivativeTradesFilter.MarketIds,
 		}
 	}
 }
 
-func applyOrdersFilters(v2Request *v2.StreamRequest, request *types2.StreamRequest) {
+func applyOrdersFilters(v2Request *streamv2types.StreamRequest, request *streamv1types.StreamRequest) {
 	if request.SpotOrdersFilter != nil {
-		v2Request.SpotOrdersFilter = &v2.OrdersFilter{
+		v2Request.SpotOrdersFilter = &streamv2types.OrdersFilter{
 			SubaccountIds: request.SpotOrdersFilter.SubaccountIds,
 			MarketIds:     request.SpotOrdersFilter.MarketIds,
 		}
 	}
 	if request.DerivativeOrdersFilter != nil {
-		v2Request.DerivativeOrdersFilter = &v2.OrdersFilter{
+		v2Request.DerivativeOrdersFilter = &streamv2types.OrdersFilter{
 			SubaccountIds: request.DerivativeOrdersFilter.SubaccountIds,
 			MarketIds:     request.DerivativeOrdersFilter.MarketIds,
 		}
 	}
 }
 
-func applyOrderbooksFilters(v2Request *v2.StreamRequest, request *types2.StreamRequest) {
+func applyOrderbooksFilters(v2Request *streamv2types.StreamRequest, request *streamv1types.StreamRequest) {
 	if request.SpotOrderbooksFilter != nil {
-		v2Request.SpotOrderbooksFilter = &v2.OrderbookFilter{
+		v2Request.SpotOrderbooksFilter = &streamv2types.OrderbookFilter{
 			MarketIds: request.SpotOrderbooksFilter.MarketIds,
 		}
 	}
 	if request.DerivativeOrderbooksFilter != nil {
-		v2Request.DerivativeOrderbooksFilter = &v2.OrderbookFilter{
+		v2Request.DerivativeOrderbooksFilter = &streamv2types.OrderbookFilter{
 			MarketIds: request.DerivativeOrderbooksFilter.MarketIds,
 		}
 	}
 }
 
-func applyPositionsFilter(v2Request *v2.StreamRequest, request *types2.StreamRequest) {
+func applyPositionsFilter(v2Request *streamv2types.StreamRequest, request *streamv1types.StreamRequest) {
 	if request.PositionsFilter != nil {
-		v2Request.PositionsFilter = &v2.PositionsFilter{
+		v2Request.PositionsFilter = &streamv2types.PositionsFilter{
 			SubaccountIds: request.PositionsFilter.SubaccountIds,
 			MarketIds:     request.PositionsFilter.MarketIds,
 		}
 	}
 }
 
-func applyOraclePriceFilter(v2Request *v2.StreamRequest, request *types2.StreamRequest) {
+func applyOraclePriceFilter(v2Request *streamv2types.StreamRequest, request *streamv1types.StreamRequest) {
 	if request.OraclePriceFilter != nil {
-		v2Request.OraclePriceFilter = &v2.OraclePriceFilter{
+		v2Request.OraclePriceFilter = &streamv2types.OraclePriceFilter{
 			Symbol: request.OraclePriceFilter.Symbol,
 		}
 	}

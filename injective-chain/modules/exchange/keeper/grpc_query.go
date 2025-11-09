@@ -54,9 +54,11 @@ func (q queryServer) L3DerivativeOrderBook(
 	ctx := sdk.UnwrapSDKContext(c)
 
 	marketId := common.HexToHash(req.MarketId)
+	sequence := q.Keeper.GetOrderbookSequence(ctx, marketId)
 	res := &v2.QueryFullDerivativeOrderbookResponse{
 		Bids: q.Keeper.GetAllStandardizedDerivativeLimitOrdersByMarketDirection(ctx, marketId, true),
 		Asks: q.Keeper.GetAllStandardizedDerivativeLimitOrdersByMarketDirection(ctx, marketId, false),
+		Seq:  sequence,
 	}
 	return res, nil
 }
@@ -67,9 +69,11 @@ func (q queryServer) L3SpotOrderBook(c context.Context, req *v2.QueryFullSpotOrd
 	ctx := sdk.UnwrapSDKContext(c)
 
 	marketId := common.HexToHash(req.MarketId)
+	sequence := q.Keeper.GetOrderbookSequence(ctx, marketId)
 	res := &v2.QueryFullSpotOrderbookResponse{
 		Bids: q.Keeper.GetAllStandardizedSpotLimitOrdersByMarketDirection(ctx, marketId, true),
 		Asks: q.Keeper.GetAllStandardizedSpotLimitOrdersByMarketDirection(ctx, marketId, false),
+		Seq:  sequence,
 	}
 	return res, nil
 }
@@ -326,7 +330,10 @@ func (q queryServer) AggregateMarketVolumes(
 	return res, nil
 }
 
-func (q queryServer) DenomDecimal(c context.Context, req *v2.QueryDenomDecimalRequest) (*v2.QueryDenomDecimalResponse, error) {
+func (q queryServer) AuctionExchangeTransferDenomDecimal(
+	c context.Context,
+	req *v2.QueryAuctionExchangeTransferDenomDecimalRequest,
+) (*v2.QueryAuctionExchangeTransferDenomDecimalResponse, error) {
 	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
 	defer doneFn()
 
@@ -334,31 +341,36 @@ func (q queryServer) DenomDecimal(c context.Context, req *v2.QueryDenomDecimalRe
 		return nil, errors.New("denom is required")
 	}
 
-	res := &v2.QueryDenomDecimalResponse{
-		Decimal: q.Keeper.GetDenomDecimals(sdk.UnwrapSDKContext(c), req.Denom),
+	res := &v2.QueryAuctionExchangeTransferDenomDecimalResponse{
+		Decimal: q.Keeper.GetAuctionExchangeTransferDenomDecimals(sdk.UnwrapSDKContext(c), req.Denom),
 	}
 
 	return res, nil
 }
 
-func (q queryServer) DenomDecimals(c context.Context, req *v2.QueryDenomDecimalsRequest) (*v2.QueryDenomDecimalsResponse, error) {
+func (q queryServer) AuctionExchangeTransferDenomDecimals(
+	c context.Context,
+	req *v2.QueryAuctionExchangeTransferDenomDecimalsRequest,
+) (*v2.QueryAuctionExchangeTransferDenomDecimalsResponse, error) {
 	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
 	if len(req.Denoms) == 0 {
-		return &v2.QueryDenomDecimalsResponse{DenomDecimals: q.Keeper.GetAllDenomDecimals(ctx)}, nil
+		return &v2.QueryAuctionExchangeTransferDenomDecimalsResponse{
+			DenomDecimals: q.Keeper.GetAllAuctionExchangeTransferDenomDecimals(ctx),
+		}, nil
 	}
 
 	denomDecimals := make([]v2.DenomDecimals, 0, len(req.Denoms))
 	for _, denom := range req.Denoms {
 		denomDecimals = append(denomDecimals, v2.DenomDecimals{
 			Denom:    denom,
-			Decimals: q.Keeper.GetDenomDecimals(ctx, denom),
+			Decimals: q.Keeper.GetAuctionExchangeTransferDenomDecimals(ctx, denom),
 		})
 	}
 
-	res := &v2.QueryDenomDecimalsResponse{
+	res := &v2.QueryAuctionExchangeTransferDenomDecimalsResponse{
 		DenomDecimals: denomDecimals,
 	}
 
@@ -502,9 +514,12 @@ func (q queryServer) SpotOrderbook(c context.Context, req *v2.QuerySpotOrderbook
 		)
 	}
 
+	sequence := q.Keeper.GetOrderbookSequence(ctx, marketID)
+
 	resp := &v2.QuerySpotOrderbookResponse{
 		BuysPriceLevel:  buysPriceLevel,
 		SellsPriceLevel: sellsPriceLevel,
+		Seq:             sequence,
 	}
 
 	return resp, nil
@@ -679,9 +694,12 @@ func (q queryServer) DerivativeOrderbook(
 		limit = &defaultLimit
 	}
 
+	sequence := q.Keeper.GetOrderbookSequence(ctx, marketID)
+
 	resp := &v2.QueryDerivativeOrderbookResponse{
 		BuysPriceLevel:  q.Keeper.GetOrderbookPriceLevels(ctx, false, marketID, true, limit, req.LimitCumulativeNotional, nil),
 		SellsPriceLevel: q.Keeper.GetOrderbookPriceLevels(ctx, false, marketID, false, limit, req.LimitCumulativeNotional, nil),
+		Seq:             sequence,
 	}
 
 	return resp, nil
@@ -958,7 +976,7 @@ func (q queryServer) PerpetualMarketInfo(
 	ctx := sdk.UnwrapSDKContext(c)
 
 	if req.MarketId == "" {
-		return nil, fmt.Errorf("MarketId must be specified")
+		return nil, errors.New("MarketId must be specified")
 	}
 
 	info := q.Keeper.GetPerpetualMarketInfo(ctx, common.HexToHash(req.MarketId))
@@ -1629,6 +1647,25 @@ func (q queryServer) DenomMinNotionals(
 
 	res := &v2.QueryDenomMinNotionalsResponse{
 		DenomMinNotionals: q.Keeper.GetAllDenomMinNotionals(ctx),
+	}
+
+	return res, nil
+}
+
+func (q queryServer) OpenInterest(
+	c context.Context, req *v2.QueryOpenInterestRequest,
+) (*v2.QueryOpenInterestResponse, error) {
+	metrics.ReportFuncCall(q.Keeper.svcTags)
+	defer metrics.ReportFuncTiming(q.Keeper.svcTags)()
+
+	ctx := sdk.UnwrapSDKContext(c)
+	marketID := common.HexToHash(req.MarketId)
+
+	res := &v2.QueryOpenInterestResponse{
+		Amount: &v2.OpenInterest{
+			MarketId: req.MarketId,
+			Balance:  q.Keeper.GetOpenInterestForMarket(ctx, marketID),
+		},
 	}
 
 	return res, nil

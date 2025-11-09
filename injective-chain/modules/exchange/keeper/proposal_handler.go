@@ -89,8 +89,8 @@ func NewExchangeProposalHandler(k *Keeper) govtypes.Handler {
 			return k.handleDerivativeMarketParamUpdateProposal(ctx, c)
 		case *v2.MarketForcedSettlementProposal:
 			return k.handleMarketForcedSettlementProposal(ctx, c)
-		case *v2.UpdateDenomDecimalsProposal:
-			return k.handleUpdateDenomDecimalsProposal(ctx, c)
+		case *v2.UpdateAuctionExchangeTransferDenomDecimalsProposal:
+			return k.handleUpdateAuctionExchangeTransferDenomDecimalsProposal(ctx, c)
 		case *v2.TradingRewardCampaignLaunchProposal:
 			return k.handleTradingRewardCampaignLaunchProposal(ctx, c)
 		case *v2.TradingRewardCampaignUpdateProposal:
@@ -109,13 +109,16 @@ func NewExchangeProposalHandler(k *Keeper) govtypes.Handler {
 	}
 }
 
-func (k *Keeper) handleUpdateDenomDecimalsProposal(ctx sdk.Context, p *v2.UpdateDenomDecimalsProposal) error {
+func (k *Keeper) handleUpdateAuctionExchangeTransferDenomDecimalsProposal(
+	ctx sdk.Context,
+	p *v2.UpdateAuctionExchangeTransferDenomDecimalsProposal,
+) error {
 	if err := p.ValidateBasic(); err != nil {
 		return err
 	}
 
 	for _, denomDecimal := range p.DenomDecimals {
-		k.SetDenomDecimals(ctx, denomDecimal.Denom, denomDecimal.Decimals)
+		k.SetAuctionExchangeTransferDenomDecimals(ctx, denomDecimal.Denom, denomDecimal.Decimals)
 	}
 
 	return nil
@@ -169,8 +172,11 @@ func (k *Keeper) handleBatchExchangeModificationProposal(ctx sdk.Context, p *v2.
 		}
 	}
 
-	if p.DenomDecimalsUpdateProposal != nil {
-		if err := k.handleUpdateDenomDecimalsProposal(ctx, p.DenomDecimalsUpdateProposal); err != nil {
+	if p.AuctionExchangeTransferDenomDecimalsUpdateProposal != nil {
+		if err := k.handleUpdateAuctionExchangeTransferDenomDecimalsProposal(
+			ctx,
+			p.AuctionExchangeTransferDenomDecimalsUpdateProposal,
+		); err != nil {
 			return err
 		}
 	}

@@ -169,6 +169,10 @@ func (e *FeeState) GetCurBaseFee() math.LegacyDec {
 	return e.CurBaseFee.Clone()
 }
 
+func (e *FeeState) GetCurrentBlockHeight() int64 {
+	return e.currentBlockHeight
+}
+
 // GetCurRecheckBaseFee returns a clone of the CurBaseFee / RecheckFeeCto account for
 // rechecked transactions in the feedecorator ante handler
 func (e *FeeState) GetCurRecheckBaseFee() math.LegacyDec {

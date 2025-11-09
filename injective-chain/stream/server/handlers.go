@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 
+	"cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -11,6 +12,18 @@ import (
 	oracletypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/types"
 	v2 "github.com/InjectiveLabs/injective-core/injective-chain/stream/types/v2"
 )
+
+type EventTriggerConditionalOrderFailed interface {
+	GetMarketId() string
+	GetSubaccountId() string
+	GetMarkPrice() math.LegacyDec
+	GetOrderHash() []byte
+	GetTriggerErr() string
+	GetCid() string
+}
+
+var _ EventTriggerConditionalOrderFailed = &exchangev2types.EventTriggerConditionalMarketOrderFailed{}
+var _ EventTriggerConditionalOrderFailed = &exchangev2types.EventTriggerConditionalLimitOrderFailed{}
 
 func handleBankBalanceEvent(inBuffer *v2.StreamResponseMap, ev *banktypes.EventSetBalances) {
 	for _, balanceUpdate := range ev.BalanceUpdates {
@@ -451,4 +464,52 @@ func addOraclePriceToResponse(inBuffer *v2.StreamResponseMap, price *v2.OraclePr
 		inBuffer.OraclePriceBySymbol[price.Symbol] = make([]*v2.OraclePrice, 0)
 	}
 	inBuffer.OraclePriceBySymbol[price.Symbol] = append(inBuffer.OraclePriceBySymbol[price.Symbol], price)
+}
+
+func handleOrderFailEvent(inBuffer *v2.StreamResponseMap, ev *exchangev2types.EventOrderFail) {
+	orderFailures := make([]*v2.OrderFailureUpdate, 0, len(ev.Flags))
+	account := sdk.AccAddress(ev.Account).String()
+	for i := range ev.Flags {
+		orderFailures = append(orderFailures, &v2.OrderFailureUpdate{
+			Account:   account,
+			OrderHash: common.BytesToHash(ev.Hashes[i]).String(),
+			Cid:       ev.Cids[i],
+			ErrorCode: ev.Flags[i],
+		})
+	}
+
+	if _, ok := inBuffer.OrderFailuresByAccount[account]; !ok {
+		inBuffer.OrderFailuresByAccount[account] = make([]*v2.OrderFailureUpdate, 0)
+	}
+	inBuffer.OrderFailuresByAccount[account] = append(inBuffer.OrderFailuresByAccount[account], orderFailures...)
+}
+
+func handleConditionalOrderTriggerFailedEvent(inBuffer *v2.StreamResponseMap, ev EventTriggerConditionalOrderFailed) {
+	subaccountID := ev.GetSubaccountId()
+	marketID := ev.GetMarketId()
+
+	conditionalOrderTriggerFailureUpdate := &v2.ConditionalOrderTriggerFailureUpdate{
+		MarketId:         marketID,
+		SubaccountId:     subaccountID,
+		MarkPrice:        ev.GetMarkPrice(),
+		OrderHash:        common.BytesToHash(ev.GetOrderHash()).String(),
+		Cid:              ev.GetCid(),
+		ErrorDescription: ev.GetTriggerErr(),
+	}
+
+	if _, ok := inBuffer.ConditionalOrderTriggerFailuresBySubaccount[subaccountID]; !ok {
+		inBuffer.ConditionalOrderTriggerFailuresBySubaccount[subaccountID] = make([]*v2.ConditionalOrderTriggerFailureUpdate, 0)
+	}
+	inBuffer.ConditionalOrderTriggerFailuresBySubaccount[subaccountID] = append(
+		inBuffer.ConditionalOrderTriggerFailuresBySubaccount[subaccountID],
+		conditionalOrderTriggerFailureUpdate,
+	)
+
+	if _, ok := inBuffer.ConditionalOrderTriggerFailuresByMarketID[marketID]; !ok {
+		inBuffer.ConditionalOrderTriggerFailuresByMarketID[marketID] = make([]*v2.ConditionalOrderTriggerFailureUpdate, 0)
+	}
+	inBuffer.ConditionalOrderTriggerFailuresByMarketID[marketID] = append(
+		inBuffer.ConditionalOrderTriggerFailuresByMarketID[marketID],
+		conditionalOrderTriggerFailureUpdate,
+	)
 }

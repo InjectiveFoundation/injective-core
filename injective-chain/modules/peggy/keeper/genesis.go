@@ -148,6 +148,11 @@ func InitGenesis(ctx sdk.Context, k Keeper, data *types.GenesisState) {
 		blacklistAddr := common.HexToAddress(blacklistAddress)
 		k.SetEthereumBlacklistAddress(ctx, blacklistAddr)
 	}
+
+	// populate rate limits
+	for _, limit := range data.RateLimits {
+		k.SetRateLimit(ctx, limit)
+	}
 }
 
 // ExportGenesis exports all the state needed to restart the chain
@@ -167,6 +172,7 @@ func ExportGenesis(ctx sdk.Context, k Keeper) types.GenesisState {
 		erc20ToDenoms                   = []*types.ERC20ToDenom{}
 		unbatchedTransfers              = k.GetPoolTransactions(ctx)
 		ethereumBlacklistAddresses      = k.GetAllEthereumBlacklistAddresses(ctx)
+		rateLimits                      = k.GetRateLimits(ctx)
 	)
 
 	// export valset confirmations from state
@@ -218,5 +224,6 @@ func ExportGenesis(ctx sdk.Context, k Keeper) types.GenesisState {
 		LastOutgoingPoolId:         lastOutgoingPoolID,
 		LastObservedValset:         *lastObservedValset,
 		EthereumBlacklist:          ethereumBlacklistAddresses,
+		RateLimits:                 rateLimits,
 	}
 }

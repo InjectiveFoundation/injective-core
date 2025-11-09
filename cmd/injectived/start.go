@@ -88,6 +88,7 @@ const (
 	FlagIAVLSyncPruning      = "iavl-sync-pruning"
 
 	FlagOptimisticExecutionEnabled = "optimistic-execution-enabled"
+	FlagMempoolRecheckEnabled      = "mempool.recheck"
 )
 
 const (
@@ -263,6 +264,7 @@ func addStartNodeFlags(cmd *cobra.Command, opts server.StartCmdOptions) {
 
 	cmd.Flags().Bool(server.FlagDisableIAVLFastNode, true, "Define if fast node IAVL should be disabled (default true)")
 	cmd.Flags().Int(server.FlagMempoolMaxTxs, mempool.DefaultMaxTx, "Sets MaxTx value for the app-side mempool")
+	cmd.Flags().Bool(FlagMempoolRecheckEnabled, true, "Enable rechecking of transactions in the mempool (disable for a faster sync)")
 	cmd.Flags().Duration(server.FlagShutdownGrace, 0*time.Second, "On Shutdown, duration to wait for resource clean up")
 
 	cmd.Flags().Uint64(server.FlagStateSyncSnapshotInterval, 0, "State sync snapshot interval")
@@ -335,6 +337,7 @@ func addStartNodeFlags(cmd *cobra.Command, opts server.StartCmdOptions) {
 
 	cmd.Flags().String(FlagEVMTracer, config.DefaultEVMTracer, "The EVM tracer type to collect execution traces from the EVM transaction execution (json|struct|access_list|markdown)")
 	cmd.Flags().Uint64(FlagEVMMaxTxGasWanted, config.DefaultMaxTxGasWanted, "The gas wanted for each eth tx returned in ante handler in check tx mode")
+	cmd.Flags().Bool(FlagEVMEnableGRPCTracing, config.DefaultEnableGRPCTracing, "Enabled or disable TraceTx/TraceBlock/TraceCall gRPC queries")
 
 	// add optimistic execution flag
 	cmd.Flags().Bool(FlagOptimisticExecutionEnabled, false, "Enable optimistic execution (true|false)")

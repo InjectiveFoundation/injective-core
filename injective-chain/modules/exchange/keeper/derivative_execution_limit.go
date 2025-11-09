@@ -32,11 +32,28 @@ func (k *Keeper) ExecuteDerivativeLimitOrderMatching(
 		funding = k.GetPerpetualMarketFunding(ctx, marketID)
 	}
 
-	// Step 0: Obtain the limit buy and sell orders from the transient store for convenience
 	positionStates := NewPositionStates()
+	positionQuantities := make(map[common.Hash]*math.LegacyDec)
+
+	currentOpenNotional := k.GetOpenNotionalForMarket(ctx, marketID, markPrice)
+	openNotionalCap := market.GetOpenNotionalCap()
+
+	// Step 0: Obtain the limit buy and sell orders from the transient store for convenience
 
 	filteredResults := k.getFilteredTransientOrdersAndOrdersToCancel(ctx, marketID, modifiedPositionCache)
-	derivativeLimitOrderExecutionData := k.GetDerivativeMatchingExecutionData(ctx, market, markPrice, funding, filteredResults.transientLimitBuyOrders, filteredResults.transientLimitSellOrders, positionStates, feeDiscountConfig)
+	derivativeLimitOrderExecutionData := k.GetDerivativeMatchingExecutionData(
+		ctx,
+		market,
+		markPrice,
+		funding,
+		filteredResults.transientLimitBuyOrders,
+		filteredResults.transientLimitSellOrders,
+		positionStates,
+		positionQuantities,
+		feeDiscountConfig,
+		currentOpenNotional,
+		openNotionalCap,
+	)
 
 	derivativeLimitOrderExecutionData.TransientLimitBuyOrderCancels = append(derivativeLimitOrderExecutionData.TransientLimitBuyOrderCancels, filteredResults.transientLimitBuyOrdersToCancel...)
 	derivativeLimitOrderExecutionData.TransientLimitSellOrderCancels = append(derivativeLimitOrderExecutionData.TransientLimitSellOrderCancels, filteredResults.transientLimitSellOrdersToCancel...)
@@ -172,6 +189,12 @@ func (k *Keeper) PersistDerivativeMatchingExecution(
 		if !isMarketSolvent {
 			continue
 		}
+
+		k.ApplyOpenInterestDeltaForMarket(
+			ctx,
+			marketID,
+			execution.OpenInterestDelta,
+		)
 
 		if execution.VwapData != nil && !execution.VwapData.Price.IsZero() && !execution.VwapData.Quantity.IsZero() {
 			vwapMarkPrice := execution.MarkPrice

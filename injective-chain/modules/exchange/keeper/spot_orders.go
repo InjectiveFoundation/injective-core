@@ -761,14 +761,13 @@ func (*Keeper) getConditionalOrderBytesBySubaccountIDAndHash(
 	return orderBz, direction
 }
 
-func (k *Keeper) validateSpotLimitOrder(
+func (k *Keeper) validateSpotOrder(
 	ctx sdk.Context,
 	order *v2.SpotOrder,
 	market *v2.SpotMarket,
 	marketID common.Hash,
 	subaccountID common.Hash,
 ) (*v2.SpotMarket, error) {
-	// 2. Reject if spot market id does not reference an active spot market
 	if market == nil {
 		market = k.GetSpotMarket(ctx, marketID, true)
 		if market == nil {
@@ -778,31 +777,44 @@ func (k *Keeper) validateSpotLimitOrder(
 		}
 	}
 
-	// 3. Reject if order does not comply to the market's min tick size
 	if err := order.CheckTickSize(market.MinPriceTickSize, market.MinQuantityTickSize); err != nil {
 		metrics.ReportFuncError(k.svcTags)
 		return nil, err
 	}
 
-	// 4. Reject if order does not comply to the market's min notional
 	if err := order.CheckNotional(market.MinNotional); err != nil {
 		metrics.ReportFuncError(k.svcTags)
 		return nil, err
 	}
 
-	// 5. Check for post-only orders (or if in post-only mode) if order crosses tob
 	isPostOnlyMode := k.IsPostOnlyMode(ctx)
 	if (order.OrderType.IsPostOnly() || isPostOnlyMode) && k.SpotOrderCrossesTopOfBook(ctx, order) {
 		metrics.ReportFuncError(k.svcTags)
 		return nil, types.ErrExceedsTopOfBookPrice
 	}
 
-	// 7. Reject order if cid is already used
 	if k.existsCid(ctx, subaccountID, order.OrderInfo.Cid) {
 		return nil, types.ErrClientOrderIdAlreadyExists
 	}
 
 	return market, nil
+}
+
+func (k *Keeper) validateSpotMarketOrder(
+	ctx sdk.Context,
+	order *v2.SpotOrder,
+	market *v2.SpotMarket,
+	marketID common.Hash,
+	subaccountID common.Hash,
+) (*v2.SpotMarket, error) {
+	if k.IsPostOnlyMode(ctx) {
+		return nil, types.ErrPostOnlyMode.Wrapf(
+			"cannot create market orders in post only mode until height %d",
+			k.GetParams(ctx).PostOnlyModeHeightThreshold,
+		)
+	}
+
+	return k.validateSpotOrder(ctx, order, market, marketID, subaccountID)
 }
 
 func (k *Keeper) createSpotLimitOrder(
@@ -831,7 +843,7 @@ func (k *Keeper) createSpotLimitOrder(
 	}
 
 	// Validate the order
-	market, err = k.validateSpotLimitOrder(ctx, order, market, marketID, subaccountID)
+	market, err = k.validateSpotOrder(ctx, order, market, marketID, subaccountID)
 	if err != nil {
 		return orderHash, err
 	}
@@ -883,6 +895,157 @@ func (k *Keeper) createSpotLimitOrder(
 	}
 
 	return orderHash, nil
+}
+
+func (k *Keeper) createSpotMarketOrder(
+	ctx sdk.Context,
+	sender sdk.AccAddress,
+	order *v2.SpotOrder,
+	market *v2.SpotMarket,
+) (hash common.Hash, err error) {
+	_, possibleHash, err := k.createSpotMarketOrderWithResultsForAtomicExecution(ctx, sender, order, market)
+	if possibleHash == nil {
+		hash = common.Hash{}
+	} else {
+		hash = *possibleHash
+	}
+
+	return hash, err
+}
+
+func (k *Keeper) createSpotMarketOrderWithResultsForAtomicExecution(
+	ctx sdk.Context,
+	sender sdk.AccAddress,
+	order *v2.SpotOrder,
+	market *v2.SpotMarket,
+) (marketOrderResults *v2.SpotMarketOrderResults, hash *common.Hash, err error) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
+	defer doneFn()
+
+	marketID := common.HexToHash(order.MarketId)
+	subaccountID := types.MustGetSubaccountIDOrDeriveFromNonce(sender, order.OrderInfo.SubaccountId)
+
+	// populate the order with the actual subaccountID value, since it might be a nonce value
+	order.OrderInfo.SubaccountId = subaccountID.Hex()
+
+	validatedMarket, err := k.validateSpotMarketOrder(ctx, order, market, marketID, subaccountID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	isAtomic := order.OrderType.IsAtomic()
+	if err := k.ensureMarketOrderAtomicAccessIfNeeded(ctx, order, sender); err != nil {
+		return nil, nil, err
+	}
+
+	subaccountNonce := k.IncrementSubaccountTradeNonce(ctx, subaccountID)
+
+	orderHash, err := order.ComputeOrderHash(subaccountNonce.Nonce)
+	if err != nil {
+		metrics.ReportFuncError(k.svcTags)
+		return nil, nil, err
+	}
+
+	marginDenom := order.GetMarginDenom(validatedMarket)
+
+	bestPrice := k.GetBestSpotLimitOrderPrice(ctx, marketID, !order.IsBuy())
+
+	if err := k.validateMarketOrderBestPriceAgainstOrder(order, bestPrice); err != nil {
+		metrics.ReportFuncError(k.svcTags)
+		return nil, &orderHash, err
+	}
+
+	feeRate := k.computeMarketOrderFeeRate(ctx, marketID, validatedMarket.TakerFeeRate, order)
+
+	balanceHold, chainFormattedBalanceHold := k.computeMarketOrderBalanceHold(validatedMarket, order, feeRate, *bestPrice)
+
+	if err := k.chargeAccount(ctx, subaccountID, marginDenom, chainFormattedBalanceHold); err != nil {
+		return nil, &orderHash, err
+	}
+
+	marketOrder := order.ToSpotMarketOrder(sender, balanceHold, orderHash)
+
+	marketOrderResults = k.executeOrQueueMarketOrder(ctx, validatedMarket, marketOrder, feeRate, isAtomic, order, orderHash)
+
+	k.CheckAndSetFeeDiscountAccountActivityIndicator(ctx, marketID, sender)
+
+	return marketOrderResults, &orderHash, nil
+}
+
+// ensureMarketOrderAtomicAccessIfNeeded verifies access level for atomic market order execution when needed.
+func (k *Keeper) ensureMarketOrderAtomicAccessIfNeeded(
+	ctx sdk.Context,
+	order *v2.SpotOrder,
+	sender sdk.AccAddress,
+) error {
+	if order.OrderType.IsAtomic() {
+		return k.ensureValidAccessLevelForAtomicExecution(ctx, sender)
+	}
+	return nil
+}
+
+// computeMarketOrderFeeRate computes the effective fee rate for a spot market order,
+// applying the atomic execution multiplier when appropriate.
+func (k *Keeper) computeMarketOrderFeeRate(
+	ctx sdk.Context,
+	marketID common.Hash,
+	baseFeeRate math.LegacyDec,
+	order *v2.SpotOrder,
+) math.LegacyDec {
+	if order.OrderType.IsAtomic() {
+		return baseFeeRate.Mul(k.GetMarketAtomicExecutionFeeMultiplier(ctx, marketID, types.MarketType_Spot))
+	}
+	return baseFeeRate
+}
+
+// validateMarketOrderBestPriceAgainstOrder checks liquidity and worst-price slippage constraints
+// for a spot market order relative to the current best opposing price.
+func (*Keeper) validateMarketOrderBestPriceAgainstOrder(
+	order *v2.SpotOrder,
+	bestPrice *math.LegacyDec,
+) error {
+	if bestPrice == nil {
+		return types.ErrNoLiquidity
+	}
+	if (order.IsBuy() && order.OrderInfo.Price.LT(*bestPrice)) ||
+		(!order.IsBuy() && order.OrderInfo.Price.GT(*bestPrice)) {
+		return types.ErrSlippageExceedsWorstPrice
+	}
+	return nil
+}
+
+// computeMarketOrderBalanceHold returns both logical and chain-formatted balance holds
+// for a spot market order, accounting for buy/sell denomination differences.
+func (*Keeper) computeMarketOrderBalanceHold(
+	market *v2.SpotMarket,
+	order *v2.SpotOrder,
+	feeRate, bestPrice math.LegacyDec,
+) (balanceHold, chainFormattedBalanceHold math.LegacyDec) {
+	balanceHold = order.GetMarketOrderBalanceHold(feeRate, bestPrice)
+	if order.IsBuy() {
+		chainFormattedBalanceHold = market.NotionalToChainFormat(balanceHold)
+	} else {
+		chainFormattedBalanceHold = market.QuantityToChainFormat(balanceHold)
+	}
+	return balanceHold, chainFormattedBalanceHold
+}
+
+// executeOrQueueMarketOrder runs atomic execution immediately or stores the order transiently for batch execution.
+func (k *Keeper) executeOrQueueMarketOrder(
+	ctx sdk.Context,
+	market *v2.SpotMarket,
+	marketOrder *v2.SpotMarketOrder,
+	feeRate math.LegacyDec,
+	//revive:disable:flag-parameter // receiving isAtomic as a flag parameter instead of the DerivativeOrder
+	isAtomic bool,
+	originalOrder *v2.SpotOrder,
+	orderHash common.Hash,
+) (results *v2.SpotMarketOrderResults) {
+	if isAtomic {
+		return k.ExecuteAtomicSpotMarketOrder(ctx, market, marketOrder, feeRate)
+	}
+	k.SetTransientSpotMarketOrder(ctx, marketOrder, originalOrder, orderHash)
+	return nil
 }
 
 func (k *Keeper) cancelSpotLimitOrderWithIdentifier(

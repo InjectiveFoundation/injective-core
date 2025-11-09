@@ -12,4 +12,5 @@ const (
 	FlagMarketId       = "market-id"
 	FlagDeposit        = "deposit"
 	FlagShareToken     = "share-token"
+	FlagAmount         = "amount"
 )

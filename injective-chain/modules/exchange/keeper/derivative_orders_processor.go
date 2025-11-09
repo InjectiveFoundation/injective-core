@@ -64,15 +64,44 @@ func (k *Keeper) GetDerivativeMatchingExecutionData(
 	funding *v2.PerpetualMarketFunding,
 	transientBuyOrders, transientSellOrders []*v2.DerivativeLimitOrder,
 	positionStates map[common.Hash]*PositionState,
+	positionQuantities map[common.Hash]*math.LegacyDec,
 	feeDiscountConfig *FeeDiscountConfig,
+	currentOpenNotional math.LegacyDec,
+	openNotionalCap v2.OpenNotionalCap,
 ) *DerivativeMatchingExpansionData {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	var (
-		buyOrderbook  = k.NewDerivativeLimitOrderbook(ctx, true, transientBuyOrders, market, markPrice, funding, positionStates)
-		sellOrderbook = k.NewDerivativeLimitOrderbook(ctx, false, transientSellOrders, market, markPrice, funding, positionStates)
+		buyOrderbook = k.NewDerivativeLimitOrderbook(
+			ctx,
+			true,
+			transientBuyOrders,
+			market,
+			markPrice,
+			funding,
+			currentOpenNotional,
+			openNotionalCap,
+			positionStates,
+			positionQuantities,
+		)
+		sellOrderbook = k.NewDerivativeLimitOrderbook(ctx,
+			false,
+			transientSellOrders,
+			market,
+			markPrice,
+			funding,
+			currentOpenNotional,
+			openNotionalCap,
+			positionStates,
+			positionQuantities,
+		)
 	)
+
+	if buyOrderbook != nil && sellOrderbook != nil {
+		buyOrderbook.SetOppositeSideDerivativeOrderbook(sellOrderbook)
+		sellOrderbook.SetOppositeSideDerivativeOrderbook(buyOrderbook)
+	}
 
 	if buyOrderbook != nil {
 		defer buyOrderbook.Close()
@@ -161,6 +190,7 @@ func (k *Keeper) GetDerivativeMatchingExecutionData(
 
 		expansionData.RestingLimitBuyOrderCancels = buyOrderbook.GetRestingOrderbookCancels()
 		expansionData.TransientLimitBuyOrderCancels = buyOrderbook.GetTransientOrderbookCancels()
+		expansionData.OpenInterestDelta = expansionData.OpenInterestDelta.Add(buyOrderbook.GetOpenInterestDelta())
 	}
 
 	if sellOrderbook != nil {
@@ -199,6 +229,7 @@ func (k *Keeper) GetDerivativeMatchingExecutionData(
 
 		expansionData.RestingLimitSellOrderCancels = sellOrderbook.GetRestingOrderbookCancels()
 		expansionData.TransientLimitSellOrderCancels = sellOrderbook.GetTransientOrderbookCancels()
+		expansionData.OpenInterestDelta = expansionData.OpenInterestDelta.Add(sellOrderbook.GetOpenInterestDelta())
 	}
 
 	return expansionData
@@ -212,6 +243,7 @@ func (k *Keeper) ExecuteDerivativeMarketOrderImmediately(
 	funding *v2.PerpetualMarketFunding,
 	marketOrder *v2.DerivativeMarketOrder,
 	positionStates map[common.Hash]*PositionState,
+	positionQuantities map[common.Hash]*math.LegacyDec,
 	isLiquidation bool,
 ) (*v2.DerivativeMarketOrderResults, bool, error) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
@@ -236,6 +268,9 @@ func (k *Keeper) ExecuteDerivativeMarketOrderImmediately(
 		takerFeeRate = takerFeeRate.Mul(multiplier)
 	}
 
+	currentOpenNotional := k.GetOpenNotionalForMarket(ctx, marketID, markPrice)
+	openNotionalCap := market.GetOpenNotionalCap()
+
 	derivativeMarketOrderExecution := k.GetDerivativeMarketOrderExecutionData(
 		ctx,
 		market,
@@ -245,8 +280,11 @@ func (k *Keeper) ExecuteDerivativeMarketOrderImmediately(
 		marketBuyOrders,
 		marketSellOrders,
 		positionStates,
+		positionQuantities,
 		feeDiscountConfig,
 		isLiquidation,
+		currentOpenNotional,
+		openNotionalCap,
 	)
 
 	if isLiquidation {
@@ -289,21 +327,80 @@ func (k *Keeper) GetDerivativeMarketOrderExecutionData(
 	funding *v2.PerpetualMarketFunding,
 	marketBuyOrders, marketSellOrders []*v2.DerivativeMarketOrder,
 	positionStates map[common.Hash]*PositionState,
+	positionQuantities map[common.Hash]*math.LegacyDec,
 	feeDiscountConfig *FeeDiscountConfig,
 	isLiquidation bool,
+	currentOpenNotional math.LegacyDec,
+	openNotionalCap v2.OpenNotionalCap,
 ) (derivativeMarketOrderExecutionData *DerivativeMarketOrderExpansionData) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	derivativeMarketOrderExecutionData = &DerivativeMarketOrderExpansionData{}
+	derivativeMarketOrderExecutionData = &DerivativeMarketOrderExpansionData{
+		OpenInterestDelta: math.LegacyZeroDec(),
+	}
 
 	var (
-		marketBuyOrderbook = k.NewDerivativeMarketOrderbook(ctx, true, isLiquidation, marketBuyOrders, market, markPrice, funding, positionStates)
-		limitSellOrderbook = k.NewDerivativeLimitOrderbook(ctx, false, nil, market, markPrice, funding, positionStates)
+		marketBuyOrderbook = k.NewDerivativeMarketOrderbook(
+			true,
+			isLiquidation,
+			marketBuyOrders,
+			market,
+			markPrice,
+			funding,
+			currentOpenNotional,
+			openNotionalCap,
+			positionStates,
+			positionQuantities,
+		)
+		limitSellOrderbook = k.NewDerivativeLimitOrderbook(
+			ctx,
+			false,
+			nil,
+			market,
+			markPrice,
+			funding,
+			currentOpenNotional,
+			openNotionalCap,
+			positionStates,
+			positionQuantities,
+		)
 
-		marketSellOrderbook = k.NewDerivativeMarketOrderbook(ctx, false, isLiquidation, marketSellOrders, market, markPrice, funding, positionStates)
-		limitBuyOrderbook   = k.NewDerivativeLimitOrderbook(ctx, true, nil, market, markPrice, funding, positionStates)
+		marketSellOrderbook = k.NewDerivativeMarketOrderbook(
+			false,
+			isLiquidation,
+			marketSellOrders,
+			market,
+			markPrice,
+			funding,
+			currentOpenNotional,
+			openNotionalCap,
+			positionStates,
+			positionQuantities,
+		)
+		limitBuyOrderbook = k.NewDerivativeLimitOrderbook(
+			ctx,
+			true,
+			nil,
+			market,
+			markPrice,
+			funding,
+			currentOpenNotional,
+			openNotionalCap,
+			positionStates,
+			positionQuantities,
+		)
 	)
+
+	if limitBuyOrderbook != nil && marketSellOrderbook != nil {
+		limitBuyOrderbook.SetOppositeSideDerivativeOrderbook(marketSellOrderbook)
+		marketSellOrderbook.SetOppositeSideDerivativeOrderbook(limitBuyOrderbook)
+	}
+
+	if limitSellOrderbook != nil && marketBuyOrderbook != nil {
+		limitSellOrderbook.SetOppositeSideDerivativeOrderbook(marketBuyOrderbook)
+		marketBuyOrderbook.SetOppositeSideDerivativeOrderbook(limitSellOrderbook)
+	}
 
 	if limitBuyOrderbook != nil {
 		defer limitBuyOrderbook.Close()
@@ -347,6 +444,10 @@ func (k *Keeper) GetDerivativeMarketOrderExecutionData(
 			feeDiscountConfig,
 		)
 
+		derivativeMarketOrderExecutionData.OpenInterestDelta = derivativeMarketOrderExecutionData.OpenInterestDelta.Add(
+			m.marketOrderbook.GetOpenInterestDelta(),
+		)
+
 		var restingLimitOrderStateExpansions []*DerivativeOrderStateExpansion
 		var restingLimitOrderCancels []*v2.DerivativeLimitOrder
 		if m.limitOrderbook != nil {
@@ -365,6 +466,10 @@ func (k *Keeper) GetDerivativeMarketOrderExecutionData(
 				isLiquidation,
 			)
 			restingLimitOrderCancels = m.limitOrderbook.GetRestingOrderbookCancels()
+
+			derivativeMarketOrderExecutionData.OpenInterestDelta = derivativeMarketOrderExecutionData.OpenInterestDelta.Add(
+				m.limitOrderbook.GetOpenInterestDelta(),
+			)
 		}
 
 		if m.isMarketBuy {
@@ -944,8 +1049,9 @@ func (k *Keeper) adjustPositionMarginIfNecessary(
 		return availableBalanceChange, totalBalanceChange
 	}
 
+	chainFormattedAvailableBalanceChange := market.NotionalToChainFormat(availableBalanceChange)
 	spendableFunds := k.GetSpendableFunds(ctx, subaccountID, market.GetQuoteDenom())
-	isTraderMissingFunds := spendableFunds.Add(availableBalanceChange).IsNegative()
+	isTraderMissingFunds := spendableFunds.Add(chainFormattedAvailableBalanceChange).IsNegative()
 
 	if !isTraderMissingFunds {
 		return availableBalanceChange, totalBalanceChange
@@ -954,6 +1060,7 @@ func (k *Keeper) adjustPositionMarginIfNecessary(
 	// trader has **not** have enough funds to cover additional fee
 	// for derivatives: we can instead safely reduce his position margin
 	position.Margin = position.Margin.Add(availableBalanceChange)
+	k.ApplyMarketBalanceDelta(ctx, market.MarketID(), chainFormattedAvailableBalanceChange)
 
 	// charging from margin, so give back to available and total balance
 	modifiedTotalBalanceChange := totalBalanceChange.Sub(availableBalanceChange)

@@ -366,6 +366,7 @@ func triggerMarketOrderWithCache(
 				MarkPrice:    triggeredMarket.MarkPrice,
 				OrderHash:    marketOrder.OrderHash,
 				TriggerErr:   err.Error(),
+				Cid:          marketOrder.OrderInfo.Cid,
 			},
 		)
 	}
@@ -389,6 +390,7 @@ func triggerMarketOrderWithoutCache(
 				MarkPrice:    triggeredMarket.MarkPrice,
 				OrderHash:    marketOrder.OrderHash,
 				TriggerErr:   err.Error(),
+				Cid:          marketOrder.OrderInfo.Cid,
 			},
 		)
 	}
@@ -483,6 +485,7 @@ func triggerLimitOrderWithCache(
 				MarkPrice:    triggeredMarket.MarkPrice,
 				OrderHash:    limitOrder.OrderHash,
 				TriggerErr:   err.Error(),
+				Cid:          limitOrder.OrderInfo.Cid,
 			},
 		)
 	}
@@ -503,6 +506,7 @@ func triggerLimitOrderWithoutCache(
 				MarkPrice:    triggeredMarket.MarkPrice,
 				OrderHash:    limitOrder.OrderHash,
 				TriggerErr:   err.Error(),
+				Cid:          limitOrder.OrderInfo.Cid,
 			},
 		)
 	}
@@ -511,8 +515,8 @@ func triggerLimitOrderWithoutCache(
 // processDowntimePostOnlyMode checks if the current block is the first block after a detected downtime
 // and activates post-only mode if the downtime exceeds the configured MinPostOnlyModeDowntimeDuration
 func (h *BlockHandler) processDowntimePostOnlyMode(ctx sdk.Context, params v2.Params) {
-	// Skip if MinPostOnlyModeDowntimeDuration is empty
-	if params.MinPostOnlyModeDowntimeDuration == "" {
+	// Skip if MinPostOnlyModeDowntimeDuration is empty or if exchange is already in post-only mode
+	if params.MinPostOnlyModeDowntimeDuration == "" || h.k.IsPostOnlyMode(ctx) {
 		return
 	}
 
@@ -535,7 +539,7 @@ func (h *BlockHandler) processDowntimePostOnlyMode(ctx sdk.Context, params v2.Pa
 	// This means this is the first block after the detected downtime
 	if ctx.BlockTime().Equal(lastDowntimeBlockTime) {
 		// Activate post-only mode by setting PostOnlyModeHeightThreshold
-		newThreshold := ctx.BlockHeight() + int64(params.PostOnlyModeBlocksAmount)
+		newThreshold := ctx.BlockHeight() + int64(params.PostOnlyModeBlocksAmountAfterDowntime)
 
 		// Update the params with the new threshold
 		updatedParams := params
@@ -561,7 +565,7 @@ func (h *BlockHandler) processPostOnlyModeCancellation(ctx sdk.Context) {
 	}
 
 	// Disable post-only mode by setting threshold to current height - 1
-	params := h.k.GetParams(ctx) // Get fresh params in case downtime processing updated them
+	params := h.k.GetParams(ctx)
 	params.PostOnlyModeHeightThreshold = ctx.BlockHeight() - 1
 	h.k.SetParams(ctx, params)
 

@@ -9,20 +9,20 @@ import (
 	storetypes "cosmossdk.io/store/types"
 	upgradetypes "cosmossdk.io/x/upgrade/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	authante "github.com/cosmos/cosmos-sdk/x/auth/ante"
-	bankkeeper "github.com/cosmos/cosmos-sdk/x/bank/keeper"
-	slashingkeeper "github.com/cosmos/cosmos-sdk/x/slashing/keeper"
 	stakingkeeper "github.com/cosmos/cosmos-sdk/x/staking/keeper"
 	"github.com/pkg/errors"
 
-	wasmkeeper "github.com/CosmWasm/wasmd/x/wasm/keeper"
 	auctionkeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/auction/keeper"
 	downtimedetector "github.com/InjectiveLabs/injective-core/injective-chain/modules/downtime-detector"
 	erc20keeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/erc20/keeper"
 	evmkeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/keeper"
 	exchangekeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/keeper"
 	peggykeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/peggy/keeper"
-	wasmxkeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/keeper"
+	txfeeskeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/txfees/keeper"
+	bankkeeper "github.com/cosmos/cosmos-sdk/x/bank/keeper"
+	distrkeeper "github.com/cosmos/cosmos-sdk/x/distribution/keeper"
+	slashingkeeper "github.com/cosmos/cosmos-sdk/x/slashing/keeper"
+	icahostkeeper "github.com/cosmos/ibc-go/v8/modules/apps/27-interchain-accounts/host/keeper"
 )
 
 type UpgradeHandlerStep struct {
@@ -60,12 +60,12 @@ func (s *UpgradeHandlerStep) Run(ctx sdk.Context, upgradeInfo upgradetypes.Plan,
 
 	if err != nil {
 		stepLogger.Error("Upgrade handler step finished with an error", "error", err)
-		return err
+	} else {
+		writeCache()
+		stepLogger.Info("Upgrade handler step finished")
 	}
 
-	writeCache()
-	stepLogger.Info("Upgrade handler step finished")
-	return nil
+	return err
 }
 
 func (s *UpgradeHandlerStep) RunPreventingPanic(
@@ -84,10 +84,8 @@ func (s *UpgradeHandlerStep) meetsRunConditions(upgradeInfo upgradetypes.Plan, a
 	if !shouldRun {
 		logger.Info(
 			"Upgrade handler step skipped",
-			"upgradeInfo.Name", upgradeInfo.Name,
-			"app.ChainID", app.ChainID(),
-			"step.UpgradeVersion", s.UpgradeVersion,
-			"step.ChainID", s.ChainID,
+			"upgrade_version", upgradeInfo.Name,
+			"chain_id", app.ChainID(),
 		)
 	}
 
@@ -122,19 +120,19 @@ func (s *UpgradeHandlerStep) recoverPanic(logger log.Logger, errOut *error) {
 // This is required to avoid a circular dependency between the app and the upgrade handlers
 type InjectiveApplication interface {
 	ChainID() string
-	GetBankKeeper() bankkeeper.Keeper
 	GetExchangeKeeper() *exchangekeeper.Keeper
+	GetBankKeeper() bankkeeper.Keeper
+	GetDistributionKeeper() distrkeeper.Keeper
+	GetSlashingKeeper() slashingkeeper.Keeper
 	GetEvmKeeper() *evmkeeper.Keeper
 	GetERC20Keeper() *erc20keeper.Keeper
+	GetTxFeesKeeper() txfeeskeeper.Keeper
 	GetKey(storeKey string) *storetypes.KVStoreKey
 	GetPeggyKeeper() *peggykeeper.Keeper
 	GetStakingKeeper() *stakingkeeper.Keeper
-	GetSlashingKeeper() *slashingkeeper.Keeper
-	GetAccountKeeper() authante.AccountKeeper
-	GetWasmKeeper() *wasmkeeper.Keeper
-	GetWasmxKeeper() *wasmxkeeper.Keeper
 	GetAuctionKeeper() *auctionkeeper.Keeper
 	GetDowntimeDetectorKeeper() *downtimedetector.Keeper
+	GetICAHostKeeper() icahostkeeper.Keeper
 }
 
 func LogUpgradeProgress(logger log.Logger, startTime, lastUpdatedTime time.Time, currentUpdateNumber, totalUpdates int) {

@@ -30,8 +30,9 @@ const (
 )
 
 const (
-	FlagEVMTracer         = "evm.tracer"
-	FlagEVMMaxTxGasWanted = "evm.max-tx-gas-wanted"
+	FlagEVMTracer            = "evm.tracer"
+	FlagEVMMaxTxGasWanted    = "evm.max-tx-gas-wanted"
+	FlagEVMEnableGRPCTracing = "evm.enable-grpc-tracing"
 )
 
 var (

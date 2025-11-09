@@ -1,22 +1,21 @@
 package keeper
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"fmt"
-
-	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
 
 	"cosmossdk.io/errors"
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
+	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/InjectiveLabs/metrics"
-
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/peggy/types"
+	"github.com/InjectiveLabs/metrics"
 )
 
 type msgServer struct {
@@ -120,7 +119,7 @@ func (k msgServer) ValsetConfirm(c context.Context, msg *types.MsgValsetConfirm)
 	}
 
 	// associated eth address must match provided
-	if ethAddress.Hex() != msg.EthAddress {
+	if badEthAddress := !bytes.Equal(common.HexToAddress(msg.EthAddress).Bytes(), ethAddress.Bytes()); badEthAddress {
 		metrics.ReportFuncError(k.svcTags)
 		return nil, errors.Wrapf(types.ErrInvalid,
 			"eth address does not match provided: got %s, want %s",
@@ -197,9 +196,14 @@ func (k msgServer) RequestBatch(c context.Context, msg *types.MsgRequestBatch) (
 
 	// Check if the denom is a peggy coin, if not, check if there is a deployed ERC20 representing it.
 	// If not, error out
-	_, tokenContract, err := k.DenomToERC20Lookup(ctx, msg.Denom)
+	isCosmosOriginated, tokenContract, err := k.DenomToERC20Lookup(ctx, msg.Denom)
 	if err != nil {
 		return nil, err
+	}
+
+	if isCosmosOriginated {
+		metrics.ReportFuncError(k.svcTags)
+		return nil, errors.Wrap(types.ErrUnsupported, "withdrawing Injective-native tokens is disabled")
 	}
 
 	batch, err := k.BuildOutgoingTXBatch(ctx, tokenContract, OutgoingTxBatchSize)
@@ -231,7 +235,6 @@ func (k msgServer) ConfirmBatch(c context.Context, msg *types.MsgConfirmBatch) (
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
-
 	tokenContract := common.HexToAddress(msg.TokenContract)
 
 	// fetch the outgoing batch given the nonce
@@ -264,7 +267,7 @@ func (k msgServer) ConfirmBatch(c context.Context, msg *types.MsgConfirmBatch) (
 	}
 
 	// associated eth address must match provided
-	if ethAddress.Hex() != msg.EthSigner {
+	if badEthAddress := !bytes.Equal(common.HexToAddress(msg.EthSigner).Bytes(), ethAddress.Bytes()); badEthAddress {
 		metrics.ReportFuncError(k.svcTags)
 		return nil, errors.Wrapf(types.ErrInvalid,
 			"eth address does not match provided: got %s, want %s",
@@ -273,8 +276,7 @@ func (k msgServer) ConfirmBatch(c context.Context, msg *types.MsgConfirmBatch) (
 		)
 	}
 
-	err = types.ValidateEthereumSignature(checkpoint, sigBytes, ethAddress)
-	if err != nil {
+	if err := types.ValidateEthereumSignature(checkpoint, sigBytes, ethAddress); err != nil {
 		description := fmt.Sprintf(
 			"signature verification failed expected sig by %s with peggy-id %s with checkpoint %s found %s",
 			ethAddress, peggyID, checkpoint.Hex(), msg.Signature,
@@ -606,4 +608,84 @@ func (k msgServer) RevokeEthereumBlacklist(ctx context.Context, msg *types.MsgRe
 	}
 
 	return &types.MsgRevokeEthereumBlacklistResponse{}, nil
+}
+
+func (k msgServer) CreateRateLimit(
+	c context.Context,
+	msg *types.MsgCreateRateLimit,
+) (*types.MsgCreateRateLimitResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
+
+	ctx := sdk.UnwrapSDKContext(c)
+	if isAuthority := k.authority == msg.Authority || k.isAdmin(ctx, msg.Authority); !isAuthority {
+		return nil, errors.Wrapf(
+			govtypes.ErrInvalidSigner,
+			"sender %s is not the valid authority or one of the Peggy module admins",
+			msg.Authority,
+		)
+	}
+
+	rateLimit := &types.RateLimit{
+		TokenAddress:      msg.TokenAddress,
+		RateLimitUsd:      msg.RateLimitUsd,
+		RateLimitWindow:   msg.RateLimitWindow,
+		TokenPriceId:      msg.TokenPriceId,
+		TokenDecimals:     msg.TokenDecimals,
+		AbsoluteMintLimit: msg.AbsoluteMintLimit,
+	}
+
+	k.SetRateLimit(ctx, rateLimit)
+
+	return &types.MsgCreateRateLimitResponse{}, nil
+}
+
+func (k msgServer) UpdateRateLimit(
+	c context.Context,
+	msg *types.MsgUpdateRateLimit,
+) (*types.MsgUpdateRateLimitResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
+
+	ctx := sdk.UnwrapSDKContext(c)
+	if isAuthority := k.authority == msg.Authority || k.isAdmin(ctx, msg.Authority); !isAuthority {
+		return nil, errors.Wrapf(
+			govtypes.ErrInvalidSigner,
+			"sender %s is not the valid authority or one of the Peggy module admins",
+			msg.Authority,
+		)
+	}
+
+	rateLimit := k.GetRateLimit(ctx, common.HexToAddress(msg.TokenAddress))
+	if rateLimit == nil {
+		return nil, errors.Wrapf(types.ErrUnknown, "no rate limit found for %s", msg.TokenAddress)
+	}
+
+	rateLimit.RateLimitUsd = msg.NewRateLimitUsd
+	rateLimit.RateLimitWindow = msg.NewRateLimitWindow
+
+	k.SetRateLimit(ctx, rateLimit)
+
+	return &types.MsgUpdateRateLimitResponse{}, nil
+}
+
+func (k msgServer) RemoveRateLimit(
+	c context.Context,
+	msg *types.MsgRemoveRateLimit,
+) (*types.MsgRemoveRateLimitResponse, error) {
+	c, doneFn := metrics.ReportFuncCallAndTimingCtx(c, k.svcTags)
+	defer doneFn()
+
+	ctx := sdk.UnwrapSDKContext(c)
+	if isAuthority := k.authority == msg.Authority || k.isAdmin(ctx, msg.Authority); !isAuthority {
+		return nil, errors.Wrapf(
+			govtypes.ErrInvalidSigner,
+			"sender %s is not the valid authority or one of the Peggy module admins",
+			msg.Authority,
+		)
+	}
+
+	k.DeleteRateLimit(ctx, common.HexToAddress(msg.TokenAddress))
+
+	return &types.MsgRemoveRateLimitResponse{}, nil
 }

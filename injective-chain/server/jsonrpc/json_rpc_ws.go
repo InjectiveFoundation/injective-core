@@ -27,6 +27,10 @@ import (
 	"github.com/InjectiveLabs/injective-core/cmd/injectived/config"
 )
 
+const (
+	messageSizeLimit = 10 * 1024 * 1024 // 10MB
+)
+
 type WebsocketsServer interface {
 	Start()
 }
@@ -113,6 +117,7 @@ func (s *websocketsServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.logger.Debug("websocket upgrade failed", "error", err.Error())
 		return
 	}
+	conn.SetReadLimit(messageSizeLimit)
 
 	s.readLoop(&wsConn{
 		mux:  new(sync.Mutex),
@@ -502,6 +507,10 @@ func (api *pubSubAPI) subscribeLogs(wsConn *wsConn, subID rpc.ID, extra interfac
 				crit.Topics[topicIdx] = subtopicsCollect
 			}
 		}
+	}
+
+	if err := rpcfilters.ValidateFilterCriteria(crit); err != nil {
+		return nil, fmt.Errorf("invalid filter criteria: %w", err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

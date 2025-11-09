@@ -305,7 +305,7 @@ func (q legacyQueryServer) AggregateVolumes(
 	return resp, nil
 }
 
-func (q legacyQueryServer) convertAggregateAccountVolumeRecords(
+func (legacyQueryServer) convertAggregateAccountVolumeRecords(
 	ctx sdk.Context, marketFinder *CachedMarketFinder, v2AggregateVolumes []*v2.AggregateAccountVolumeRecord,
 ) ([]*v1.AggregateAccountVolumeRecord, error) {
 	var aggregateAccountVolumes = make([]*v1.AggregateAccountVolumeRecord, 0, len(v2AggregateVolumes))
@@ -333,7 +333,7 @@ func (q legacyQueryServer) convertAggregateAccountVolumeRecords(
 	return aggregateAccountVolumes, nil
 }
 
-func (q legacyQueryServer) convertAggregateMarketVolumeRecords(
+func (legacyQueryServer) convertAggregateMarketVolumeRecords(
 	ctx sdk.Context, marketFinder *CachedMarketFinder, v2AggregateMarketVolumes []*v2.MarketVolume,
 ) ([]*v1.MarketVolume, error) {
 	var aggregateMarketVolumes = make([]*v1.MarketVolume, 0, len(v2AggregateMarketVolumes))
@@ -422,8 +422,8 @@ func (q legacyQueryServer) DenomDecimal(
 	doneFn := metrics.ReportFuncCallAndTiming(q.svcTags)
 	defer doneFn()
 
-	reqV2 := &v2.QueryDenomDecimalRequest{Denom: request.Denom}
-	respV2, err := q.v2QueryServer.DenomDecimal(ctx, reqV2)
+	reqV2 := &v2.QueryAuctionExchangeTransferDenomDecimalRequest{Denom: request.Denom}
+	respV2, err := q.v2QueryServer.AuctionExchangeTransferDenomDecimal(ctx, reqV2)
 	if err != nil {
 		return nil, err
 	}
@@ -437,8 +437,8 @@ func (q legacyQueryServer) DenomDecimals(
 	doneFn := metrics.ReportFuncCallAndTiming(q.svcTags)
 	defer doneFn()
 
-	reqV2 := &v2.QueryDenomDecimalsRequest{Denoms: request.Denoms}
-	respV2, err := q.v2QueryServer.DenomDecimals(ctx, reqV2)
+	reqV2 := &v2.QueryAuctionExchangeTransferDenomDecimalsRequest{Denoms: request.Denoms}
+	respV2, err := q.v2QueryServer.AuctionExchangeTransferDenomDecimals(ctx, reqV2)
 	if err != nil {
 		return nil, err
 	}
@@ -1394,7 +1394,7 @@ func convertPositions(
 
 		valuesConverter := NewChainValuesConverter(ctx, market)
 
-		v1DerivativePosition := NewV1DerivativePositonFromV2(valuesConverter, position)
+		v1DerivativePosition := NewV1DerivativePositionFromV2(valuesConverter, position)
 		resp.State.Positions = append(resp.State.Positions, v1DerivativePosition)
 	}
 }
@@ -1691,8 +1691,8 @@ func convertHistoricalTradeRecords(
 }
 
 func convertDenomDecimals(respV2 *v2.QueryModuleStateResponse, resp *v1.QueryModuleStateResponse) {
-	resp.State.DenomDecimals = make([]v1.DenomDecimals, 0, len(respV2.State.DenomDecimals))
-	for _, decimal := range respV2.State.DenomDecimals {
+	resp.State.DenomDecimals = make([]v1.DenomDecimals, 0, len(respV2.State.AuctionExchangeTransferDenomDecimals))
+	for _, decimal := range respV2.State.AuctionExchangeTransferDenomDecimals {
 		resp.State.DenomDecimals = append(resp.State.DenomDecimals, v1.DenomDecimals{
 			Denom:    decimal.Denom,
 			Decimals: decimal.Decimals,
@@ -1877,7 +1877,7 @@ func (q legacyQueryServer) Positions(ctx context.Context, _ *v1.QueryPositionsRe
 
 		valuesConverter := NewChainValuesConverter(unwrappedContext, market)
 
-		v1DerivativePosition := NewV1DerivativePositonFromV2(valuesConverter, position)
+		v1DerivativePosition := NewV1DerivativePositionFromV2(valuesConverter, position)
 		resp.State = append(resp.State, v1DerivativePosition)
 	}
 
@@ -1911,7 +1911,7 @@ func (q legacyQueryServer) SubaccountPositions(
 
 		valuesConverter := NewChainValuesConverter(unwrappedContext, market)
 
-		v1DerivativePosition := NewV1DerivativePositonFromV2(valuesConverter, position)
+		v1DerivativePosition := NewV1DerivativePositionFromV2(valuesConverter, position)
 		resp.State = append(resp.State, v1DerivativePosition)
 	}
 

@@ -3,7 +3,6 @@ package helpers
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"testing"
 
 	"cosmossdk.io/math"
@@ -76,8 +75,6 @@ func GetEVMParams(
 	resp, _, err := node.ExecQuery(ctx, "evm", "params", "--chain-id", node.Chain.Config().ChainID)
 	require.NoError(t, err)
 	require.NotNil(t, resp)
-
-	fmt.Println("PARAMS RESP:", string(resp))
 	require.NoError(t, json.Unmarshal(resp, &paramsResult))
 
 	return paramsResult.Params

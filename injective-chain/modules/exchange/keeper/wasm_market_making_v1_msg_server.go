@@ -41,6 +41,10 @@ func (k WasmV1MsgServer) PrivilegedExecuteContract(
 	}
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
+	if err := v2Msg.ValidateBasic(); err != nil {
+		return nil, err
+	}
+
 	v2Result, err := k.PrivilegedExecuteContractWithVersion(ctx, v2Msg, types.ExchangeTypeVersionV1)
 	if err != nil {
 		return nil, err

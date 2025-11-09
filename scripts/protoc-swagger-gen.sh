@@ -9,6 +9,7 @@ COSMOS_SDK_VERSION_TAG=v0.50.13-evm-comet1-inj.3
 IBC_APPS_VERSION_BRANCH=release/v8-inj
 IBC_GO_VERSION_TAG=v8.7.0-evm-comet1-inj
 WASMD_VERSION_TAG=v0.53.2-evm-comet1-inj
+HYPERLANE_COSMOS_VERSION_TAG=v1.0.0-evm-comet1-inj.1
 rm -fr $SWAGGER_BUILD_DIR $SWAGGER_TMP_DIR
 mkdir -p $SWAGGER_BUILD_DIR $SWAGGER_TMP_DIR
 
@@ -27,7 +28,9 @@ buf export https://github.com/InjectiveLabs/wasmd.git#tag=$WASMD_VERSION_TAG --e
 buf export https://github.com/InjectiveLabs/cometbft.git#tag=$COMETBFT_VERSION_TAG --exclude-imports --output=./third_party
 buf export https://github.com/cosmos/ics23.git --exclude-imports --output=./third_party
 buf export https://github.com/InjectiveLabs/ibc-apps.git#branch=$IBC_APPS_VERSION_BRANCH --exclude-imports --output=./third_party --path=middleware/packet-forward-middleware/proto && mv ./third_party/middleware/packet-forward-middleware/proto/packetforward ./third_party
+buf export https://github.com/InjectiveLabs/hyperlane-cosmos.git#tag=$HYPERLANE_COSMOS_VERSION_TAG,subdir=proto --exclude-imports --output=./third_party
 
+echo "Generating swagger files"
 proto_dirs=$(find ./proto ./third_party -path -prune -o -name '*.proto' -print0 | xargs -0 -n1 dirname | sort | uniq)
 for dir in $proto_dirs; do
   # generate swagger files (filter query files)

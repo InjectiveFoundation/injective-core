@@ -35,7 +35,8 @@
       "minimal_protocol_fee_rate": "0.000050000000000000",
       "is_instant_derivative_market_launch_enabled": true,
       "post_only_mode_blocks_amount": 2000,
-      "min_post_only_mode_downtime_duration": "DURATION_10M"
+      "min_post_only_mode_downtime_duration": "DURATION_10M",
+      "post_only_mode_blocks_amount_after_downtime": 1000
     },
     "spot_markets": [
       {
@@ -761,7 +762,7 @@
     ],
     "binary_options_market_ids_scheduled_for_settlement": [],
     "spot_market_ids_scheduled_to_force_close": [],
-    "denom_decimals": [
+    "auction_exchange_transfer_denom_decimals": [
       {
         "denom": "ibc/16618B7F7AC551F48C057A13F4CA5503693FBFF507719A85BC6876B8BD75F821",
         "decimals": "18"

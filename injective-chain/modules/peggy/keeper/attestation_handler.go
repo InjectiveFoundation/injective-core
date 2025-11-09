@@ -43,7 +43,9 @@ func (h AttestationHandler) Handle(ctx sdk.Context, claim types.EthereumClaim) e
 	case *types.MsgWithdrawClaim:
 		h.handleWithdrawClaim(ctx, claim)
 	case *types.MsgERC20DeployedClaim:
-		return h.handleERC20DeployedClaim(ctx, claim)
+		// todo: upgrade Peggy.sol on testnet
+		// The deployERC20 functionality was removed from mainnet contract.
+		// Logic below no longer applies so we return early with no error
 	case *types.MsgValsetUpdatedClaim:
 		h.handleValsetUpdatedClaim(ctx, claim)
 	default:
@@ -63,8 +65,13 @@ func (h AttestationHandler) handleDepositClaim(ctx sdk.Context, claim *types.Msg
 	}
 
 	// Check if coin is Cosmos-originated asset and get denom
-	isCosmosOriginated, denom := h.keeper.ERC20ToDenomLookup(ctx, common.HexToAddress(claim.TokenContract))
+	tokenContract := common.HexToAddress(claim.TokenContract)
+	isCosmosOriginated, denom := h.keeper.ERC20ToDenomLookup(ctx, tokenContract)
 	depositCoin := sdk.NewCoin(denom, claim.Amount)
+
+	rateLimit := h.keeper.GetRateLimit(ctx, tokenContract)
+	withRateLimit := rateLimit != nil
+	currentMintAmount := h.keeper.GetMintAmountERC20(ctx, tokenContract)
 
 	if !isCosmosOriginated {
 		// Check if supply overflows with claim amount
@@ -75,9 +82,23 @@ func (h AttestationHandler) handleDepositClaim(ctx sdk.Context, claim *types.Msg
 			return errors.Wrap(types.ErrSupplyOverflow, "invalid coin supply")
 		}
 
+		// check absolute limit
+		if withRateLimit {
+			absoluteLimit := rateLimit.AbsoluteMintLimit.BigInt()
+			if remaining := absoluteLimit.Sub(absoluteLimit, currentMintAmount); remaining.Cmp(claim.Amount.BigInt()) < 0 {
+				return ErrAbsoluteMintLimitOverflow
+			}
+		}
+
 		if err := h.bankKeeper.MintCoins(ctx, types.ModuleName, sdk.NewCoins(depositCoin)); err != nil {
 			metrics.ReportFuncError(h.svcTags)
 			return errors.Wrapf(err, "failed to mint deposit coin: %s", depositCoin.String())
+		}
+
+		// track new mint
+		if withRateLimit {
+			newAmount := currentMintAmount.Add(currentMintAmount, claim.Amount.BigInt())
+			h.keeper.SetMintAmountERC20(ctx, tokenContract, newAmount)
 		}
 	}
 
@@ -114,76 +135,14 @@ func (h AttestationHandler) handleDepositClaim(ctx sdk.Context, claim *types.Msg
 		receiver = h.keeper.accountKeeper.GetModuleAccount(ctx, distrtypes.ModuleName).GetAddress()
 	}
 
+	h.keeper.TrackTokenInflow(ctx, tokenContract, depositCoin.Amount)
+
 	_ = ctx.EventManager().EmitTypedEvent(types.NewEventDepositReceived(*sender, receiver, depositCoin))
 	return nil
 }
 
 func (h AttestationHandler) handleWithdrawClaim(ctx sdk.Context, claim *types.MsgWithdrawClaim) {
 	h.keeper.OutgoingTxBatchExecuted(ctx, common.HexToAddress(claim.TokenContract), claim.BatchNonce)
-}
-
-func (h AttestationHandler) handleERC20DeployedClaim(ctx sdk.Context, claim *types.MsgERC20DeployedClaim) error {
-	// Check if it already exists
-	existingERC20, exists := h.keeper.GetCosmosOriginatedERC20(ctx, claim.CosmosDenom)
-	if exists {
-		metrics.ReportFuncError(h.svcTags)
-		return errors.Wrap(types.ErrInvalid, fmt.Sprintf("ERC20 %s already exists for denom %s", existingERC20, claim.CosmosDenom))
-	}
-
-	// Check if denom exists
-	metadata, found := h.keeper.bankKeeper.GetDenomMetaData(ctx, claim.CosmosDenom)
-	if metadata.Base == "" || !found {
-		metrics.ReportFuncError(h.svcTags)
-		return errors.Wrap(types.ErrUnknown, fmt.Sprintf("denom not found %s", claim.CosmosDenom))
-	}
-
-	// Check if attributes of ERC20 match Cosmos denom
-	if claim.Name != metadata.Display {
-		metrics.ReportFuncError(h.svcTags)
-		return errors.Wrap(
-			types.ErrInvalid,
-			fmt.Sprintf("ERC20 name %s does not match denom display %s", claim.Name, metadata.Description))
-	}
-
-	if claim.Symbol != metadata.Display {
-		metrics.ReportFuncError(h.svcTags)
-		return errors.Wrap(
-			types.ErrInvalid,
-			fmt.Sprintf("ERC20 symbol %s does not match denom display %s", claim.Symbol, metadata.Display))
-	}
-
-	// ERC20 tokens use a very simple mechanism to tell you where to display the decimal point.
-	// The "decimals" field simply tells you how many decimal places there will be.
-	// Cosmos denoms have a system that is much more full featured, with enterprise-ready token denominations.
-	// There is a DenomUnits array that tells you what the name of each denomination of the
-	// token is.
-	// To correlate this with an ERC20 "decimals" field, we have to search through the DenomUnits array
-	// to find the DenomUnit which matches up to the main token "display" value. Then we take the
-	// "exponent" from this DenomUnit.
-	// If the correct DenomUnit is not found, it will default to 0. This will result in there being no decimal places
-	// in the token's ERC20 on Ethereum. So, for example, if this happened with Atom, 1 Atom would appear on Ethereum
-	// as 1 million Atoms, having 6 extra places before the decimal point.
-	// This will only happen with a Denom Metadata which is for all intents and purposes invalid, but I am not sure
-	// this is checked for at any other point.
-	decimals := uint32(0)
-	for _, denomUnit := range metadata.DenomUnits {
-		if denomUnit.Denom == metadata.Display {
-			decimals = denomUnit.Exponent
-			break
-		}
-	}
-
-	if uint64(decimals) != claim.Decimals {
-		metrics.ReportFuncError(h.svcTags)
-		return errors.Wrap(
-			types.ErrInvalid,
-			fmt.Sprintf("ERC20 decimals %d does not match denom decimals %d", claim.Decimals, decimals))
-	}
-
-	// Add to denom-erc20 mapping
-	h.keeper.SetCosmosOriginatedDenomToERC20(ctx, claim.CosmosDenom, common.HexToAddress(claim.TokenContract))
-
-	return nil
 }
 
 func (h AttestationHandler) handleValsetUpdatedClaim(ctx sdk.Context, claim *types.MsgValsetUpdatedClaim) {

@@ -112,7 +112,7 @@ func returnLogs(logs []*ethtypes.Log) []*ethtypes.Log {
 	return logs
 }
 
-func validateFilterCriteria(criteria filters.FilterCriteria) error {
+func ValidateFilterCriteria(criteria filters.FilterCriteria) error {
 	if len(criteria.Addresses) > maxAddresses {
 		return fmt.Errorf("max filter addresses exceeded: %d > %d", len(criteria.Addresses), maxAddresses)
 	}

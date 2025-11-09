@@ -42,6 +42,7 @@ func (h *BlockHandler) EndBlocker(ctx sdk.Context) {
 	h.createValsets(ctx)
 	h.pruneValsets(ctx, params)
 	h.pruneAttestations(ctx)
+	h.refreshRateLimits(ctx)
 }
 
 func (h *BlockHandler) createValsets(ctx sdk.Context) {
@@ -242,16 +243,14 @@ func (h *BlockHandler) valsetSlashing(ctx sdk.Context, params *types.Params) {
 
 					if !currentBondedSet[i].IsJailed() {
 						_ = h.k.StakingKeeper.Jail(ctx, cons)
+						_ = ctx.EventManager().EmitTypedEvent(&types.EventValidatorJailed{
+							Reason:           types.JailReason_MissingValsetConfirm,
+							Power:            consPower,
+							ConsensusAddress: sdk.ConsAddress(consAddr).String(),
+							OperatorAddress:  currentBondedSet[i].OperatorAddress,
+							Moniker:          currentBondedSet[i].GetMoniker(),
+						})
 					}
-
-					// nolint:errcheck //ignored on purpose
-					ctx.EventManager().EmitTypedEvent(&types.EventValidatorSlash{
-						Power:            consPower,
-						Reason:           "missing_valset_confirm",
-						ConsensusAddress: sdk.ConsAddress(consAddr).String(),
-						OperatorAddress:  currentBondedSet[i].OperatorAddress,
-						Moniker:          currentBondedSet[i].GetMoniker(),
-					})
 				}
 			}
 		}
@@ -296,16 +295,14 @@ func (h *BlockHandler) valsetSlashing(ctx sdk.Context, params *types.Params) {
 
 						if !validator.IsJailed() {
 							_ = h.k.StakingKeeper.Jail(ctx, valConsAddr)
+							_ = ctx.EventManager().EmitTypedEvent(&types.EventValidatorJailed{
+								Power:            consPower,
+								Reason:           types.JailReason_MissingValsetConfirm,
+								ConsensusAddress: validator.String(),
+								OperatorAddress:  validator.OperatorAddress,
+								Moniker:          validator.GetMoniker(),
+							})
 						}
-
-						// nolint:errcheck //ignored on purpose
-						ctx.EventManager().EmitTypedEvent(&types.EventValidatorSlash{
-							Power:            consPower,
-							Reason:           "missing_valset_confirm",
-							ConsensusAddress: validator.String(),
-							OperatorAddress:  validator.OperatorAddress,
-							Moniker:          validator.GetMoniker(),
-						})
 					}
 				}
 			}
@@ -366,16 +363,14 @@ func (h *BlockHandler) batchSlashing(ctx sdk.Context, params *types.Params) {
 
 				if !currentBondedSet[i].IsJailed() {
 					_ = h.k.StakingKeeper.Jail(ctx, cons)
+					_ = ctx.EventManager().EmitTypedEvent(&types.EventValidatorJailed{
+						Power:            consPower,
+						Reason:           types.JailReason_MissingBatchConfirm,
+						ConsensusAddress: currentBondedSet[i].String(),
+						OperatorAddress:  currentBondedSet[i].OperatorAddress,
+						Moniker:          currentBondedSet[i].GetMoniker(),
+					})
 				}
-
-				// nolint:errcheck //ignored on purpose
-				ctx.EventManager().EmitTypedEvent(&types.EventValidatorSlash{
-					Power:            consPower,
-					Reason:           "missing_batch_confirm",
-					ConsensusAddress: currentBondedSet[i].String(),
-					OperatorAddress:  currentBondedSet[i].OperatorAddress,
-					Moniker:          currentBondedSet[i].GetMoniker(),
-				})
 			}
 		}
 
@@ -406,5 +401,25 @@ func (h *BlockHandler) pruneValsets(ctx sdk.Context, params *types.Params) {
 				h.k.DeleteValset(ctx, set.Nonce)
 			}
 		}
+	}
+}
+
+func (h *BlockHandler) refreshRateLimits(ctx sdk.Context) {
+	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, h.svcTags)
+	defer doneFn()
+
+	// prune outdated records for each rate limit
+	currentBlock := uint64(ctx.BlockHeight())
+	for _, rateLimit := range h.k.GetRateLimits(ctx) {
+		transfersWithinSlidingWindow := make([]*types.BridgeTransfer, 0, len(rateLimit.Transfers))
+		for _, transfer := range rateLimit.Transfers {
+			if notExpired := transfer.BlockNumber+rateLimit.RateLimitWindow > currentBlock; notExpired {
+				transfersWithinSlidingWindow = append(transfersWithinSlidingWindow, transfer)
+			}
+		}
+
+		rateLimit.Transfers = transfersWithinSlidingWindow
+
+		h.k.SetRateLimit(ctx, rateLimit)
 	}
 }

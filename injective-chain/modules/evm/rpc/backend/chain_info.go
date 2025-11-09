@@ -21,6 +21,7 @@ import (
 
 	rpctypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/rpc/types"
 	evmtypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/types"
+	txfeestypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/txfees/types"
 )
 
 // ChainID is the EIP-155 replay-protection chain id for the current ethereum chain config.
@@ -240,27 +241,88 @@ func (b *Backend) FeeHistory(
 	return &feeHistory, nil
 }
 
-/*
-SuggestedGasTipCap, GlobalMinGasPrice, BaseFee are stubbed out for now, because
-we don't use the FeeMarket module.
-*/
-
 // SuggestGasTipCap returns the suggested tip cap
 // Although we don't support tx prioritization yet, but we return a positive value to help client to
 // mitigate the base fee changes.
 func (b *Backend) SuggestGasTipCap(baseFee *big.Int) (*big.Int, error) {
-	return big.NewInt(0), nil
+	if baseFee == nil {
+		// london hardfork not enabled or feemarket not enabled
+		return big.NewInt(0), nil
+	}
+
+	res, err := b.queryClient.TxFeesQueryClient.Params(b.ctx, &txfeestypes.QueryParamsRequest{})
+	if err != nil {
+		return nil, err
+	}
+	// calculate the maximum base fee delta in current block, assuming all block gas limit is consumed
+	// ```
+	// GasTarget = GasLimit / ElasticityMultiplier
+	// Delta = BaseFee * (GasUsed - GasTarget) / GasTarget / Denominator
+	// ```
+	// The delta is at maximum when `GasUsed` is equal to `GasLimit`, which is:
+	// ```
+	// MaxDelta = BaseFee * (GasLimit - GasLimit / ElasticityMultiplier) / (GasLimit / ElasticityMultiplier) / Denominator
+	//          = BaseFee * (ElasticityMultiplier - 1) / Denominator
+	//          = BaseFee * ( 1 / TargetBlockSpacePercentRate - 1) * MaxBlockChangeRate
+	// ```
+
+	maxDelta := big.NewInt(0).Mul(baseFee, res.Params.MaxBlockChangeRate.BigInt())
+	maxDelta.Mul(maxDelta, big.NewInt(0).Sub(
+		big.NewInt(0).Quo(big.NewInt(1), res.Params.TargetBlockSpacePercentRate.BigInt()),
+		big.NewInt(1),
+	))
+
+	if maxDelta.Sign() < 0 {
+		return big.NewInt(0), nil
+	}
+	return maxDelta, nil
 }
 
-// GlobalMinGasPrice returns MinGasPrice param from FeeMarket
+// GlobalMinGasPrice returns MinGasPrice param from txfees
 func (b *Backend) GlobalMinGasPrice() (sdkmath.LegacyDec, error) {
-	return sdkmath.LegacyZeroDec(), nil
+	res, err := b.queryClient.TxFeesQueryClient.Params(b.ctx, &txfeestypes.QueryParamsRequest{})
+	if err != nil {
+		return sdkmath.LegacyZeroDec(), err
+	}
+	return res.Params.MinGasPrice, nil
 }
 
-// BaseFee returns the base fee tracked by the Fee Market module.
+// BaseFee returns the base fee tracked by the txfees module.
 // If the base fee is not enabled globally, the query returns nil.
 // If the London hard fork is not activated at the current height, the query will
 // return nil.
 func (b *Backend) BaseFee(blockRes *cmtrpctypes.ResultBlockResults) (*big.Int, error) {
-	return b.RPCMinGasPrice(), nil
+	// return BaseFee if London hard fork is activated and feemarket is enabled
+	res, err := b.queryClient.TxFeesQueryClient.GetEipBaseFee(rpctypes.ContextWithHeight(blockRes.Height), &txfeestypes.QueryEipBaseFeeRequest{})
+	if err != nil || res.BaseFee == nil {
+		// we can't tell if it's london HF not enabled or the state is pruned,
+		// in either case, we'll fallback to parsing from begin blocker event,
+		// faster to iterate reversely
+		for i := len(blockRes.FinalizeBlockEvents) - 1; i >= 0; i-- {
+			evt := blockRes.FinalizeBlockEvents[i]
+			if evt.Type != txfeestypes.EventTypeTxFees {
+				continue
+			}
+			for _, attr := range evt.Attributes {
+				if attr.Key == txfeestypes.AttributeKeyBaseFee {
+					dec, err := sdkmath.LegacyNewDecFromStr(attr.Value)
+					if err == nil {
+						return dec.RoundInt().BigInt(), nil
+					}
+					// malformed value—break to fall back
+					break
+				}
+			}
+			// no matching attribute found—keep searching older events
+		}
+		return nil, err
+	}
+
+	if res.BaseFee == nil {
+		return nil, nil
+	}
+
+	baseFee := res.BaseFee.BaseFee.RoundInt().BigInt()
+
+	return baseFee, nil
 }

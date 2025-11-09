@@ -90,9 +90,11 @@ func (k DerivativesMsgServer) InstantPerpetualMarketLaunch(
 
 	adminInfo := v2.EmptyAdminInfo()
 	_, _, err = k.PerpetualMarketLaunch(
-		ctx, msg.Ticker, msg.QuoteDenom, msg.OracleBase, msg.OracleQuote, msg.OracleScaleFactor, msg.OracleType,
-		msg.InitialMarginRatio, msg.MaintenanceMarginRatio, msg.ReduceMarginRatio,
-		msg.MakerFeeRate, msg.TakerFeeRate, msg.MinPriceTickSize, msg.MinQuantityTickSize, msg.MinNotional, &adminInfo,
+		ctx, msg.Ticker, msg.QuoteDenom, msg.OracleBase, msg.OracleQuote,
+		msg.OracleScaleFactor, msg.OracleType, msg.InitialMarginRatio,
+		msg.MaintenanceMarginRatio, msg.ReduceMarginRatio, msg.MakerFeeRate, msg.TakerFeeRate,
+		msg.MinPriceTickSize, msg.MinQuantityTickSize, msg.MinNotional, msg.OpenNotionalCap,
+		&adminInfo,
 	)
 	if err != nil {
 		metrics.ReportFuncError(k.svcTags)
@@ -152,7 +154,8 @@ func (k DerivativesMsgServer) InstantExpiryFuturesMarketLaunch(
 		ctx, msg.Ticker, msg.QuoteDenom,
 		msg.OracleBase, msg.OracleQuote, msg.OracleScaleFactor, msg.OracleType, msg.Expiry,
 		msg.InitialMarginRatio, msg.MaintenanceMarginRatio, msg.ReduceMarginRatio,
-		msg.MakerFeeRate, msg.TakerFeeRate, msg.MinPriceTickSize, msg.MinQuantityTickSize, msg.MinNotional, &adminInfo,
+		msg.MakerFeeRate, msg.TakerFeeRate, msg.MinPriceTickSize, msg.MinQuantityTickSize,
+		msg.MinNotional, msg.OpenNotionalCap, &adminInfo,
 	); err != nil {
 		metrics.ReportFuncError(k.svcTags)
 		k.Logger(ctx).Error("failed launching derivative market", err)
@@ -172,57 +175,85 @@ func (k DerivativesMsgServer) UpdateDerivativeMarket(c context.Context, msg *v2.
 		return nil, cosmoserrors.Wrap(types.ErrDerivativeMarketNotFound, "unknown market id")
 	}
 
-	if market.Admin == "" || market.Admin != msg.Admin {
+	switch {
+	case market.Admin == "":
+		if !k.IsAdmin(ctx, msg.Admin) {
+			return nil, cosmoserrors.Wrap(types.ErrInvalidAccessLevel, "no market admin defined and sender is not an exchange module admin")
+		}
+	case market.Admin != msg.Admin:
 		return nil, cosmoserrors.Wrapf(types.ErrInvalidAccessLevel, "market belongs to another admin (%v)", market.Admin)
-	}
+	default:
+		// only check permissions if the market has an admin
 
-	if market.AdminPermissions == 0 {
-		return nil, cosmoserrors.Wrap(types.ErrInvalidAccessLevel, "no permissions found")
-	}
+		if market.AdminPermissions == 0 {
+			return nil, cosmoserrors.Wrap(types.ErrInvalidAccessLevel, "no permissions found")
+		}
 
-	permissions := types.MarketAdminPermissions(market.AdminPermissions)
+		permissions := types.MarketAdminPermissions(market.AdminPermissions)
 
-	if msg.HasTickerUpdate() {
-		if !permissions.HasPerm(types.TickerPerm) {
+		if msg.HasTickerUpdate() && !permissions.HasPerm(types.TickerPerm) {
 			return nil, cosmoserrors.Wrap(types.ErrInvalidAccessLevel, "admin does not have permission to update ticker")
 		}
 
+		if msg.HasMinPriceTickSizeUpdate() && !permissions.HasPerm(types.MinPriceTickSizePerm) {
+			return nil, cosmoserrors.Wrap(types.ErrInvalidAccessLevel, "admin does not have permission to update min_price_tick_size")
+		}
+
+		if msg.HasMinQuantityTickSizeUpdate() && !permissions.HasPerm(types.MinQuantityTickSizePerm) {
+			return nil, cosmoserrors.Wrap(types.ErrInvalidAccessLevel, "admin does not have permission to update min_quantity_tick_size")
+		}
+
+		if msg.HasMinNotionalUpdate() && !permissions.HasPerm(types.MinNotionalPerm) {
+			return nil, cosmoserrors.Wrap(types.ErrInvalidAccessLevel, "admin does not have permission to update market min_notional")
+		}
+
+		if msg.HasInitialMarginRatioUpdate() && !permissions.HasPerm(types.InitialMarginRatioPerm) {
+			return nil, cosmoserrors.Wrap(types.ErrInvalidAccessLevel, "admin does not have permission to update initial_margin_ratio")
+		}
+
+		if msg.HasMaintenanceMarginRatioUpdate() && !permissions.HasPerm(types.MaintenanceMarginRatioPerm) {
+			return nil, cosmoserrors.Wrap(types.ErrInvalidAccessLevel, "admin does not have permission to update maintenance_margin_ratio")
+		}
+
+		if msg.HasReduceMarginRatioUpdate() && !permissions.HasPerm(types.ReduceMarginRatioPerm) {
+			return nil, cosmoserrors.Wrap(types.ErrInvalidAccessLevel, "admin does not have permission to update reduce_margin_ratio")
+		}
+
+		if msg.HasOpenNotionalCapUpdate() && !permissions.HasPerm(types.OpenNotionalCapPerm) {
+			return nil, cosmoserrors.Wrap(types.ErrInvalidAccessLevel, "admin does not have permission to update open_notional_cap")
+		}
+	}
+
+	if msg.HasTickerUpdate() {
 		market.Ticker = msg.NewTicker
 	}
 
 	if msg.HasMinPriceTickSizeUpdate() {
-		if !permissions.HasPerm(types.MinPriceTickSizePerm) {
-			return nil, cosmoserrors.Wrap(types.ErrInvalidAccessLevel, "admin does not have permission to update min_price_tick_size")
-		}
-
 		market.MinPriceTickSize = msg.NewMinPriceTickSize
 	}
 
 	if msg.HasMinQuantityTickSizeUpdate() {
-		if !permissions.HasPerm(types.MinQuantityTickSizePerm) {
-			return nil, cosmoserrors.Wrap(types.ErrInvalidAccessLevel, "admin does not have permission to update min_quantity_tick_size")
-		}
-
 		market.MinQuantityTickSize = msg.NewMinQuantityTickSize
 	}
 
 	if msg.HasMinNotionalUpdate() {
-		if !permissions.HasPerm(types.MinNotionalPerm) {
-			return nil, cosmoserrors.Wrap(types.ErrInvalidAccessLevel, "admin does not have permission to update market min_notional")
+		sender, err := sdk.AccAddressFromBech32(msg.Admin)
+		if err != nil {
+			return nil, err
 		}
-		if err := k.checkDenomMinNotional(ctx, sdk.AccAddress(msg.Admin), market.QuoteDenom, msg.NewMinNotional); err != nil {
+		if err := k.checkDenomMinNotional(ctx, sender, market.QuoteDenom, msg.NewMinNotional); err != nil {
 			return nil, err
 		}
 		market.MinNotional = msg.NewMinNotional
 	}
 
+	if msg.HasOpenNotionalCapUpdate() {
+		market.OpenNotionalCap = msg.NewOpenNotionalCap
+	}
+
 	params := k.GetParams(ctx)
 
 	if msg.HasInitialMarginRatioUpdate() {
-		if !permissions.HasPerm(types.InitialMarginRatioPerm) {
-			return nil, cosmoserrors.Wrap(types.ErrInvalidAccessLevel, "admin does not have permission to update initial_margin_ratio")
-		}
-
 		// disallow admins from decreasing initial margin ratio below the default param
 		if msg.NewInitialMarginRatio.LT(params.DefaultInitialMarginRatio) {
 			return nil, types.ErrInvalidMarginRatio
@@ -232,10 +263,6 @@ func (k DerivativesMsgServer) UpdateDerivativeMarket(c context.Context, msg *v2.
 	}
 
 	if msg.HasMaintenanceMarginRatioUpdate() {
-		if !permissions.HasPerm(types.MaintenanceMarginRatioPerm) {
-			return nil, cosmoserrors.Wrap(types.ErrInvalidAccessLevel, "admin does not have permission to update maintenance_margin_ratio")
-		}
-
 		// disallow admins from decreasing maintenance margin ratio below the default param
 		if msg.NewMaintenanceMarginRatio.LT(params.DefaultMaintenanceMarginRatio) {
 			return nil, types.ErrInvalidMarginRatio
@@ -245,10 +272,6 @@ func (k DerivativesMsgServer) UpdateDerivativeMarket(c context.Context, msg *v2.
 	}
 
 	if msg.HasReduceMarginRatioUpdate() {
-		if !permissions.HasPerm(types.ReduceMarginRatioPerm) {
-			return nil, cosmoserrors.Wrap(types.ErrInvalidAccessLevel, "admin does not have permission to update reduce_margin_ratio")
-		}
-
 		// disallow admins from decreasing reduce margin ratio below the default param
 		if msg.NewReduceMarginRatio.LT(params.DefaultReduceMarginRatio) {
 			return nil, types.ErrInvalidMarginRatio

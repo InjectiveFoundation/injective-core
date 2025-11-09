@@ -9,7 +9,7 @@ import (
 
 var ErrInvalidParameters = errors.New("firstMap and secondMap must have the same length")
 
-func Filter[V v2.OrderbookUpdate | v2.BankBalance | v2.OraclePrice | v2.SubaccountDeposits](
+func Filter[V v2.OrderbookUpdate | v2.BankBalance | v2.OraclePrice | v2.SubaccountDeposits | v2.OrderFailureUpdate](
 	itemMap map[string][]*V, filter []string,
 ) (out []*V) {
 	wildcard := false
@@ -30,7 +30,14 @@ func Filter[V v2.OrderbookUpdate | v2.BankBalance | v2.OraclePrice | v2.Subaccou
 	return out
 }
 
-func FilterMulti[V v2.Position | v2.SpotTrade | v2.DerivativeTrade | v2.DerivativeOrderUpdate | v2.SpotOrderUpdate](
+func FilterMulti[
+	V v2.Position |
+		v2.SpotTrade |
+		v2.DerivativeTrade |
+		v2.DerivativeOrderUpdate |
+		v2.SpotOrderUpdate |
+		v2.ConditionalOrderTriggerFailureUpdate |
+		v2.OrderFailureUpdate](
 	firstMap, secondMap map[string][]*V, firstFilter, secondFilter []string,
 ) (out []*V, err error) {
 	// Check early return conditions
@@ -72,7 +79,14 @@ func isWildcard(filter []string) bool {
 	return len(filter) > 0 && filter[0] == "*"
 }
 
-func buildFilteredMap[V v2.Position | v2.SpotTrade | v2.DerivativeTrade | v2.DerivativeOrderUpdate | v2.SpotOrderUpdate](
+func buildFilteredMap[
+	V v2.Position |
+		v2.SpotTrade |
+		v2.DerivativeTrade |
+		v2.DerivativeOrderUpdate |
+		v2.SpotOrderUpdate |
+		v2.ConditionalOrderTriggerFailureUpdate |
+		v2.OrderFailureUpdate](
 	itemMap map[string][]*V, filter []string,
 ) map[string]*V {
 	if isWildcard(filter) {
@@ -81,7 +95,14 @@ func buildFilteredMap[V v2.Position | v2.SpotTrade | v2.DerivativeTrade | v2.Der
 	return buildSpecificMap(itemMap, filter)
 }
 
-func buildWildcardMap[V v2.Position | v2.SpotTrade | v2.DerivativeTrade | v2.DerivativeOrderUpdate | v2.SpotOrderUpdate](
+func buildWildcardMap[
+	V v2.Position |
+		v2.SpotTrade |
+		v2.DerivativeTrade |
+		v2.DerivativeOrderUpdate |
+		v2.SpotOrderUpdate |
+		v2.ConditionalOrderTriggerFailureUpdate |
+		v2.OrderFailureUpdate](
 	itemMap map[string][]*V,
 ) map[string]*V {
 	subsetMap := make(map[string]*V)
@@ -93,7 +114,14 @@ func buildWildcardMap[V v2.Position | v2.SpotTrade | v2.DerivativeTrade | v2.Der
 	return subsetMap
 }
 
-func buildSpecificMap[V v2.Position | v2.SpotTrade | v2.DerivativeTrade | v2.DerivativeOrderUpdate | v2.SpotOrderUpdate](
+func buildSpecificMap[
+	V v2.Position |
+		v2.SpotTrade |
+		v2.DerivativeTrade |
+		v2.DerivativeOrderUpdate |
+		v2.SpotOrderUpdate |
+		v2.ConditionalOrderTriggerFailureUpdate |
+		v2.OrderFailureUpdate](
 	itemMap map[string][]*V, filter []string,
 ) map[string]*V {
 	subsetMap := make(map[string]*V)
@@ -107,7 +135,14 @@ func buildSpecificMap[V v2.Position | v2.SpotTrade | v2.DerivativeTrade | v2.Der
 	return subsetMap
 }
 
-func combineSubsetMaps[V v2.Position | v2.SpotTrade | v2.DerivativeTrade | v2.DerivativeOrderUpdate | v2.SpotOrderUpdate](
+func combineSubsetMaps[
+	V v2.Position |
+		v2.SpotTrade |
+		v2.DerivativeTrade |
+		v2.DerivativeOrderUpdate |
+		v2.SpotOrderUpdate |
+		v2.ConditionalOrderTriggerFailureUpdate |
+		v2.OrderFailureUpdate](
 	firstSubsetMap, secondSubsetMap map[string]*V, firstFilter, secondFilter []string,
 ) map[string]*V {
 	outMap := make(map[string]*V)
@@ -127,7 +162,14 @@ func combineSubsetMaps[V v2.Position | v2.SpotTrade | v2.DerivativeTrade | v2.De
 	return outMap
 }
 
-func intersectMaps[V v2.Position | v2.SpotTrade | v2.DerivativeTrade | v2.DerivativeOrderUpdate | v2.SpotOrderUpdate](
+func intersectMaps[
+	V v2.Position |
+		v2.SpotTrade |
+		v2.DerivativeTrade |
+		v2.DerivativeOrderUpdate |
+		v2.SpotOrderUpdate |
+		v2.ConditionalOrderTriggerFailureUpdate |
+		v2.OrderFailureUpdate](
 	firstMap, secondMap map[string]*V,
 ) map[string]*V {
 	result := make(map[string]*V)
@@ -139,7 +181,14 @@ func intersectMaps[V v2.Position | v2.SpotTrade | v2.DerivativeTrade | v2.Deriva
 	return result
 }
 
-func copyMap[V v2.Position | v2.SpotTrade | v2.DerivativeTrade | v2.DerivativeOrderUpdate | v2.SpotOrderUpdate](
+func copyMap[
+	V v2.Position |
+		v2.SpotTrade |
+		v2.DerivativeTrade |
+		v2.DerivativeOrderUpdate |
+		v2.SpotOrderUpdate |
+		v2.ConditionalOrderTriggerFailureUpdate |
+		v2.OrderFailureUpdate](
 	sourceMap map[string]*V,
 ) map[string]*V {
 	result := make(map[string]*V)
@@ -149,7 +198,14 @@ func copyMap[V v2.Position | v2.SpotTrade | v2.DerivativeTrade | v2.DerivativeOr
 	return result
 }
 
-func mapToSlice[V v2.Position | v2.SpotTrade | v2.DerivativeTrade | v2.DerivativeOrderUpdate | v2.SpotOrderUpdate](
+func mapToSlice[
+	V v2.Position |
+		v2.SpotTrade |
+		v2.DerivativeTrade |
+		v2.DerivativeOrderUpdate |
+		v2.SpotOrderUpdate |
+		v2.ConditionalOrderTriggerFailureUpdate |
+		v2.OrderFailureUpdate](
 	m map[string]*V,
 ) []*V {
 	outSlice := make([]*V, len(m))

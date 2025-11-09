@@ -5,15 +5,13 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/common"
-
 	"cosmossdk.io/errors"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
-
-	"github.com/InjectiveLabs/metrics"
+	gethcommon "github.com/ethereum/go-ethereum/common"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/peggy/types"
+	"github.com/InjectiveLabs/metrics"
 )
 
 var _ types.QueryServer = &Keeper{}
@@ -143,9 +141,12 @@ func (k *Keeper) LastPendingBatchRequestByAddr(c context.Context, req *types.Que
 		return nil, errors.Wrap(sdkerrors.ErrInvalidRequest, "address invalid")
 	}
 
+	ctx := sdk.UnwrapSDKContext(c)
+
 	var pendingBatchReq *types.OutgoingTxBatch
-	k.IterateOutgoingTXBatches(sdk.UnwrapSDKContext(c), func(_ []byte, batch *types.OutgoingTxBatch) (stop bool) {
-		foundConfirm := k.GetBatchConfirm(sdk.UnwrapSDKContext(c), batch.BatchNonce, common.HexToAddress(batch.TokenContract), addr) != nil
+	k.IterateOutgoingTXBatches(ctx, func(_ []byte, batch *types.OutgoingTxBatch) (stop bool) {
+		tokenAddress := gethcommon.HexToAddress(batch.TokenContract)
+		foundConfirm := k.GetBatchConfirm(ctx, batch.BatchNonce, tokenAddress, addr) != nil
 		if !foundConfirm {
 			pendingBatchReq = batch
 			return true
@@ -181,7 +182,7 @@ func (k *Keeper) BatchRequestByNonce(c context.Context, req *types.QueryBatchReq
 		return nil, errors.Wrap(sdkerrors.ErrUnknownRequest, err.Error())
 	}
 
-	foundBatch := k.GetOutgoingTXBatch(sdk.UnwrapSDKContext(c), common.HexToAddress(req.ContractAddress), req.Nonce)
+	foundBatch := k.GetOutgoingTXBatch(sdk.UnwrapSDKContext(c), gethcommon.HexToAddress(req.ContractAddress), req.Nonce)
 	if foundBatch == nil {
 		metrics.ReportFuncError(k.svcTags)
 		return nil, errors.Wrap(sdkerrors.ErrUnknownRequest, "Can not find tx batch")
@@ -196,7 +197,7 @@ func (k *Keeper) BatchConfirms(c context.Context, req *types.QueryBatchConfirmsR
 	defer doneFn()
 
 	confirms := make([]*types.MsgConfirmBatch, 0)
-	k.IterateBatchConfirmByNonceAndTokenContract(sdk.UnwrapSDKContext(c), req.Nonce, common.HexToAddress(req.ContractAddress),
+	k.IterateBatchConfirmByNonceAndTokenContract(sdk.UnwrapSDKContext(c), req.Nonce, gethcommon.HexToAddress(req.ContractAddress),
 		func(_ []byte, batch *types.MsgConfirmBatch) (stop bool) {
 			confirms = append(confirms, batch)
 			return false
@@ -257,7 +258,7 @@ func (k *Keeper) ERC20ToDenom(c context.Context, req *types.QueryERC20ToDenomReq
 	defer doneFn()
 
 	ctx := sdk.UnwrapSDKContext(c)
-	cosmosOriginated, name := k.ERC20ToDenomLookup(ctx, common.HexToAddress(req.Erc20))
+	cosmosOriginated, name := k.ERC20ToDenomLookup(ctx, gethcommon.HexToAddress(req.Erc20))
 
 	var ret types.QueryERC20ToDenomResponse
 	ret.Denom = name
@@ -393,6 +394,7 @@ func (k *Keeper) PeggyModuleState(c context.Context, req *types.QueryModuleState
 		erc20ToDenoms                   = []*types.ERC20ToDenom{}
 		unbatchedTransfers              = k.GetPoolTransactions(ctx)
 		ethereumBlacklistAddresses      = k.GetAllEthereumBlacklistAddresses(ctx)
+		rateLimits                      = k.GetRateLimits(ctx)
 	)
 
 	// export valset confirmations from state
@@ -402,7 +404,9 @@ func (k *Keeper) PeggyModuleState(c context.Context, req *types.QueryModuleState
 
 	// export batch confirmations from state
 	for _, batch := range batches {
-		batchconfs = append(batchconfs, k.GetBatchConfirmByNonceAndTokenContract(ctx, batch.BatchNonce, common.HexToAddress(batch.TokenContract))...)
+		tokenAddress := gethcommon.HexToAddress(batch.TokenContract)
+		confirms := k.GetBatchConfirmByNonceAndTokenContract(ctx, batch.BatchNonce, tokenAddress)
+		batchconfs = append(batchconfs, confirms...)
 	}
 
 	// sort attestation map keys since map iteration is non-deterministic
@@ -444,6 +448,7 @@ func (k *Keeper) PeggyModuleState(c context.Context, req *types.QueryModuleState
 		LastOutgoingPoolId:         lastOutgoingPoolID,
 		LastObservedValset:         *lastObservedValset,
 		EthereumBlacklist:          ethereumBlacklistAddresses,
+		RateLimits:                 rateLimits,
 	}
 
 	res := &types.QueryModuleStateResponse{

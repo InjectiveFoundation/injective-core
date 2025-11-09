@@ -3,7 +3,6 @@ package keeper
 import (
 	"context"
 
-	"cosmossdk.io/errors"
 	"github.com/InjectiveLabs/metrics"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	errortypes "github.com/cosmos/cosmos-sdk/types/errors"
@@ -73,6 +72,9 @@ func (k GeneralMsgServer) BatchUpdateOrders(
 		msg.SpotOrdersToCreate,
 		msg.DerivativeOrdersToCreate,
 		msg.BinaryOptionsOrdersToCreate,
+		msg.SpotMarketOrdersToCreate,
+		msg.DerivativeMarketOrdersToCreate,
+		msg.BinaryOptionsMarketOrdersToCreate,
 	)
 }
 
@@ -131,14 +133,20 @@ func (k GeneralMsgServer) BatchExchangeModification(
 		}
 	}
 
-	if msg.Proposal.DenomDecimalsUpdateProposal != nil {
-		if err := k.handleUpdateDenomDecimalsProposal(ctx, msg.Proposal.DenomDecimalsUpdateProposal); err != nil {
+	if msg.Proposal.AuctionExchangeTransferDenomDecimalsUpdateProposal != nil {
+		if err := k.handleUpdateAuctionExchangeTransferDenomDecimalsProposal(
+			ctx,
+			msg.Proposal.AuctionExchangeTransferDenomDecimalsUpdateProposal,
+		); err != nil {
 			return nil, err
 		}
 	}
 
 	if msg.Proposal.TradingRewardCampaignUpdateProposal != nil {
-		if err := k.handleTradingRewardCampaignUpdateProposal(ctx, msg.Proposal.TradingRewardCampaignUpdateProposal); err != nil {
+		if err := k.handleTradingRewardCampaignUpdateProposal(
+			ctx,
+			msg.Proposal.TradingRewardCampaignUpdateProposal,
+		); err != nil {
 			return nil, err
 		}
 	}
@@ -165,8 +173,7 @@ func (k GeneralMsgServer) BatchExchangeModification(
 func (k GeneralMsgServer) BatchSpendCommunityPool(
 	goCtx context.Context, msg *v2.MsgBatchCommunityPoolSpend,
 ) (*v2.MsgBatchCommunityPoolSpendResponse, error) {
-	doneFn := metrics.ReportFuncCallAndTiming(k.svcTags)
-	defer doneFn()
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
@@ -184,8 +191,7 @@ func (k GeneralMsgServer) BatchSpendCommunityPool(
 func (k GeneralMsgServer) ForceSettleMarket(
 	goCtx context.Context, msg *v2.MsgMarketForcedSettlement,
 ) (*v2.MsgMarketForcedSettlementResponse, error) {
-	doneFn := metrics.ReportFuncCallAndTiming(k.svcTags)
-	defer doneFn()
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
@@ -203,8 +209,7 @@ func (k GeneralMsgServer) ForceSettleMarket(
 func (k GeneralMsgServer) LaunchTradingRewardCampaign(
 	goCtx context.Context, msg *v2.MsgTradingRewardCampaignLaunch,
 ) (*v2.MsgTradingRewardCampaignLaunchResponse, error) {
-	doneFn := metrics.ReportFuncCallAndTiming(k.svcTags)
-	defer doneFn()
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
@@ -222,8 +227,7 @@ func (k GeneralMsgServer) LaunchTradingRewardCampaign(
 func (k GeneralMsgServer) UpdateTradingRewardCampaign(
 	goCtx context.Context, msg *v2.MsgTradingRewardCampaignUpdate,
 ) (*v2.MsgTradingRewardCampaignUpdateResponse, error) {
-	doneFn := metrics.ReportFuncCallAndTiming(k.svcTags)
-	defer doneFn()
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
@@ -239,8 +243,7 @@ func (k GeneralMsgServer) UpdateTradingRewardCampaign(
 }
 
 func (k GeneralMsgServer) EnableExchange(goCtx context.Context, msg *v2.MsgExchangeEnable) (*v2.MsgExchangeEnableResponse, error) {
-	doneFn := metrics.ReportFuncCallAndTiming(k.svcTags)
-	defer doneFn()
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
@@ -258,8 +261,7 @@ func (k GeneralMsgServer) EnableExchange(goCtx context.Context, msg *v2.MsgExcha
 func (k GeneralMsgServer) UpdateTradingRewardPendingPoints(
 	goCtx context.Context, msg *v2.MsgTradingRewardPendingPointsUpdate,
 ) (*v2.MsgTradingRewardPendingPointsUpdateResponse, error) {
-	doneFn := metrics.ReportFuncCallAndTiming(k.svcTags)
-	defer doneFn()
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
@@ -275,8 +277,7 @@ func (k GeneralMsgServer) UpdateTradingRewardPendingPoints(
 }
 
 func (k GeneralMsgServer) UpdateFeeDiscount(goCtx context.Context, msg *v2.MsgFeeDiscount) (*v2.MsgFeeDiscountResponse, error) {
-	doneFn := metrics.ReportFuncCallAndTiming(k.svcTags)
-	defer doneFn()
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
@@ -294,8 +295,7 @@ func (k GeneralMsgServer) UpdateFeeDiscount(goCtx context.Context, msg *v2.MsgFe
 func (k GeneralMsgServer) UpdateAtomicMarketOrderFeeMultiplierSchedule(
 	goCtx context.Context, msg *v2.MsgAtomicMarketOrderFeeMultiplierSchedule,
 ) (*v2.MsgAtomicMarketOrderFeeMultiplierScheduleResponse, error) {
-	doneFn := metrics.ReportFuncCallAndTiming(k.svcTags)
-	defer doneFn()
+	defer metrics.ReportFuncCallAndTiming(k.svcTags)()
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
@@ -308,35 +308,6 @@ func (k GeneralMsgServer) UpdateAtomicMarketOrderFeeMultiplierSchedule(
 	}
 
 	return &v2.MsgAtomicMarketOrderFeeMultiplierScheduleResponse{}, nil
-}
-
-// SetDelegationTransferReceivers sets delegation transfer receivers via the staking keeper
-// This method can only be called by exchange admin.
-func (k GeneralMsgServer) SetDelegationTransferReceivers(
-	goCtx context.Context,
-	msg *v2.MsgSetDelegationTransferReceivers,
-) (*v2.MsgSetDelegationTransferReceiversResponse, error) {
-	doneFn := metrics.ReportFuncCallAndTiming(k.svcTags)
-	defer doneFn()
-
-	ctx := sdk.UnwrapSDKContext(goCtx)
-
-	// Check if sender is exchange admin
-	if !k.IsAdmin(ctx, msg.Sender) {
-		return nil, errortypes.ErrUnauthorized.Wrap("sender is not an exchange admin")
-	}
-
-	// Set delegation transfer receivers via staking keeper
-	for _, receiverAddr := range msg.Receivers {
-		receiver, err := sdk.AccAddressFromBech32(receiverAddr)
-		if err != nil {
-			return nil, errors.Wrapf(errortypes.ErrInvalidAddress, "invalid receiver address: %s", receiverAddr)
-		}
-
-		k.StakingKeeper.SetDelegationTransferReceiver(goCtx, receiver)
-	}
-
-	return &v2.MsgSetDelegationTransferReceiversResponse{}, nil
 }
 
 // CancelPostOnlyMode sets a flag to cancel post-only mode in the next BeginBlock

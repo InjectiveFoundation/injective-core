@@ -1,0 +1,22 @@
+gethlocal:
+  owner: "0xA5D139cA25544F4560d1c7EF0cFd58109417Cdd1"
+  mailbox: "0x067A3faF94e52886bEBe17665aA9C395A8cB08Dd"
+  hook:
+    address: "0x716dc92d2A2FCABB7bf24842878ade974dE09D11"
+    type: merkleTreeHook
+  interchainSecurityModule:
+    address: "0x63F31eAd3657441cFbD000a0FEb8Caa6DC3507d2"
+    relayer: "0xA5D139cA25544F4560d1c7EF0cFd58109417Cdd1"
+    type: trustedRelayerIsm
+  remoteRouters:
+    "1212":
+      address: "0x726f757465725f61707000000000000000000000000000010000000000000000"
+  name: Hyperlane INJ
+  symbol: hINJ
+  decimals: 18
+  isNft: false
+  contractVersion: 9.0.9
+  type: synthetic
+  proxyAdmin:
+    address: "0x3ED06BF50919c9Fd3cEbA810484706EFCbDf2F73"
+    owner: "0xA5D139cA25544F4560d1c7EF0cFd58109417Cdd1"

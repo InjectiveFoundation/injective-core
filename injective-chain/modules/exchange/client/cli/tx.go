@@ -92,7 +92,6 @@ func NewTxCmd() *cobra.Command {
 		// stake grant
 		NewStakeGrantAuthorizationTxCmd(),
 		NewStakeGrantActivationTxCmd(),
-		NewSetDelegationTransferReceiversTxCmd(),
 		// other
 		NewExchangeEnableProposalTxCmd(),
 		NewMarketForcedSettlementTxCmd(),
@@ -130,6 +129,15 @@ func NewInstantSpotMarketLaunchTxCmd() *cobra.Command {
 	cmd.Flags().String(FlagMinNotional, "0", "min notional")
 	cmd.Flags().String(FlagBaseDecimals, "0", "base token decimals")
 	cmd.Flags().String(FlagQuoteDecimals, "0", "quote token decimals")
+
+	requiredFlags := []string{FlagBaseDecimals, FlagQuoteDecimals}
+	for _, flag := range requiredFlags {
+		err := cmd.MarkFlagRequired(flag)
+		if err != nil {
+			panic(err)
+		}
+	}
+
 	return cmd
 }
 
@@ -747,6 +755,7 @@ func NewPerpetualMarketLaunchProposalTxCmd() *cobra.Command {
 				"InitialMarginRatio":     cli.Flag{Flag: FlagInitialMarginRatio},
 				"MaintenanceMarginRatio": cli.Flag{Flag: FlagMaintenanceMarginRatio},
 				"ReduceMarginRatio":      cli.Flag{Flag: FlagReduceMarginRatio},
+				"OpenNotionalCap":        cli.Flag{Flag: FlagOpenNotionalCap},
 				"MakerFeeRate":           cli.Flag{Flag: FlagMakerFeeRate},
 				"TakerFeeRate":           cli.Flag{Flag: FlagTakerFeeRate},
 				"MinPriceTickSize":       cli.Flag{Flag: FlagMinPriceTickSize},
@@ -807,6 +816,8 @@ func NewPerpetualMarketLaunchProposalTxCmd() *cobra.Command {
 			--taker-fee-rate="0.001" \
 			--initial-margin-ratio="0.05" \
 			--maintenance-margin-ratio="0.02" \
+			--reduce-margin-ratio="0.05" \
+			--open-notional-cap="uncapped" \
 			--min-price-tick-size="0.01" \
 			--min-quantity-tick-size="0.001" \
 			--min-notional="1" \
@@ -828,6 +839,7 @@ func NewPerpetualMarketLaunchProposalTxCmd() *cobra.Command {
 	cmd.Flags().String(FlagMinPriceTickSize, "0.01", "min price tick size")
 	cmd.Flags().String(FlagMinQuantityTickSize, "0.01", "min quantity tick size")
 	cmd.Flags().String(FlagMinNotional, "0", "min notional")
+	cmd.Flags().String(FlagOpenNotionalCap, "uncapped", "open notional cap")
 	cmd.Flags().String(FlagAdmin, "", "market admin")
 	cmd.Flags().Uint32(FlagAdminPermissions, 0, "admin permissions level")
 	cmd.Flags().Bool(FlagExpedited, false, "set the expedited value for the governance proposal")
@@ -878,6 +890,7 @@ func NewExpiryFuturesMarketLaunchProposalTxCmd() *cobra.Command {
 				"InitialMarginRatio":     cli.Flag{Flag: FlagInitialMarginRatio},
 				"MaintenanceMarginRatio": cli.Flag{Flag: FlagMaintenanceMarginRatio},
 				"ReduceMarginRatio":      cli.Flag{Flag: FlagReduceMarginRatio},
+				"OpenNotionalCap":        cli.Flag{Flag: FlagOpenNotionalCap},
 				"MakerFeeRate":           cli.Flag{Flag: FlagMakerFeeRate},
 				"TakerFeeRate":           cli.Flag{Flag: FlagTakerFeeRate},
 				"MinPriceTickSize":       cli.Flag{Flag: FlagMinPriceTickSize},
@@ -939,6 +952,8 @@ func NewExpiryFuturesMarketLaunchProposalTxCmd() *cobra.Command {
 			--taker-fee-rate="0.001" \
 			--initial-margin-ratio="0.05" \
 			--maintenance-margin-ratio="0.02" \
+			--reduce-margin-ratio="0.05" \
+			--open-notional-cap="uncapped" \
 			--min-price-tick-size="0.0001" \
 			--min-quantity-tick-size="0.001" \
 			--min-notional="1" \
@@ -965,6 +980,7 @@ func NewExpiryFuturesMarketLaunchProposalTxCmd() *cobra.Command {
 	cmd.Flags().String(FlagMinPriceTickSize, "0.01", "min price tick size")
 	cmd.Flags().String(FlagMinQuantityTickSize, "0.01", "min quantity tick size")
 	cmd.Flags().String(FlagMinNotional, "0", "min notional")
+	cmd.Flags().String(FlagOpenNotionalCap, "uncapped", "open notional cap")
 	cmd.Flags().String(FlagAdmin, "", "market admin")
 	cmd.Flags().Uint32(FlagAdminPermissions, 0, "admin permissions level")
 	cmd.Flags().Bool(FlagExpedited, false, "set the expedited value for the governance proposal")
@@ -992,6 +1008,8 @@ func NewInstantPerpetualMarketLaunchTxCmd() *cobra.Command {
 			--taker-fee-rate="0.001" \
 			--initial-margin-ratio="0.05" \
 			--maintenance-margin-ratio="0.02" \
+			--reduce-margin-ratio="0.05" \
+			--open-notional-cap="uncapped" \
 			--min-price-tick-size="0.0001" \
 			--min-quantity-tick-size="0.001" \
 			--min-notional="1000000" \
@@ -1074,6 +1092,10 @@ func NewInstantPerpetualMarketLaunchTxCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			openNotionalCapString, err := cmd.Flags().GetString(FlagOpenNotionalCap)
+			if err != nil {
+				return err
+			}
 
 			minPriceTickSize, err := math.LegacyNewDecFromStr(minPriceTickSizeStr)
 			if err != nil {
@@ -1086,6 +1108,11 @@ func NewInstantPerpetualMarketLaunchTxCmd() *cobra.Command {
 			}
 
 			minNotional, err := math.LegacyNewDecFromStr(minNotionalString)
+			if err != nil {
+				return err
+			}
+
+			openNotionalCap, err := cli.GetOpenNotionalCapFromString(openNotionalCapString)
 			if err != nil {
 				return err
 			}
@@ -1106,6 +1133,7 @@ func NewInstantPerpetualMarketLaunchTxCmd() *cobra.Command {
 				MinPriceTickSize:       minPriceTickSize,
 				MinQuantityTickSize:    minQuantityTickSize,
 				MinNotional:            minNotional,
+				OpenNotionalCap:        openNotionalCap,
 			}
 
 			if err := msg.ValidateBasic(); err != nil {
@@ -1130,6 +1158,7 @@ func NewInstantPerpetualMarketLaunchTxCmd() *cobra.Command {
 	cmd.Flags().String(FlagMinPriceTickSize, "0.01", "min price tick size")
 	cmd.Flags().String(FlagMinQuantityTickSize, "0.01", "min quantity tick size")
 	cmd.Flags().String(FlagMinNotional, "0", "min notional")
+	cmd.Flags().String(FlagOpenNotionalCap, "uncapped", "open notional cap")
 	cliflags.AddTxFlagsToCmd(cmd)
 	return cmd
 }
@@ -1156,6 +1185,7 @@ func NewInstantBinaryOptionsMarketLaunchTxCmd() *cobra.Command {
 			--min-price-tick-size="0.0001" \
 			--min-quantity-tick-size="0.001" \
 			--min-notional="1" \
+			--open-notional-cap="uncapped" \
 			--from=genesis \
 			--keyring-backend=file \
 			--yes
@@ -1235,6 +1265,10 @@ func NewInstantBinaryOptionsMarketLaunchTxCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			openNotionalCapStr, err := cmd.Flags().GetString(FlagOpenNotionalCap)
+			if err != nil {
+				return err
+			}
 
 			minPriceTickSize, err := math.LegacyNewDecFromStr(minPriceTickSizeStr)
 			if err != nil {
@@ -1245,6 +1279,10 @@ func NewInstantBinaryOptionsMarketLaunchTxCmd() *cobra.Command {
 				return err
 			}
 			minNotional, err := math.LegacyNewDecFromStr(minNotionalStr)
+			if err != nil {
+				return err
+			}
+			openNotionalCap, err := cli.GetOpenNotionalCapFromString(openNotionalCapStr)
 			if err != nil {
 				return err
 			}
@@ -1265,6 +1303,7 @@ func NewInstantBinaryOptionsMarketLaunchTxCmd() *cobra.Command {
 				MinPriceTickSize:    minPriceTickSize,
 				MinQuantityTickSize: minQuantityTickSize,
 				MinNotional:         minNotional,
+				OpenNotionalCap:     openNotionalCap,
 			}
 
 			if err := msg.ValidateBasic(); err != nil {
@@ -1292,6 +1331,7 @@ func NewInstantBinaryOptionsMarketLaunchTxCmd() *cobra.Command {
 	cmd.Flags().String(FlagMinPriceTickSize, "", "min price tick size")
 	cmd.Flags().String(FlagMinQuantityTickSize, "", "min quantity tick size")
 	cmd.Flags().String(FlagMinNotional, "0", "min notional")
+	cmd.Flags().String(FlagOpenNotionalCap, "uncapped", "open notional cap")
 	cliflags.AddTxFlagsToCmd(cmd)
 	return cmd
 }
@@ -1563,6 +1603,8 @@ func NewInstantExpiryFuturesMarketLaunchTxCmd() *cobra.Command {
 			--taker-fee-rate="0.001" \
 			--initial-margin-ratio="0.05" \
 			--maintenance-margin-ratio="0.02" \
+			--reduce-margin-ratio="0.05" \
+			--open-notional-cap="uncapped" \
 			--min-price-tick-size="0.01" \
 			--min-quantity-tick-size="0.001" \
 			--min-notional="1" \
@@ -1650,6 +1692,10 @@ func NewInstantExpiryFuturesMarketLaunchTxCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			openNotionalCapStr, err := cmd.Flags().GetString(FlagOpenNotionalCap)
+			if err != nil {
+				return err
+			}
 
 			minPriceTickSize, err := math.LegacyNewDecFromStr(minPriceTickSizeStr)
 			if err != nil {
@@ -1660,6 +1706,10 @@ func NewInstantExpiryFuturesMarketLaunchTxCmd() *cobra.Command {
 				return err
 			}
 			minNotional, err := math.LegacyNewDecFromStr(minNotionalStr)
+			if err != nil {
+				return err
+			}
+			openNotionalCap, err := cli.GetOpenNotionalCapFromString(openNotionalCapStr)
 			if err != nil {
 				return err
 			}
@@ -1681,6 +1731,7 @@ func NewInstantExpiryFuturesMarketLaunchTxCmd() *cobra.Command {
 				MinPriceTickSize:       minPriceTickSize,
 				MinQuantityTickSize:    minQuantityTickSize,
 				MinNotional:            minNotional,
+				OpenNotionalCap:        openNotionalCap,
 			}
 
 			if err := msg.ValidateBasic(); err != nil {
@@ -1706,6 +1757,7 @@ func NewInstantExpiryFuturesMarketLaunchTxCmd() *cobra.Command {
 	cmd.Flags().String(FlagMinPriceTickSize, "0.01", "min price tick size")
 	cmd.Flags().String(FlagMinQuantityTickSize, "0.01", "min quantity tick size")
 	cmd.Flags().String(FlagMinNotional, "0", "min notional")
+	cmd.Flags().String(FlagOpenNotionalCap, "uncapped", "open notional cap")
 	cliflags.AddTxFlagsToCmd(cmd)
 	return cmd
 }
@@ -2424,6 +2476,8 @@ func NewDerivativeMarketParamUpdateProposalTxCmd() *cobra.Command {
 		--min-notional=1000 \
 		--initial-margin-ratio="0.01" \
 		--maintenance-margin-ratio="0.01" \
+		--reduce-margin-ratio="0.01" \
+		--open-notional-cap="uncapped" \
 		--maker-fee-rate="0.01" \
 		--taker-fee-rate="0.01" \
 		--relayer-fee-share-rate="0.01" \
@@ -2768,6 +2822,10 @@ $ %s tx exchange update-derivative-market 0x1e11532fc29f1bc3eb75f6fddf4997e904c7
 	--ticker "A/B" \
 	--min-price-tick-size "0.1" \
 	--min-quantity-tick-size "-0.2" \
+	--initial-margin-ratio="0.05" \
+	--maintenance-margin-ratio="0.02" \
+	--reduce-margin-ratio="0.05" \
+	--open-notional-cap="uncapped" \
 		`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clientCtx, err := client.GetClientTxContext(cmd)
@@ -2845,6 +2903,16 @@ $ %s tx exchange update-derivative-market 0x1e11532fc29f1bc3eb75f6fddf4997e904c7
 				}
 			}
 
+			strOpenNotionalCap, err := cmd.Flags().GetString(FlagOpenNotionalCap)
+			if err != nil {
+				return err
+			}
+
+			openNotionalCap, err := cli.GetOpenNotionalCapFromString(strOpenNotionalCap)
+			if err != nil {
+				return err
+			}
+
 			msg := &exchangev2.MsgUpdateDerivativeMarket{
 				Admin:                     clientCtx.GetFromAddress().String(),
 				MarketId:                  common.HexToHash(args[0]).String(),
@@ -2854,6 +2922,7 @@ $ %s tx exchange update-derivative-market 0x1e11532fc29f1bc3eb75f6fddf4997e904c7
 				NewInitialMarginRatio:     initialMarginRatio,
 				NewMaintenanceMarginRatio: maintenanceMarginRatio,
 				NewReduceMarginRatio:      reduceMarginRatio,
+				NewOpenNotionalCap:        openNotionalCap,
 			}
 
 			if err := msg.ValidateBasic(); err != nil {
@@ -2870,6 +2939,7 @@ $ %s tx exchange update-derivative-market 0x1e11532fc29f1bc3eb75f6fddf4997e904c7
 	cmd.Flags().String(FlagInitialMarginRatio, "", "new initial margin ratio")
 	cmd.Flags().String(FlagMaintenanceMarginRatio, "", "new maintenance margin ratio")
 	cmd.Flags().String(FlagReduceMarginRatio, "", "new reduce margin ratio")
+	cmd.Flags().String(FlagOpenNotionalCap, "", "open notional cap")
 
 	cliflags.AddTxFlagsToCmd(cmd)
 
@@ -3078,13 +3148,13 @@ func NewAuthzTxCmd() *cobra.Command {
 
 func NewBatchUpdateAuthzTxCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "authz batch-update [grantee] [subaccount-id] [spot-market-ids] [derivative-market-ids]",
+		Use:   "authz-batch-update [grantee] [subaccount-id] [spot-market-ids] [derivative-market-ids]",
 		Args:  cobra.ExactArgs(4),
 		Short: "Authorize grantee to execute MsgBatchUpdateOrders in allowed markets via allowed subaccount",
 		Long: `Authorize grantee to execute MsgBatchUpdateOrders in allowed markets via allowed subaccount.
 
 		Example:
-		$ %s tx exchange authz batch-update inj1jcltmuhplrdcwp7stlr4hlhlhgd4htqhe4c0cs 0xc6fe5d33615a1c52c08018c47e8bc53646a0e101000000000000000000000000 0xa508cb32923323679f29a032c70342c147c17d0145625922b0ef22e955c844c0 0xfd30930cb70d176c37d0c405cde055e551c5b1116b7049a88bcf821766b62d62 --from=genesis --keyring-backend=file --yes
+		$ %s tx exchange authz-batch-update inj1jcltmuhplrdcwp7stlr4hlhlhgd4htqhe4c0cs 0xc6fe5d33615a1c52c08018c47e8bc53646a0e101000000000000000000000000 0xa508cb32923323679f29a032c70342c147c17d0145625922b0ef22e955c844c0 0xfd30930cb70d176c37d0c405cde055e551c5b1116b7049a88bcf821766b62d62 --from=genesis --keyring-backend=file --yes
 		`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clientCtx, err := client.GetClientTxContext(cmd)
@@ -3368,40 +3438,6 @@ func NewStakeGrantActivationTxCmd() *cobra.Command {
 	return cmd
 }
 
-func NewSetDelegationTransferReceiversTxCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "set-delegation-transfer-receivers [receivers]",
-		Args:  cobra.ExactArgs(1),
-		Short: "Set the receivers of the delegation transfer",
-		Long: `Set the receivers of the delegation transfer. \
-
-		Example:
-		$ %s tx exchange set-delegation-transfer-receivers inj1jcltmuhplrdcwp7stlr4hlhlhgd4htqhe4c0cs,inj17vytdwqczqz72j65saukplrktd4gyfme5agf6c
-			--yes`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			clientCtx, err := client.GetClientTxContext(cmd)
-			if err != nil {
-				return err
-			}
-
-			grantee := clientCtx.GetFromAddress()
-			receivers := strings.Split(args[0], ",")
-			msg := &exchangev2.MsgSetDelegationTransferReceivers{
-				Sender:    grantee.String(),
-				Receivers: receivers,
-			}
-			if err := msg.ValidateBasic(); err != nil {
-				return err
-			}
-
-			return tx.GenerateOrBroadcastTxCLI(clientCtx, cmd.Flags(), msg)
-		},
-	}
-
-	cliflags.AddTxFlagsToCmd(cmd)
-	return cmd
-}
-
 func NewIncreasePositionMarginTxCmd() *cobra.Command {
 	cmd := cli.TxCmd(
 		"increase-position-margin <source-subaccount-id> <dest-subaccount-id> <market-id> <amount>",
@@ -3541,6 +3577,7 @@ func getDerivativeMarketParamUpdateFlagsMapping() cli.FlagsMapping {
 		},
 		"Ticker":           cli.Flag{Flag: FlagTicker},
 		"MinNotional":      cli.Flag{Flag: FlagMinNotional},
+		"OpenNotionalCap":  cli.Flag{Flag: FlagOpenNotionalCap},
 		"Admin":            cli.Flag{Flag: FlagAdmin},
 		"AdminPermissions": cli.Flag{Flag: FlagAdminPermissions},
 		"BaseDecimals":     cli.Flag{Flag: FlagBaseDecimals},
@@ -3559,6 +3596,7 @@ func setupDerivativeMarketParamUpdateFlags(cmd *cobra.Command) {
 	cmd.Flags().String(FlagMinPriceTickSize, "0.01", "min price tick size")
 	cmd.Flags().String(FlagMinQuantityTickSize, "0.01", "min quantity tick size")
 	cmd.Flags().String(FlagMinNotional, "0", "min notional")
+	cmd.Flags().String(FlagOpenNotionalCap, "uncapped", "open notional cap")
 	cmd.Flags().String(FlagHourlyInterestRate, "", "hourly interest rate")
 	cmd.Flags().String(FlagHourlyFundingRateCap, "", "hourly funding rate cap")
 	cmd.Flags().String(FlagOracleBase, "", "oracle base")

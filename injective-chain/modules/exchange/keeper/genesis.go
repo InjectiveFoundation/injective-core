@@ -207,8 +207,8 @@ func (k *Keeper) InitGenesis(ctx sdk.Context, data v2.GenesisState) {
 		k.scheduleBinaryOptionsMarketForSettlement(ctx, common.HexToHash(marketId))
 	}
 
-	for _, denomDecimal := range data.DenomDecimals {
-		k.SetDenomDecimals(ctx, denomDecimal.Denom, denomDecimal.Decimals)
+	for _, denomDecimal := range data.AuctionExchangeTransferDenomDecimals {
+		k.SetAuctionExchangeTransferDenomDecimals(ctx, denomDecimal.Denom, denomDecimal.Decimals)
 	}
 
 	for _, orderbook := range data.ConditionalDerivativeOrderbooks {
@@ -303,7 +303,7 @@ func (k *Keeper) ExportGenesis(ctx sdk.Context) *v2.GenesisState {
 		BinaryOptionsMarkets:                         k.GetAllBinaryOptionsMarkets(ctx),
 		BinaryOptionsMarketIdsScheduledForSettlement: k.GetAllBinaryOptionsMarketIDsScheduledForSettlement(ctx),
 		SpotMarketIdsScheduledToForceClose:           k.GetAllForceClosedSpotMarketIDStrings(ctx),
-		DenomDecimals:                                k.GetAllDenomDecimals(ctx),
+		AuctionExchangeTransferDenomDecimals:         k.GetAllAuctionExchangeTransferDenomDecimals(ctx),
 		ConditionalDerivativeOrderbooks:              k.GetAllConditionalDerivativeOrderbooks(ctx),
 		MarketFeeMultipliers:                         k.GetAllMarketAtomicExecutionFeeMultipliers(ctx),
 		OrderbookSequences:                           k.GetAllOrderbookSequences(ctx),

@@ -79,6 +79,7 @@ func (k BinaryOptionsMsgServer) InstantBinaryOptionsMarketLaunch(
 		msg.MinPriceTickSize,
 		msg.MinQuantityTickSize,
 		msg.MinNotional,
+		msg.OpenNotionalCap,
 	)
 
 	if err != nil {
@@ -177,13 +178,13 @@ func (k BinaryOptionsMsgServer) CreateBinaryOptionsMarketOrder(
 		return nil, errors.Wrapf(types.ErrBinaryOptionsMarketNotFound, "marketID %s", msg.Order.MarketId)
 	}
 
-	requiredMargin := msg.Order.GetRequiredBinaryOptionsMargin(market.OracleScaleFactor)
-	if msg.Order.Margin.GT(requiredMargin) {
-		// decrease order margin to the required amount if greater, since there's no need to overpay
-		msg.Order.Margin = requiredMargin
-	}
-
-	orderHash, results, err := k.createDerivativeMarketOrder(ctx, account, &msg.Order, market, math.LegacyDec{})
+	orderHash, results, err := k.createBinaryOptionsMarketOrderWithResultsForAtomicExecution(
+		ctx,
+		account,
+		&msg.Order,
+		market,
+		math.LegacyDec{},
+	)
 	if err != nil {
 		metrics.ReportFuncError(k.svcTags)
 		return nil, err

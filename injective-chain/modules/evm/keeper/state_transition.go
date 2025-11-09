@@ -178,6 +178,10 @@ func (k *Keeper) ApplyTransaction(ctx sdk.Context, msgEth *types.MsgEthereumTx) 
 	// pass true to commit the StateDB
 	res, applyMessageErr := k.ApplyMessageWithConfig(tmpCtx, msg, cfg, true)
 	if applyMessageErr != nil {
+		// when a transaction contains multiple msg, as long as one of the msg fails
+		// all gas will be deducted. so is not msg.Gas()
+		k.ResetGasMeterAndConsumeGas(tmpCtx, tmpCtx.GasMeter().Limit())
+
 		// Any of these errors will not impact the evm state / execution flow
 		if errorsmod.IsOf(applyMessageErr, types.ErrCreateDisabled, types.ErrCallDisabled, types.ErrConfigOverrides) {
 			return nil, errorsmod.Wrap(applyMessageErr, "failed to apply ethereum core message, issue with create, call or config overrides")

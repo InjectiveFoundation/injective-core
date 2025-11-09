@@ -2,6 +2,7 @@ package ante
 
 import (
 	"fmt"
+	"os"
 
 	corestoretypes "cosmossdk.io/core/store"
 	"cosmossdk.io/errors"
@@ -70,12 +71,21 @@ func newEVMAnteHandler(options HandlerOptions) (sdk.AnteHandler, error) {
 		SignModeHandler: options.SignModeHandler,
 		SigGasConsumer:  options.SigGasConsumer,
 		MaxTxGasWanted:  options.MaxEthTxGasWanted,
+		TxFeesDecorator: txfeeskeeper.NewMempoolFeeDecorator(options.TxFeesKeeper, true),
 		// TODO: use TxFeesKeeper
 		DisabledAuthzMsgs: []string{
 			sdk.MsgTypeURL(&evmtypes.MsgEthereumTx{}),
 		},
 	})
 }
+
+type noopAnteDecorator struct{}
+
+func (n noopAnteDecorator) AnteHandle(ctx sdk.Context, tx sdk.Tx, sim bool, next sdk.AnteHandler) (sdk.Context, error) {
+	return ctx, nil
+}
+
+var _ sdk.AnteDecorator = noopAnteDecorator{}
 
 // NewAnteHandler returns an ante handler responsible for attempting to route an
 // Ethereum or SDK transaction to an internal ante handler for performing
@@ -97,6 +107,27 @@ func NewAnteHandler(
 		var anteHandler sdk.AnteHandler
 
 		ak := options.AccountKeeper
+
+		noSignatureVerification := os.Getenv("DEVNET_NO_SIGNATURE_VERIFICATION") == "true" ||
+			os.Getenv("DEVNET_NO_SIGNATURE_VERIFICATION") == "1"
+
+		var eip712SigVerificationDecorator sdk.AnteDecorator = NewEip712SigVerificationDecorator(ak)
+		if noSignatureVerification {
+			eip712SigVerificationDecorator = noopAnteDecorator{}
+		}
+
+		var sigVerificationDecorator sdk.AnteDecorator = authante.NewSigVerificationDecorator(ak, options.SignModeHandler)
+		if noSignatureVerification {
+			sigVerificationDecorator = noopAnteDecorator{}
+		}
+
+		noTimeoutHeight := os.Getenv("DEVNET_NO_TIMEOUT_HEIGHT") == "true" ||
+			os.Getenv("DEVNET_NO_TIMEOUT_HEIGHT") == "1"
+
+		var txTimeoutHeightDecorator sdk.AnteDecorator = authante.NewTxTimeoutHeightDecorator()
+		if noTimeoutHeight {
+			txTimeoutHeightDecorator = noopAnteDecorator{}
+		}
 
 		txWithExtensions, ok := tx.(authante.HasExtensionOptionsTx)
 		if ok {
@@ -120,15 +151,15 @@ func NewAnteHandler(
 							wasmkeeper.NewLimitSimulationGasDecorator(options.WasmConfig.SimulationGasLimit), // after setup context to enforce limits early
 							wasmkeeper.NewCountTXDecorator(options.TXCounterStoreService),
 							authante.NewValidateBasicDecorator(),
-							authante.NewTxTimeoutHeightDecorator(),
+							txTimeoutHeightDecorator,
 							authante.NewValidateMemoDecorator(ak),
 							authante.NewConsumeGasForTxSizeDecorator(ak),
 							authante.NewSetPubKeyDecorator(ak), // SetPubKeyDecorator must be called before all signature verification decorators
 							authante.NewValidateSigCountDecorator(ak),
-							txfeeskeeper.NewMempoolFeeDecorator(options.TxFeesKeeper),
-							NewDeductFeeDecorator(ak, options.BankKeeper), // overidden for fee delegation
+							txfeeskeeper.NewMempoolFeeDecorator(options.TxFeesKeeper, false),
+							NewDeductFeeDecorator(ak, options.BankKeeper), // overidden for fee delegation, also checks gas price against validator's config min gas prices during CheckTx
 							authante.NewSigGasConsumeDecorator(ak, DefaultSigVerificationGasConsumer),
-							NewEip712SigVerificationDecorator(ak),      // overidden for EIP712 Tx signatures
+							eip712SigVerificationDecorator,             // overidden for EIP712 Tx signatures
 							authante.NewIncrementSequenceDecorator(ak), // innermost AnteDecorator
 						)
 					default:
@@ -164,15 +195,15 @@ func NewAnteHandler(
 				wasmkeeper.NewCountTXDecorator(options.TXCounterStoreService),
 				authante.NewExtensionOptionsDecorator(nil),
 				authante.NewValidateBasicDecorator(),
-				authante.NewTxTimeoutHeightDecorator(),
+				txTimeoutHeightDecorator,
 				authante.NewValidateMemoDecorator(ak),
-				txfeeskeeper.NewMempoolFeeDecorator(options.TxFeesKeeper),
+				txfeeskeeper.NewMempoolFeeDecorator(options.TxFeesKeeper, false),
 				authante.NewConsumeGasForTxSizeDecorator(ak),
 				authante.NewDeductFeeDecorator(ak, options.BankKeeper, options.FeegrantKeeper, nil),
 				authante.NewSetPubKeyDecorator(ak), // SetPubKeyDecorator must be called before all signature verification decorators
 				authante.NewValidateSigCountDecorator(ak),
 				authante.NewSigGasConsumeDecorator(ak, DefaultSigVerificationGasConsumer),
-				authante.NewSigVerificationDecorator(ak, options.SignModeHandler),
+				sigVerificationDecorator,
 				authante.NewIncrementSequenceDecorator(ak),
 				ibcante.NewRedundantRelayDecorator(options.IBCKeeper),
 			)

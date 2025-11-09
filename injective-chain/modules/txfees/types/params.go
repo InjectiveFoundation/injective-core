@@ -15,14 +15,14 @@ func NewParams() Params {
 // DefaultParams returns a default set of parameters.
 func DefaultParams() Params {
 	return Params{
-		MaxGasWantedPerTx:                    uint64(30_000_000),
-		HighGasTxThreshold:                   uint64(25_000_000),
+		MaxGasWantedPerTx:                    uint64(75_000_000),
+		HighGasTxThreshold:                   uint64(30_000_000),
 		MinGasPriceForHighGasTx:              math.LegacyZeroDec(),
-		Mempool1559Enabled:                   false,
+		Mempool1559Enabled:                   false, // don't break integration evm tests
 		MinGasPrice:                          math.LegacyNewDec(mempool1559.DefaultMinGasPrice),
 		DefaultBaseFeeMultiplier:             math.LegacyMustNewDecFromStr("1.5"),
 		MaxBaseFeeMultiplier:                 math.LegacyMustNewDecFromStr("1000"),
-		ResetInterval:                        72_000,
+		ResetInterval:                        42_000,
 		TargetBlockSpacePercentRate:          math.LegacyMustNewDecFromStr("0.625"),
 		RecheckFeeLowBaseFee:                 math.LegacyMustNewDecFromStr("3"),
 		RecheckFeeHighBaseFee:                math.LegacyMustNewDecFromStr("2.3"),

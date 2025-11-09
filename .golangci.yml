@@ -38,6 +38,8 @@ linters:
           arguments:
             - 20
           disabled: false
+        - name: defer
+          disabled: true
   exclusions:
     generated: lax
     presets:

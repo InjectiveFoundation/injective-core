@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"cosmossdk.io/log"
+	"cosmossdk.io/math"
 	abci "github.com/cometbft/cometbft/abci/types"
 	crypto "github.com/cometbft/cometbft/api/cometbft/crypto/v1"
 	cmrpctypes "github.com/cometbft/cometbft/rpc/core/types"
@@ -158,19 +159,22 @@ func (b *Backend) processBlock(
 			b.logger.Debug("failed to decode transaction in block", "height", blockHeight, "error", err.Error())
 			continue
 		}
-		txGasUsed := uint64(eachcometTxResult.GasUsed)
-		for _, msg := range tx.GetMsgs() {
-			ethMsg, ok := msg.(*evmtypes.MsgEthereumTx)
-			if !ok {
-				continue
-			}
-			tx := ethMsg.AsTransaction()
-			reward := tx.EffectiveGasTipValue(blockBaseFee)
-			if reward == nil {
-				reward = big.NewInt(0)
-			}
-			sorter = append(sorter, txGasAndReward{gasUsed: txGasUsed, reward: reward})
+		feeTx, ok := tx.(sdk.FeeTx)
+		if !ok {
+			b.logger.Debug("transaction in a block is not FeeTx?", "height", blockHeight, "tx_index", i)
+			continue
 		}
+		txGasUsed := uint64(eachcometTxResult.GasUsed)
+		feeDenom := feeTx.GetFee().GetDenomByIndex(0)
+		fee := feeTx.GetFee().AmountOf(feeDenom)
+		gas := feeTx.GetGas()
+		gasPrice := fee.Quo(math.NewIntFromUint64(gas))
+		reward := gasPrice.Sub(math.NewIntFromBigInt(blockBaseFee)).BigInt()
+		if reward.Sign() < 0 { // can be the case if tx is already in the mempool but BaseFee for the next block is already higher than tx's gas price
+			reward = big.NewInt(0)
+		}
+
+		sorter = append(sorter, txGasAndReward{gasUsed: txGasUsed, reward: reward})
 	}
 
 	// return an all zero row if there are no transactions to gather data from

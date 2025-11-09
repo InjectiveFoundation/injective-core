@@ -305,6 +305,10 @@ func (s *StreamServer) streamResponseFromMap(inResp v2.StreamResponseMap, req *v
 	// Process each filter type using helper functions
 
 	processBankBalances(req, inResp, outResp)
+	processOrderbooks(req, inResp, outResp)
+	processSubaccountDeposits(req, inResp, outResp)
+	processOraclePrices(req, inResp, outResp)
+	processOrderFailures(req, inResp, outResp)
 
 	if err := processSpotOrders(req, inResp, outResp); err != nil {
 		return nil, err
@@ -314,16 +318,15 @@ func (s *StreamServer) streamResponseFromMap(inResp v2.StreamResponseMap, req *v
 		return nil, err
 	}
 
-	processOrderbooks(req, inResp, outResp)
-
 	if err := processPositions(req, inResp, outResp); err != nil {
 		return nil, err
 	}
 
-	processSubaccountDeposits(req, inResp, outResp)
-	processOraclePrices(req, inResp, outResp)
-
 	if err := processTrades(req, inResp, outResp); err != nil {
+		return nil, err
+	}
+
+	if err := processConditionalOrderTriggerFailures(req, inResp, outResp); err != nil {
 		return nil, err
 	}
 
@@ -464,6 +467,28 @@ func processDerivativeTrades(req *v2.StreamRequest, inResp v2.StreamResponseMap,
 			inResp.DerivativeTradesBySubaccount,
 			req.DerivativeTradesFilter.MarketIds,
 			req.DerivativeTradesFilter.SubaccountIds,
+		)
+		if err != nil {
+			return status.Error(codes.Internal, err.Error())
+		}
+	}
+	return nil
+}
+
+func processOrderFailures(req *v2.StreamRequest, inResp v2.StreamResponseMap, outResp *v2.StreamResponse) {
+	if req.OrderFailuresFilter != nil && inResp.OrderFailuresByAccount != nil {
+		outResp.OrderFailures = Filter(inResp.OrderFailuresByAccount, req.OrderFailuresFilter.Accounts)
+	}
+}
+
+func processConditionalOrderTriggerFailures(req *v2.StreamRequest, inResp v2.StreamResponseMap, outResp *v2.StreamResponse) error {
+	if req.ConditionalOrderTriggerFailuresFilter != nil && inResp.ConditionalOrderTriggerFailuresByMarketID != nil {
+		var err error
+		outResp.ConditionalOrderTriggerFailures, err = FilterMulti(
+			inResp.ConditionalOrderTriggerFailuresByMarketID,
+			inResp.ConditionalOrderTriggerFailuresBySubaccount,
+			req.ConditionalOrderTriggerFailuresFilter.MarketIds,
+			req.ConditionalOrderTriggerFailuresFilter.SubaccountIds,
 		)
 		if err != nil {
 			return status.Error(codes.Internal, err.Error())

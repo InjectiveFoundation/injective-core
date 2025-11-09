@@ -17,6 +17,7 @@ import (
 )
 
 func RegisterCustomPlugins(
+	cdc codec.Codec,
 	authzKeeper *authzkeeper.Keeper,
 	bankBaseKeeper bankkeeper.BaseKeeper,
 	auctionKeeper *auctionkeeper.Keeper,
@@ -26,6 +27,7 @@ func RegisterCustomPlugins(
 	tokenFactoryKeeper *tokenfactorykeeper.Keeper,
 	wasmxKeeper *wasmxkeeper.Keeper,
 	router wasmkeeper.MessageRouter,
+	disabledMsgs []string,
 ) []wasmkeeper.Option {
 	wasmQueryPlugin := NewQueryPlugin(authzKeeper, auctionKeeper, exchangeKeeper, oracleKeeper, &bankBaseKeeper, tokenFactoryKeeper, wasmxKeeper, feegrantKeeper)
 
@@ -34,7 +36,7 @@ func RegisterCustomPlugins(
 	})
 
 	messengerDecoratorOpt := wasmkeeper.WithMessageHandlerDecorator(
-		CustomMessageDecorator(router, bankBaseKeeper, exchangeKeeper, tokenFactoryKeeper),
+		CustomMessageDecorator(cdc, router, bankBaseKeeper, exchangeKeeper, tokenFactoryKeeper, disabledMsgs),
 	)
 
 	return []wasmkeeper.Option{

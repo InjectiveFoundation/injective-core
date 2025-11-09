@@ -177,7 +177,7 @@ func (api *PublicFilterAPI) NewFilter(criteria filters.FilterCriteria) (rpc.ID, 
 	api.filtersMu.Lock()
 	defer api.filtersMu.Unlock()
 
-	if err := validateFilterCriteria(criteria); err != nil {
+	if err := ValidateFilterCriteria(criteria); err != nil {
 		return rpc.ID(""), fmt.Errorf("error creating filter: invalid criteria: %w", err)
 	}
 
@@ -201,7 +201,7 @@ func (api *PublicFilterAPI) NewFilter(criteria filters.FilterCriteria) (rpc.ID, 
 //
 // https://github.com/ethereum/wiki/wiki/JSON-RPC#eth_getlogs
 func (api *PublicFilterAPI) GetLogs(ctx context.Context, crit filters.FilterCriteria) ([]*ethtypes.Log, error) {
-	if err := validateFilterCriteria(crit); err != nil {
+	if err := ValidateFilterCriteria(crit); err != nil {
 		return nil, fmt.Errorf("invalid criteria: %w", err)
 	}
 

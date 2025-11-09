@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"math/big"
 	"os"
 	"path/filepath"
 	"slices"
 	"time"
 
 	"cosmossdk.io/log"
+	"cosmossdk.io/math"
 	sdkmath "cosmossdk.io/math"
 	"cosmossdk.io/store/rootmulti"
 	upgradetypes "cosmossdk.io/x/upgrade/types"
@@ -50,6 +52,7 @@ import (
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/crypto/ethsecp256k1"
 	exchangetypesv2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
+	peggytypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/peggy/types"
 	txfeestypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/txfees/types"
 )
 
@@ -66,6 +69,7 @@ type DevnetCustomOverrides struct {
 	GovParams       govtypes.Params          `yaml:"GovParams"`
 	TxfeesParams    txfeestypes.Params       `yaml:"TxfeesParams"`
 	ExchangeParams  exchangetypesv2.Params   `yaml:"ExchangeParams"`
+	PeggyParams     *peggytypes.Params       `yaml:"PeggyParams"`
 }
 
 func NewDevnetApp(
@@ -253,9 +257,9 @@ func Devnetify(
 
 	newValSet := &cmtypes.ValidatorSet{Validators: []*cmtypes.Validator{}}
 
-	totalValidators := len(devnetValidators)                    // e.g. 60
-	powerReduction := sdkmath.NewInt(1_000_000_000_000_000_000) // 10^18
-	totalVotingPower := int64(10000)
+	totalValidators := len(devnetValidators)
+	injPowerReduction := math.NewIntFromBigInt(new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil))
+	totalVotingPower := int64(1000000000) // 1B > 55M current mainnet
 	votingPowerPerValidator := totalVotingPower / int64(totalValidators)
 	var commitSigs []cmtypes.CommitSig
 	var seenCommitsSigs []cmtypes.CommitSig
@@ -267,8 +271,6 @@ func Devnetify(
 			"address", fmt.Sprintf("%X", valAddress),
 			"pubkey", fmt.Sprintf("%X", devnetValidator.PubKey.Bytes()),
 		)
-
-		// Create a previous vote from this validator, only if non-single validator devnet
 
 		vote := cmtypes.Vote{
 			Type:             cmtproto.PrecommitType,
@@ -317,9 +319,7 @@ func Devnetify(
 		}
 		seenCommitsSigs = append(seenCommitsSigs, seenCommitSig)
 
-		// To ensure Tokens field aligns with staking module (i.e., Tokens = VotingPower * PowerReduction)
-		tokensPerValidator := sdkmath.NewInt(votingPowerPerValidator).Mul(powerReduction)
-		devnetValidator.Validator.Tokens = tokensPerValidator
+		devnetValidator.Validator.Tokens = sdk.TokensFromConsensusPower(votingPowerPerValidator, injPowerReduction)
 
 		newVal := &cmtypes.Validator{
 			Address:     valAddress,
@@ -465,7 +465,22 @@ func initAppForDevnet(
 		stakingStore.Delete(key)
 	}
 
-	// Update staking module
+	// Jail all existing validators
+	validatorInfos, err := app.StakingKeeper.GetAllValidators(ctx)
+	noerror(err)
+
+	for _, valToJail := range validatorInfos {
+		if valToJail.Jailed {
+			continue
+		}
+
+		valToJail.Jailed = true
+		// same logic as jailValidator from slashing
+		app.StakingKeeper.SetValidator(ctx, valToJail)
+		app.StakingKeeper.DeleteValidatorByPowerIndex(ctx, valToJail)
+	}
+
+	// Update staking module with new validators
 	for _, newVal := range validators {
 		// Add our validator to power and last validators store
 		err = app.StakingKeeper.SetValidator(ctx, newVal.Validator)
@@ -548,6 +563,7 @@ func initDevnetCustomOverridesInApp(ctx context.Context, app *InjectiveApp, over
 		GovParams:       govParams,
 		TxfeesParams:    app.TxFeesKeeper.GetParams(sdk.UnwrapSDKContext(ctx)),
 		ExchangeParams:  app.ExchangeKeeper.GetParams(sdk.UnwrapSDKContext(ctx)),
+		PeggyParams:     app.PeggyKeeper.GetParams(sdk.UnwrapSDKContext(ctx)),
 	}
 
 	// read YAML from stdin
@@ -584,6 +600,7 @@ func initDevnetCustomOverridesInApp(ctx context.Context, app *InjectiveApp, over
 	noerror(err)
 	app.TxFeesKeeper.SetParams(sdk.UnwrapSDKContext(ctx), overrides.TxfeesParams)
 	app.ExchangeKeeper.SetParams(sdk.UnwrapSDKContext(ctx), overrides.ExchangeParams)
+	app.PeggyKeeper.SetParams(sdk.UnwrapSDKContext(ctx), overrides.PeggyParams)
 }
 
 // LoadDevnetValidatorsFromPath reads validators from a directory of validator home dirs.

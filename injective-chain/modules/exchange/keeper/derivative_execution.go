@@ -25,6 +25,7 @@ type DerivativeBatchExecutionData struct {
 	// updated positions
 	Positions             []*v2.Position
 	MarketBalanceDelta    math.LegacyDec
+	OpenInterestDelta     math.LegacyDec
 	PositionSubaccountIDs []common.Hash
 
 	// resting limit order filled deltas to apply
@@ -85,6 +86,7 @@ type DerivativeMatchingExpansionData struct {
 	ClearingPrice                  math.LegacyDec
 	ClearingQuantity               math.LegacyDec
 	MarketBalanceDelta             math.LegacyDec
+	OpenInterestDelta              math.LegacyDec
 	NewRestingLimitBuyOrders       []*v2.DerivativeLimitOrder // transient buy orders that become new resting limit orders
 	NewRestingLimitSellOrders      []*v2.DerivativeLimitOrder // transient sell orders that become new resting limit orders
 }
@@ -102,6 +104,7 @@ func NewDerivativeMatchingExpansionData(clearingPrice, clearingQuantity math.Leg
 		ClearingPrice:                  clearingPrice,
 		ClearingQuantity:               clearingQuantity,
 		MarketBalanceDelta:             math.LegacyZeroDec(),
+		OpenInterestDelta:              math.LegacyZeroDec(),
 		NewRestingLimitBuyOrders:       make([]*v2.DerivativeLimitOrder, 0),
 		NewRestingLimitSellOrders:      make([]*v2.DerivativeLimitOrder, 0),
 	}
@@ -144,6 +147,7 @@ type DerivativeMarketOrderExpansionData struct {
 	MarketBuyClearingQuantity    math.LegacyDec
 	MarketSellClearingQuantity   math.LegacyDec
 	MarketBalanceDelta           math.LegacyDec
+	OpenInterestDelta            math.LegacyDec
 }
 
 func (e *DerivativeMarketOrderExpansionData) SetBuyExecutionData(
@@ -184,7 +188,10 @@ func (e *DerivativeMarketOrderExpansionData) setExecutionData(
 	marketOrderStateExpansions,
 	restingLimitOrderStateExpansions []*DerivativeOrderStateExpansion,
 ) {
-	e.MarketBalanceDelta = math.LegacyZeroDec()
+	if e.MarketBalanceDelta.IsNil() {
+		e.MarketBalanceDelta = math.LegacyZeroDec()
+	}
+
 	for idx := range marketOrderStateExpansions {
 		stateExpansion := marketOrderStateExpansions[idx]
 		e.MarketBalanceDelta = e.MarketBalanceDelta.Add(stateExpansion.MarketBalanceDelta)
@@ -284,6 +291,7 @@ func (e *DerivativeMatchingExpansionData) GetLimitMatchingDerivativeBatchExecuti
 		TradingRewards:                        tradingRewardPoints,
 		Positions:                             positions,
 		MarketBalanceDelta:                    market.NotionalToChainFormat(e.MarketBalanceDelta),
+		OpenInterestDelta:                     e.OpenInterestDelta,
 		PositionSubaccountIDs:                 positionSubaccountIDs,
 		RestingLimitOrderFilledDeltas:         restingOrderFilledDeltas,
 		TransientLimitOrderFilledDeltas:       transientOrderFilledDeltas,
@@ -574,6 +582,7 @@ func (e *DerivativeMarketOrderExpansionData) getMarketDerivativeBatchExecutionDa
 		TradingRewards:                        tradingRewardPoints,
 		Positions:                             positions,
 		MarketBalanceDelta:                    market.NotionalToChainFormat(e.MarketBalanceDelta),
+		OpenInterestDelta:                     e.OpenInterestDelta,
 		PositionSubaccountIDs:                 positionSubaccountIDs,
 		TransientLimitOrderFilledDeltas:       nil,
 		RestingLimitOrderFilledDeltas:         filledDeltas,

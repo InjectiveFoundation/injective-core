@@ -2,6 +2,7 @@ package keeper
 
 import (
 	"cosmossdk.io/math"
+	storetypes "cosmossdk.io/store/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	proto "github.com/cosmos/gogoproto/proto"
 	"github.com/ethereum/go-ethereum/common"
@@ -14,7 +15,7 @@ func (k *Keeper) EmitEvent(ctx sdk.Context, event proto.Message) {
 	k.emitEvent(ctx, event)
 
 	if k.GetParams(ctx).EmitLegacyVersionEvents {
-		k.emitLegacyVersionEvent(ctx, event)
+		k.EmitLegacyVersionEvent(ctx, event)
 	}
 }
 
@@ -25,11 +26,19 @@ func (k *Keeper) emitEvent(ctx sdk.Context, event proto.Message) {
 	}
 }
 
-func (k *Keeper) emitLegacyVersionEvent(ctx sdk.Context, event proto.Message) {
+//revive:disable:function-length // This is a long function, but it is not a problem
+//revive:disable:cyclomatic // Any refactoring to the function would make it less readable
+func (k *Keeper) EmitLegacyVersionEvent(ctx sdk.Context, event proto.Message) {
 	// recover from any panic that conversion from v2 to v1 could produce, to prevent a chain halt
 	defer func() {
 		if r := recover(); r != nil {
-			k.Logger(ctx).Error("panic in emitLegacyVersionEvent", "event", event, "panic", r)
+			switch rType := r.(type) {
+			case storetypes.ErrorOutOfGas:
+				panic(rType)
+			default:
+				// Only suppress non-gas-related panics
+				k.Logger(ctx).Error("panic in emitLegacyVersionEvent", "event_type", proto.MessageName(event), "event", event, "panic", r)
+			}
 		}
 	}()
 

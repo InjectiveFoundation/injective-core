@@ -193,12 +193,12 @@ ictest-lanes: rm-testcache
 
 ictest-fixed-gas: rm-testcache
 	rm -rf interchaintest/coverage/Test_FixedGas_HappyPath
-	cd interchaintest && go test -v -run Test_FixedGas_HappyPath .
+	cd interchaintest && go test -timeout 30m -v -run Test_FixedGas_HappyPath .
 	./scripts/coverage-html.sh interchaintest/coverage/Test_FixedGas_HappyPath
 
 ictest-fixed-gas-regression: rm-testcache
 	rm -rf interchaintest/coverage/Test_FixedGas_Regression
-	cd interchaintest && go test -v -run Test_FixedGas_Regression .
+	cd interchaintest && go test -timeout 30m -v -run Test_FixedGas_Regression .
 	./scripts/coverage-html.sh interchaintest/coverage/Test_FixedGas_Regression
 
 ictest-peggo: rm-testcache
@@ -231,9 +231,20 @@ ictest-downtime-detector: rm-testcache
 	cd interchaintest && go test -timeout 30m -v -run TestDowntimeDetector .
 	./scripts/coverage-html.sh interchaintest/coverage/TestDowntimeDetector
 
+ictest-hyperlane: rm-testcache
+	rm -rf interchaintest/coverage/Test_HyperLaneRemoteTransfer_CosmosNativeXCosmosNative
+	cd interchaintest && go test -timeout 30m -v -run Test_HyperLaneRemoteTransfer_CosmosNativeXCosmosNative .
+	./scripts/coverage-html.sh interchaintest/coverage/Test_HyperLaneRemoteTransfer_CosmosNativeXCosmosNative
+
+ictest-validator-jailed: rm-testcache
+	rm -rf interchaintest/coverage/Test_ValidatorJailedEvent
+	cd interchaintest && go test -timeout 30m -v -run Test_ValidatorJailedEvent .
+	./scripts/coverage-html.sh interchaintest/coverage/Test_ValidatorJailedEvent
+
 .PHONY: rm-testcache rm-ic-coverage
 .PHONY: ictest-all ictest-basic ictest-upgrade ictest-ibchooks ictest-permissions-wasm-hook ictest-pfm ictest-lanes
-.PHONY: ictest-fixed-gas ictest-fixed-gas-regression ictest-peggo ictest-peggo-ibc ictest-evm ictest-chainstream ictest-downtime-detector
+.PHONY: ictest-fixed-gas ictest-fixed-gas-regression ictest-peggo ictest-peggo-ibc ictest-hyperlane ictest-evm
+.PHONY: ictest-downtime-detector ictest-chainstream ictest-validator-jailed
 
 ###############################################################################
 
@@ -291,4 +302,17 @@ precompiles-bindings:
 gen-modules-errors-pages:
 	@exec ./scripts/docs/generate_errors_docs.sh
 
-.PHONY: gen-modules-errors-pages
+# Default destination folder for error documentation JSON files
+ERROR_DOCS_DEST ?= ./docs/errors
+
+# Generate error documentation JSON files for all registered error codes
+# Usage:
+#   make gen-error-docs                                    # Generate in default location (./docs/errors)
+#   make gen-error-docs ERROR_DOCS_DEST=./custom/path     # Generate in custom directory
+gen-error-docs:
+	@echo "Generating error documentation JSON files..."
+	@mkdir -p $(ERROR_DOCS_DEST)
+	@go run scripts/docs/document_error_codes_script.go -dest $(ERROR_DOCS_DEST)
+	@echo "Error documentation generated successfully in $(ERROR_DOCS_DEST)"
+
+.PHONY: gen-modules-errors-pages gen-error-docs

@@ -17,7 +17,7 @@ type BinaryOptionsV1MsgServer struct {
 	svcTags metrics.Tags
 }
 
-// NewBinaryOptionsV1MsgServerImpl returns an implementation of the exchange MsgServer interface for the provided 
+// NewBinaryOptionsV1MsgServerImpl returns an implementation of the exchange MsgServer interface for the provided
 // Keeper for binary options market functions.
 func NewBinaryOptionsV1MsgServerImpl(keeper Keeper, server v2.MsgServer) BinaryOptionsV1MsgServer {
 	return BinaryOptionsV1MsgServer{
@@ -65,6 +65,15 @@ func (k BinaryOptionsV1MsgServer) InstantBinaryOptionsMarketLaunch(
 		MinPriceTickSize:    humanReadableMinPriceTickSize,
 		MinQuantityTickSize: humanReadableMinQuantityTickSize,
 		MinNotional:         humanReadableMinNotional,
+		OpenNotionalCap: v2.OpenNotionalCap{
+			Cap: &v2.OpenNotionalCap_Uncapped{
+				Uncapped: &v2.OpenNotionalCapUncapped{},
+			},
+		},
+	}
+
+	if err := v2Msg.ValidateBasic(); err != nil {
+		return nil, err
 	}
 
 	_, err = k.server.InstantBinaryOptionsMarketLaunch(goCtx, v2Msg)
@@ -91,6 +100,10 @@ func (k BinaryOptionsV1MsgServer) CreateBinaryOptionsLimitOrder(
 	v2Msg := &v2.MsgCreateBinaryOptionsLimitOrder{
 		Sender: msg.Sender,
 		Order:  *v2Order,
+	}
+
+	if err := v2Msg.ValidateBasic(); err != nil {
+		return nil, err
 	}
 
 	v2Response, err := k.server.CreateBinaryOptionsLimitOrder(goCtx, v2Msg)
@@ -120,6 +133,10 @@ func (k BinaryOptionsV1MsgServer) CreateBinaryOptionsMarketOrder(
 	v2Msg := &v2.MsgCreateBinaryOptionsMarketOrder{
 		Sender: msg.Sender,
 		Order:  *v2Order,
+	}
+
+	if err := v2Msg.ValidateBasic(); err != nil {
+		return nil, err
 	}
 
 	v2Response, err := k.server.CreateBinaryOptionsMarketOrder(goCtx, v2Msg)
@@ -172,6 +189,10 @@ func (k BinaryOptionsV1MsgServer) CancelBinaryOptionsOrder(
 		Cid:          msg.Cid,
 	}
 
+	if err := v2Msg.ValidateBasic(); err != nil {
+		return nil, err
+	}
+
 	_, err := k.server.CancelBinaryOptionsOrder(goCtx, v2Msg)
 	if err != nil {
 		return nil, err
@@ -192,6 +213,10 @@ func (k BinaryOptionsV1MsgServer) AdminUpdateBinaryOptionsMarket(
 		ExpirationTimestamp: msg.ExpirationTimestamp,
 		SettlementTimestamp: msg.SettlementTimestamp,
 		Status:              v2.MarketStatus(msg.Status),
+	}
+
+	if err := v2Msg.ValidateBasic(); err != nil {
+		return nil, err
 	}
 
 	_, err := k.server.AdminUpdateBinaryOptionsMarket(goCtx, v2Msg)
@@ -221,6 +246,10 @@ func (k BinaryOptionsV1MsgServer) BatchCancelBinaryOptionsOrders(
 	v2Msg := &v2.MsgBatchCancelBinaryOptionsOrders{
 		Sender: msg.Sender,
 		Data:   v2OrderDataList,
+	}
+
+	if err := v2Msg.ValidateBasic(); err != nil {
+		return nil, err
 	}
 
 	v2Response, err := k.server.BatchCancelBinaryOptionsOrders(goCtx, v2Msg)

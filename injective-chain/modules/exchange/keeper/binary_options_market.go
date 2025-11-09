@@ -22,6 +22,7 @@ func (k *Keeper) BinaryOptionsMarketLaunch(
 	expirationTimestamp, settlementTimestamp int64,
 	admin, quoteDenom string,
 	minPriceTickSize, minQuantityTickSize, minNotional math.LegacyDec,
+	openNotionalCap v2.OpenNotionalCap,
 ) (*v2.BinaryOptionsMarket, error) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
@@ -90,6 +91,7 @@ func (k *Keeper) BinaryOptionsMarketLaunch(
 		MinPriceTickSize:    minPriceTickSize,
 		MinQuantityTickSize: minQuantityTickSize,
 		MinNotional:         minNotional,
+		OpenNotionalCap:     openNotionalCap,
 		SettlementPrice:     nil,
 		QuoteDecimals:       quoteDecimals,
 	}
@@ -581,7 +583,7 @@ func (k *Keeper) ExecuteBinaryOptionsMarketParamUpdateProposal(ctx sdk.Context, 
 
 	k.updateFeeRates(ctx, market, p)
 	k.updateTimestamps(ctx, market, p)
-	k.updateMarketParams(ctx, market, p)
+	k.updateMarketParams(market, p)
 
 	if p.Status == v2.MarketStatus_Demolished {
 		k.scheduleBinaryOptionsMarketForSettlement(ctx, common.HexToHash(market.MarketId))
@@ -626,7 +628,8 @@ func (k *Keeper) updateTimestamps(ctx sdk.Context, market *v2.BinaryOptionsMarke
 	}
 }
 
-func (*Keeper) updateMarketParams(ctx sdk.Context, market *v2.BinaryOptionsMarket, p *v2.BinaryOptionsMarketParamUpdateProposal) {
+//revive:disable:cyclomatic // Any refactoring to the function would make it less readable
+func (*Keeper) updateMarketParams(market *v2.BinaryOptionsMarket, p *v2.BinaryOptionsMarketParamUpdateProposal) {
 	if p.Admin != "" {
 		market.Admin = p.Admin
 	}
@@ -651,6 +654,9 @@ func (*Keeper) updateMarketParams(ctx sdk.Context, market *v2.BinaryOptionsMarke
 	if p.Ticker != "" {
 		market.Ticker = p.Ticker
 	}
+	if p.OpenNotionalCap != nil {
+		market.OpenNotionalCap = *p.OpenNotionalCap
+	}
 }
 
 func (k *Keeper) handleBinaryOptionsMarketLaunchProposal(ctx sdk.Context, p *v2.BinaryOptionsMarketLaunchProposal) error {
@@ -674,6 +680,7 @@ func (k *Keeper) handleBinaryOptionsMarketLaunchProposal(ctx sdk.Context, p *v2.
 		p.MinPriceTickSize,
 		p.MinQuantityTickSize,
 		p.MinNotional,
+		p.OpenNotionalCap,
 	)
 	if err != nil {
 		return err

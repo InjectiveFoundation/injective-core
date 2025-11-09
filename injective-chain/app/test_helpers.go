@@ -53,8 +53,15 @@ func Setup(isCheckTx bool, appOpts ...simtestutil.AppOptionsMap) *InjectiveApp {
 	defer setupMutex.Unlock()
 
 	sdk.DefaultBondDenom = "inj"
-	testAppOpts := simtestutil.AppOptionsMap{"trace": true}
+	testAppOpts := simtestutil.AppOptionsMap{
+		"trace":                 true,
+		"pruning":               "nothing", // Disable pruning for tests to prevent goroutine leaks
+		"iavl-disable-fastnode": true,      // Disable IAVL fast node for tests
+		"iavl-cache-size":       1000,      // Smaller cache for tests
+		"min-retain-blocks":     0,         // Don't retain blocks during tests
+	}
 
+	// Merge with provided options (provided options take precedence)
 	for _, opts := range appOpts {
 		for k, v := range opts {
 			testAppOpts[k] = v

@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
 	"cosmossdk.io/math"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
+	"github.com/docker/docker/client"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/strangelove-ventures/interchaintest/v8/chain/ethereum"
 	"github.com/strangelove-ventures/interchaintest/v8/chain/ethereum/geth"
@@ -20,7 +22,7 @@ import (
 	wasmtypes "github.com/CosmWasm/wasmd/x/wasm/types"
 	cosmtestutil "github.com/cosmos/cosmos-sdk/types/module/testutil"
 	authztypes "github.com/cosmos/cosmos-sdk/x/authz"
-	interchaintest "github.com/strangelove-ventures/interchaintest/v8"
+	"github.com/strangelove-ventures/interchaintest/v8"
 	"github.com/strangelove-ventures/interchaintest/v8/chain/cosmos"
 	"github.com/strangelove-ventures/interchaintest/v8/ibc"
 	"github.com/strangelove-ventures/interchaintest/v8/testreporter"
@@ -40,6 +42,11 @@ import (
 	permissionstypes "github.com/InjectiveLabs/sdk-go/chain/permissions/types"
 	tokenfactorytypes "github.com/InjectiveLabs/sdk-go/chain/tokenfactory/types"
 	wasmxtypes "github.com/InjectiveLabs/sdk-go/chain/wasmx/types"
+
+	ismtypes "github.com/bcp-innovations/hyperlane-cosmos/x/core/01_interchain_security/types"
+	pdtypes "github.com/bcp-innovations/hyperlane-cosmos/x/core/02_post_dispatch/types"
+	hyperlanetypes "github.com/bcp-innovations/hyperlane-cosmos/x/core/types"
+	warptypes "github.com/bcp-innovations/hyperlane-cosmos/x/warp/types"
 )
 
 var (
@@ -57,10 +64,6 @@ var (
 	}
 
 	defaultGenesisOverridesKV = []cosmos.GenesisKV{
-		{
-			Key:   "consensus.params.block.max_gas",
-			Value: "150000000", // matches mainnet
-		},
 		{
 			Key:   "app_state.gov.params.voting_period",
 			Value: "15s",
@@ -92,6 +95,13 @@ func injectiveEncoding() *cosmtestutil.TestEncodingConfig {
 	tokenfactorytypes.RegisterInterfaces(cfg.InterfaceRegistry)
 	wasmxtypes.RegisterInterfaces(cfg.InterfaceRegistry)
 	authztypes.RegisterInterfaces(cfg.InterfaceRegistry)
+
+	hyperlanetypes.RegisterInterfaces(cfg.InterfaceRegistry)
+	warptypes.RegisterInterfaces(cfg.InterfaceRegistry)
+	ismtypes.RegisterInterfaces(cfg.InterfaceRegistry)
+	pdtypes.RegisterInterfaces(cfg.InterfaceRegistry)
+
+	// TODO: types dependency shall be moved to sdk-go
 	evmtypes.RegisterInterfaces(cfg.InterfaceRegistry)
 	erc20types.RegisterInterfaces(cfg.InterfaceRegistry)
 
@@ -205,6 +215,34 @@ func GethChainConfig() ibc.ChainConfig {
 	}
 }
 
+// todo: this mux is a best-attempt at preventing the following (flaky) error on CI:
+// 		Error while waiting for container 646d78768fd803371e6778f78efc818d9c615a2e5dc24f8f81b3e620e3dbce01 during docker cleanup:
+//		failed to set up container networking: driver failed programming external connectivity on endpoint injtest-1-val-3-TestMempoolLanesSingleUser
+//		(503db836c024204536d0749f98509c42ab2217bfd5afe8992c7f82795664ae65): Bind for 0.0.0.0:33113 failed: port is already allocated
+// Proper fix would be in our fork of interchaintest as that's when docker attempts to bind the ports (CI interchain is run in parallel)
+
+var dockerMux sync.Mutex
+
+func SetupDocker(t *testing.T) (*client.Client, string) {
+	dockerMux.Lock()
+	defer dockerMux.Unlock()
+	return interchaintest.DockerSetup(t)
+}
+
+type ConcurrentInterchain struct {
+	*interchaintest.Interchain
+}
+
+func (ci ConcurrentInterchain) Build(
+	ctx context.Context,
+	rep *testreporter.RelayerExecReporter,
+	opts interchaintest.InterchainBuildOptions,
+) error {
+	dockerMux.Lock()
+	defer dockerMux.Unlock()
+	return ci.Interchain.Build(ctx, rep, opts)
+}
+
 func CreateChain(
 	t *testing.T,
 	ctx context.Context,
@@ -236,9 +274,9 @@ func CreateChain(
 	}
 
 	ic := interchaintest.NewInterchain().AddChain(chain)
-	client, network := interchaintest.DockerSetup(t)
+	client, network := SetupDocker(t)
 
-	err = ic.Build(
+	err = ConcurrentInterchain{ic}.Build(
 		ctx,
 		testreporter.NewNopReporter().RelayerExecReporter(t),
 		interchaintest.InterchainBuildOptions{

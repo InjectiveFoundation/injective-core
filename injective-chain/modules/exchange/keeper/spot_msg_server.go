@@ -5,10 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	storetypes "cosmossdk.io/store/types"
-
 	sdkerrors "cosmossdk.io/errors"
-	"cosmossdk.io/math"
+	storetypes "cosmossdk.io/store/types"
 	"github.com/InjectiveLabs/metrics"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	errortypes "github.com/cosmos/cosmos-sdk/types/errors"
@@ -95,49 +93,59 @@ func (k SpotMsgServer) UpdateSpotMarket(c context.Context, msg *v2.MsgUpdateSpot
 		return nil, sdkerrors.Wrap(types.ErrSpotMarketNotFound, "unknown market id")
 	}
 
-	if market.Admin == "" || market.Admin != msg.Admin {
+	switch {
+	case market.Admin == "":
+		if !k.IsAdmin(ctx, msg.Admin) {
+			return nil, sdkerrors.Wrap(types.ErrInvalidAccessLevel, "no market admin defined and sender is not an exchange module admin")
+		}
+	case market.Admin != msg.Admin:
 		return nil, sdkerrors.Wrapf(types.ErrInvalidAccessLevel, "market belongs to another admin (%v)", market.Admin)
-	}
+	default:
+		// only check permissions if the market has an admin
 
-	if market.AdminPermissions == 0 {
-		return nil, sdkerrors.Wrap(types.ErrInvalidAccessLevel, "no permissions found")
-	}
+		if market.AdminPermissions == 0 {
+			return nil, sdkerrors.Wrap(types.ErrInvalidAccessLevel, "no permissions found")
+		}
 
-	permissions := types.MarketAdminPermissions(market.AdminPermissions)
+		permissions := types.MarketAdminPermissions(market.AdminPermissions)
 
-	if msg.HasTickerUpdate() {
-		if !permissions.HasPerm(types.TickerPerm) {
+		if msg.HasTickerUpdate() && !permissions.HasPerm(types.TickerPerm) {
 			return nil, sdkerrors.Wrap(types.ErrInvalidAccessLevel, "admin does not have permission to update market ticker")
 		}
 
+		if msg.HasMinPriceTickSizeUpdate() && !permissions.HasPerm(types.MinPriceTickSizePerm) {
+			return nil, sdkerrors.Wrap(types.ErrInvalidAccessLevel, "admin does not have permission to update min_price_tick_size")
+		}
+
+		if msg.HasMinQuantityTickSizeUpdate() && !permissions.HasPerm(types.MinQuantityTickSizePerm) {
+			return nil, sdkerrors.Wrap(
+				types.ErrInvalidAccessLevel,
+				"admin does not have permission to update market min_quantity_tick_size",
+			)
+		}
+
+		if msg.HasMinNotionalUpdate() && !permissions.HasPerm(types.MinNotionalPerm) {
+			return nil, sdkerrors.Wrap(types.ErrInvalidAccessLevel, "admin does not have permission to update market min_notional")
+		}
+	}
+
+	if msg.HasTickerUpdate() {
 		market.Ticker = msg.NewTicker
 	}
 
 	if msg.HasMinPriceTickSizeUpdate() {
-		if !permissions.HasPerm(types.MinPriceTickSizePerm) {
-			return nil, sdkerrors.Wrap(types.ErrInvalidAccessLevel, "admin does not have permission to update min_price_tick_size")
-		}
-
 		market.MinPriceTickSize = msg.NewMinPriceTickSize
 	}
 
 	if msg.HasMinQuantityTickSizeUpdate() {
-		if !permissions.HasPerm(types.MinQuantityTickSizePerm) {
-			return nil, sdkerrors.Wrap(types.ErrInvalidAccessLevel, "admin does not have permission to update market min_quantity_tick_size")
-		}
-
 		market.MinQuantityTickSize = msg.NewMinQuantityTickSize
 
 	}
 
 	if msg.HasMinNotionalUpdate() {
-		if !permissions.HasPerm(types.MinNotionalPerm) {
-			return nil, sdkerrors.Wrap(types.ErrInvalidAccessLevel, "admin does not have permission to update market min_notional")
-		}
 		if err := k.checkDenomMinNotional(ctx, sdk.AccAddress(msg.Admin), market.QuoteDenom, msg.NewMinNotional); err != nil {
 			return nil, err
 		}
-
 		market.MinNotional = msg.NewMinNotional
 	}
 
@@ -209,102 +217,12 @@ func (k SpotMsgServer) CreateSpotMarketOrder(
 
 		ctx = ctx.WithGasMeter(storetypes.NewInfiniteGasMeter())
 	}
+	sender := sdk.MustAccAddressFromBech32(msg.Sender)
 
-	if k.IsPostOnlyMode(ctx) {
-		return nil, types.ErrPostOnlyMode.Wrapf(
-			"cannot create market orders in post only mode until height %d",
-			k.GetParams(ctx).PostOnlyModeHeightThreshold,
-		)
-	}
-
-	var (
-		marketID     = common.HexToHash(msg.Order.MarketId)
-		sender       = sdk.MustAccAddressFromBech32(msg.Sender)
-		subaccountID = types.MustGetSubaccountIDOrDeriveFromNonce(sender, msg.Order.OrderInfo.SubaccountId)
-	)
-
-	// populate the order with the actual subaccountID value, since it might be a nonce value
-	msg.Order.OrderInfo.SubaccountId = subaccountID.Hex()
-
-	market := k.GetSpotMarket(ctx, marketID, true)
-	if market == nil {
-		k.Logger(ctx).Error("active spot market doesn't exist", "marketId", msg.Order.MarketId)
-		metrics.ReportFuncError(k.svcTags)
-		return nil, types.ErrSpotMarketNotFound.Wrapf("active spot market doesn't exist %s", msg.Order.MarketId)
-	}
-
-	if err := msg.Order.CheckTickSize(market.MinPriceTickSize, market.MinQuantityTickSize); err != nil {
-		metrics.ReportFuncError(k.svcTags)
-		return nil, err
-	}
-
-	if err := msg.Order.CheckNotional(market.MinNotional); err != nil {
-		metrics.ReportFuncError(k.svcTags)
-		return nil, err
-	}
-
-	if k.existsCid(ctx, subaccountID, msg.Order.OrderInfo.Cid) {
-		return nil, types.ErrClientOrderIdAlreadyExists
-	}
-
-	isAtomic := msg.Order.OrderType.IsAtomic()
-	if isAtomic {
-		err := k.ensureValidAccessLevelForAtomicExecution(ctx, sender)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	subaccountNonce := k.IncrementSubaccountTradeNonce(ctx, subaccountID)
-
-	orderHash, err := msg.Order.ComputeOrderHash(subaccountNonce.Nonce)
+	marketOrderResults, orderHash, err := k.createSpotMarketOrderWithResultsForAtomicExecution(ctx, sender, &msg.Order, nil)
 	if err != nil {
-		metrics.ReportFuncError(k.svcTags)
 		return nil, err
 	}
-
-	marginDenom := msg.Order.GetMarginDenom(market)
-
-	bestPrice := k.GetBestSpotLimitOrderPrice(ctx, marketID, !msg.Order.IsBuy())
-
-	if bestPrice == nil {
-		metrics.ReportFuncError(k.svcTags)
-		return nil, types.ErrNoLiquidity
-	} else if msg.Order.IsBuy() && msg.Order.OrderInfo.Price.LT(*bestPrice) ||
-		!msg.Order.IsBuy() && msg.Order.OrderInfo.Price.GT(*bestPrice) {
-		// If market buy order worst price less than best sell order price
-		// or market sell order worst price greater than best buy order price
-		metrics.ReportFuncError(k.svcTags)
-		return nil, types.ErrSlippageExceedsWorstPrice
-	}
-
-	feeRate := market.TakerFeeRate
-	if isAtomic {
-		feeRate = feeRate.Mul(k.Keeper.GetMarketAtomicExecutionFeeMultiplier(ctx, marketID, types.MarketType_Spot))
-	}
-
-	balanceHold := msg.Order.GetMarketOrderBalanceHold(feeRate, *bestPrice)
-	var chainFormattedBalanceHold math.LegacyDec
-	if msg.Order.IsBuy() {
-		chainFormattedBalanceHold = market.NotionalToChainFormat(balanceHold)
-	} else {
-		chainFormattedBalanceHold = market.QuantityToChainFormat(balanceHold)
-	}
-
-	if err := k.chargeAccount(ctx, subaccountID, marginDenom, chainFormattedBalanceHold); err != nil {
-		return nil, err
-	}
-
-	marketOrder := msg.Order.ToSpotMarketOrder(sender, balanceHold, orderHash)
-
-	var marketOrderResults *v2.SpotMarketOrderResults
-	if isAtomic {
-		marketOrderResults = k.ExecuteAtomicSpotMarketOrder(ctx, market, marketOrder, feeRate)
-	} else {
-		k.SetTransientSpotMarketOrder(ctx, marketOrder, &msg.Order, orderHash)
-	}
-
-	k.CheckAndSetFeeDiscountAccountActivityIndicator(ctx, marketID, sender)
 
 	response := &v2.MsgCreateSpotMarketOrderResponse{
 		OrderHash: orderHash.Hex(),

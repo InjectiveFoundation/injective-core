@@ -93,6 +93,10 @@ func (sc *StakingContract) Address() common.Address {
 	return stakingContractAddress
 }
 
+func (*StakingContract) Name() string {
+	return "INJ_STAKING"
+}
+
 func (sc *StakingContract) RequiredGas(input []byte) uint64 {
 	if len(input) < 4 {
 		return 0
@@ -109,7 +113,15 @@ func (sc *StakingContract) RequiredGas(input []byte) uint64 {
 	return baseCost
 }
 
-func (sc *StakingContract) Run(evm *vm.EVM, contract *vm.Contract, readonly bool) (output []byte, err error) {
+func (sc *StakingContract) Run(evm *vm.EVM, contract *vm.Contract, readonly bool) ([]byte, error) {
+	res, err := sc.run(evm, contract, readonly)
+	if err != nil {
+		return types.RevertReasonAndError(err)
+	}
+	return res, nil
+}
+
+func (sc *StakingContract) run(evm *vm.EVM, contract *vm.Contract, readonly bool) (output []byte, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = ErrPrecompilePanic

@@ -27,8 +27,6 @@ COPY --from=builder /src/injectived.sh .
 COPY --from=builder /lib/libwasmvm.x86_64.so /lib/libwasmvm.x86_64.so
 COPY --from=builder /lib/libwasmvm.aarch64.so /lib/libwasmvm.aarch64.so
 
-RUN chmod 0644 /lib/libwasmvm.x86_64.so /lib/libwasmvm.aarch64.so
-
 RUN apt update && apt install -y curl lz4 wget procps
 
 RUN apt-get clean && apt-get autoclean && apt-get autoremove && rm -rf /var/lib/apt/lists/\* /tmp/\* /var/tmp/*

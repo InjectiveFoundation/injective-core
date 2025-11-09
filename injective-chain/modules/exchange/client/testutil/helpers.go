@@ -69,6 +69,7 @@ func MsgInstantPerpetualMarketLaunch(network *network.Network, clientCtx client.
 		fmt.Sprintf("--%s=%s", cli.FlagInitialMarginRatio, "0.05"),
 		fmt.Sprintf("--%s=%s", cli.FlagMaintenanceMarginRatio, "0.02"),
 		fmt.Sprintf("--%s=%s", cli.FlagReduceMarginRatio, "0.1"),
+		fmt.Sprintf("--%s=%s", cli.FlagOpenNotionalCap, "uncapped"),
 		fmt.Sprintf("--%s=%s", cli.FlagMinPriceTickSize, "0.0001"),
 		fmt.Sprintf("--%s=%s", cli.FlagMinQuantityTickSize, "0.001"),
 		fmt.Sprintf("--%s=%s", flags.FlagFrom, from.String()),

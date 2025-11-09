@@ -41,6 +41,13 @@ func NewFullStreamRequest() *StreamRequest {
 		OraclePriceFilter: &OraclePriceFilter{
 			Symbol: []string{"*"},
 		},
+		OrderFailuresFilter: &OrderFailuresFilter{
+			Accounts: []string{"*"},
+		},
+		ConditionalOrderTriggerFailuresFilter: &ConditionalOrderTriggerFailuresFilter{
+			SubaccountIds: []string{"*"},
+			MarketIds:     []string{"*"},
+		},
 	}
 }
 
@@ -68,7 +75,9 @@ func (m *StreamRequest) Validate() error {
 		m.SpotOrderbooksFilter == nil &&
 		m.DerivativeOrderbooksFilter == nil &&
 		m.PositionsFilter == nil &&
-		m.OraclePriceFilter == nil {
+		m.OraclePriceFilter == nil &&
+		m.OrderFailuresFilter == nil &&
+		m.ConditionalOrderTriggerFailuresFilter == nil {
 		return errors.New("at least one filter must be set")
 	}
 	return nil

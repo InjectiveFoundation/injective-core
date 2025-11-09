@@ -42,9 +42,15 @@ func (q queryServer) Params(c context.Context, _ *types.QueryParamsRequest) (*ty
 	return res, nil
 }
 
+// since we only store current baseFee, this query can only return current BaseFee values, even if requested for historic blocks
 func (q queryServer) GetEipBaseFee(c context.Context, _ *types.QueryEipBaseFeeRequest) (*types.QueryEipBaseFeeResponse, error) {
 	_, doneFn := metrics.ReportFuncCallAndTimingCtx(c, q.svcTags)
 	defer doneFn()
+
+	sdkCtx := sdk.UnwrapSDKContext(c)
+	if sdkCtx.BlockHeight() < q.k.CurFeeState.GetCurrentBlockHeight()-1 { // we do not support historical queries since we only have current BaseFee in memory
+		return nil, types.ErrUnsupportedQueryParams
+	}
 
 	baseFee := q.k.CurFeeState.GetCurBaseFee()
 	return &types.QueryEipBaseFeeResponse{BaseFee: &types.EipBaseFee{BaseFee: baseFee}}, nil
@@ -67,8 +73,13 @@ func NewOsmosisQueryServer(k *Keeper) osmosistypes.QueryServer {
 }
 
 func (q osmosisQueryServer) GetEipBaseFee(
-	context.Context, *osmosistypes.QueryEipBaseFeeRequest,
+	c context.Context, _ *osmosistypes.QueryEipBaseFeeRequest,
 ) (*osmosistypes.QueryEipBaseFeeResponse, error) {
+	sdkCtx := sdk.UnwrapSDKContext(c)
+	if sdkCtx.BlockHeight() < q.k.CurFeeState.GetCurrentBlockHeight()-1 { // we do not support historical queries since we only have current BaseFee in memory
+		return nil, types.ErrUnsupportedQueryParams
+	}
+
 	response := q.k.CurFeeState.GetCurBaseFee()
 	return &osmosistypes.QueryEipBaseFeeResponse{BaseFee: response}, nil
 }

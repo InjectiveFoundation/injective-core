@@ -19,6 +19,7 @@ func (k *Keeper) PerpetualMarketLaunch(
 	ctx sdk.Context, ticker, quoteDenom, oracleBase, oracleQuote string, oracleScaleFactor uint32, oracleType oracletypes.OracleType,
 	initialMarginRatio, maintenanceMarginRatio, reduceMarginRatio math.LegacyDec,
 	makerFeeRate, takerFeeRate, minPriceTickSize, minQuantityTickSize, minNotional math.LegacyDec,
+	openNotionalCap v2.OpenNotionalCap,
 	adminInfo *v2.AdminInfo,
 ) (*v2.DerivativeMarket, *v2.PerpetualMarketInfo, error) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
@@ -103,6 +104,7 @@ func (k *Keeper) PerpetualMarketLaunch(
 		MinPriceTickSize:       minPriceTickSize,
 		MinQuantityTickSize:    minQuantityTickSize,
 		MinNotional:            minNotional,
+		OpenNotionalCap:        openNotionalCap,
 		QuoteDecimals:          quoteDecimals,
 	}
 

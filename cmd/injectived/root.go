@@ -6,10 +6,8 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/app/ante/typeddata"
-	"github.com/InjectiveLabs/injective-core/injective-chain/app/watchdog"
 	injcodectypes "github.com/InjectiveLabs/injective-core/injective-chain/codec/types"
 
 	"github.com/cosmos/cosmos-sdk/codec"
@@ -394,58 +392,6 @@ func newApp(logger log.Logger, db dbm.DB, traceStore io.Writer, appOpts serverty
 		} else {
 			logger.Info("Optimistic execution disabled")
 		}
-	}
-
-	watchdogEnabled := false
-	if envWatchdogEnabled := os.Getenv("INJECTIVE_WATCHDOG_ENABLED"); envWatchdogEnabled != "" {
-		watchdogEnabled, err = cast.ToBoolE(envWatchdogEnabled)
-		if err != nil {
-			logger.Error("failed to parse INJECTIVE_WATCHDOG_ENABLED, using default (false)", "error", err)
-		}
-	}
-
-	watchdogDump := false
-	if envWatchdogDump := os.Getenv("INJECTIVE_WATCHDOG_DUMP_ENABLED"); envWatchdogDump != "" {
-		watchdogDump, err = cast.ToBoolE(envWatchdogDump)
-		if err != nil {
-			logger.Error("failed to parse INJECTIVE_WATCHDOG_DUMP_ENABLED, using default (false)", "error", err)
-		}
-	}
-
-	if watchdogEnabled {
-		// Read tmRPCAddr from environment variable if available, it's hard to pass it there unwrapping viper/cobra stuff
-		tmRPCAddr := os.Getenv("INJECTIVE_WATCHDOG_TM_RPC_ADDR")
-		if tmRPCAddr == "" {
-			tmRPCAddr = "tcp://localhost:26657"
-		}
-
-		maxStuckTime := 1 * time.Minute
-
-		// Check if INJECTIVE_WATCHDOG_MAX_STUCK_TIME environment variable is set
-		if envMaxStuckTime := os.Getenv("INJECTIVE_WATCHDOG_MAX_STUCK_TIME"); envMaxStuckTime != "" {
-			// Parse the duration string from environment variable
-			parsedDuration, err := time.ParseDuration(envMaxStuckTime)
-			if err != nil {
-				logger.Error("failed to parse INJECTIVE_WATCHDOG_MAX_STUCK_TIME, using default", "error", err)
-			} else {
-				maxStuckTime = parsedDuration
-			}
-		}
-
-		watchdog := watchdog.NewWatchdogProcess(
-			context.Background(),
-			logger,
-			maxStuckTime,
-			tmRPCAddr,
-			watchdogDump,
-		)
-
-		go func() {
-			logger.Info("===== WATCHDOG: starting process watchdog, will restart the process if chain is stuck for", "max_stuck_time", maxStuckTime)
-			if err := watchdog.Start(); err != nil {
-				logger.Error("===== WATCHDOG: failed to start watchdog, process will not restart", "error", err)
-			}
-		}()
 	}
 
 	return app.NewInjectiveApp(

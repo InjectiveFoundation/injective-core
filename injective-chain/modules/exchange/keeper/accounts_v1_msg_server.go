@@ -114,6 +114,10 @@ func (k AccountsV1MsgServer) BatchUpdateOrders(
 		BinaryOptionsOrdersToCreate:       v2BinaryOptionsOrdersToCreate,
 	}
 
+	if err := v2Msg.ValidateBasic(); err != nil {
+		return nil, err
+	}
+
 	v2Response, err := k.server.BatchUpdateOrders(goCtx, v2Msg)
 	if err != nil {
 		return nil, err
@@ -147,6 +151,10 @@ func (k AccountsV1MsgServer) Deposit(
 		Amount:       msg.Amount,
 	}
 
+	if err := v2Msg.ValidateBasic(); err != nil {
+		return nil, err
+	}
+
 	_, err := k.server.Deposit(goCtx, v2Msg)
 	if err != nil {
 		return nil, err
@@ -165,6 +173,10 @@ func (k AccountsV1MsgServer) Withdraw(
 		Sender:       msg.Sender,
 		SubaccountId: msg.SubaccountId,
 		Amount:       msg.Amount,
+	}
+
+	if err := v2Msg.ValidateBasic(); err != nil {
+		return nil, err
 	}
 
 	_, err := k.server.Withdraw(goCtx, v2Msg)
@@ -188,6 +200,10 @@ func (k AccountsV1MsgServer) SubaccountTransfer(
 		Amount:                  msg.Amount,
 	}
 
+	if err := v2Msg.ValidateBasic(); err != nil {
+		return nil, err
+	}
+
 	_, err := k.server.SubaccountTransfer(goCtx, v2Msg)
 	if err != nil {
 		return nil, err
@@ -209,6 +225,10 @@ func (k AccountsV1MsgServer) ExternalTransfer(
 		Amount:                  msg.Amount,
 	}
 
+	if err := v2Msg.ValidateBasic(); err != nil {
+		return nil, err
+	}
+
 	_, err := k.server.ExternalTransfer(goCtx, v2Msg)
 	if err != nil {
 		return nil, err
@@ -225,6 +245,10 @@ func (k AccountsV1MsgServer) RewardsOptOut(
 
 	v2Msg := &v2.MsgRewardsOptOut{
 		Sender: msg.Sender,
+	}
+
+	if err := v2Msg.ValidateBasic(); err != nil {
+		return nil, err
 	}
 
 	_, err := k.server.RewardsOptOut(goCtx, v2Msg)
@@ -255,6 +279,10 @@ func (k AccountsV1MsgServer) AuthorizeStakeGrants(
 		Grants: v2Grants,
 	}
 
+	if err := v2Msg.ValidateBasic(); err != nil {
+		return nil, err
+	}
+
 	_, err := k.server.AuthorizeStakeGrants(goCtx, v2Msg)
 	if err != nil {
 		return nil, err
@@ -272,6 +300,10 @@ func (k AccountsV1MsgServer) ActivateStakeGrant(
 	v2Msg := &v2.MsgActivateStakeGrant{
 		Sender:  msg.Sender,
 		Granter: msg.Granter,
+	}
+
+	if err := v2Msg.ValidateBasic(); err != nil {
+		return nil, err
 	}
 
 	_, err := k.server.ActivateStakeGrant(goCtx, v2Msg)
@@ -298,6 +330,10 @@ func (k AccountsV1MsgServer) BatchExchangeModification(
 	v2Msg := &v2.MsgBatchExchangeModification{
 		Sender:   msg.Sender,
 		Proposal: v2Proposal,
+	}
+
+	if err := v2Msg.ValidateBasic(); err != nil {
+		return nil, err
 	}
 
 	_, err = k.server.BatchExchangeModification(goCtx, v2Msg)

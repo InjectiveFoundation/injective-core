@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"cosmossdk.io/errors"
+	sdkmath "cosmossdk.io/math"
 	"cosmossdk.io/store/prefix"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -60,6 +61,11 @@ func (k *Keeper) BuildOutgoingTXBatch(ctx sdk.Context, contractAddress common.Ad
 	if err != nil {
 		metrics.ReportFuncError(k.svcTags)
 		return nil, err
+	}
+
+	if err := k.CheckRateLimit(ctx, contractAddress, selectedTx); err != nil {
+		metrics.ReportFuncError(k.svcTags)
+		return nil, errors.Wrapf(err, "failed rate limit check")
 	}
 
 	nextID := k.AutoIncrementID(ctx, types.KeyLastOutgoingBatchID)
@@ -123,7 +129,10 @@ func (k *Keeper) OutgoingTxBatchExecuted(ctx sdk.Context, tokenContract common.A
 
 	// cleanup outgoing TX pool, while these transactions where hidden from GetPoolTransactions
 	// they still exist in the pool and need to be cleaned up.
+	totalAmountWithdrawn := sdkmath.NewInt(0)
 	for _, tx := range b.Transactions {
+		totalAmountWithdrawn = totalAmountWithdrawn.Add(tx.Erc20Fee.Amount)
+		totalAmountWithdrawn = totalAmountWithdrawn.Add(tx.Erc20Token.Amount)
 		k.removePoolEntry(ctx, tx.Id)
 		ev.Withdrawals = append(ev.Withdrawals, &types.Withdrawal{
 			Sender:   tx.Sender,
@@ -147,6 +156,8 @@ func (k *Keeper) OutgoingTxBatchExecuted(ctx sdk.Context, tokenContract common.A
 
 	// Delete batch since it is finished
 	k.DeleteBatch(ctx, *b)
+
+	k.TrackTokenOutflow(ctx, tokenContract, totalAmountWithdrawn)
 
 	_ = ctx.EventManager().EmitTypedEvent(ev)
 }

@@ -17,7 +17,9 @@ func main() {
 	chainDeps := extractDepsMap("CHAIN", "./go.mod")
 	sdkGoDeps := extractDepsMap("SDK", "../sdk-go/go.mod")
 	indexerDeps := extractDepsMap("INDEXER", "../injective-indexer/go.mod")
+	interchaintestDeps := extractDepsMap("INTERCHAINTEST", "./interchaintest/go.mod")
 
+	compareDeps(chainDeps, interchaintestDeps)
 	compareDeps(chainDeps, sdkGoDeps)
 	compareDeps(chainDeps, indexerDeps)
 }
@@ -37,9 +39,22 @@ func extractDepsMap(name, path string) *DepsMap {
 	r := regexp.MustCompile(pattern)
 	for scanner.Scan() {
 		line := scanner.Text()
+
+		// Skip comment lines (lines that start with // after optional whitespace)
+		trimmedLine := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmedLine, "//") {
+			continue
+		}
+
 		match := r.FindStringSubmatch(line)
 		if len(match) > 0 {
-			parts := strings.Split(match[1], " ")
+			// Remove inline comments (everything after //)
+			depLine := match[1]
+			if commentIndex := strings.Index(depLine, "//"); commentIndex != -1 {
+				depLine = strings.TrimSpace(depLine[:commentIndex])
+			}
+
+			parts := strings.Split(depLine, " ")
 			switch len(parts) {
 			case 2:
 				depMaps[parts[0]] = parts[1]

@@ -40,6 +40,8 @@ contract Peggy is
 {
     using SafeERC20 for IERC20;
 
+    // ⚠️ ONLY APPEND TO STATE VARIABLES AND DON'T CHANGE VARIABLE ORDER/DEFINITIONS INCL NOT MAKING THEM IMMUTABLE ⚠️
+
     // These are updated often
     bytes32 public state_lastValsetCheckpoint;
     mapping(address => uint256) public state_lastBatchNonces;
@@ -50,6 +52,8 @@ contract Peggy is
     // These are set once at initialization
     bytes32 public state_peggyId;
     uint256 public state_powerThreshold;
+
+    uint256 private constant MAX_NONCE_JUMP_LIMIT = 10_000_000_000_000;
 
     // TransactionBatchExecutedEvent and SendToInjectiveEvent both include the field _eventNonce.
     // This is incremented every time one of these events is emitted. It is checked by the
@@ -71,7 +75,6 @@ contract Peggy is
         string _data
     );
     event ERC20DeployedEvent(
-        // TODO(xlab): _cosmosDenom can be represented as bytes32 to allow indexing
         string _cosmosDenom,
         address indexed _tokenContract,
         string _name,
@@ -88,21 +91,12 @@ contract Peggy is
         uint256[] _powers
     );
 
-    function initialize(
-        // A unique identifier for this peggy instance to use in signatures
-        bytes32 _peggyId,
-        // How much voting power is needed to approve operations
-        uint256 _powerThreshold,
-        // The validator set, not in valset args format since many of it's
-        // arguments would never be used in this case
+    function _validateValidatorSet(
         address[] calldata _validators,
-        uint256[] calldata _powers
-    ) external initializer {
-        __Context_init_unchained();
-        __Ownable_init_unchained();
-        // CHECKS
-
-        // Check that validators, powers, and signatures (v,r,s) set is well-formed
+        uint256[] calldata _powers,
+        uint256 _powerThreshold
+    ) private pure {
+        // Check that validators and powers set is well-formed
         require(
             _validators.length == _powers.length,
             "Malformed current validator set"
@@ -122,6 +116,24 @@ contract Peggy is
             cumulativePower > _powerThreshold,
             "Submitted validator set signatures do not have enough power."
         );
+    }
+
+    function initialize(
+        // A unique identifier for this peggy instance to use in signatures
+        bytes32 _peggyId,
+        // How much voting power is needed to approve operations
+        uint256 _powerThreshold,
+        // The validator set, not in valset args format since many of it's
+        // arguments would never be used in this case
+        address[] calldata _validators,
+        uint256[] calldata _powers
+    ) external initializer {
+        __Context_init_unchained();
+        __Ownable_init_unchained();
+
+        // CHECKS
+
+        _validateValidatorSet(_validators, _powers, _powerThreshold);
 
         ValsetArgs memory _valset;
         _valset = ValsetArgs(_validators, _powers, 0, 0, address(0));
@@ -134,6 +146,7 @@ contract Peggy is
         state_powerThreshold = _powerThreshold;
         state_lastValsetCheckpoint = newCheckpoint;
         state_lastEventNonce = state_lastEventNonce + 1;
+
         // LOGS
 
         emit ValsetUpdatedEvent(
@@ -284,6 +297,13 @@ contract Peggy is
             "Malformed current validator set"
         );
 
+        // Prevent insane jumps potentially leaving the contract unable to process further valset updates
+        require(
+            _newValset.valsetNonce <
+                _currentValset.valsetNonce + MAX_NONCE_JUMP_LIMIT,
+            "New valset nonce must be less than 10_000_000_000_000 greater than the current nonce"
+        );
+
         // Check that the supplied current validator set matches the saved checkpoint
         require(
             makeCheckpoint(_currentValset, state_peggyId) ==
@@ -300,6 +320,12 @@ contract Peggy is
             _r,
             _s,
             newCheckpoint,
+            state_powerThreshold
+        );
+
+        _validateValidatorSet(
+            _newValset.validators,
+            _newValset.powers,
             state_powerThreshold
         );
 
@@ -361,6 +387,14 @@ contract Peggy is
             require(
                 state_lastBatchNonces[_tokenContract] < _batchNonce,
                 "New batch nonce must be greater than the current nonce"
+            );
+
+            // Prevent insane jumps potentially leaving the contract unable to process further batches
+            require(
+                _batchNonce <
+                    state_lastBatchNonces[_tokenContract] +
+                        MAX_NONCE_JUMP_LIMIT,
+                "New batch nonce must be less than 10_000_000_000_000 greater than the current nonce"
             );
 
             // Check that the block height is less than the timeout height
@@ -474,12 +508,29 @@ contract Peggy is
     }
 
     function deployERC20(
-        string calldata, //_cosmosDenom
-        string calldata, //_name
-        string calldata, //_symbol
-        uint8 //_decimals
+        string calldata _cosmosDenom,
+        string calldata _name,
+        string calldata _symbol,
+        uint8 _decimals
     ) external {
-        revert("Not implemented");
+        // Deploy an ERC20 with entire supply granted to Peggy.sol
+        CosmosERC20 erc20 = new CosmosERC20(
+            address(this),
+            _name,
+            _symbol,
+            _decimals
+        );
+
+        // Fire an event to let the Cosmos module know
+        state_lastEventNonce = state_lastEventNonce + 1;
+        emit ERC20DeployedEvent(
+            _cosmosDenom,
+            address(erc20),
+            _name,
+            _symbol,
+            _decimals,
+            state_lastEventNonce
+        );
     }
 
     function emergencyPause() external onlyOwner {

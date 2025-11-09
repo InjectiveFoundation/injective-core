@@ -56,6 +56,9 @@ type Keeper struct {
 	// Legacy subspace
 	ss                paramstypes.Subspace
 	customContractFns []CustomContractFn
+
+	// TraceTx/TraceBlock/TraceCall gRPC enabled
+	grpcTracingEnabled bool
 }
 
 // NewKeeper generates new evm module keeper
@@ -68,6 +71,7 @@ func NewKeeper(
 	sk types.StakingKeeper,
 	ss paramstypes.Subspace,
 	customContractFns []CustomContractFn,
+	grpcTracingEnabled bool,
 ) *Keeper {
 	// ensure evm module account is set
 	if addr := ak.GetModuleAddress(types.ModuleName); addr == nil {
@@ -81,15 +85,16 @@ func NewKeeper(
 
 	// NOTE: we pass in the parameter space to the CommitStateDB in order to use custom denominations for the EVM operations
 	return &Keeper{
-		cdc:               cdc,
-		authority:         authority,
-		accountKeeper:     ak,
-		bankKeeper:        bankKeeper,
-		stakingKeeper:     sk,
-		storeKey:          storeKey,
-		objectKey:         objectKey,
-		ss:                ss,
-		customContractFns: customContractFns,
+		cdc:                cdc,
+		authority:          authority,
+		accountKeeper:      ak,
+		bankKeeper:         bankKeeper,
+		stakingKeeper:      sk,
+		storeKey:           storeKey,
+		objectKey:          objectKey,
+		ss:                 ss,
+		customContractFns:  customContractFns,
+		grpcTracingEnabled: grpcTracingEnabled,
 	}
 }
 

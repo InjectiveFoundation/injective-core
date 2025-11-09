@@ -1,10 +1,14 @@
 package keeper
 
 import (
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
-	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
+	"cosmossdk.io/math"
+
 	"github.com/InjectiveLabs/metrics"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/ethereum/go-ethereum/common"
+
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 )
 
 func (k *Keeper) ExecuteDerivativeMarketOrderMatching(
@@ -31,10 +35,14 @@ func (k *Keeper) ExecuteDerivativeMarketOrderMatching(
 	}
 
 	// Step 0: Obtain the market buy and sell orders from the transient store for convenience
-	positionStates := NewPositionStates()
-
 	marketBuyOrders := k.GetAllTransientDerivativeMarketOrdersByMarketDirection(ctx, marketID, true)
 	marketSellOrders := k.GetAllTransientDerivativeMarketOrdersByMarketDirection(ctx, marketID, false)
+
+	positionStates := NewPositionStates()
+	positionQuantities := make(map[common.Hash]*math.LegacyDec)
+
+	currentOpenNotional := k.GetOpenNotionalForMarket(ctx, marketID, markPrice)
+	openNotionalCap := market.GetOpenNotionalCap()
 
 	isLiquidation := false
 	derivativeMarketOrderExecution := k.GetDerivativeMarketOrderExecutionData(
@@ -46,8 +54,11 @@ func (k *Keeper) ExecuteDerivativeMarketOrderMatching(
 		marketBuyOrders,
 		marketSellOrders,
 		positionStates,
+		positionQuantities,
 		feeDiscountConfig,
 		isLiquidation,
+		currentOpenNotional,
+		openNotionalCap,
 	)
 	batchExecutionData := derivativeMarketOrderExecution.getMarketDerivativeBatchExecutionData(market, markPrice, funding, positionStates, isLiquidation)
 	return batchExecutionData
@@ -71,6 +82,12 @@ func (k *Keeper) PersistSingleDerivativeMarketOrderExecution(
 	if !isMarketSolvent {
 		return tradingRewardPoints, isMarketSolvent
 	}
+
+	k.ApplyOpenInterestDeltaForMarket(
+		ctx,
+		marketID,
+		execution.OpenInterestDelta,
+	)
 
 	hasValidMarkPrice := execution.Market.GetMarketType() == types.MarketType_BinaryOption || !execution.MarkPrice.IsNil() && execution.MarkPrice.IsPositive()
 

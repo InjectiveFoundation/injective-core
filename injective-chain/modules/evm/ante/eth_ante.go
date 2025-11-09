@@ -1,6 +1,7 @@
 package ante
 
 import (
+	"bytes"
 	"errors"
 	"math"
 	"math/big"
@@ -23,6 +24,7 @@ import (
 	evmkeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/keeper"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/statedb"
 	evmtypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/types"
+	txfeeskeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/txfees/keeper"
 	chaintypes "github.com/InjectiveLabs/injective-core/injective-chain/types"
 )
 
@@ -35,6 +37,7 @@ type EthAnteHandlerOptions struct {
 	SignModeHandler        *txsigning.HandlerMap
 	SigGasConsumer         func(meter storetypes.GasMeter, sig signing.SignatureV2, params authtypes.Params) error
 	MaxTxGasWanted         uint64
+	TxFeesDecorator        txfeeskeeper.MempoolFeeDecorator
 	ExtensionOptionChecker ante.ExtensionOptionChecker
 	DisabledAuthzMsgs      []string
 	ExtraDecorators        []sdk.AnteDecorator
@@ -52,6 +55,9 @@ func (options EthAnteHandlerOptions) validate() error {
 	}
 	if options.EvmKeeper == nil {
 		return errorsmod.Wrap(errortypes.ErrLogic, "evm keeper is required for AnteHandler")
+	}
+	if options.TxFeesDecorator.TxFeesKeeper == nil {
+		return errorsmod.Wrap(errortypes.ErrLogic, "TxFeesDecorator is required for AnteHandler")
 	}
 	return nil
 }
@@ -83,7 +89,24 @@ func NewEthAnteHandler(options EthAnteHandlerOptions) (sdk.AnteHandler, error) {
 			return ctx, err
 		}
 
-		if err := CheckEthMempoolFee(ctx, tx, simulate, evmDenom); err != nil {
+		// fallback ante handler that will be called after TxFeesDecorator.AnteHandle() succeeds
+		// this ante handle will only be active if Mempool1559Enabled is not enabled, aka no dynamic fees
+		// so we simply check that gas price is >= minGasPrice of the validator
+		nextAnteHandler := func(ctx sdk.Context, tx sdk.Tx, simulate bool) (sdk.Context, error) {
+			txFeesParams := options.TxFeesDecorator.TxFeesKeeper.GetParams(ctx)
+			if txFeesParams.Mempool1559Enabled { // we checked against dynamic txfees
+				return ctx, nil
+			}
+			return ctx, CheckEthMempoolFee(ctx, tx, simulate, evmDenom) // check against validator static min gas price
+		}
+		// NB: this ante handler only checks gas price of the whole cosmos tx, and not the gas price of individual MsgEthereumTx inside cosmos tx,
+		// but this is okey for us due to multiple reasons:
+		// 1) we check that sum of each msg's fee and gas limit equal to tx fee and gas limit inside ValidateEthBasic ante
+		// 2) we do not refund unused gas.
+		// 3) whole tx is atomic, no partial execution possible
+		// This means users can set gas prices inside individual msgs lower than required minimum, but the total gas price
+		// should be >= current base fee (so some other msgs should offset for that by setting gas prices higher than required)
+		if _, err := options.TxFeesDecorator.AnteHandle(ctx, tx, simulate, nextAnteHandler); err != nil {
 			return ctx, err
 		}
 
@@ -268,6 +291,35 @@ func (rmd RejectEthMessagesDecorator) AnteHandle(
 	return next(ctx, tx, simulate)
 }
 
+// VerifyEthSig validates checks that the registered chain id is the same as the one on the message, and
+// that the signer address matches the one defined on the message.
+// It's not skipped for RecheckTx, because it set `From` address which is critical from other ante handler to work.
+// Failure in RecheckTx will prevent tx to be included into block, especially when CheckTx succeed, in which case user
+// won't see the error message.
+func VerifyEthSig(tx sdk.Tx, signer ethtypes.Signer) error {
+	var firstMsgSender []byte
+
+	for i, msg := range tx.GetMsgs() {
+		msgEthTx, ok := msg.(*evmtypes.MsgEthereumTx)
+		if !ok {
+			return errorsmod.Wrapf(errortypes.ErrUnknownRequest, "invalid message type %T, expected %T", msg, (*evmtypes.MsgEthereumTx)(nil))
+		}
+
+		if err := msgEthTx.VerifySender(signer); err != nil {
+			return errorsmod.Wrapf(errortypes.ErrorInvalidSigner, "signature verification failed: %s", err.Error())
+		}
+
+		// ensure that all the msgs in a tx are signed by the same sender: https://bugs.immunefi.com/magnus/1515/projects/383/bug-bounty/reports/58062
+		if i == 0 {
+			firstMsgSender = msgEthTx.From
+		} else if !bytes.Equal(firstMsgSender, msgEthTx.From) {
+			return errorsmod.Wrap(errortypes.ErrorInvalidSigner, "not all msgs are signed by the same signer")
+		}
+	}
+
+	return nil
+}
+
 // CheckEthMempoolFee will check if the transaction's effective fee is at least as large
 // as the local validator's minimum gasFee (defined in validator config).
 // If fee is too low, decorator returns error and tx is rejected from mempool.
@@ -306,26 +358,6 @@ func CheckEthMempoolFee(
 				"insufficient fee; got: %s required: %s",
 				fee, requiredFee,
 			)
-		}
-	}
-
-	return nil
-}
-
-// VerifyEthSig validates checks that the registered chain id is the same as the one on the message, and
-// that the signer address matches the one defined on the message.
-// It's not skipped for RecheckTx, because it set `From` address which is critical from other ante handler to work.
-// Failure in RecheckTx will prevent tx to be included into block, especially when CheckTx succeed, in which case user
-// won't see the error message.
-func VerifyEthSig(tx sdk.Tx, signer ethtypes.Signer) error {
-	for _, msg := range tx.GetMsgs() {
-		msgEthTx, ok := msg.(*evmtypes.MsgEthereumTx)
-		if !ok {
-			return errorsmod.Wrapf(errortypes.ErrUnknownRequest, "invalid message type %T, expected %T", msg, (*evmtypes.MsgEthereumTx)(nil))
-		}
-
-		if err := msgEthTx.VerifySender(signer); err != nil {
-			return errorsmod.Wrapf(errortypes.ErrorInvalidSigner, "signature verification failed: %s", err.Error())
 		}
 	}
 

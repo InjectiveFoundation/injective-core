@@ -20,6 +20,7 @@ func (k *Keeper) ExpiryFuturesMarketLaunch(
 	ticker, quoteDenom, oracleBase string, oracleQuote string, oracleScaleFactor uint32, oracleType oracletypes.OracleType, expiry int64,
 	initialMarginRatio, maintenanceMarginRatio, reduceMarginRatio math.LegacyDec,
 	makerFeeRate, takerFeeRate, minPriceTickSize, minQuantityTickSize, minNotional math.LegacyDec,
+	openNotionalCap v2.OpenNotionalCap,
 	adminInfo *v2.AdminInfo,
 ) (*v2.DerivativeMarket, *v2.ExpiryFuturesMarketInfo, error) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
@@ -119,6 +120,7 @@ func (k *Keeper) ExpiryFuturesMarketLaunch(
 		MinPriceTickSize:       minPriceTickSize,
 		MinQuantityTickSize:    minQuantityTickSize,
 		MinNotional:            minNotional,
+		OpenNotionalCap:        openNotionalCap,
 		QuoteDecimals:          quoteDecimals,
 		Admin:                  adminInfo.Admin,
 		AdminPermissions:       adminInfo.AdminPermissions,

@@ -33,6 +33,7 @@ const (
 	FlagMinPriceTickSize         = "min-price-tick-size"
 	FlagMinQuantityTickSize      = "min-quantity-tick-size"
 	FlagMinNotional              = "min-notional"
+	FlagOpenNotionalCap          = "open-notional-cap"
 	FlagMarketStatus             = "market-status"
 	FlagTradingRewardCampaigns   = "campaigns"
 	FlagSpotMarketIDs            = "spot-market-ids"

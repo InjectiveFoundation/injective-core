@@ -34,8 +34,9 @@ import (
 var _ types.QueryServer = Keeper{}
 
 const (
-	defaultTraceTimeout         = 5 * time.Second
+	maxTraceTimeout             = 5 * time.Second
 	defaultEthCallGasCap uint64 = 50_000_000
+	maxPredecessorTxs           = 50
 )
 
 // Account implements the Query/Account gRPC method
@@ -472,15 +473,37 @@ func execTrace[T traceRequest](
 // executes the given message in the provided environment. The return value will
 // be tracer dependent.
 func (k Keeper) TraceTx(c context.Context, req *types.QueryTraceTxRequest) (*types.QueryTraceTxResponse, error) {
+	if !k.grpcTracingEnabled {
+		return nil, status.Error(codes.Unavailable, "TraceTx is disabled on this node")
+	}
+
 	resultData, err := execTrace(
 		c,
 		req,
 		k,
 		func(ctx sdk.Context, cfg *EVMConfig) (*core.Message, error) {
+			if len(req.Predecessors) > maxPredecessorTxs {
+				return nil, fmt.Errorf("exceeded maximum number of predecessor txns, max: %d", maxPredecessorTxs)
+			}
+
 			signer := ethtypes.MakeSigner(cfg.ChainConfig, big.NewInt(ctx.BlockHeight()), cfg.BlockTime)
+
+			totalPredecessorGas := uint64(0)
+			maxBlockGas := defaultEthCallGasCap
+
+			params := ctx.ConsensusParams()
+			if params.Block != nil && params.Block.MaxGas > 0 {
+				maxBlockGas = uint64(params.Block.MaxGas)
+			}
 
 			for i, tx := range req.Predecessors {
 				ethTx := tx.AsTransaction()
+				totalPredecessorGas += ethTx.Gas()
+
+				if totalPredecessorGas > maxBlockGas {
+					continue
+				}
+
 				msg, err := core.TransactionToMessage(ethTx, signer, nil)
 				if err != nil {
 					continue
@@ -516,6 +539,10 @@ func (k Keeper) TraceTx(c context.Context, req *types.QueryTraceTxRequest) (*typ
 // executes the given message in the provided environment for all the transactions in the queried block.
 // The return value will be tracer dependent.
 func (k Keeper) TraceBlock(c context.Context, req *types.QueryTraceBlockRequest) (*types.QueryTraceBlockResponse, error) {
+	if !k.grpcTracingEnabled {
+		return nil, status.Error(codes.Unavailable, "TraceBlock is disabled on this node")
+	}
+
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "empty request")
 	}
@@ -584,6 +611,10 @@ func (k Keeper) TraceBlock(c context.Context, req *types.QueryTraceBlockRequest)
 // executes the given call in the provided environment. The return value will
 // be tracer dependent.
 func (k Keeper) TraceCall(c context.Context, req *types.QueryTraceCallRequest) (*types.QueryTraceCallResponse, error) {
+	if !k.grpcTracingEnabled {
+		return nil, status.Error(codes.Unavailable, "TraceCall is disabled on this node")
+	}
+
 	resultData, err := execTrace(
 		c,
 		req,
@@ -629,7 +660,7 @@ func (k *Keeper) prepareTrace(
 		tracer    *tracers.Tracer
 		overrides *ethparams.ChainConfig
 		err       error
-		timeout   = defaultTraceTimeout
+		timeout   = maxTraceTimeout
 	)
 
 	if traceConfig == nil {
@@ -680,9 +711,14 @@ func (k *Keeper) prepareTrace(
 
 	// Define a meaningful timeout of a single transaction trace
 	if traceConfig.Timeout != "" {
-		if timeout, err = time.ParseDuration(traceConfig.Timeout); err != nil {
+		userTimeout, err := time.ParseDuration(traceConfig.Timeout)
+		if err != nil {
 			return nil, 0, status.Errorf(codes.InvalidArgument, "timeout value: %s", err.Error())
 		}
+		if userTimeout > maxTraceTimeout {
+			return nil, 0, status.Errorf(codes.InvalidArgument, "timeout exceeding max value: %s", maxTraceTimeout)
+		}
+		timeout = userTimeout
 	}
 
 	// Handle timeouts and RPC cancellations

@@ -8,6 +8,7 @@ import (
 
 // x/txfees module errors.
 var (
-	ErrInvalidFeeToken = errorsmod.Register(ModuleName, 1, "invalid fee token")
-	ErrTooManyFeeCoins = errorsmod.Register(ModuleName, 2, "more than one coin in fee")
+	ErrInvalidFeeToken        = errorsmod.Register(ModuleName, 1, "invalid fee token")
+	ErrTooManyFeeCoins        = errorsmod.Register(ModuleName, 2, "more than one coin in fee")
+	ErrUnsupportedQueryParams = errorsmod.Register(ModuleName, 3, "unsupported query param")
 )

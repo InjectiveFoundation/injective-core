@@ -127,7 +127,9 @@ func convertBatchExchangeModificationProposalToV2(
 	}
 
 	if v1Proposal.DenomDecimalsUpdateProposal != nil {
-		v2Proposal.DenomDecimalsUpdateProposal = convertUpdateDenomDecimalsProposalToV2(v1Proposal.DenomDecimalsUpdateProposal)
+		v2Proposal.AuctionExchangeTransferDenomDecimalsUpdateProposal = convertUpdateDenomDecimalsProposalToV2(
+			v1Proposal.DenomDecimalsUpdateProposal,
+		)
 	}
 
 	if v1Proposal.TradingRewardCampaignUpdateProposal != nil {
@@ -271,7 +273,12 @@ func convertBinaryOptionsMarketLaunchProposalToV2(
 		MinPriceTickSize:    types.PriceFromChainFormat(v1Proposal.MinPriceTickSize, 0, denomDecimals),
 		MinQuantityTickSize: types.QuantityFromChainFormat(v1Proposal.MinQuantityTickSize, 0),
 		MinNotional:         types.NotionalFromChainFormat(v1Proposal.MinNotional, denomDecimals),
-		AdminPermissions:    v1Proposal.AdminPermissions,
+		OpenNotionalCap: v2.OpenNotionalCap{
+			Cap: &v2.OpenNotionalCap_Uncapped{
+				Uncapped: &v2.OpenNotionalCapUncapped{},
+			},
+		},
+		AdminPermissions: v1Proposal.AdminPermissions,
 	}
 
 	return v2Proposal, nil
@@ -301,6 +308,7 @@ func convertBinaryOptionsMarketParamUpdateProposalToV2(
 		MinPriceTickSize:    v1Proposal.MinPriceTickSize,
 		MinQuantityTickSize: v1Proposal.MinQuantityTickSize,
 		MinNotional:         v1Proposal.MinNotional,
+		OpenNotionalCap:     nil, // not supported in v1
 		SettlementPrice:     v1Proposal.SettlementPrice,
 		Admin:               v1Proposal.Admin,
 	}
@@ -363,6 +371,7 @@ func convertDerivativeMarketParamUpdateProposalToV2(
 		MinPriceTickSize:       v1Proposal.MinPriceTickSize,
 		MinQuantityTickSize:    v1Proposal.MinQuantityTickSize,
 		MinNotional:            v1Proposal.MinNotional,
+		OpenNotionalCap:        nil, // not supported in v1
 		Status:                 v2.MarketStatus(v1Proposal.Status),
 		Ticker:                 v1Proposal.Ticker,
 		HourlyInterestRate:     v1Proposal.HourlyInterestRate,
@@ -460,8 +469,10 @@ func convertMarketForcedSettlementProposalToV2(
 	return v2Proposal, nil
 }
 
-func convertUpdateDenomDecimalsProposalToV2(v1Proposal *types.UpdateDenomDecimalsProposal) *v2.UpdateDenomDecimalsProposal {
-	v2Proposal := &v2.UpdateDenomDecimalsProposal{
+func convertUpdateDenomDecimalsProposalToV2(
+	v1Proposal *types.UpdateDenomDecimalsProposal,
+) *v2.UpdateAuctionExchangeTransferDenomDecimalsProposal {
+	v2Proposal := &v2.UpdateAuctionExchangeTransferDenomDecimalsProposal{
 		Title:         v1Proposal.Title,
 		Description:   v1Proposal.Description,
 		DenomDecimals: make([]*v2.DenomDecimals, 0, len(v1Proposal.DenomDecimals)),

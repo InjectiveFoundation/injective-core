@@ -5,10 +5,6 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/precompiles"
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/precompiles/bindings/cosmos/precompile/exchange"
-	"github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/precompiles/types"
-
 	storetypes "cosmossdk.io/store/types"
 
 	sdkmath "cosmossdk.io/math"
@@ -23,6 +19,10 @@ import (
 	exchangekeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/keeper"
 	exchangetypesv1 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 	exchangetypesv2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
+
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/precompiles"
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/precompiles/bindings/cosmos/precompile/exchange"
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/precompiles/types"
 )
 
 const (
@@ -111,6 +111,10 @@ func (ec *ExchangeContract) Address() common.Address {
 	return exchangeContractAddress
 }
 
+func (*ExchangeContract) Name() string {
+	return "INJ_EXCHANGE"
+}
+
 func (ec *ExchangeContract) RequiredGas(input []byte) uint64 {
 	if len(input) < 4 {
 		return 0
@@ -162,46 +166,54 @@ func (ec *ExchangeContract) RequiredGas(input []byte) uint64 {
 
 	switch method.Name {
 	case BatchCreateDerivativeLimitOrdersMethodName:
-		_, orders, err := CastCreateDerivativeOrdersParams(method.Inputs, args)
+		count, err := countCreateDerivativeOrdersParams(method.Inputs, args)
 		if err != nil {
 			return cost
 		}
-		cost += exchangekeeper.MsgCreateDerivativeLimitOrderGas * uint64(len(orders))
+		cost += exchangekeeper.MsgCreateDerivativeLimitOrderGas * uint64(count)
 	case BatchCancelDerivativeOrdersMethodName:
-		_, orders, err := CastBatchCancelOrdersParams(method.Inputs, args)
+		_, orders, err := castBatchCancelOrdersParams(method.Inputs, args)
 		if err != nil {
 			return cost
 		}
 		cost += exchangekeeper.MsgCancelDerivativeOrderGas * uint64(len(orders))
 	case BatchCreateSpotLimitOrdersMethodName:
-		_, orders, err := CastCreateSpotOrdersParams(method.Inputs, args)
+		count, err := countCreateSpotOrdersParams(method.Inputs, args)
 		if err != nil {
 			return cost
 		}
-		cost += exchangekeeper.MsgCreateSpotLimitOrderGas * uint64(len(orders))
+		cost += exchangekeeper.MsgCreateSpotLimitOrderGas * uint64(count)
 	case BatchCancelSpotOrdersMethodName:
-		_, orders, err := CastBatchCancelOrdersParams(method.Inputs, args)
+		_, orders, err := castBatchCancelOrdersParams(method.Inputs, args)
 		if err != nil {
 			return cost
 		}
 		cost += exchangekeeper.MsgCancelSpotOrderGas * uint64(len(orders))
 	case BatchUpdateOrdersMethodName:
-		_, msg, err := CastBatchUpdateOrdersParams(method.Inputs, args)
+		counts, err := countBatchUpdateOrdersParams(method.Inputs, args)
 		if err != nil {
 			return cost
 		}
-		cost += uint64(len(msg.DerivativeOrdersToCancel)) * exchangekeeper.MsgCancelDerivativeOrderGas
-		cost += uint64(len(msg.DerivativeOrdersToCreate)) * exchangekeeper.MsgCreateDerivativeLimitOrderGas
-		cost += uint64(len(msg.DerivativeMarketIdsToCancelAll)) * exchangekeeper.MsgCancelDerivativeOrderGas
-		cost += uint64(len(msg.SpotOrdersToCancel)) * exchangekeeper.MsgCancelSpotOrderGas
-		cost += uint64(len(msg.SpotOrdersToCreate)) * exchangekeeper.MsgCreateSpotLimitOrderGas
-		cost += uint64(len(msg.SpotMarketIdsToCancelAll)) * 100_000
+		cost += uint64(counts.DerivativeOrdersToCancel) * exchangekeeper.MsgCancelDerivativeOrderGas
+		cost += uint64(counts.DerivativeOrdersToCreate) * exchangekeeper.MsgCreateDerivativeLimitOrderGas
+		cost += uint64(counts.DerivativeMarketIdsToCancelAll) * 100_000
+		cost += uint64(counts.SpotOrdersToCancel) * exchangekeeper.MsgCancelSpotOrderGas
+		cost += uint64(counts.SpotOrdersToCreate) * exchangekeeper.MsgCreateSpotLimitOrderGas
+		cost += uint64(counts.SpotMarketIdsToCancelAll) * 100_000
 	}
 
 	return cost
 }
 
-func (ec *ExchangeContract) Run(evm *vm.EVM, contract *vm.Contract, readonly bool) (output []byte, err error) {
+func (ec *ExchangeContract) Run(evm *vm.EVM, contract *vm.Contract, readonly bool) ([]byte, error) {
+	res, err := ec.run(evm, contract, readonly)
+	if err != nil {
+		return types.RevertReasonAndError(err)
+	}
+	return res, nil
+}
+
+func (ec *ExchangeContract) run(evm *vm.EVM, contract *vm.Contract, readonly bool) (output []byte, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = ErrPrecompilePanic
@@ -209,7 +221,6 @@ func (ec *ExchangeContract) Run(evm *vm.EVM, contract *vm.Contract, readonly boo
 		}
 	}()
 
-	// parse input
 	methodID := contract.Input[:4]
 	method, err := exchangeABI.MethodById(methodID)
 	if err != nil {
@@ -288,14 +299,14 @@ func (ec *ExchangeContract) approve(
 	evm *vm.EVM,
 	caller sdk.AccAddress,
 	method *abi.Method,
-	args []interface{},
+	args []any,
 	readonly bool,
 ) ([]byte, error) {
 	if readonly {
 		return nil, errors.New("the method is not readonly")
 	}
 
-	params, err := CastApproveParams(method.Inputs, args)
+	params, err := castApproveParams(method.Inputs, args)
 	if err != nil {
 		return nil, err
 	}
@@ -349,7 +360,7 @@ func (ec *ExchangeContract) revoke(
 		return nil, errors.New("the method is not readonly")
 	}
 
-	grantee, msgTypes, err := CastRevokeParams(args)
+	grantee, msgTypes, err := castRevokeParams(args)
 	if err != nil {
 		return nil, err
 	}
@@ -388,10 +399,10 @@ func (ec *ExchangeContract) queryAllowance(
 	evm *vm.EVM,
 	_ common.Address,
 	method *abi.Method,
-	args []interface{},
+	args []any,
 	_ bool,
 ) ([]byte, error) {
-	params, err := CastAllowanceParams(args)
+	params, err := castAllowanceParams(args)
 	if err != nil {
 		return nil, err
 	}
@@ -434,7 +445,7 @@ func (ec *ExchangeContract) deposit(
 	evm *vm.EVM,
 	caller sdk.AccAddress,
 	method *abi.Method,
-	args []interface{},
+	args []any,
 	readonly bool,
 ) ([]byte, error) {
 	if readonly {
@@ -485,7 +496,7 @@ func (ec *ExchangeContract) withdraw(
 	evm *vm.EVM,
 	caller sdk.AccAddress,
 	method *abi.Method,
-	args []interface{},
+	args []any,
 	readonly bool,
 ) ([]byte, error) {
 	if readonly {
@@ -536,7 +547,7 @@ func (ec *ExchangeContract) subaccountTransfer(
 	evm *vm.EVM,
 	caller sdk.AccAddress,
 	method *abi.Method,
-	args []interface{},
+	args []any,
 	readonly bool,
 ) ([]byte, error) {
 	if readonly {
@@ -596,7 +607,7 @@ func (ec *ExchangeContract) externalTransfer(
 	evm *vm.EVM,
 	caller sdk.AccAddress,
 	method *abi.Method,
-	args []interface{},
+	args []any,
 	readonly bool,
 ) ([]byte, error) {
 	if readonly {
@@ -652,43 +663,14 @@ func (ec *ExchangeContract) increasePositionMargin(
 	evm *vm.EVM,
 	caller sdk.AccAddress,
 	method *abi.Method,
-	args []interface{},
+	args []any,
 	readonly bool,
 ) ([]byte, error) {
 	if readonly {
 		return nil, errors.New("the method is not readonly")
 	}
 
-	sender, err := types.CastAddress(args[0])
-	if err != nil {
-		return nil, err
-	}
-	sourceSubaccountID, err := types.CastString(args[1])
-	if err != nil {
-		return nil, err
-	}
-	destinationSubaccountID, err := types.CastString(args[2])
-	if err != nil {
-		return nil, err
-	}
-	marketID, err := types.CastString(args[3])
-	if err != nil {
-		return nil, err
-	}
-	amount, err := types.CastBigInt(args[4])
-	if err != nil {
-		return nil, err
-	}
-
-	msg := &exchangetypesv2.MsgIncreasePositionMargin{
-		Sender:                  sender.String(),
-		SourceSubaccountId:      sourceSubaccountID,
-		DestinationSubaccountId: destinationSubaccountID,
-		MarketId:                marketID,
-		Amount:                  sdkmath.LegacyNewDecFromBigInt(amount),
-	}
-
-	hold, err := ec.getDerivativeOrderHold(marketID, amount, evm)
+	msg, hold, err := ec.castIncreasePositionParams(args, evm)
 	if err != nil {
 		return nil, err
 	}
@@ -711,43 +693,14 @@ func (ec *ExchangeContract) decreasePositionMargin(
 	evm *vm.EVM,
 	caller sdk.AccAddress,
 	method *abi.Method,
-	args []interface{},
+	args []any,
 	readonly bool,
 ) ([]byte, error) {
 	if readonly {
 		return nil, errors.New("the method is not readonly")
 	}
 
-	sender, err := types.CastAddress(args[0])
-	if err != nil {
-		return nil, err
-	}
-	sourceSubaccountID, err := types.CastString(args[1])
-	if err != nil {
-		return nil, err
-	}
-	destinationSubaccountID, err := types.CastString(args[2])
-	if err != nil {
-		return nil, err
-	}
-	marketID, err := types.CastString(args[3])
-	if err != nil {
-		return nil, err
-	}
-	amount, err := types.CastBigInt(args[4])
-	if err != nil {
-		return nil, err
-	}
-
-	msg := &exchangetypesv2.MsgDecreasePositionMargin{
-		Sender:                  sender.String(),
-		SourceSubaccountId:      sourceSubaccountID,
-		DestinationSubaccountId: destinationSubaccountID,
-		MarketId:                marketID,
-		Amount:                  sdkmath.LegacyNewDecFromBigInt(amount),
-	}
-
-	hold, err := ec.getDerivativeOrderHold(marketID, amount, evm)
+	msg, hold, err := ec.castDecreasePositionParams(args, evm)
 	if err != nil {
 		return nil, err
 	}
@@ -770,35 +723,19 @@ func (ec *ExchangeContract) batchUpdateOrders(
 	evm *vm.EVM,
 	caller sdk.AccAddress,
 	method *abi.Method,
-	args []interface{},
+	args []any,
 	readonly bool,
 ) ([]byte, error) {
 	if readonly {
 		return nil, errors.New("the method is not readonly")
 	}
 
-	_, msg, err := CastBatchUpdateOrdersParams(method.Inputs, args)
+	_, msg, hold, err := ec.castBatchUpdateOrdersParams(method.Inputs, args, evm)
 	if err != nil {
 		return nil, err
 	}
 
-	spendCoins := sdk.Coins{}
-	for _, order := range msg.DerivativeOrdersToCreate {
-		hold, err := ec.getDerivativeOrderHold(order.MarketId, order.Margin.BigInt(), evm)
-		if err != nil {
-			return nil, err
-		}
-		spendCoins.Add(hold...)
-	}
-	for _, order := range msg.SpotOrdersToCreate {
-		hold, err := ec.getSpotOrderHold(order.MarketId, order, evm)
-		if err != nil {
-			return nil, err
-		}
-		spendCoins.Add(hold...)
-	}
-
-	resBytes, err := ec.validateAndDispatchMsg(evm, caller, msg, spendCoins)
+	resBytes, err := ec.validateAndDispatchMsg(evm, caller, msg, hold)
 	if err != nil {
 		return nil, err
 	}
@@ -820,7 +757,7 @@ func (ec *ExchangeContract) querySubaccountDeposit(
 	evm *vm.EVM,
 	_ sdk.AccAddress,
 	method *abi.Method,
-	args []interface{},
+	args []any,
 	_ bool,
 ) ([]byte, error) {
 	subaccountID, err := types.CastString(args[0])
@@ -860,11 +797,12 @@ func (ec *ExchangeContract) querySubaccountDeposit(
 	return method.Outputs.Pack(availableBalance, totalBalance)
 }
 
+// ATTENTION: unlike other methods, returned amounts are in human-readable format
 func (ec *ExchangeContract) querySubaccountDeposits(
 	evm *vm.EVM,
 	_ sdk.AccAddress,
 	method *abi.Method,
-	args []interface{},
+	args []any,
 	_ bool,
 ) ([]byte, error) {
 	subaccountID, err := types.CastString(args[0])
@@ -911,7 +849,7 @@ func (ec *ExchangeContract) querySubaccountPositions(
 	evm *vm.EVM,
 	_ sdk.AccAddress,
 	method *abi.Method,
-	args []interface{},
+	args []any,
 	_ bool,
 ) ([]byte, error) {
 	subaccountID, err := types.CastString(args[0])
@@ -935,7 +873,10 @@ func (ec *ExchangeContract) querySubaccountPositions(
 		return nil, err
 	}
 
-	solResults := convertSubaccountPositionsResponse(resp)
+	solResults, err := ec.convertSubaccountPositionsResponse(resp, evm)
+	if err != nil {
+		return nil, err
+	}
 
 	return method.Outputs.Pack(solResults)
 }
@@ -948,14 +889,14 @@ func (ec *ExchangeContract) createDerivativeLimitOrder(
 	evm *vm.EVM,
 	caller sdk.AccAddress,
 	method *abi.Method,
-	args []interface{},
+	args []any,
 	readonly bool,
 ) ([]byte, error) {
 	if readonly {
 		return nil, errors.New("the method is not readonly")
 	}
 
-	sender, order, err := CastCreateDerivativeOrderParams(method.Inputs, args)
+	sender, order, hold, _, err := ec.castCreateDerivativeOrderParams(method.Inputs, args, evm)
 	if err != nil {
 		return nil, err
 	}
@@ -963,15 +904,6 @@ func (ec *ExchangeContract) createDerivativeLimitOrder(
 	msg := &exchangetypesv2.MsgCreateDerivativeLimitOrder{
 		Sender: sender.String(),
 		Order:  *order,
-	}
-
-	hold, err := ec.getDerivativeOrderHold(
-		order.MarketId,
-		types.ConvertLegacyDecToBigInt(order.Margin),
-		evm,
-	)
-	if err != nil {
-		return nil, err
 	}
 
 	resBytes, err := ec.validateAndDispatchMsg(evm, caller, msg, hold)
@@ -992,14 +924,14 @@ func (ec *ExchangeContract) batchCreateDerivativeLimitOrder(
 	evm *vm.EVM,
 	caller sdk.AccAddress,
 	method *abi.Method,
-	args []interface{},
+	args []any,
 	readonly bool,
 ) ([]byte, error) {
 	if readonly {
 		return nil, errors.New("the method is not readonly")
 	}
 
-	sender, orders, err := CastCreateDerivativeOrdersParams(method.Inputs, args)
+	sender, orders, hold, err := ec.castCreateDerivativeOrdersParams(method.Inputs, args, evm)
 	if err != nil {
 		return nil, err
 	}
@@ -1009,20 +941,7 @@ func (ec *ExchangeContract) batchCreateDerivativeLimitOrder(
 		Orders: orders,
 	}
 
-	spendCoins := sdk.Coins{}
-	for _, order := range orders {
-		hold, err := ec.getDerivativeOrderHold(
-			order.MarketId,
-			types.ConvertLegacyDecToBigInt(order.Margin),
-			evm,
-		)
-		if err != nil {
-			return nil, err
-		}
-		spendCoins.Add(hold...)
-	}
-
-	resBytes, err := ec.validateAndDispatchMsg(evm, caller, msg, spendCoins)
+	resBytes, err := ec.validateAndDispatchMsg(evm, caller, msg, hold)
 	if err != nil {
 		return nil, err
 	}
@@ -1040,14 +959,14 @@ func (ec *ExchangeContract) createDerivativeMarketOrder(
 	evm *vm.EVM,
 	caller sdk.AccAddress,
 	method *abi.Method,
-	args []interface{},
+	args []any,
 	readonly bool,
 ) ([]byte, error) {
 	if readonly {
 		return nil, errors.New("the method is not readonly")
 	}
 
-	sender, order, err := CastCreateDerivativeOrderParams(method.Inputs, args)
+	sender, order, hold, market, err := ec.castCreateDerivativeOrderParams(method.Inputs, args, evm)
 	if err != nil {
 		return nil, err
 	}
@@ -1055,15 +974,6 @@ func (ec *ExchangeContract) createDerivativeMarketOrder(
 	msg := &exchangetypesv2.MsgCreateDerivativeMarketOrder{
 		Sender: sender.String(),
 		Order:  *order,
-	}
-
-	hold, err := ec.getDerivativeOrderHold(
-		order.MarketId,
-		types.ConvertLegacyDecToBigInt(order.Margin),
-		evm,
-	)
-	if err != nil {
-		return nil, err
 	}
 
 	resBytes, err := ec.validateAndDispatchMsg(evm, caller, msg, hold)
@@ -1077,7 +987,7 @@ func (ec *ExchangeContract) createDerivativeMarketOrder(
 		return nil, err
 	}
 
-	solResp := convertCreateDerivativeMarketOrderResponse(resp)
+	solResp := convertCreateDerivativeMarketOrderResponse(resp, market)
 
 	return method.Outputs.Pack(solResp)
 }
@@ -1086,7 +996,7 @@ func (ec *ExchangeContract) cancelDerivativeOrder(
 	evm *vm.EVM,
 	caller sdk.AccAddress,
 	method *abi.Method,
-	args []interface{},
+	args []any,
 	readonly bool,
 ) ([]byte, error) {
 	if readonly {
@@ -1132,7 +1042,7 @@ func (ec *ExchangeContract) cancelDerivativeOrder(
 		return nil, err
 	}
 
-	resp := exchangetypesv2.MsgCancelDerivativeOrder{}
+	resp := exchangetypesv2.MsgCancelDerivativeOrderResponse{}
 	err = resp.Unmarshal(resBytes)
 	if err != nil {
 		return nil, err
@@ -1145,14 +1055,14 @@ func (ec *ExchangeContract) batchCancelDerivativeOrders(
 	evm *vm.EVM,
 	caller sdk.AccAddress,
 	method *abi.Method,
-	args []interface{},
+	args []any,
 	readonly bool,
 ) ([]byte, error) {
 	if readonly {
 		return nil, errors.New("the method is not readonly")
 	}
 
-	sender, data, err := CastBatchCancelOrdersParams(method.Inputs, args)
+	sender, data, err := castBatchCancelOrdersParams(method.Inputs, args)
 	if err != nil {
 		return nil, err
 	}
@@ -1184,11 +1094,11 @@ func (ec *ExchangeContract) queryDerivativeOrdersByHashes(
 	evm *vm.EVM,
 	_ sdk.AccAddress,
 	method *abi.Method,
-	args []interface{},
+	args []any,
 	_ bool,
 ) ([]byte, error) {
 
-	req, err := CastQueryDerivativeOrdersRequest(method.Inputs, args)
+	req, market, err := ec.castQueryDerivativeOrdersRequest(method.Inputs, args, evm)
 	if err != nil {
 		return nil, err
 	}
@@ -1205,7 +1115,7 @@ func (ec *ExchangeContract) queryDerivativeOrdersByHashes(
 		return nil, err
 	}
 
-	solOrders := convertTrimmedDerivativeOrders(resp.Orders)
+	solOrders := convertTrimmedDerivativeOrders(resp.Orders, market)
 
 	return method.Outputs.Pack(solOrders)
 }
@@ -1218,14 +1128,14 @@ func (ec *ExchangeContract) createSpotLimitOrder(
 	evm *vm.EVM,
 	caller sdk.AccAddress,
 	method *abi.Method,
-	args []interface{},
+	args []any,
 	readonly bool,
 ) ([]byte, error) {
 	if readonly {
 		return nil, errors.New("the method is not readonly")
 	}
 
-	sender, order, err := CastCreateSpotOrderParams(method.Inputs, args)
+	sender, order, hold, _, err := ec.castCreateSpotOrderParams(method.Inputs, args, evm)
 	if err != nil {
 		return nil, err
 	}
@@ -1233,11 +1143,6 @@ func (ec *ExchangeContract) createSpotLimitOrder(
 	msg := &exchangetypesv2.MsgCreateSpotLimitOrder{
 		Sender: sender.String(),
 		Order:  *order,
-	}
-
-	hold, err := ec.getSpotOrderHold(order.MarketId, order, evm)
-	if err != nil {
-		return nil, err
 	}
 
 	resBytes, err := ec.validateAndDispatchMsg(evm, caller, msg, hold)
@@ -1258,14 +1163,14 @@ func (ec *ExchangeContract) batchCreateSpotLimitOrders(
 	evm *vm.EVM,
 	caller sdk.AccAddress,
 	method *abi.Method,
-	args []interface{},
+	args []any,
 	readonly bool,
 ) ([]byte, error) {
 	if readonly {
 		return nil, errors.New("the method is not readonly")
 	}
 
-	sender, orders, err := CastCreateSpotOrdersParams(method.Inputs, args)
+	sender, orders, hold, err := ec.castCreateSpotOrdersParams(method.Inputs, args, evm)
 	if err != nil {
 		return nil, err
 	}
@@ -1275,16 +1180,7 @@ func (ec *ExchangeContract) batchCreateSpotLimitOrders(
 		Orders: orders,
 	}
 
-	spendCoins := sdk.Coins{}
-	for _, order := range orders {
-		hold, err := ec.getSpotOrderHold(order.MarketId, &order, evm)
-		if err != nil {
-			return nil, err
-		}
-		spendCoins.Add(hold...)
-	}
-
-	resBytes, err := ec.validateAndDispatchMsg(evm, caller, msg, spendCoins)
+	resBytes, err := ec.validateAndDispatchMsg(evm, caller, msg, hold)
 	if err != nil {
 		return nil, err
 	}
@@ -1302,14 +1198,14 @@ func (ec *ExchangeContract) createSpotMarketOrder(
 	evm *vm.EVM,
 	caller sdk.AccAddress,
 	method *abi.Method,
-	args []interface{},
+	args []any,
 	readonly bool,
 ) ([]byte, error) {
 	if readonly {
 		return nil, errors.New("the method is not readonly")
 	}
 
-	sender, order, err := CastCreateSpotOrderParams(method.Inputs, args)
+	sender, order, hold, market, err := ec.castCreateSpotOrderParams(method.Inputs, args, evm)
 	if err != nil {
 		return nil, err
 	}
@@ -1317,11 +1213,6 @@ func (ec *ExchangeContract) createSpotMarketOrder(
 	msg := &exchangetypesv2.MsgCreateSpotMarketOrder{
 		Sender: sender.String(),
 		Order:  *order,
-	}
-
-	hold, err := ec.getSpotOrderHold(order.MarketId, order, evm)
-	if err != nil {
-		return nil, err
 	}
 
 	resBytes, err := ec.validateAndDispatchMsg(evm, caller, msg, hold)
@@ -1335,7 +1226,7 @@ func (ec *ExchangeContract) createSpotMarketOrder(
 		return nil, err
 	}
 
-	solResp := convertCreateSpotMarketOrderResponse(resp)
+	solResp := ec.convertCreateSpotMarketOrderResponse(resp, market)
 
 	return method.Outputs.Pack(solResp)
 }
@@ -1344,7 +1235,7 @@ func (ec *ExchangeContract) cancelSpotOrder(
 	evm *vm.EVM,
 	caller sdk.AccAddress,
 	method *abi.Method,
-	args []interface{},
+	args []any,
 	readonly bool,
 ) ([]byte, error) {
 	if readonly {
@@ -1398,14 +1289,14 @@ func (ec *ExchangeContract) batchCancelSpotOrders(
 	evm *vm.EVM,
 	caller sdk.AccAddress,
 	method *abi.Method,
-	args []interface{},
+	args []any,
 	readonly bool,
 ) ([]byte, error) {
 	if readonly {
 		return nil, errors.New("the method is not readonly")
 	}
 
-	sender, data, err := CastBatchCancelOrdersParams(method.Inputs, args)
+	sender, data, err := castBatchCancelOrdersParams(method.Inputs, args)
 	if err != nil {
 		return nil, err
 	}
@@ -1430,18 +1321,18 @@ func (ec *ExchangeContract) batchCancelSpotOrders(
 }
 
 /*******************************************************************************
-DERIVATIVE QUERIES
+SPOT QUERIES
 *******************************************************************************/
 
 func (ec *ExchangeContract) querySpotOrdersByHashes(
 	evm *vm.EVM,
 	_ sdk.AccAddress,
 	method *abi.Method,
-	args []interface{},
+	args []any,
 	_ bool,
 ) ([]byte, error) {
 
-	req, err := CastQuerySpotOrdersRequest(method.Inputs, args)
+	req, market, err := ec.castQuerySpotOrdersRequest(method.Inputs, args, evm)
 	if err != nil {
 		return nil, err
 	}
@@ -1458,69 +1349,55 @@ func (ec *ExchangeContract) querySpotOrdersByHashes(
 		return nil, err
 	}
 
-	solOrders := convertTrimmedSpotOrders(resp.Orders)
+	solOrders := ec.convertTrimmedSpotOrders(resp.Orders, market)
 
 	return method.Outputs.Pack(solOrders)
 }
 
 /******************************************************************************/
 
-func (ec *ExchangeContract) getDerivativeOrderHold(
+func (ec *ExchangeContract) getDerivativeMarket(
 	marketID string,
-	amount *big.Int,
 	evm *vm.EVM,
-) (sdk.Coins, error) {
-	spendCoins := sdk.Coins{}
-
+) (*exchangetypesv2.DerivativeMarket, error) {
+	var market *exchangetypesv2.DerivativeMarket
 	err := ec.executeNativeAction(
 		evm,
 		func(ctx sdk.Context) (err error) {
 			marketIDHash := common.HexToHash(marketID)
-			market := ec.exchangeKeeper.GetDerivativeMarketByID(
+			market = ec.exchangeKeeper.GetDerivativeMarketByID(
 				ctx,
 				marketIDHash,
 			)
-			if market == nil {
-				return exchangetypesv1.ErrDerivativeMarketNotFound.Wrapf("derivative market for marketID %s not found", marketID)
-			}
-			spendCoins = sdk.Coins{
-				sdk.NewCoin(market.QuoteDenom, sdkmath.NewIntFromBigInt(amount)),
-			}
 			return nil
 		},
 	)
-
-	return spendCoins, err
+	if market == nil {
+		return nil, exchangetypesv1.ErrDerivativeMarketNotFound.Wrapf("derivative market for marketID %s not found. err: %v", marketID, err)
+	}
+	return market, nil
 }
 
-func (ec *ExchangeContract) getSpotOrderHold(
+func (ec *ExchangeContract) getSpotMarket(
 	marketID string,
-	order *exchangetypesv2.SpotOrder,
 	evm *vm.EVM,
-) (sdk.Coins, error) {
-	spendCoins := sdk.Coins{}
-
+) (*exchangetypesv2.SpotMarket, error) {
+	var market *exchangetypesv2.SpotMarket
 	err := ec.executeNativeAction(
 		evm,
 		func(ctx sdk.Context) (err error) {
 			marketIDHash := common.HexToHash(marketID)
-			market := ec.exchangeKeeper.GetSpotMarketByID(
+			market = ec.exchangeKeeper.GetSpotMarketByID(
 				ctx,
 				marketIDHash,
 			)
-			if market == nil {
-				return exchangetypesv1.ErrSpotMarketNotFound.Wrapf("spot market for marketID %s not found", marketID)
-			}
-
-			amount, denom := order.GetBalanceHoldAndMarginDenom(market)
-			spendCoins = sdk.Coins{
-				sdk.NewCoin(denom, amount.TruncateInt()),
-			}
 			return nil
 		},
 	)
-
-	return spendCoins, err
+	if market == nil {
+		return nil, exchangetypesv1.ErrSpotMarketNotFound.Wrapf("spot market for marketID %s not found. err: %v", marketID, err)
+	}
+	return market, nil
 }
 
 /******************************************************************************/

@@ -10,8 +10,8 @@ import (
 	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 )
 
-// GetDenomDecimals returns the decimals of the given denom.
-func (k *Keeper) GetDenomDecimals(ctx sdk.Context, denom string) uint64 {
+// GetAuctionExchangeTransferDenomDecimals returns the decimals of the given denom.
+func (k *Keeper) GetAuctionExchangeTransferDenomDecimals(ctx sdk.Context, denom string) uint64 {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
@@ -34,8 +34,8 @@ func (k *Keeper) GetDenomDecimals(ctx sdk.Context, denom string) uint64 {
 	return decimals
 }
 
-// SetDenomDecimals saves the decimals of the given denom.
-func (k *Keeper) SetDenomDecimals(ctx sdk.Context, denom string, decimals uint64) {
+// SetAuctionExchangeTransferDenomDecimals saves the decimals of the given denom.
+func (k *Keeper) SetAuctionExchangeTransferDenomDecimals(ctx sdk.Context, denom string, decimals uint64) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
@@ -43,8 +43,8 @@ func (k *Keeper) SetDenomDecimals(ctx sdk.Context, denom string, decimals uint64
 	store.Set(types.GetDenomDecimalsKey(denom), sdk.Uint64ToBigEndian(decimals))
 }
 
-// DeleteDenomDecimals delete the decimals of the given denom.
-func (k *Keeper) DeleteDenomDecimals(ctx sdk.Context, denom string) {
+// DeleteAuctionExchangeTransferDenomDecimals delete the decimals of the given denom.
+func (k *Keeper) DeleteAuctionExchangeTransferDenomDecimals(ctx sdk.Context, denom string) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
@@ -52,13 +52,13 @@ func (k *Keeper) DeleteDenomDecimals(ctx sdk.Context, denom string) {
 	store.Delete(types.GetDenomDecimalsKey(denom))
 }
 
-// GetAllDenomDecimals returns all denom decimals
-func (k *Keeper) GetAllDenomDecimals(ctx sdk.Context) []v2.DenomDecimals {
+// GetAllAuctionExchangeTransferDenomDecimals returns all denom decimals
+func (k *Keeper) GetAllAuctionExchangeTransferDenomDecimals(ctx sdk.Context) []v2.DenomDecimals {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
 	denomDecimals := make([]v2.DenomDecimals, 0)
-	k.IterateDenomDecimals(ctx, func(p v2.DenomDecimals) (stop bool) {
+	k.IterateAuctionExchangeTransferDenomDecimals(ctx, func(p v2.DenomDecimals) (stop bool) {
 		denomDecimals = append(denomDecimals, p)
 		return false
 	})
@@ -66,8 +66,8 @@ func (k *Keeper) GetAllDenomDecimals(ctx sdk.Context) []v2.DenomDecimals {
 	return denomDecimals
 }
 
-// IterateDenomDecimals iterates over denom decimals calling process on each denom decimal.
-func (k *Keeper) IterateDenomDecimals(ctx sdk.Context, process func(denomDecimal v2.DenomDecimals) (stop bool)) {
+// IterateAuctionExchangeTransferDenomDecimals iterates over denom decimals calling process on each denom decimal.
+func (k *Keeper) IterateAuctionExchangeTransferDenomDecimals(ctx sdk.Context, process func(denomDecimal v2.DenomDecimals) (stop bool)) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 

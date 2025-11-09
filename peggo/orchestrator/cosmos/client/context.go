@@ -58,11 +58,7 @@ func NewClientContext(addr string, opts ...ContextOption) (client.Context, error
 		return client.Context{}, err
 	}
 
-	//conn, err := grpc.NewClient(addr,
-	//	grpc.WithTransportCredentials(insecure.NewCredentials()),
-	//	grpc.WithContextDialer(DialerFunc),
-	//)
-
+	//nolint:staticcheck // breaks clients with grpc.NewClient
 	conn, err := grpc.Dial(
 		addr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
@@ -70,7 +66,7 @@ func NewClientContext(addr string, opts ...ContextOption) (client.Context, error
 	)
 
 	if err != nil {
-		return client.Context{}, errors.Wrapf(err, "failed to dial cosmos: %s", addr)
+		return client.Context{}, errors.Wrapf(err, "failed to connect to cosmos: %s", addr)
 	}
 
 	cc = cc.WithClient(tmRPC)

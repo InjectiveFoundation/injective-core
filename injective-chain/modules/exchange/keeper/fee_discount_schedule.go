@@ -10,6 +10,8 @@ import (
 	v2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 )
 
+const REQUIRED_FEE_DISCOUNT_QUOTE_DECIMALS = 6
+
 // GetFeeDiscountSchedule fetches the FeeDiscountSchedule.
 func (k *Keeper) GetFeeDiscountSchedule(ctx sdk.Context) *v2.FeeDiscountSchedule {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
@@ -64,7 +66,11 @@ func (k *Keeper) handleFeeDiscountProposal(ctx sdk.Context, p *v2.FeeDiscountPro
 
 	for _, denom := range p.Schedule.QuoteDenoms {
 		if !k.IsDenomValid(ctx, denom) {
-			return errors.Wrapf(types.ErrInvalidBaseDenom, "denom %s does not exist in supply", denom)
+			return errors.Wrapf(types.ErrInvalidQuoteDenom, "denom %s does not exist in supply", denom)
+		}
+		denomDecimals, _ := k.TokenDenomDecimals(ctx, denom)
+		if denomDecimals != REQUIRED_FEE_DISCOUNT_QUOTE_DECIMALS {
+			return errors.Wrapf(types.ErrInvalidQuoteDenom, "denom %s does not have 6 decimals", denom)
 		}
 	}
 

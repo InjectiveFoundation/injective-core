@@ -49,6 +49,10 @@ func (k SpotV1MsgServer) InstantSpotMarketLaunch(
 		QuoteDecimals:       msg.QuoteDecimals,
 	}
 
+	if err := v2Msg.ValidateBasic(); err != nil {
+		return nil, err
+	}
+
 	_, err := k.server.InstantSpotMarketLaunch(goCtx, v2Msg)
 
 	if err != nil {
@@ -75,6 +79,10 @@ func (k SpotV1MsgServer) CreateSpotLimitOrder(
 	v2Msg := &v2.MsgCreateSpotLimitOrder{
 		Sender: msg.Sender,
 		Order:  *v2Order,
+	}
+
+	if err := v2Msg.ValidateBasic(); err != nil {
+		return nil, err
 	}
 
 	v2Response, err := k.server.CreateSpotLimitOrder(goCtx, v2Msg)
@@ -105,6 +113,10 @@ func (k SpotV1MsgServer) CreateSpotMarketOrder(
 	v2Msg := &v2.MsgCreateSpotMarketOrder{
 		Sender: msg.Sender,
 		Order:  *v2Order,
+	}
+
+	if err := v2Msg.ValidateBasic(); err != nil {
+		return nil, err
 	}
 
 	v2Response, err := k.server.CreateSpotMarketOrder(goCtx, v2Msg)
@@ -151,6 +163,10 @@ func (k SpotV1MsgServer) BatchCreateSpotLimitOrders(
 		Orders: v2Orders,
 	}
 
+	if err := v2Msg.ValidateBasic(); err != nil {
+		return nil, err
+	}
+
 	v2Response, err := k.server.BatchCreateSpotLimitOrders(goCtx, v2Msg)
 
 	if v2Response == nil {
@@ -173,6 +189,10 @@ func (k SpotV1MsgServer) CancelSpotOrder(goCtx context.Context, msg *types.MsgCa
 		SubaccountId: msg.SubaccountId,
 		OrderHash:    msg.OrderHash,
 		Cid:          msg.Cid,
+	}
+
+	if err := v2Msg.ValidateBasic(); err != nil {
+		return nil, err
 	}
 
 	_, err := k.server.CancelSpotOrder(goCtx, v2Msg)
@@ -199,6 +219,10 @@ func (k SpotV1MsgServer) BatchCancelSpotOrders(
 	v2Msg := &v2.MsgBatchCancelSpotOrders{
 		Sender: msg.Sender,
 		Data:   v2OrderDataList,
+	}
+
+	if err := v2Msg.ValidateBasic(); err != nil {
+		return nil, err
 	}
 
 	v2Response, err := k.server.BatchCancelSpotOrders(goCtx, v2Msg)

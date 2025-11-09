@@ -304,58 +304,49 @@ func (k *Keeper) WithdrawAllAuctionBalances(ctx sdk.Context) sdk.Coins {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	denomDecimals := k.GetAllDenomDecimals(ctx)
+	auctionDenomDecimals := k.GetAllAuctionExchangeTransferDenomDecimals(ctx)
 	coinsToSendToAuction := sdk.NewCoins()
 
 	injAuctionSubaccountAmount := math.ZeroInt()
 	injSendCap := k.GetInjAuctionMaxCap(ctx)
-
-	// collect balances from auction subaccount
-	for idx := range denomDecimals {
-		denom := denomDecimals[idx].Denom
-		deposit := k.GetDeposit(ctx, types.AuctionSubaccountID, denom)
-
-		if deposit.TotalBalance.IsNil() || deposit.TotalBalance.IsZero() || deposit.TotalBalance.TruncateInt().IsZero() {
-			continue
-		}
-
-		amount := deposit.TotalBalance.TruncateInt()
-
-		if denom == chaintypes.InjectiveCoin {
-			amount = math.MinInt(amount, injSendCap)
-			injAuctionSubaccountAmount = injAuctionSubaccountAmount.Add(amount)
-		}
-
-		if err := k.DecrementDeposit(ctx, types.AuctionSubaccountID, denom, amount.ToLegacyDec()); err != nil {
-			k.Logger(ctx).Error("WithdrawAllAuctionBalances DecrementDeposit fail:", err)
-			continue
-		}
-		coinsToSendToAuction = coinsToSendToAuction.Add(sdk.NewCoin(denom, amount))
-	}
-
 	balancesToSendFromAuctionAddress := sdk.NewCoins()
 
-	// transfer balances from auction fee address to exchange module
-	for idx := range denomDecimals {
-		denom := denomDecimals[idx].Denom
-		balance := k.bankKeeper.GetBalance(ctx, types.AuctionFeesAddress, denom)
+	for _, auctionDenomDecimal := range auctionDenomDecimals {
+		denom := auctionDenomDecimal.Denom
 
-		if balance.IsNil() || !balance.IsPositive() {
-			continue
-		}
+		// collect balances from auction subaccount
+		deposit := k.GetDeposit(ctx, types.AuctionSubaccountID, denom)
 
-		amount := balance.Amount
-		if balance.Denom == chaintypes.InjectiveCoin {
-			if injAuctionSubaccountAmount.GTE(injSendCap) {
-				amount = math.ZeroInt()
-			} else if amount.Add(injAuctionSubaccountAmount).GT(injSendCap) {
-				amount = injSendCap.Sub(injAuctionSubaccountAmount)
+		if !deposit.TotalBalance.IsNil() && deposit.TotalBalance.TruncateInt().GT(math.ZeroInt()) {
+			amount := deposit.TotalBalance.TruncateInt()
+
+			if denom == chaintypes.InjectiveCoin {
+				amount = math.MinInt(amount, injSendCap)
+				injAuctionSubaccountAmount = injAuctionSubaccountAmount.Add(amount)
+			}
+
+			err := k.DecrementDeposit(ctx, types.AuctionSubaccountID, denom, amount.ToLegacyDec())
+			if err != nil {
+				k.Logger(ctx).Error("WithdrawAllAuctionBalances DecrementDeposit fail:", err)
+			} else {
+				coinsToSendToAuction = coinsToSendToAuction.Add(sdk.NewCoin(denom, amount))
 			}
 		}
 
-		coin := sdk.NewCoin(denom, amount)
-		balancesToSendFromAuctionAddress = balancesToSendFromAuctionAddress.Add(coin)
-		coinsToSendToAuction = coinsToSendToAuction.Add(coin)
+		// transfer balances from auction fee address to exchange module
+		balance := k.bankKeeper.GetBalance(ctx, types.AuctionFeesAddress, denom)
+
+		if !balance.IsNil() && balance.IsPositive() {
+			amount := balance.Amount
+			if balance.Denom == chaintypes.InjectiveCoin {
+				remainingCap := math.MaxInt(math.ZeroInt(), injSendCap.Sub(injAuctionSubaccountAmount))
+				amount = math.MinInt(amount, remainingCap)
+			}
+
+			coin := sdk.NewCoin(denom, amount)
+			balancesToSendFromAuctionAddress = balancesToSendFromAuctionAddress.Add(coin)
+			coinsToSendToAuction = coinsToSendToAuction.Add(coin)
+		}
 	}
 
 	if len(balancesToSendFromAuctionAddress) > 0 {

@@ -179,15 +179,20 @@ func (k *Keeper) DeleteAccount(ctx sdk.Context, addr common.Address) error {
 	}
 
 	// clear storage
+	var keys []common.Hash
 	k.ForEachStorage(ctx, addr, func(key, _ common.Hash) bool {
-		k.SetState(ctx, addr, key, nil)
+		keys = append(keys, key)
 		return true
 	})
+	for _, key := range keys {
+		k.SetState(ctx, addr, key, nil)
+	}
 
 	// remove auth account
 	k.accountKeeper.RemoveAccount(ctx, acct)
 
-	k.Logger(ctx).Debug("account suicided",
+	k.Logger(ctx).Debug(
+		"account suicided",
 		"ethereum-address", addr,
 		"cosmos-address", cosmosAddr,
 	)

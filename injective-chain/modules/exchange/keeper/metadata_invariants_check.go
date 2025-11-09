@@ -41,6 +41,8 @@ func (k *Keeper) IsMetadataInvariantValid(ctx sdk.Context, options ...MetadataIn
 
 	isValid := true
 
+	// Note: These checks don't yet support conditional orders
+
 	if diff := deep.Equal(m1, m2); diff != nil {
 		fmt.Println("❌ SubaccountOrderbook metadata doesnt equal metadata derived from limit orders")
 		fmt.Println("📢 DIFF: ", diff)

@@ -18,6 +18,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
+	exchangev2 "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 )
 
 // parseNumFields returns number of zero fields in the struct that needs to be parsed from args
@@ -143,6 +144,11 @@ func parseField(
 	field := v.Field(i)
 	fieldT := field.Type()
 	fieldName := t.Field(i).Name
+
+	_, hasFlagT := flagsMap[fieldName]
+	if hasFlagT {
+		return handleBasicField(field, t.Field(i), fieldName, flagsMap, argsMap, flags, args, ctx, nextArgIdx)
+	}
 
 	if isAnyType(fieldT) {
 		return handleAnyType(field, fieldName, flagsMap, argsMap, flags, args, ctx, nextArgIdx)
@@ -428,6 +434,8 @@ func parseFieldFromString(fVal reflect.Value, fType reflect.StructField, val str
 			v, err = parseSdkInt(val, fType.Name)
 		case "math.LegacyDec":
 			v, err = parseLegacyDec(val, fType.Name)
+		case "v2.OpenNotionalCap":
+			v, err = parseOpenNotionalCap(val, fType.Name)
 		default:
 			return fmt.Errorf("struct field type not recognized. Got type %v", fType)
 		}
@@ -507,6 +515,14 @@ func parseLegacyDec(arg, fieldName string) (math.LegacyDec, error) {
 	return i, nil
 }
 
+func parseOpenNotionalCap(arg, fieldName string) (exchangev2.OpenNotionalCap, error) {
+	openNotionalCap, err := GetOpenNotionalCapFromString(arg)
+	if err != nil {
+		return exchangev2.OpenNotionalCap{}, fmt.Errorf("could not parse %s as OpenNotionalCap for field %s: %w", arg, fieldName, err)
+	}
+	return openNotionalCap, nil
+}
+
 func isFilledFromCtx(fName string) bool {
 	switch fName {
 	case "Sender", "SubaccountId", "FeeRecipient", "Proposer", "Granter", "SourceSubaccountId":
@@ -556,4 +572,28 @@ func parseExpectedQueryFnName(message proto.Message) string {
 	}
 	suffixTrimmed := strings.TrimSuffix(prefixTrimmed, "Request")
 	return suffixTrimmed
+}
+
+func GetOpenNotionalCapFromString(orig string) (exchangev2.OpenNotionalCap, error) {
+	if orig == "" {
+		return exchangev2.OpenNotionalCap{}, nil
+	}
+	if orig == "uncapped" {
+		return exchangev2.OpenNotionalCap{
+			Cap: &exchangev2.OpenNotionalCap_Uncapped{
+				Uncapped: &exchangev2.OpenNotionalCapUncapped{},
+			},
+		}, nil
+	}
+	openNotionalCapValue, err := math.LegacyNewDecFromStr(orig)
+	if err != nil {
+		return exchangev2.OpenNotionalCap{}, err
+	}
+	return exchangev2.OpenNotionalCap{
+		Cap: &exchangev2.OpenNotionalCap_Capped{
+			Capped: &exchangev2.OpenNotionalCapCapped{
+				Value: openNotionalCapValue,
+			},
+		},
+	}, nil
 }

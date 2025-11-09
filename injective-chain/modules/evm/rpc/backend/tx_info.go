@@ -404,6 +404,9 @@ func (b *Backend) GetTransactionByBlockAndIndex(block *cmrpctypes.ResultBlock, i
 		}
 	} else {
 		i := int(idx)
+		if i < 0 {
+			i = 0
+		}
 		ethMsgs := b.EthMsgsFromTendermintBlock(block)
 		if i >= len(ethMsgs) {
 			b.logger.Warn("block txs index out of bound", "index", i)
