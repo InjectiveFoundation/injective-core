@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -98,7 +97,7 @@ func (ks *keyStore) forEachWallet(keystorePath string, fn func(spec *WalletSpec)
 			return filepath.SkipDir
 		}
 		var spec *WalletSpec
-		if data, err := ioutil.ReadFile(path); err != nil {
+		if data, err := os.ReadFile(path); err != nil {
 			return err
 		} else if err = json.Unmarshal(data, &spec); err != nil {
 			return err
