@@ -7,6 +7,7 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	errortypes "github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/cosmos/cosmos-sdk/x/authz"
+	"github.com/cosmos/cosmos-sdk/x/authz/codec"
 )
 
 // maxNestedMsgs defines a cap for the number of nested messages on a MsgExec message
@@ -57,6 +58,14 @@ func (ald AuthzLimiterDecorator) CheckDisabledMsgs(msgs []sdk.Msg, isAuthzInnerM
 			if err := ald.CheckDisabledMsgs(innerMsgs, true, nestedMsgs+1); err != nil {
 				return err
 			}
+		case *authz.MsgExecCompat:
+			innerMsgs, err := ald.unpackCompatMessages(msg)
+			if err != nil {
+				return err
+			}
+			if err := ald.CheckDisabledMsgs(innerMsgs, true, nestedMsgs+1); err != nil {
+				return err
+			}
 		case *authz.MsgGrant:
 			authorization, err := msg.GetAuthorization()
 			if err != nil {
@@ -82,4 +91,40 @@ func (ald AuthzLimiterDecorator) CheckDisabledMsgs(msgs []sdk.Msg, isAuthzInnerM
 func (ald AuthzLimiterDecorator) isDisabledMsg(msgTypeURL string) bool {
 	_, ok := ald.disabledMsgs[msgTypeURL]
 	return ok
+}
+
+func (ald AuthzLimiterDecorator) unpackCompatMessages(msg *authz.MsgExecCompat) ([]sdk.Msg, error) {
+	subMsgs := make([]sdk.Msg, len(msg.Msgs))
+	for idx, m := range msg.Msgs {
+		var iMsg sdk.Msg
+
+		// we're using codec from x/authz/codec as it's global for authz Amino
+		err := codec.GlobalCdc.UnmarshalInterfaceJSON([]byte(m), &iMsg)
+		if err != nil {
+			return nil, fmt.Errorf("parse message at index %d error: %w", idx, err)
+		}
+
+		subMsgs[idx] = iMsg
+	}
+
+	if err := validateMsgs(subMsgs); err != nil {
+		return nil, err
+	}
+
+	return subMsgs, nil
+}
+
+func validateMsgs(msgs []sdk.Msg) error {
+	for i, msg := range msgs {
+		m, ok := msg.(sdk.HasValidateBasic)
+		if !ok {
+			continue
+		}
+
+		if err := m.ValidateBasic(); err != nil {
+			return errorsmod.Wrapf(err, "msg %d", i)
+		}
+	}
+
+	return nil
 }
