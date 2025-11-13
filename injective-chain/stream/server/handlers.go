@@ -426,7 +426,7 @@ func handleSetProviderPriceEvent(inBuffer *v2.StreamResponseMap, ev *oracletypes
 
 func handleSetPriceFeedPriceEvent(inBuffer *v2.StreamResponseMap, ev *oracletypes.SetPriceFeedPriceEvent) {
 	price := &v2.OraclePrice{
-		Symbol: ev.Base,
+		Symbol: fmt.Sprintf("%s/%s", ev.Base, ev.Quote),
 		Price:  ev.Price,
 		Type:   "pricefeed",
 	}
