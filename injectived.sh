@@ -8,6 +8,10 @@ if [ -z "$INJHOME" ]; then
   echo "INJHOME not set, defaulting to HOME directory: $INJHOME"
 fi
 
+CHAINSTREAM_ADDR=${CHAINSTREAM_ADDR:-0.0.0.0:9999}
+CHAINSTREAM_BUFFER_CAP=${CHAINSTREAM_BUFFER_CAP:-1000}
+CHAINSTREAM_PUBLISHER_BUFFER_CAP=${CHAINSTREAM_PUBLISHER_BUFFER_CAP:-1000}
+
 yes 12345678 | injectived \
   --log-level "info" \
   --rpc.laddr "tcp://0.0.0.0:26657" \
@@ -18,5 +22,8 @@ yes 12345678 | injectived \
   --json-rpc.allow-unprotected-txs=true \
   --json-rpc.txfee-cap=50 \
   --optimistic-execution-enabled true \
+  --chainstream-server "$CHAINSTREAM_ADDR" \
+  --chainstream-buffer-cap "$CHAINSTREAM_BUFFER_CAP" \
+  --chainstream-publisher-buffer-cap "$CHAINSTREAM_PUBLISHER_BUFFER_CAP" \
   --home "$INJHOME" \
 start
