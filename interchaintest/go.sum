@@ -304,8 +304,8 @@ github.com/InjectiveLabs/ibc-go/modules/capability v1.0.0-inj.3 h1:cgsP+ZYcyNX8E
 github.com/InjectiveLabs/ibc-go/modules/capability v1.0.0-inj.3/go.mod h1:bB1YsA/hKL/RmgUIyFEviQo+ydpBo2q7HQmBu5C9bXA=
 github.com/InjectiveLabs/ibc-go/v8 v8.7.0-inj.3 h1:VCzrjp0aljrGWG4nrXSOmzRf4ESjaNyUOJ04RF9o85w=
 github.com/InjectiveLabs/ibc-go/v8 v8.7.0-inj.3/go.mod h1:eyFRTlvKleMvsByuRDyxBDs/CFtYA9/T1aOAZvDVsj4=
-github.com/InjectiveLabs/interchaintest/v8 v8.0.1-inj.2 h1:S+x/0zDduLVuJ6NuCLzPK6+4L+pkCVHSgu2ZOiBHrb8=
-github.com/InjectiveLabs/interchaintest/v8 v8.0.1-inj.2/go.mod h1:JcrNW6I6haJ6OC26qsXocRgWB6Y6c16RFX7gumu4O9o=
+github.com/InjectiveLabs/interchaintest/v8 v8.0.1-inj.3 h1:bNP5xY5P8motlFS7EDsXdCFb66fWixnqtQcKnISRAhc=
+github.com/InjectiveLabs/interchaintest/v8 v8.0.1-inj.3/go.mod h1:JcrNW6I6haJ6OC26qsXocRgWB6Y6c16RFX7gumu4O9o=
 github.com/InjectiveLabs/metrics v0.0.10 h1:BoOwXnCtRRIPmq06jcI20pXZYE758eusaCI5jDOoN4U=
 github.com/InjectiveLabs/metrics v0.0.10/go.mod h1:eYu++0DVUjk/jjV9WgvCo8gQU+16Yoyhp1iu+ghKNME=
 github.com/InjectiveLabs/sdk-go v1.59.0-rc4 h1:L9wWjRkb1ZzbMk7LNT+83QfQeZpVY/n0DrUshjFeySA=

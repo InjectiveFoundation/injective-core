@@ -377,7 +377,7 @@ replace (
 	github.com/skip-mev/block-sdk/v2 => github.com/InjectiveLabs/block-sdk/v2 v2.5.1-inj.8
 
 	// For interchaintest
-	github.com/strangelove-ventures/interchaintest/v8 => github.com/InjectiveLabs/interchaintest/v8 v8.0.1-inj.2
+	github.com/strangelove-ventures/interchaintest/v8 => github.com/InjectiveLabs/interchaintest/v8 v8.0.1-inj.3
 	github.com/syndtr/goleveldb => github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	github.com/tyler-smith/go-bip39 => github.com/InjectiveLabs/go-bip39 v1.1.0
 )
