@@ -3,7 +3,6 @@ package pricefeed
 import (
 	"encoding/json"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"path"
@@ -104,7 +103,7 @@ func (cp *CoingeckoPriceFeed) QueryUSDPrice(erc20Contract common.Address) (float
 		return zeroPrice, errors.Wrapf(err, "failed to fetch price from %s", reqURL)
 	}
 
-	respBody, err := ioutil.ReadAll(io.LimitReader(resp.Body, maxRespBytes))
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxRespBytes))
 	if err != nil {
 		_ = resp.Body.Close()
 		metrics.ReportFuncError(cp.svcTags)

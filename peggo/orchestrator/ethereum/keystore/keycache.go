@@ -3,8 +3,8 @@ package keystore
 import (
 	"crypto/ecdsa"
 	"crypto/sha1"
-	"io/ioutil"
 	"math/big"
+	"os"
 	"strings"
 	"sync"
 
@@ -87,7 +87,7 @@ func (k *keyCache) PrivateKey(account common.Address, password string) (*ecdsa.P
 		path = strings.TrimPrefix(path, "keystore://")
 	}
 
-	keyJSON, err := ioutil.ReadFile(path)
+	keyJSON, err := os.ReadFile(path)
 	if err != nil {
 		err = errors.Wrap(err, "failed to load a file from keystore")
 		return nil, err

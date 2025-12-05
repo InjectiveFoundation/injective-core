@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/ecdsa"
-	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
@@ -88,7 +87,7 @@ func init() {
 // readEnv is a special utility that reads `.env` file into actual environment variables
 // of the current app, similar to `dotenv` Node package.
 func readEnv() {
-	if envdata, _ := ioutil.ReadFile(".env"); len(envdata) > 0 {
+	if envdata, _ := os.ReadFile(".env"); len(envdata) > 0 {
 		s := bufio.NewScanner(bytes.NewReader(envdata))
 		for s.Scan() {
 			parts := strings.Split(s.Text(), "=")
