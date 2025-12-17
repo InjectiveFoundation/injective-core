@@ -129,11 +129,12 @@ func (k *Keeper) ExpiryFuturesMarketLaunch(
 	const thirtyMinutesInSeconds = 60 * 30
 
 	marketInfo := &v2.ExpiryFuturesMarketInfo{
-		MarketId:                           marketID.Hex(),
-		ExpirationTimestamp:                expiry,
-		TwapStartTimestamp:                 expiry - thirtyMinutesInSeconds,
-		SettlementPrice:                    math.LegacyDec{},
-		ExpirationTwapStartPriceCumulative: math.LegacyDec{},
+		MarketId:                                marketID.Hex(),
+		ExpirationTimestamp:                     expiry,
+		TwapStartTimestamp:                      expiry - thirtyMinutesInSeconds,
+		SettlementPrice:                         math.LegacyDec{},
+		ExpirationTwapStartBaseCumulativePrice:  math.LegacyDec{},
+		ExpirationTwapStartQuoteCumulativePrice: math.LegacyDec{},
 	}
 
 	k.SetDerivativeMarketWithInfo(ctx, market, nil, nil, marketInfo)
@@ -173,7 +174,7 @@ func (k *Keeper) SetExpiryFuturesMarketInfo(ctx sdk.Context, marketID common.Has
 	bz := k.cdc.MustMarshal(marketInfo)
 	expiryFuturesMarketInfoStore.Set(key, bz)
 
-	if marketInfo.ExpirationTwapStartPriceCumulative.IsNil() || marketInfo.ExpirationTwapStartPriceCumulative.IsZero() {
+	if marketInfo.ExpirationTwapStartBaseCumulativePrice.IsNil() || marketInfo.ExpirationTwapStartBaseCumulativePrice.IsZero() {
 		k.SetExpiryFuturesMarketInfoByTimestamp(ctx, marketID, marketInfo.TwapStartTimestamp)
 	} else {
 		k.SetExpiryFuturesMarketInfoByTimestamp(ctx, marketID, marketInfo.ExpirationTimestamp)

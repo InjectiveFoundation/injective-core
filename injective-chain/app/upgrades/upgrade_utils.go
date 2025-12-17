@@ -19,6 +19,7 @@ import (
 	exchangekeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/keeper"
 	peggykeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/peggy/keeper"
 	txfeeskeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/txfees/keeper"
+	authkeeper "github.com/cosmos/cosmos-sdk/x/auth/keeper"
 	bankkeeper "github.com/cosmos/cosmos-sdk/x/bank/keeper"
 	distrkeeper "github.com/cosmos/cosmos-sdk/x/distribution/keeper"
 	slashingkeeper "github.com/cosmos/cosmos-sdk/x/slashing/keeper"
@@ -122,6 +123,7 @@ type InjectiveApplication interface {
 	ChainID() string
 	GetExchangeKeeper() *exchangekeeper.Keeper
 	GetBankKeeper() bankkeeper.Keeper
+	GetAccountKeeper() authkeeper.AccountKeeper
 	GetDistributionKeeper() distrkeeper.Keeper
 	GetSlashingKeeper() slashingkeeper.Keeper
 	GetEvmKeeper() *evmkeeper.Keeper

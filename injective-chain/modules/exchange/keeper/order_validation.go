@@ -35,12 +35,26 @@ func (k *Keeper) ensureValidDerivativeOrder(
 
 	orderHash, err = derivativeOrder.ComputeOrderHash(subaccountNonce.Nonce)
 	if err != nil {
+		metrics.ReportFuncError(k.svcTags)
 		return orderHash, err
 	}
 
 	// reject if client order id is already used
 	if k.existsCid(ctx, subaccountID, derivativeOrder.OrderInfo.Cid) {
+		metrics.ReportFuncError(k.svcTags)
 		return orderHash, types.ErrClientOrderIdAlreadyExists
+	}
+
+	if derivativeOrder.ExpirationBlock != 0 {
+		if isMarketOrder {
+			metrics.ReportFuncError(k.svcTags)
+			return orderHash, types.ErrInvalidExpirationBlock.Wrap("market orders cannot have expiration block")
+		}
+
+		if derivativeOrder.ExpirationBlock <= ctx.BlockHeight() {
+			metrics.ReportFuncError(k.svcTags)
+			return orderHash, types.ErrInvalidExpirationBlock.Wrap("expiration block must be higher than current block")
+		}
 	}
 
 	doesOrderCrossTopOfBook := k.DerivativeOrderCrossesTopOfBook(ctx, derivativeOrder)
@@ -48,6 +62,7 @@ func (k *Keeper) ensureValidDerivativeOrder(
 	isPostOnlyMode := k.IsPostOnlyMode(ctx)
 
 	if isMarketOrder && isPostOnlyMode {
+		metrics.ReportFuncError(k.svcTags)
 		return orderHash, errors.Wrapf(types.ErrPostOnlyMode, "cannot create market orders in post only mode until height %d", k.GetParams(ctx).PostOnlyModeHeightThreshold)
 	}
 
@@ -71,19 +86,23 @@ func (k *Keeper) ensureValidDerivativeOrder(
 	// check that market exists and has mark price (except for non-conditional binary options)
 	isMissingRequiredMarkPrice := (!marketType.IsBinaryOptions() || derivativeOrder.IsConditional()) && markPrice.IsNil()
 	if market == nil || isMissingRequiredMarkPrice {
+		metrics.ReportFuncError(k.svcTags)
 		k.Logger(ctx).Debug("active market with valid mark price doesn't exist", "marketId", derivativeOrder.MarketId, "mark price", markPrice)
 		return orderHash, errors.Wrapf(types.ErrDerivativeMarketNotFound, "active derivative market for marketID %s not found", derivativeOrder.MarketId)
 	}
 
 	if err := derivativeOrder.CheckValidConditionalPrice(markPrice); err != nil {
+		metrics.ReportFuncError(k.svcTags)
 		return orderHash, err
 	}
 
 	if err := derivativeOrder.CheckTickSize(market.GetMinPriceTickSize(), market.GetMinQuantityTickSize()); err != nil {
+		metrics.ReportFuncError(k.svcTags)
 		return orderHash, err
 	}
 
 	if err := derivativeOrder.CheckNotional(market.GetMinNotional()); err != nil {
+		metrics.ReportFuncError(k.svcTags)
 		return orderHash, err
 
 	}
@@ -91,6 +110,7 @@ func (k *Keeper) ensureValidDerivativeOrder(
 	// check binary options max order prices
 	if marketType.IsBinaryOptions() {
 		if err := derivativeOrder.CheckBinaryOptionsPricesWithinBounds(market.GetOracleScaleFactor()); err != nil {
+			metrics.ReportFuncError(k.svcTags)
 			return orderHash, err
 		}
 	}
@@ -106,6 +126,7 @@ func (k *Keeper) ensureValidDerivativeOrder(
 	if derivativeOrder.IsConditional() && isMarketOrder {
 		isHigher := derivativeOrder.TriggerPrice.GT(markPrice)
 		if k.HasSubaccountAlreadyPlacedConditionalMarketOrderInDirection(ctx, marketID, subaccountID, isHigher, marketType) {
+			metrics.ReportFuncError(k.svcTags)
 			return orderHash, types.ErrConditionalMarketOrderAlreadyExists
 		}
 	}
@@ -152,6 +173,7 @@ func (k *Keeper) ensureValidDerivativeOrder(
 				funding,
 				derivativeOrder.Margin,
 			); err != nil {
+				metrics.ReportFuncError(k.svcTags)
 				return orderHash, err
 			}
 		}
@@ -163,6 +185,7 @@ func (k *Keeper) ensureValidDerivativeOrder(
 			}
 
 			if derivativeOrder.IsBuy() == position.IsLong {
+				metrics.ReportFuncError(k.svcTags)
 				return orderHash, types.ErrInvalidReduceOnlyPositionDirection
 			}
 		}
@@ -177,12 +200,14 @@ func (k *Keeper) ensureValidDerivativeOrder(
 		}
 		marginHold, err := derivativeOrder.CheckMarginAndGetMarginHold(market.GetInitialMarginRatio(), markPriceToCheck, tradeFeeRate, marketType, market.GetOracleScaleFactor())
 		if err != nil {
+			metrics.ReportFuncError(k.svcTags)
 			return orderHash, err
 		}
 
 		// Decrement the available balance by the funds amount needed to fund the order
 		chainFormattedMarginHold := market.NotionalToChainFormat(marginHold)
 		if err := k.chargeAccount(ctx, subaccountID, market.GetQuoteDenom(), chainFormattedMarginHold); err != nil {
+			metrics.ReportFuncError(k.svcTags)
 			return orderHash, err
 		}
 
@@ -194,6 +219,7 @@ func (k *Keeper) ensureValidDerivativeOrder(
 
 	if !derivativeOrder.IsConditional() {
 		if err := k.resolveReduceOnlyConflicts(ctx, derivativeOrder, subaccountID, marketID, metadata, position); err != nil {
+			metrics.ReportFuncError(k.svcTags)
 			return orderHash, err
 		}
 	}

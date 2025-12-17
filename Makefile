@@ -241,10 +241,16 @@ ictest-validator-jailed: rm-testcache
 	cd interchaintest && go test -timeout 30m -v -run Test_ValidatorJailedEvent .
 	./scripts/coverage-html.sh interchaintest/coverage/Test_ValidatorJailedEvent
 
+ictest-wasm-fees-to-auction: rm-testcache
+	rm -rf interchaintest/coverage/Test_WasmFeesGoToAuctionModule
+	cd interchaintest && go test -timeout 30m -v -run Test_WasmFeesGoToAuctionModule .
+	./scripts/coverage-html.sh interchaintest/coverage/Test_WasmFeesGoToAuctionModule
+
+
 .PHONY: rm-testcache rm-ic-coverage
 .PHONY: ictest-all ictest-basic ictest-upgrade ictest-ibchooks ictest-permissions-wasm-hook ictest-pfm ictest-lanes
 .PHONY: ictest-fixed-gas ictest-fixed-gas-regression ictest-peggo ictest-peggo-ibc ictest-hyperlane ictest-evm
-.PHONY: ictest-downtime-detector ictest-chainstream ictest-validator-jailed
+.PHONY: ictest-downtime-detector ictest-chainstream ictest-validator-jailed ictest-wasm-fees-to-auction
 
 ###############################################################################
 
@@ -316,3 +322,9 @@ gen-error-docs:
 	@echo "Error documentation generated successfully in $(ERROR_DOCS_DEST)"
 
 .PHONY: gen-modules-errors-pages gen-error-docs
+
+.PHONY: peggo-wrappers
+
+peggo-wrappers:
+	@echo "Generating wrappers from Peggy contracts..."
+	./scripts/peggo_wrappers.sh

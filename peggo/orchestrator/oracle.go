@@ -10,7 +10,7 @@ import (
 
 	peggytypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/peggy/types"
 	"github.com/InjectiveLabs/injective-core/peggo/orchestrator/loops"
-	peggyevents "github.com/InjectiveLabs/injective-core/peggo/solidity/wrappers/Peggy.sol"
+	peggyevents "github.com/InjectiveLabs/injective-core/peggo/solidity/wrappers/Peggy"
 	"github.com/InjectiveLabs/metrics"
 )
 
@@ -196,11 +196,6 @@ func (l *oracle) getEthEvents(ctx context.Context, startBlock, endBlock uint64) 
 			return err
 		}
 
-		oldDepositEvents, err := l.ethereum.GetSendToCosmosEvents(startBlock, endBlock)
-		if err != nil {
-			return err
-		}
-
 		withdrawalEvents, err := l.ethereum.GetTransactionBatchExecutedEvents(startBlock, endBlock)
 		if err != nil {
 			return err
@@ -214,11 +209,6 @@ func (l *oracle) getEthEvents(ctx context.Context, startBlock, endBlock uint64) 
 		valsetUpdateEvents, err := l.ethereum.GetValsetUpdatedEvents(startBlock, endBlock)
 		if err != nil {
 			return err
-		}
-
-		for _, e := range oldDepositEvents {
-			ev := oldDeposit(*e)
-			events = append(events, &ev)
 		}
 
 		for _, e := range depositEvents {
@@ -319,9 +309,6 @@ func (l *oracle) sendNewEventClaims(ctx context.Context, events []event) error {
 
 func (l *oracle) sendEthEventClaim(ctx context.Context, ev event) error {
 	switch e := ev.(type) {
-	case *oldDeposit:
-		ev := peggyevents.PeggySendToCosmosEvent(*e)
-		return l.injective.SendOldDepositClaim(ctx, &ev)
 	case *deposit:
 		ev := peggyevents.PeggySendToInjectiveEvent(*e)
 		return l.injective.SendDepositClaim(ctx, &ev)
@@ -340,7 +327,6 @@ func (l *oracle) sendEthEventClaim(ctx context.Context, ev event) error {
 }
 
 type (
-	oldDeposit      peggyevents.PeggySendToCosmosEvent
 	deposit         peggyevents.PeggySendToInjectiveEvent
 	valsetUpdate    peggyevents.PeggyValsetUpdatedEvent
 	withdrawal      peggyevents.PeggyTransactionBatchExecutedEvent
@@ -362,10 +348,6 @@ func filterEvents(events []event, nonce uint64) (filtered []event) {
 	return
 }
 
-func (o *oldDeposit) Nonce() uint64 {
-	return o.EventNonce.Uint64()
-}
-
 func (o *deposit) Nonce() uint64 {
 	return o.EventNonce.Uint64()
 }
@@ -380,10 +362,6 @@ func (o *withdrawal) Nonce() uint64 {
 
 func (o *erc20Deployment) Nonce() uint64 {
 	return o.EventNonce.Uint64()
-}
-
-func (o *oldDeposit) BlockHeight() uint64 {
-	return o.Raw.BlockNumber
 }
 
 func (o *deposit) BlockHeight() uint64 {

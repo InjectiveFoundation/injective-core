@@ -2,15 +2,20 @@ package keyring
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 
+	sdkledger "github.com/cosmos/cosmos-sdk/crypto/ledger"
+	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/cosmos/cosmos-sdk/x/auth/migrations/legacytx"
+	ethmath "github.com/ethereum/go-ethereum/common/math"
+	"github.com/ethereum/go-ethereum/crypto"
+
+	"github.com/InjectiveLabs/injective-core/injective-chain/app/ante"
 	"github.com/InjectiveLabs/injective-core/injective-chain/app/ante/typeddata"
 	"github.com/InjectiveLabs/injective-core/injective-chain/crypto/ledger"
 	"github.com/InjectiveLabs/injective-core/injective-chain/crypto/ledger/hub"
-	sdkledger "github.com/cosmos/cosmos-sdk/crypto/ledger"
-	sdk "github.com/cosmos/cosmos-sdk/types"
-	"github.com/ethereum/go-ethereum/crypto"
 )
 
 func DiscoverLedgerFn() (sdkledger.SECP256K1, error) {
@@ -119,7 +124,7 @@ func (l ledgerSECP256K1) GetAddressPubKeySECP256K1(hdPath []uint32, hrp string) 
 // SignSECP256K1 returns the signature bytes generated from signing a transaction using the EIP712 signature
 func (l ledgerSECP256K1) SignSECP256K1(hdPath []uint32, signDocBytes []byte, signMode byte) ([]byte, error) {
 	if signMode != 0 {
-		return nil, errors.New("signMode must be 0 (LEGACY_AMINO_JSON)")
+		return nil, errors.New("sign mode must be 0 (LEGACY_AMINO_JSON)")
 	}
 
 	fmt.Println("Generating payload, please check your Ledger...")
@@ -128,13 +133,12 @@ func (l ledgerSECP256K1) SignSECP256K1(hdPath []uint32, signDocBytes []byte, sig
 		return nil, fmt.Errorf("unable to sign with Ledger: %w", err)
 	}
 
-	// Derive requested account
 	account, err := l.primaryWallet.Derive(hdPath, true)
 	if err != nil {
 		return nil, errors.New("unable to derive Ledger address, please open the Ethereum app and retry")
 	}
 
-	typedData, err := typeddata.GetEIP712TypedDataForMsg(signDocBytes)
+	typedData, err := GetEIP712TypedDataV2(signDocBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -178,4 +182,89 @@ func verifySignature(account ledger.Account, data, sig []byte) error {
 	}
 
 	return nil
+}
+
+func GetEIP712TypedDataV2(signDocBytes []byte) (typeddata.TypedData, error) { //nolint:revive // ok
+	// signDocBytes is generated with LEGACY_AMINO_JSON and this is coming from the SDK itself.
+	// We do a reverse to get the initial input so eip712 v2 can be used
+	var signMsg legacytx.StdSignMsg
+	if err := typeddata.LegacyAminoCodec.UnmarshalJSON(signDocBytes, &signMsg); err != nil {
+		return typeddata.TypedData{}, err
+	}
+
+	if err := signMsg.UnpackInterfaces(ante.GlobalCdc); err != nil {
+		return typeddata.TypedData{}, err
+	}
+
+	var chainID int64
+	if signMsg.ChainID == "injective-1" {
+		chainID = 1
+	} else {
+		chainID = 11155111
+	}
+
+	// construct the eip712 v2
+	domain := typeddata.TypedDataDomain{
+		Name:              "Injective Web3",
+		Version:           "1.0.0",
+		ChainId:           ethmath.NewHexOrDecimal256(chainID),
+		VerifyingContract: "0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC",
+		Salt:              "0",
+	}
+
+	msgsJsons := make([]json.RawMessage, len(signMsg.Msgs))
+	for idx, m := range signMsg.Msgs {
+		bzMsg, err := ante.GlobalCdc.MarshalInterfaceJSON(m)
+		if err != nil {
+			return typeddata.TypedData{}, fmt.Errorf("cannot marshal json at index %d: %w", idx, err)
+		}
+
+		msgsJsons[idx] = bzMsg
+	}
+
+	bzMsgs, err := json.Marshal(msgsJsons)
+	if err != nil {
+		return typeddata.TypedData{}, fmt.Errorf("marshal json err: %w", err)
+	}
+
+	feeInfo := legacytx.StdFee{
+		Amount: signMsg.Fee.Amount,
+		Gas:    signMsg.Fee.Gas,
+	}
+
+	// there's never a fee payer with Ledger signing
+	// if opts.FeePayer != nil {
+	// 	feeInfo.Payer = opts.FeePayer.String()
+	// }
+
+	bzFee, err := json.Marshal(feeInfo)
+	if err != nil {
+		return typeddata.TypedData{}, fmt.Errorf("marshal fee info failed: %w", err)
+	}
+
+	ctx := map[string]any{
+		"account_number": signMsg.AccountNumber,
+		"sequence":       signMsg.Sequence,
+		"timeout_height": signMsg.TimeoutHeight,
+		"chain_id":       signMsg.ChainID,
+		"memo":           signMsg.Memo,
+		"fee":            json.RawMessage(bzFee),
+	}
+
+	bzTxContext, err := json.Marshal(ctx)
+	if err != nil {
+		return typeddata.TypedData{}, fmt.Errorf("marshal json err: %w", err)
+	}
+
+	td := typeddata.TypedData{
+		Types:       typeddata.SignableTypes(),
+		PrimaryType: "Tx",
+		Domain:      domain,
+		Message: typeddata.TypedDataMessage{
+			"context": string(bzTxContext),
+			"msgs":    string(bzMsgs),
+		},
+	}
+
+	return td, nil
 }

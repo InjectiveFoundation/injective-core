@@ -6280,7 +6280,7 @@ var (
 
 	pattern_Query_Positions_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"injective", "exchange", "v1beta1", "positions"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_SubaccountPositions_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"injective", "exchange", "v1beta1", "positions", "subaccount_id"}, "", runtime.AssumeColonVerbOpt(false)))
+	pattern_Query_SubaccountPositions_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"injective", "exchange", "v1beta1", "subaccount_positions", "subaccount_id"}, "", runtime.AssumeColonVerbOpt(false)))
 
 	pattern_Query_SubaccountPositionInMarket_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4, 1, 0, 4, 1, 5, 5}, []string{"injective", "exchange", "v1beta1", "positions", "subaccount_id", "market_id"}, "", runtime.AssumeColonVerbOpt(false)))
 

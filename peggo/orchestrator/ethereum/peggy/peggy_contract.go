@@ -18,7 +18,8 @@ import (
 
 	"github.com/InjectiveLabs/injective-core/peggo/orchestrator/ethereum/committer"
 	"github.com/InjectiveLabs/injective-core/peggo/orchestrator/ethereum/provider"
-	wrappers "github.com/InjectiveLabs/injective-core/peggo/solidity/wrappers/Peggy.sol"
+	erc20wrappers "github.com/InjectiveLabs/injective-core/peggo/solidity/wrappers/InjToken"
+	wrappers "github.com/InjectiveLabs/injective-core/peggo/solidity/wrappers/Peggy"
 )
 
 type PeggyContract interface {
@@ -121,7 +122,7 @@ var maxUintAllowance = big.NewInt(0).Sub(big.NewInt(0).Exp(big.NewInt(2), big.Ne
 
 var (
 	peggyABI, _ = abi.JSON(strings.NewReader(wrappers.PeggyABI))
-	erc20ABI, _ = abi.JSON(strings.NewReader(wrappers.ERC20ABI))
+	erc20ABI, _ = abi.JSON(strings.NewReader(erc20wrappers.ERC20ABI))
 )
 
 func sigToVRS(sigHex string) (v uint8, r, s common.Hash) {

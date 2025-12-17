@@ -6,15 +6,14 @@ import (
 	"cosmossdk.io/math"
 	storetypes "cosmossdk.io/store/types"
 	wasmtypes "github.com/CosmWasm/wasmd/x/wasm/types"
-	"github.com/cosmos/cosmos-sdk/baseapp"
-	sdk "github.com/cosmos/cosmos-sdk/types"
-	sdkerrortypes "github.com/cosmos/cosmos-sdk/types/errors"
-	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
-
 	"github.com/InjectiveLabs/injective-core/injective-chain/app/ante"
+	auctiontypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/auction/types"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/wasmx/types"
 	chaintypes "github.com/InjectiveLabs/injective-core/injective-chain/types"
 	"github.com/InjectiveLabs/metrics"
+	"github.com/cosmos/cosmos-sdk/baseapp"
+	sdk "github.com/cosmos/cosmos-sdk/types"
+	sdkerrortypes "github.com/cosmos/cosmos-sdk/types/errors"
 )
 
 func (k *Keeper) hasValidCodeId(
@@ -468,7 +467,7 @@ func refundFees(
 
 	err := bankKeeper.SendCoinsFromModuleToAccount(
 		ctx,
-		authtypes.FeeCollectorName,
+		auctiontypes.ModuleName,
 		acc.GetAddress(),
 		fees,
 	)

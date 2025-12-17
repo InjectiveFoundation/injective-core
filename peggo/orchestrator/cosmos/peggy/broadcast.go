@@ -16,7 +16,7 @@ import (
 	peggytypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/peggy/types"
 	"github.com/InjectiveLabs/injective-core/peggo/orchestrator/ethereum/keystore"
 	"github.com/InjectiveLabs/injective-core/peggo/orchestrator/ethereum/peggy"
-	peggyevents "github.com/InjectiveLabs/injective-core/peggo/solidity/wrappers/Peggy.sol"
+	peggyevents "github.com/InjectiveLabs/injective-core/peggo/solidity/wrappers/Peggy"
 	"github.com/InjectiveLabs/metrics"
 )
 
@@ -25,7 +25,6 @@ type BroadcastClient interface {
 	SendValsetConfirm(ctx context.Context, ethFrom gethcommon.Address, peggyID gethcommon.Hash, valset *peggytypes.Valset) error
 	SendBatchConfirm(ctx context.Context, ethFrom gethcommon.Address, peggyID gethcommon.Hash, batch *peggytypes.OutgoingTxBatch) error
 	SendRequestBatch(ctx context.Context, denom string) error
-	SendOldDepositClaim(ctx context.Context, deposit *peggyevents.PeggySendToCosmosEvent) error
 	SendDepositClaim(ctx context.Context, deposit *peggyevents.PeggySendToInjectiveEvent) error
 	SendWithdrawalClaim(ctx context.Context, withdrawal *peggyevents.PeggyTransactionBatchExecutedEvent) error
 	SendValsetClaim(ctx context.Context, vs *peggyevents.PeggyValsetUpdatedEvent) error
@@ -221,57 +220,6 @@ func (c *broadcastClient) SendRequestBatch(ctx context.Context, denom string) er
 	}
 
 	time.Sleep(broadcastMsgSleepDuration)
-
-	return nil
-}
-
-func (c *broadcastClient) SendOldDepositClaim(_ context.Context, deposit *peggyevents.PeggySendToCosmosEvent) error {
-	// EthereumBridgeDepositClaim
-	// When more than 66% of the active validator set has
-	// claimed to have seen the deposit enter the ethereum blockchain coins are
-	// issued to the Cosmos address in question
-	// -------------
-	metrics.ReportFuncCall(c.svcTags)
-	doneFn := metrics.ReportFuncTiming(c.svcTags)
-	defer doneFn()
-
-	log.WithFields(log.Fields{
-		"sender":      deposit.Sender.Hex(),
-		"destination": cosmostypes.AccAddress(deposit.Destination[12:32]).String(),
-		"amount":      deposit.Amount.String(),
-		"event_nonce": deposit.EventNonce.String(),
-	}).Debugln("observed SendToCosmosEvent")
-
-	msg := &peggytypes.MsgDepositClaim{
-		EventNonce:     deposit.EventNonce.Uint64(),
-		BlockHeight:    deposit.Raw.BlockNumber,
-		TokenContract:  deposit.TokenContract.Hex(),
-		Amount:         sdkmath.NewIntFromBigInt(deposit.Amount),
-		EthereumSender: deposit.Sender.Hex(),
-		CosmosReceiver: cosmostypes.AccAddress(deposit.Destination[12:32]).String(),
-		Orchestrator:   c.ChainClient.FromAddress().String(),
-		Data:           "",
-	}
-
-	c.mux.Lock()
-	defer c.mux.Unlock()
-
-	_, resp, err := c.ChainClient.BroadcastMsg(cosmostx.BroadcastMode_BROADCAST_MODE_SYNC, msg)
-	if err != nil {
-		return errors.Wrap(err, "failed to broadcast MsgDepositClaim")
-	}
-
-	if resp.TxResponse.Code != 0 {
-		return errors.Errorf("failed to broadcast MsgDepositClaim: %s", resp.TxResponse.RawLog)
-	}
-
-	time.Sleep(broadcastMsgSleepDuration)
-
-	log.WithFields(log.Fields{
-		"event_height": msg.BlockHeight,
-		"event_nonce":  msg.EventNonce,
-		"tx_hash":      resp.TxResponse.TxHash,
-	}).Infoln("Oracle sent MsgDepositClaim")
 
 	return nil
 }

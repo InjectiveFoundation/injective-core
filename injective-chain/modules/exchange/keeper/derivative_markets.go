@@ -63,20 +63,28 @@ func (k *Keeper) GetDerivativeMarketPrice(
 	return &scaledPrice, nil
 }
 
-// GetDerivativeMarketCumulativePrice fetches the Derivative Market's (unscaled) cumulative price
+// GetDerivativeMarketCumulativePrice fetches both base and quote cumulative prices for proper TWAP calculation.
+// Returns base and quote cumulative prices that enable unified TWAP calculation:
+//
+//	TWAP = (baseCum_end - baseCum_start) / (quoteCum_end - quoteCum_start)
 func (k *Keeper) GetDerivativeMarketCumulativePrice(
 	ctx sdk.Context, oracleBase, oracleQuote string, oracleType oracletypes.OracleType,
-) (*math.LegacyDec, error) {
+) (baseCumulative, quoteCumulative *math.LegacyDec, err error) {
 	ctx, doneFn := metrics.ReportFuncCallAndTimingSdkCtx(ctx, k.svcTags)
 	defer doneFn()
 
-	cumulativePrice := k.OracleKeeper.GetCumulativePrice(ctx, oracleType, oracleBase, oracleQuote)
-	if cumulativePrice == nil || cumulativePrice.IsNil() {
+	baseCumulative, quoteCumulative = k.OracleKeeper.GetCumulativePrice(ctx, oracleType, oracleBase, oracleQuote)
+	baseNil := baseCumulative == nil || baseCumulative.IsNil()
+	quoteNil := quoteCumulative == nil || quoteCumulative.IsNil()
+
+	if baseNil || quoteNil {
 		metrics.ReportFuncError(k.svcTags)
-		return nil, errors.Wrapf(types.ErrInvalidOracle, "type %s base %s quote %s", oracleType.String(), oracleBase, oracleQuote)
+		return nil, nil, errors.Wrapf(types.ErrInvalidOracle,
+			"type %s base %s quote %s (baseCumulative nil: %t, quoteCumulative nil: %t)",
+			oracleType.String(), oracleBase, oracleQuote, baseNil, quoteNil)
 	}
 
-	return cumulativePrice, nil
+	return baseCumulative, quoteCumulative, nil
 }
 
 // HasDerivativeMarket returns true the if the derivative market exists in the store.

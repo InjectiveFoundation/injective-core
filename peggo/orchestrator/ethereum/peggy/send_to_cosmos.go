@@ -12,7 +12,7 @@ import (
 
 	"github.com/InjectiveLabs/metrics"
 
-	wrappers "github.com/InjectiveLabs/injective-core/peggo/solidity/wrappers/Peggy.sol"
+	wrappers "github.com/InjectiveLabs/injective-core/peggo/solidity/wrappers/InjToken"
 )
 
 func (s *peggyContract) SendToCosmos(

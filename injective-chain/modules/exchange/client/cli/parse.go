@@ -12,6 +12,7 @@ import (
 	"cosmossdk.io/math"
 	"github.com/cosmos/cosmos-sdk/client"
 	govcli "github.com/cosmos/cosmos-sdk/x/gov/client/cli"
+	"github.com/cosmos/gogoproto/jsonpb"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -128,12 +129,13 @@ func parseBatchExchangeModificationsProposalFlags(fs *pflag.FlagSet) (*v2.BatchE
 		return nil, err
 	}
 
-	content := v2.BatchExchangeModificationProposal{}
-	jsonDecoder := json.NewDecoder(bytes.NewReader(bz))
-	jsonDecoder.DisallowUnknownFields()
+	var content v2.BatchExchangeModificationProposal
 
-	err = jsonDecoder.Decode(&content)
-	if err != nil {
+	um := jsonpb.Unmarshaler{
+		AllowUnknownFields: false,
+	}
+
+	if err := um.Unmarshal(bytes.NewReader(bz), &content); err != nil {
 		return nil, err
 	}
 

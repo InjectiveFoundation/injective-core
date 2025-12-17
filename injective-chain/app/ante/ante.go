@@ -199,7 +199,7 @@ func NewAnteHandler(
 				authante.NewValidateMemoDecorator(ak),
 				txfeeskeeper.NewMempoolFeeDecorator(options.TxFeesKeeper, false),
 				authante.NewConsumeGasForTxSizeDecorator(ak),
-				authante.NewDeductFeeDecorator(ak, options.BankKeeper, options.FeegrantKeeper, nil),
+				NewAuctionFeeDecorator(ak, options.BankKeeper, options.FeegrantKeeper, nil),
 				authante.NewSetPubKeyDecorator(ak), // SetPubKeyDecorator must be called before all signature verification decorators
 				authante.NewValidateSigCountDecorator(ak),
 				authante.NewSigGasConsumeDecorator(ak, DefaultSigVerificationGasConsumer),

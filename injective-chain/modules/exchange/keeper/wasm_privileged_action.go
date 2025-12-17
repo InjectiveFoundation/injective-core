@@ -220,6 +220,31 @@ func (k *Keeper) ensurePositionAboveInitialMarginRatio(
 	return nil
 }
 
+type capState struct {
+	openNotionalCap   v2.OpenNotionalCap
+	currOpenNotional  math.LegacyDec
+	addedOpenNotional math.LegacyDec
+	openInterestDelta math.LegacyDec
+	posQty            map[common.Hash]*math.LegacyDec
+}
+
+func (cs *capState) initSignedQty(subID common.Hash, pos *v2.Position) {
+	if cs.posQty[subID] != nil {
+		return
+	}
+	if pos == nil || pos.Quantity.IsZero() {
+		z := math.LegacyZeroDec()
+		cs.posQty[subID] = &z
+		return
+	}
+	if pos.IsLong {
+		cs.posQty[subID] = &pos.Quantity
+		return
+	}
+	neg := pos.Quantity.Neg()
+	cs.posQty[subID] = &neg
+}
+
 func (k *Keeper) HandleSyntheticTradeAction(
 	ctx sdk.Context,
 	contractAddress sdk.AccAddress,
@@ -249,6 +274,8 @@ func (k *Keeper) HandleSyntheticTradeAction(
 	totalFees := make(map[string]math.LegacyDec)
 	markets := make(map[common.Hash]*v2.DerivativeMarketInfo)
 
+	caps := make(map[common.Hash]*capState)
+
 	for _, marketID := range marketIDs {
 		m := k.GetDerivativeMarketInfo(ctx, marketID, true)
 		if m.Market == nil || m.MarkPrice.IsNil() {
@@ -258,13 +285,20 @@ func (k *Keeper) HandleSyntheticTradeAction(
 		markets[marketID] = m
 		totalMarginAndFees[m.Market.QuoteDenom] = math.LegacyZeroDec()
 		totalFees[m.Market.QuoteDenom] = math.LegacyZeroDec()
+
+		caps[marketID] = &capState{
+			openNotionalCap:   m.Market.GetOpenNotionalCap(),
+			currOpenNotional:  k.GetOpenNotionalForMarket(ctx, marketID, m.MarkPrice),
+			addedOpenNotional: math.LegacyZeroDec(),
+			openInterestDelta: math.LegacyZeroDec(),
+			posQty:            make(map[common.Hash]*math.LegacyDec),
+		}
 	}
 
 	initialPositions := NewModifiedPositionCache()
 	finalPositions := NewModifiedPositionCache()
 
-	trades := action.UserTrades
-	trades = append(trades, action.ContractTrades...)
+	trades := append(append([]*types.SyntheticTrade{}, action.UserTrades...), action.ContractTrades...)
 
 	for _, trade := range trades {
 		m := markets[trade.MarketID]
@@ -288,7 +322,9 @@ func (k *Keeper) HandleSyntheticTradeAction(
 			position.ApplyFunding(fundingInfo)
 		}
 
-		// only store the initial position state
+		cs := caps[trade.MarketID]
+		cs.initSignedQty(trade.SubaccountID, position)
+
 		if !initialPositions.HasPositionBeenModified(trade.MarketID, trade.SubaccountID) {
 			initialPositions.SetPosition(trade.MarketID, trade.SubaccountID, &v2.Position{
 				IsLong:                 position.IsLong,
@@ -297,6 +333,24 @@ func (k *Keeper) HandleSyntheticTradeAction(
 				Margin:                 position.Margin,
 				CumulativeFundingEntry: position.CumulativeFundingEntry,
 			})
+		}
+
+		orderType := v2.OrderType_BUY
+		if !trade.IsBuy {
+			orderType = v2.OrderType_SELL
+		}
+
+		breach, _ := doesBreachOpenNotionalCap(
+			orderType,
+			trade.Quantity,
+			markPrice,
+			cs.currOpenNotional.Add(cs.addedOpenNotional),
+			cs.posQty[trade.SubaccountID],
+			cs.openNotionalCap,
+		)
+
+		if breach {
+			return errors.Wrapf(types.ErrOpenNotionalCapBreached, "market %s: cap breached", trade.MarketID.Hex())
 		}
 
 		tradingFee := trade.Quantity.Mul(markPrice).Mul(market.TakerFeeRate)
@@ -325,6 +379,16 @@ func (k *Keeper) HandleSyntheticTradeAction(
 		if err := k.ensurePositionAboveInitialMarginRatio(position, market, markPrice); err != nil {
 			return err
 		}
+
+		notionalDelta, qtyDelta, newSigned := getValuesForNotionalCapChecks(
+			orderType,
+			trade.Quantity,
+			markPrice,
+			cs.posQty[trade.SubaccountID],
+		)
+		cs.openInterestDelta = cs.openInterestDelta.Add(qtyDelta)
+		cs.posQty[trade.SubaccountID] = &newSigned
+		cs.addedOpenNotional = cs.addedOpenNotional.Add(notionalDelta)
 
 		marketBalanceDelta := GetMarketBalanceDelta(payout, collateralizationMargin, tradingFee, trade.Margin.IsZero())
 		chainFormattedMarketBalanceDelta := market.NotionalToChainFormat(marketBalanceDelta)
@@ -375,6 +439,11 @@ func (k *Keeper) HandleSyntheticTradeAction(
 		k.resolveSyntheticTradeROConflictsForMarket(ctx, marketID, initialPositions, finalPositions)
 	}
 
+	for _, marketID := range marketIDs {
+		if cs := caps[marketID]; cs != nil && !cs.openInterestDelta.IsZero() {
+			k.ApplyOpenInterestDeltaForMarket(ctx, marketID, cs.openInterestDelta)
+		}
+	}
 	return nil
 }
 
@@ -487,6 +556,13 @@ func (k *Keeper) HandlePositionTransferAction(
 		}
 	}
 
+	oiDelta := math.LegacyZeroDec()
+	if destinationPosition.Quantity.IsPositive() && (destinationPosition.IsLong != sourcePosition.IsLong) {
+		minQuantity := math.LegacyMinDec(action.Quantity, destinationPosition.Quantity)
+		oiDeltaFromTrade := minQuantity.Mul(math.LegacyNewDec(2))
+		oiDelta = oiDelta.Sub(oiDeltaFromTrade)
+	}
+
 	executionPrice := sourcePosition.EntryPrice
 	sourceMarginBefore := sourcePosition.Margin
 	isSourceLongBefore, isDestinationLongBefore := sourcePosition.IsLong, destinationPosition.IsLong
@@ -542,6 +618,10 @@ func (k *Keeper) HandlePositionTransferAction(
 		market.QuoteDenom,
 		types.NewUniformDepositDelta(chainFormattedReceiverTradingFee),
 	)
+
+	if !oiDelta.IsZero() {
+		k.ApplyOpenInterestDeltaForMarket(ctx, action.MarketID, oiDelta)
+	}
 
 	k.checkAndResolveReduceOnlyConflicts(ctx, action.MarketID, action.SourceSubaccountID, sourcePosition, !sourcePosition.IsLong)
 

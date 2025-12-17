@@ -21,6 +21,8 @@ exclusive.lock
 
 # Build
 build
+cache
+out
 
 # IDE
 .idea/

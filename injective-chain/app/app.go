@@ -630,8 +630,8 @@ func initInjectiveApp(
 	bApp.SetName(version.Name)
 	bApp.SetInterfaceRegistry(interfaceRegistry)
 
-	// Might be required for EVM
-	// bApp.SetDisableBlockGasMeter(true)
+	// required for EVM to correctly fill in tx and log indexes inside tx result logs
+	bApp.SetTxResultsPostHook(evmtypes.PatchTxResponses)
 
 	app := &InjectiveApp{
 		BaseApp:           bApp,
@@ -747,6 +747,10 @@ func (app *InjectiveApp) GetTxFeesKeeper() txfeeskeeper.Keeper {
 
 func (app *InjectiveApp) GetBankKeeper() bankkeeper.Keeper {
 	return app.BankKeeper
+}
+
+func (app *InjectiveApp) GetAccountKeeper() authkeeper.AccountKeeper {
+	return app.AccountKeeper
 }
 
 func (app *InjectiveApp) GetDistributionKeeper() distrkeeper.Keeper {

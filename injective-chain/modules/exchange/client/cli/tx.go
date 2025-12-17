@@ -2307,7 +2307,12 @@ Where proposal.json contains:
       "min_price_tick_size": "0.000010000000000000",
       "min_quantity_tick_size": "0.000010000000000000",
       "HourlyInterestRate": "0.000010000000000000",
-      "HourlyFundingRateCap": "0.000010000000000000"
+      "HourlyFundingRateCap": "0.000010000000000000",
+	  "open_notional_cap": {
+        "capped": {
+          "value": "123.456"
+        }
+      }
     }
   ],
   "spot_market_launch_proposals": [
@@ -2335,7 +2340,10 @@ Where proposal.json contains:
       "maker_fee_rate": "0.001000000000000000",
       "taker_fee_rate": "0.001500000000000000",
       "min_price_tick_size": "0.000100000000000000",
-      "min_quantity_tick_size": "0.000100000000000000"
+      "min_quantity_tick_size": "0.000100000000000000",
+	  "open_notional_cap": {
+        "uncapped": {}
+      }
     }
   ],
   "expiry_futures_market_launch_proposals": [

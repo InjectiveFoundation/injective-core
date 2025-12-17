@@ -111,7 +111,9 @@ func (k *Keeper) ProcessMatureExpiryFutureMarkets(ctx sdk.Context) {
 		}
 		markets[marketID] = market
 
-		cumulativePrice, err := k.GetDerivativeMarketCumulativePrice(ctx, market.OracleBase, market.OracleQuote, market.OracleType)
+		baseCumulative, quoteCumulative, err := k.GetDerivativeMarketCumulativePrice(
+			ctx, market.OracleBase, market.OracleQuote, market.OracleType,
+		)
 		if err != nil {
 			// should never happen
 			market.Status = v2.MarketStatus_Paused
@@ -119,9 +121,10 @@ func (k *Keeper) ProcessMatureExpiryFutureMarkets(ctx sdk.Context) {
 			continue
 		}
 
-		// if the market has just elapsed the TWAP start window, record the starting priceCumulative
+		// if the market has just elapsed the TWAP start window, record the starting base and quote cumulative prices
 		if marketInfo.IsStartingMaturation(blockTime) {
-			marketInfo.ExpirationTwapStartPriceCumulative = *cumulativePrice
+			marketInfo.ExpirationTwapStartBaseCumulativePrice = *baseCumulative
+			marketInfo.ExpirationTwapStartQuoteCumulativePrice = *quoteCumulative
 			maturingMarketInfos = append(maturingMarketInfos, marketInfo)
 		} else if marketInfo.IsMatured(blockTime) {
 			twapWindow := blockTime - marketInfo.TwapStartTimestamp
@@ -141,10 +144,26 @@ func (k *Keeper) ProcessMatureExpiryFutureMarkets(ctx sdk.Context) {
 				continue
 			}
 
-			twapPrice := cumulativePrice.Sub(marketInfo.ExpirationTwapStartPriceCumulative).Quo(math.LegacyNewDec(twapWindow))
+			// Calculate TWAP using correct formula:
+			// TWAP = (baseCum_end - baseCum_start) / (quoteCum_end - quoteCum_start)
+			//
+			// This works for all oracle types:
+			// - PriceFeed/USD quote: quoteCum is time, so TWAP = Σ(price·dt) / time
+			// - Non-USD quote: TWAP = Σ(base·dt) / Σ(quote·dt) ≈ base_avg / quote_avg
+			baseCumDelta := baseCumulative.Sub(marketInfo.ExpirationTwapStartBaseCumulativePrice)
+			quoteCumDelta := quoteCumulative.Sub(marketInfo.ExpirationTwapStartQuoteCumulativePrice)
+
+			if baseCumDelta.IsNegative() || !quoteCumDelta.IsPositive() {
+				// should never happen - cumulative prices should not decrease
+				market.Status = v2.MarketStatus_Paused
+				k.SetDerivativeMarket(ctx, market)
+				continue
+			}
+
+			twapPrice := baseCumDelta.Quo(quoteCumDelta)
 			settlementPrice := types.GetScaledPrice(twapPrice, market.OracleScaleFactor)
 
-			if settlementPrice.IsZero() || settlementPrice.IsNegative() {
+			if !settlementPrice.IsPositive() {
 				// should never happen
 				market.Status = v2.MarketStatus_Paused
 				k.SetDerivativeMarket(ctx, market)
@@ -547,6 +566,8 @@ func (k *Keeper) closeAllPositionsWithSettlePrice(
 		MarketId: marketID.Hex(),
 		Amount:   marketBalance.String(),
 	})
+
+	k.SetOpenInterestForMarket(ctx, marketID, math.LegacyZeroDec())
 
 	// defensive programming, should never happen
 	if marketBalance.IsNegative() {

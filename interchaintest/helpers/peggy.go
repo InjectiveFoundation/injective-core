@@ -44,12 +44,12 @@ const (
 	PeggyContractName            = "Peggy"
 	ProxyAdminContractName       = "ProxyAdmin"
 	TransparentProxyContractName = "TransparentUpgradeableProxy"
-	CosmosERC20ContractName      = "CosmosERC20"
+	InjERC20ContractName         = "InjERC20"
 
 	PeggyContractPath            = "../peggo/solidity/contracts/Peggy.sol"
 	ProxyAdminContractPath       = "../peggo/solidity/contracts/@openzeppelin/contracts/ProxyAdmin.sol"
 	TransparentProxyContractPath = "../peggo/solidity/contracts/@openzeppelin/contracts/TransparentUpgradeableProxy.sol"
-	CosmosERC20ContractPath      = "../peggo/solidity/contracts/CosmosToken.sol"
+	InjERC20ContractPath         = "../peggo/solidity/contracts/InjToken.sol"
 )
 
 type PeggyContractSuite struct {
@@ -286,13 +286,12 @@ func DeployPeggyContractSuite(
 	injectiveCoinOpts := deployer.ContractDeployOpts{
 		From:         common.HexToAddress(contractDeployer.FormattedAddress()),
 		FromPk:       ecdsaPK,
-		SolSource:    CosmosERC20ContractPath,
-		ContractName: CosmosERC20ContractName,
+		SolSource:    InjERC20ContractPath,
+		ContractName: InjERC20ContractName,
 		Await:        true,
 	}
 
 	injectiveCoinArgs := []any{
-		transparentProxyContract.Address,
 		"Injective",
 		"INJ",
 		uint8(18),
@@ -304,6 +303,27 @@ func DeployPeggyContractSuite(
 	require.NoError(t, err)
 
 	t.Log("deployed Injective Token (CosmosToken.sol)", injectiveCoinContract.Address.String())
+
+	mintOpts := deployer.ContractTxOpts{
+		From:         common.HexToAddress(contractDeployer.FormattedAddress()),
+		FromPk:       ecdsaPK,
+		SolSource:    InjERC20ContractPath,
+		ContractName: InjERC20ContractName,
+		Contract:     injectiveCoinContract.Address,
+		Await:        true,
+	}
+
+	mintArgs := []any{
+		transparentProxyContract.Address,
+		math.NewIntWithDecimal(100_000_000, 18).BigInt(), // 100M INJ
+	}
+
+	_, _, err = d.Tx(ctx, mintOpts, "mint", func(args abi.Arguments) []interface{} {
+		return mintArgs
+	})
+	require.NoError(t, err, "failed to mint Injective token to Proxy")
+
+	t.Log("minted 100M INJ tokens to Peggy Proxy")
 
 	return PeggyContractSuite{
 		Peggy:            peggyContract.Address,
@@ -508,8 +528,8 @@ func SendToInjective(
 	opts := deployer.ContractTxOpts{
 		From:         crypto.PubkeyToAddress(senderPK.PublicKey),
 		FromPk:       senderPK,
-		SolSource:    CosmosERC20ContractPath,
-		ContractName: CosmosERC20ContractName,
+		SolSource:    InjERC20ContractPath,
+		ContractName: InjERC20ContractName,
 		Contract:     contracts.InjectiveCoin,
 		Await:        true,
 	}

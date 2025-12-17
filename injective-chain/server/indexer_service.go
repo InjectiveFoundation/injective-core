@@ -14,13 +14,15 @@ import (
 )
 
 const (
-	ServiceName = "EVMIndexerService"
+	evmIndexerServiceName = "EVMIndexerService"
 
-	NewBlockWaitTimeout = 60 * time.Second
+	defaultNewBlockWaitTimeout = 60 * time.Second
 
-	// https://github.com/cometbft/cometbft/blob/v0.37.4/rpc/core/env.go#L193
-	NotFoundErr          = "is not available"
-	ErrorBackoffDuration = 1 * time.Second
+	// https://github.com/InjectiveLabs/cometbft/blob/853c727ad261bfd43cbf20a1a491b70a263b7167/rpc/core/env.go#L187
+	errNotAvailable             = "is not available"
+	errNoABCIResponsesForHeight = "could not find results"
+
+	defaultBackoffDuration = 1 * time.Second
 )
 
 // EVMIndexerService indexes transactions for json-rpc service.
@@ -39,7 +41,7 @@ func NewEVMIndexerService(
 	allowGap bool,
 ) *EVMIndexerService {
 	is := &EVMIndexerService{txIdxr: txIdxr, client: client, allowGap: allowGap}
-	is.BaseService = *service.NewBaseService(nil, ServiceName, is)
+	is.BaseService = *service.NewBaseService(nil, evmIndexerServiceName, is)
 	return is
 }
 
@@ -59,7 +61,7 @@ func (eis *EVMIndexerService) OnStart() error {
 	// sometimes happen when there are no other subscribers.
 	blockHeadersChan, err := eis.client.Subscribe(
 		ctx,
-		ServiceName,
+		evmIndexerServiceName,
 		types.QueryForEvent(types.EventNewBlockHeader).String(),
 		0)
 	if err != nil {
@@ -105,7 +107,7 @@ func (eis *EVMIndexerService) OnStart() error {
 
 			select {
 			case <-newBlockSignal:
-			case <-time.After(NewBlockWaitTimeout):
+			case <-time.After(defaultNewBlockWaitTimeout):
 			}
 			continue
 		}
@@ -117,16 +119,24 @@ func (eis *EVMIndexerService) OnStart() error {
 		for i := lastBlock + 1; i <= latestBlock; i++ {
 			block, err = eis.client.Block(ctx, &i)
 			if err != nil {
-				if eis.allowGap && strings.Contains(err.Error(), NotFoundErr) {
-					continue
+				if eis.allowGap {
+					errText := err.Error()
+					if strings.Contains(errText, errNotAvailable) ||
+						strings.Contains(errText, errNoABCIResponsesForHeight) {
+						continue
+					}
 				}
 				eis.Logger.Error("failed to fetch block", "height", i, "err", err)
 				break
 			}
 			blockResult, err = eis.client.BlockResults(ctx, &i)
 			if err != nil {
-				if eis.allowGap && strings.Contains(err.Error(), NotFoundErr) {
-					continue
+				if eis.allowGap {
+					errText := err.Error()
+					if strings.Contains(errText, errNotAvailable) ||
+						strings.Contains(errText, errNoABCIResponsesForHeight) {
+						continue
+					}
 				}
 				eis.Logger.Error("failed to fetch block result", "height", i, "err", err)
 				break
@@ -137,7 +147,7 @@ func (eis *EVMIndexerService) OnStart() error {
 			lastBlock = blockResult.Height
 		}
 		if err != nil {
-			time.Sleep(ErrorBackoffDuration)
+			time.Sleep(defaultBackoffDuration)
 		}
 	}
 }

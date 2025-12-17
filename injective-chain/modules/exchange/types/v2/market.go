@@ -95,7 +95,8 @@ func (m *ExpiryFuturesMarketInfo) IsPremature(currBlockTime int64) bool {
 }
 
 func (m *ExpiryFuturesMarketInfo) IsStartingMaturation(currBlockTime int64) bool {
-	return currBlockTime >= m.TwapStartTimestamp && (m.ExpirationTwapStartPriceCumulative.IsNil() || m.ExpirationTwapStartPriceCumulative.IsZero())
+	return currBlockTime >= m.TwapStartTimestamp &&
+		(m.ExpirationTwapStartBaseCumulativePrice.IsNil() || m.ExpirationTwapStartBaseCumulativePrice.IsZero())
 }
 
 func (m *ExpiryFuturesMarketInfo) IsMatured(currBlockTime int64) bool {

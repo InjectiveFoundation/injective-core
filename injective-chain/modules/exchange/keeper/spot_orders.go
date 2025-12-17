@@ -787,6 +787,11 @@ func (k *Keeper) validateSpotOrder(
 		return nil, err
 	}
 
+	if order.ExpirationBlock != 0 && order.ExpirationBlock <= ctx.BlockHeight() {
+		metrics.ReportFuncError(k.svcTags)
+		return nil, types.ErrInvalidExpirationBlock.Wrap("expiration block must be higher than current block")
+	}
+
 	isPostOnlyMode := k.IsPostOnlyMode(ctx)
 	if (order.OrderType.IsPostOnly() || isPostOnlyMode) && k.SpotOrderCrossesTopOfBook(ctx, order) {
 		metrics.ReportFuncError(k.svcTags)
@@ -794,6 +799,7 @@ func (k *Keeper) validateSpotOrder(
 	}
 
 	if k.existsCid(ctx, subaccountID, order.OrderInfo.Cid) {
+		metrics.ReportFuncError(k.svcTags)
 		return nil, types.ErrClientOrderIdAlreadyExists
 	}
 
@@ -812,6 +818,11 @@ func (k *Keeper) validateSpotMarketOrder(
 			"cannot create market orders in post only mode until height %d",
 			k.GetParams(ctx).PostOnlyModeHeightThreshold,
 		)
+	}
+
+	if order.ExpirationBlock != 0 {
+		metrics.ReportFuncError(k.svcTags)
+		return nil, types.ErrInvalidExpirationBlock.Wrap("market orders cannot have expiration block")
 	}
 
 	return k.validateSpotOrder(ctx, order, market, marketID, subaccountID)
@@ -864,11 +875,8 @@ func (k *Keeper) createSpotLimitOrder(
 
 	// 9. If Post Only, add the order to the resting orderbook
 	//    Otherwise store the order in the transient limit order store and transient market indicator store
-	spotLimitOrder := order.GetNewSpotLimitOrder(sender, orderHash)
 
-	if order.ExpirationBlock != 0 && order.ExpirationBlock <= ctx.BlockHeight() {
-		return orderHash, types.ErrInvalidExpirationBlock.Wrap("expiration block must be higher than current block")
-	}
+	spotLimitOrder := order.GetNewSpotLimitOrder(sender, orderHash)
 
 	// 10b. store the order in the spot limit order store or transient spot limit order store
 	if order.OrderType.IsPostOnly() {

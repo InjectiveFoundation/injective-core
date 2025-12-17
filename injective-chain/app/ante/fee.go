@@ -1,6 +1,7 @@
 package ante
 
 import (
+	"bytes"
 	"fmt"
 
 	"cosmossdk.io/errors"
@@ -10,6 +11,7 @@ import (
 	authante "github.com/cosmos/cosmos-sdk/x/auth/ante"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 
+	auctiontypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/auction/types"
 	chaintypes "github.com/InjectiveLabs/injective-core/injective-chain/types"
 )
 
@@ -106,7 +108,7 @@ func DeductFees(bankKeeper authtypes.BankKeeper, ctx sdk.Context, acc sdk.Accoun
 		return errors.Wrapf(sdkerrors.ErrInsufficientFee, "invalid fee amount: %s", fees)
 	}
 
-	err := bankKeeper.SendCoinsFromAccountToModule(ctx, acc.GetAddress(), authtypes.FeeCollectorName, fees)
+	err := bankKeeper.SendCoinsFromAccountToModule(ctx, acc.GetAddress(), auctiontypes.ModuleName, fees)
 	if err != nil {
 		return errors.Wrap(sdkerrors.ErrInsufficientFunds, err.Error())
 	}
@@ -122,5 +124,126 @@ func DeductFees(bankKeeper authtypes.BankKeeper, ctx sdk.Context, acc sdk.Accoun
 		),
 	}
 	ctx.EventManager().EmitEvents(events)
+	return nil
+}
+
+// AuctionFeeDecorator replaces the original cosmos DeductFeeDecorator so fees are sent to the auction module
+type AuctionFeeDecorator struct {
+	accountKeeper  authante.AccountKeeper
+	bankKeeper     authtypes.BankKeeper
+	feegrantKeeper authante.FeegrantKeeper
+	txFeeChecker   authante.TxFeeChecker
+}
+
+func NewAuctionFeeDecorator(
+	ak authante.AccountKeeper,
+	bk authtypes.BankKeeper,
+	fk authante.FeegrantKeeper,
+	tfc authante.TxFeeChecker,
+) AuctionFeeDecorator {
+	if tfc == nil {
+		tfc = authante.CheckTxFeeWithValidatorMinGasPrices
+	}
+
+	return AuctionFeeDecorator{
+		accountKeeper:  ak,
+		bankKeeper:     bk,
+		feegrantKeeper: fk,
+		txFeeChecker:   tfc,
+	}
+}
+
+// nolint:revive // ok
+func (afd AuctionFeeDecorator) AnteHandle(
+	ctx sdk.Context,
+	tx sdk.Tx,
+	simulate bool,
+	next sdk.AnteHandler,
+) (sdk.Context, error) {
+	feeTx, ok := tx.(sdk.FeeTx)
+	if !ok {
+		return ctx, errors.Wrap(sdkerrors.ErrTxDecode, "Tx must be a FeeTx")
+	}
+
+	if !simulate && ctx.BlockHeight() > 0 && feeTx.GetGas() == 0 {
+		return ctx, errors.Wrap(sdkerrors.ErrInvalidGasLimit, "must provide positive gas")
+	}
+
+	var (
+		priority int64
+		err      error
+	)
+
+	fee := feeTx.GetFee()
+	if !simulate {
+		fee, priority, err = afd.txFeeChecker(ctx, tx)
+		if err != nil {
+			return ctx, err
+		}
+	}
+
+	if err := afd.checkDeductFee(ctx, feeTx, fee); err != nil {
+		return ctx, err
+	}
+
+	newCtx := ctx.WithPriority(priority)
+
+	return next(newCtx, tx, simulate)
+}
+
+// nolint:revive // ok
+func (afd AuctionFeeDecorator) checkDeductFee(ctx sdk.Context, tx sdk.FeeTx, fee sdk.Coins) error {
+	feePayer := tx.FeePayer()
+	feeGranter := tx.FeeGranter()
+	deductFeesFrom := feePayer
+
+	// if feegranter set deduct fee from feegranter account.
+	// this works with only when feegrant enabled.
+	if feeGranter != nil {
+		feeGranterAddr := sdk.AccAddress(feeGranter)
+
+		if afd.feegrantKeeper == nil {
+			return sdkerrors.ErrInvalidRequest.Wrap("fee grants are not enabled")
+		} else if !bytes.Equal(feeGranterAddr, feePayer) {
+			err := afd.feegrantKeeper.UseGrantedFees(ctx, feeGranterAddr, feePayer, fee, tx.GetMsgs())
+			if err != nil {
+				return errors.Wrapf(err, "%s does not allow to pay fees for %s", feeGranter, feePayer)
+			}
+		}
+
+		deductFeesFrom = feeGranterAddr
+	}
+
+	deductFeesFromAcc := afd.accountKeeper.GetAccount(ctx, deductFeesFrom)
+	if deductFeesFromAcc == nil {
+		return sdkerrors.ErrUnknownAddress.Wrapf("fee payer address: %s does not exist", deductFeesFrom)
+	}
+
+	// deduct the fees
+	if !fee.IsZero() {
+		if !fee.IsValid() {
+			return errors.Wrapf(sdkerrors.ErrInsufficientFee, "invalid fee amount: %s", fee)
+		}
+
+		if err := afd.bankKeeper.SendCoinsFromAccountToModule(
+			ctx,
+			deductFeesFromAcc.GetAddress(),
+			auctiontypes.ModuleName,
+			fee,
+		); err != nil {
+			return errors.Wrapf(sdkerrors.ErrInsufficientFunds, err.Error())
+		}
+	}
+
+	events := sdk.Events{
+		sdk.NewEvent(
+			sdk.EventTypeTx,
+			sdk.NewAttribute(sdk.AttributeKeyFee, fee.String()),
+			sdk.NewAttribute(sdk.AttributeKeyFeePayer, sdk.AccAddress(deductFeesFrom).String()),
+		),
+	}
+
+	ctx.EventManager().EmitEvents(events)
+
 	return nil
 }

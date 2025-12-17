@@ -472,6 +472,18 @@ func (k DerivativesMsgServer) processOffsettingSubaccounts(
 	}
 
 	res.remainingQuantity = remaining
+
+	// Validate that at least some of the position was offset
+	if remaining.Equal(position.Quantity) {
+		metrics.ReportFuncError(k.svcTags)
+		offsetIDsStr := make([]string, len(offsetIDs))
+		for i, id := range offsetIDs {
+			offsetIDsStr[i] = id.Hex()
+		}
+		return offsetProcessResult{}, errors.Wrapf(types.ErrNoOffsettingPositionsFound,
+			"no valid offsetting positions found from subaccounts [%v] in market %s", offsetIDsStr, marketID.Hex())
+	}
+
 	return res, nil
 }
 

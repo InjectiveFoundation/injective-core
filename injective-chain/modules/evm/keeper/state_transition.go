@@ -161,6 +161,10 @@ func (k *Keeper) ApplyTransaction(ctx sdk.Context, msgEth *types.MsgEthereumTx) 
 	}
 
 	msg := msgEth.AsMessage()
+	if msg.GasLimit > ctx.GasMeter().GasRemaining() {
+		return nil, errorsmod.Wrap(types.ErrGasOverflow, "MsgEthereumTx GasLimit is higher than remaining tx GasLimit")
+	}
+
 	// snapshot to contain the tx processing and post-processing in same scope
 	var commit func()
 	tmpCtx := ctx

@@ -19,7 +19,7 @@ import (
 	"github.com/InjectiveLabs/injective-core/peggo/orchestrator/ethereum/committer"
 	"github.com/InjectiveLabs/injective-core/peggo/orchestrator/ethereum/peggy"
 	"github.com/InjectiveLabs/injective-core/peggo/orchestrator/ethereum/provider"
-	peggyevents "github.com/InjectiveLabs/injective-core/peggo/solidity/wrappers/Peggy.sol"
+	peggyevents "github.com/InjectiveLabs/injective-core/peggo/solidity/wrappers/Peggy"
 )
 
 type NetworkConfig struct {
@@ -35,7 +35,6 @@ type Network interface {
 	GetHeaderByNumber(ctx context.Context, number *big.Int) (*gethtypes.Header, error)
 	GetPeggyID(ctx context.Context) (gethcommon.Hash, error)
 
-	GetSendToCosmosEvents(startBlock, endBlock uint64) ([]*peggyevents.PeggySendToCosmosEvent, error)
 	GetSendToInjectiveEvents(startBlock, endBlock uint64) ([]*peggyevents.PeggySendToInjectiveEvent, error)
 	GetPeggyERC20DeployedEvents(startBlock, endBlock uint64) ([]*peggyevents.PeggyERC20DeployedEvent, error)
 	GetValsetUpdatedEvents(startBlock, endBlock uint64) ([]*peggyevents.PeggyValsetUpdatedEvent, error)
@@ -166,38 +165,6 @@ func (n *network) GetTxBatchNonce(ctx context.Context, erc20ContractAddress geth
 	defer doneFn()
 
 	return n.PeggyContract.GetTxBatchNonce(ctx, erc20ContractAddress, n.FromAddr)
-}
-
-func (n *network) GetSendToCosmosEvents(startBlock, endBlock uint64) ([]*peggyevents.PeggySendToCosmosEvent, error) {
-	metrics.ReportFuncCall(n.svcTags)
-	doneFn := metrics.ReportFuncTiming(n.svcTags)
-	defer doneFn()
-
-	peggyFilterer, err := peggyevents.NewPeggyFilterer(n.Address(), n.Provider())
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to init Peggy events filterer")
-	}
-
-	iter, err := peggyFilterer.FilterSendToCosmosEvent(&bind.FilterOpts{
-		Start: startBlock,
-		End:   &endBlock,
-	}, nil, nil, nil)
-	if err != nil {
-		if !isUnknownBlockErr(err) {
-			return nil, errors.Wrapf(err, "failed to scan past SendToCosmos events from Ethereum (%d - %d)", startBlock, endBlock)
-		} else if iter == nil {
-			return nil, errors.New("no iterator returned")
-		}
-	}
-
-	defer iter.Close()
-
-	var sendToCosmosEvents []*peggyevents.PeggySendToCosmosEvent
-	for iter.Next() {
-		sendToCosmosEvents = append(sendToCosmosEvents, iter.Event)
-	}
-
-	return sendToCosmosEvents, nil
 }
 
 func (n *network) GetSendToInjectiveEvents(startBlock, endBlock uint64) ([]*peggyevents.PeggySendToInjectiveEvent, error) {

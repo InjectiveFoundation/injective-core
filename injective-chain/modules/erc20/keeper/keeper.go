@@ -86,8 +86,7 @@ func (k Keeper) createTokenPairTokenFactory(c context.Context, sender sdk.AccAdd
 	}
 	// deploy ERC20 contract if one was not provided in the msg
 	if pair.Erc20Address == "" {
-		denomMeta, _ := k.bankKeeper.GetDenomMetaData(c, pair.BankDenom)
-		contractAddr, err := k.DeploySmartContract(c, bank.MintBurnBankERC20MetaData, sender, common.BytesToAddress(sender.Bytes()), denomMeta.Base, denomMeta.Symbol, uint8(denomMeta.Decimals))
+		contractAddr, err := k.DeploySmartContract(c, bank.MintBurnBankERC20MetaData, sender, common.BytesToAddress(sender.Bytes()), "", "", uint8(0))
 		if err != nil {
 			return errors.Wrap(types.ErrUploadERC20Contract, err.Error())
 		}
@@ -110,8 +109,7 @@ func (k Keeper) createTokenPairPeggy(c context.Context, sender sdk.AccAddress, p
 	}
 
 	// deploy ERC20 contract
-	denomMeta, _ := k.bankKeeper.GetDenomMetaData(c, pair.BankDenom)
-	contractAddr, err := k.DeploySmartContract(c, bank.FixedSupplyBankERC20MetaData, sender, denomMeta.Base, denomMeta.Symbol, uint8(denomMeta.Decimals), big.NewInt(0))
+	contractAddr, err := k.DeploySmartContract(c, bank.FixedSupplyBankERC20MetaData, sender, "", "", uint8(0), big.NewInt(0))
 	if err != nil {
 		return errors.Wrap(types.ErrUploadERC20Contract, err.Error())
 	}
@@ -133,8 +131,7 @@ func (k Keeper) createTokenPairIBC(c context.Context, sender sdk.AccAddress, pai
 	}
 
 	// deploy ERC20 contract
-	denomMeta, _ := k.bankKeeper.GetDenomMetaData(c, pair.BankDenom)
-	contractAddr, err := k.DeploySmartContract(c, bank.FixedSupplyBankERC20MetaData, sender, denomMeta.Base, denomMeta.Symbol, uint8(denomMeta.Decimals), big.NewInt(0))
+	contractAddr, err := k.DeploySmartContract(c, bank.FixedSupplyBankERC20MetaData, sender, "", "", uint8(0), big.NewInt(0))
 	if err != nil {
 		return errors.Wrap(types.ErrUploadERC20Contract, err.Error())
 	}

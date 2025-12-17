@@ -99,7 +99,7 @@ func LedgerPreprocessTxHook(
 
 	singleSig, isSingle := sigs[0].Data.(*signing.SingleSignatureData)
 	if isSingle {
-		singleSig.SignMode = signing.SignMode_SIGN_MODE_LEGACY_AMINO_JSON
+		singleSig.SignMode = signing.SignMode_SIGN_MODE_EIP712_V2
 		if err := tx.SetSignatures(sigs[0]); err != nil {
 			return err
 		}

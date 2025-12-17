@@ -216,6 +216,10 @@ func ValidateEthBasic(ctx sdk.Context, tx sdk.Tx, evmParams *evmtypes.Params) er
 		return errorsmod.Wrap(errortypes.ErrInvalidRequest, "for eth tx AuthInfo SignerInfos should be empty")
 	}
 
+	if authInfo.Tip != nil {
+		return errorsmod.Wrap(errortypes.ErrInvalidRequest, "for eth tx AuthInfo Tip should be empty")
+	}
+
 	if authInfo.Fee.Payer != "" || authInfo.Fee.Granter != "" {
 		return errorsmod.Wrap(errortypes.ErrInvalidRequest, "for eth tx AuthInfo Fee payer and granter should be empty")
 	}

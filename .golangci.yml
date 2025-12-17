@@ -33,7 +33,7 @@ linters:
           disabled: true
         - name: line-length-limit
           arguments:
-            - 140
+            - 180
         - name: cognitive-complexity
           arguments:
             - 20

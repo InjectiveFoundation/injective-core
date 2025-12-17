@@ -58,15 +58,6 @@ CONTRACT=StakingTest
 mkdir -p cosmos/precompile/staking/test && \
 ${abigen} --pkg staking --abi "$OUT_DIR/$CONTRACT.sol/$CONTRACT.abi" --bin "$OUT_DIR/$CONTRACT.sol/$CONTRACT.bin" --out "cosmos/precompile/staking/test/staking_test.abigen.go" --type $CONTRACT
 
-# EXAMPLES - for tests
-CONTRACT=FixedSupplyBankERC20InfiniteGas
-pushd solidity-contracts
-forge build "./examples/$CONTRACT.sol" --extra-output-files bin
-jq '.abi' ./out/$CONTRACT.sol/*.json > "./out/$CONTRACT.sol/$CONTRACT.abi"
-popd
-mkdir -p cosmos/precompile/bank && \
-${abigen} --pkg bank --abi "$OUT_DIR/$CONTRACT.sol/$CONTRACT.abi" --bin "$OUT_DIR/$CONTRACT.sol/$CONTRACT.bin" --out "cosmos/precompile/bank/fixed_supply_bank_erc20_infinite_gas.abigen.go" --type $CONTRACT
-
 rm -fr solidity-contracts
 popd
 

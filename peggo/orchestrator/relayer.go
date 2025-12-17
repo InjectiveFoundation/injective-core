@@ -14,7 +14,7 @@ import (
 	peggytypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/peggy/types"
 	"github.com/InjectiveLabs/injective-core/peggo/orchestrator/ethereum/util"
 	"github.com/InjectiveLabs/injective-core/peggo/orchestrator/loops"
-	peggyevents "github.com/InjectiveLabs/injective-core/peggo/solidity/wrappers/Peggy.sol"
+	peggyevents "github.com/InjectiveLabs/injective-core/peggo/solidity/wrappers/Peggy"
 	"github.com/InjectiveLabs/metrics"
 )
 

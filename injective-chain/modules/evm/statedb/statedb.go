@@ -396,17 +396,26 @@ func (s *StateDB) revertNativeStateToSnapshot(ms cachemulti.Store) {
 // the writes will be reverted when either the native action itself fail
 // or the wrapping message call reverted.
 func (s *StateDB) ExecuteNativeAction(contract common.Address, converter EventConverter, action func(ctx sdk.Context) error) error {
-	snapshot := s.snapshotNativeState()
+	snapshot := s.snapshotNativeState()        // clone s.cacheMS to add full clone into journal later
+	cachedStore := s.cacheMS.CacheMultiStore() // just cache-wrap s.cacheMS to commit writes later on success
 	eventManager := sdk.NewEventManager()
 
-	if err := action(s.ctx.WithEventManager(eventManager)); err != nil {
-		s.revertNativeStateToSnapshot(snapshot)
+	// we need to commit-on-success logic here instead of revert-on-failure to handle all cases of failure (including panics inside action())
+	// when previously we were only handling errors returned from action() and not panics, so we could end up in an inconsistent state with partial writes
+	cacheCtx := s.ctx.WithEventManager(eventManager).WithMultiStore(cachedStore)
+
+	if err := action(cacheCtx); err != nil {
 		return err
 	}
 
+	// commit changes
+	cachedStore.Write()
+
+	// emit events
 	events := eventManager.Events()
 	s.emitNativeEvents(contract, converter, events)
 	s.nativeEvents = s.nativeEvents.AppendEvents(events)
+	// append current state to journal for revert possibility
 	s.journal.append(nativeChange{snapshot: snapshot, events: len(events)})
 	return nil
 }

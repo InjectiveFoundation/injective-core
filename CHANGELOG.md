@@ -34,6 +34,22 @@ Ref: https://keepachangelog.com/en/1.1.0/
 
 # Changelog
 
+## [v1.17.2](https://github.com/InjectiveFoundation/injective-core/releases/tag/v1.17.2) - 2025-12-18
+
+### Features
+
+- (auction)  All fees designated to the Fee Collector are now sent to auction instead
+
+### Bug Fixes
+
+- (exchange)  Fix positions in market and subaccount positions REST endpoints paths to remove the collision
+- (exchange)  Added a validation to correctly fail in the execution of the OffsetPosition message if at least one of the provided offsetting subaccounts do not have a valid position
+- (exchange)  Set open interest to zero after settling market
+- (exchange)  Fixed the expiry future settlement price calculation (TWAP) at expiration time (the calculation was wrong for markets with oracle quote asset different than USD)
+- (exchange)  Fixed the order of the expiration block validation for orders, ensuring it is done before any change is done to the user's balance
+- (cli)  Use EIP712 v2 to generate payload when signing with Ledger devices
+- (evm)  Patch TxResponses with correct tx and log indexes for EVM transaction logs (eth_getLogs method)
+
 ## [v1.17.1](https://github.com/InjectiveFoundation/injective-core/releases/tag/v1.17.1) - 2025-12-03
 
 ## [v1.17.0](https://github.com/InjectiveFoundation/injective-core/releases/tag/v1.17.0) - 2025-11-11

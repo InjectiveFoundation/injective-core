@@ -1003,10 +1003,6 @@ func (k *Keeper) createDerivativeLimitOrder(
 		return orderHash, nil
 	}
 
-	if order.ExpirationBlock != 0 && order.ExpirationBlock <= ctx.BlockHeight() {
-		return orderHash, types.ErrInvalidExpirationBlock.Wrap("expiration block must be higher than current block")
-	}
-
 	if order.OrderType.IsPostOnly() {
 		k.SetPostOnlyDerivativeLimitOrderWithMetadata(ctx, derivativeLimitOrder, metadata, marketID)
 		return orderHash, nil
