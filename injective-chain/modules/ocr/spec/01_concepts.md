@@ -15,7 +15,7 @@ The protocol periodically sends **oracle reports** to the OCR module. The report
 
 **Pacemaker**
 
-The pacemaker drives the report generation process which is structured in **epochs**. Each epoch has a designatd leader who the pacemaker then tasks with starting the report generation protocol. If the leader does not produce a valid report in time, the pacemaker also aborts the current report generation and starts a new epoch. 
+The pacemaker drives the report generation process which is structured in **epochs**. Each epoch has a designated leader who the pacemaker then tasks with starting the report generation protocol. If the leader does not produce a valid report in time, the pacemaker also aborts the current report generation and starts a new epoch. 
 
 **Report Generation**
 
