@@ -111,7 +111,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 'd' => loop {
                     // for to_address that ends with 'd' invoke out of gas panic
                 },
-                _ => to_binary(&env.contract.address), // any other is successfull replace to_addr with contract_addr
+                _ => to_binary(&env.contract.address), // any other is successful replace to_addr with contract_addr
             }
         }
     }
