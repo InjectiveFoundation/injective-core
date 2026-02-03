@@ -41,7 +41,7 @@ The transaction execution is expected to fail if:
 
 ### Conversion
 
-The `MsgEthreumTx` can be converted to the go-ethereum `Transaction` and `Message` types in order to create and call evm contracts.
+The `MsgEthereumTx` can be converted to the go-ethereum `Transaction` and `Message` types in order to create and call evm contracts.
 
 ```go
 // AsTransaction creates an Ethereum Transaction type from the msg fields
@@ -151,9 +151,9 @@ type LegacyTx struct {
 
 This message field validation is expected to fail if:
 
-- `GasPrice` is invalid (`nil` , negaitve or out of int256 bound)
+- `GasPrice` is invalid (`nil` , negative or out of int256 bound)
 - `Fee` (gasprice * gaslimit) is invalid
-- `Amount` is invalid (negaitve or out of int256 bound)
+- `Amount` is invalid (negative or out of int256 bound)
 - `To` address is invalid (non valid ethereum hex address)
 
 ### `DynamicFeeTx`
@@ -174,7 +174,7 @@ type DynamicFeeTx struct {
  GasLimit uint64 `protobuf:"varint,5,opt,name=gas,proto3" json:"gas,omitempty"`
  // hex formatted address of the recipient
  To string `protobuf:"bytes,6,opt,name=to,proto3" json:"to,omitempty"`
- // value defines the the transaction amount.
+ // value defines the transaction amount.
  Amount *github_com_cosmos_cosmos_sdk_types.Int `protobuf:"bytes,7,opt,name=value,proto3,customtype=github.com/cosmos/cosmos-sdk/types.Int" json:"value,omitempty"`
  // input defines the data payload bytes of the transaction.
  Data     []byte     `protobuf:"bytes,8,opt,name=data,proto3" json:"data,omitempty"`
