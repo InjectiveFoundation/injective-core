@@ -162,7 +162,7 @@ Monotonically increasing value for each batch created on Injective by some `Batc
 
 ### SlashedBlockHeight
 
-Represents the latest slashed block height. There is always only a singe value stored. 
+Represents the latest slashed block height. There is always only a single value stored. 
 
 | Key            | Value                                   | Type     | Encoding           |
 |----------------|-----------------------------------------|----------|--------------------|
@@ -170,7 +170,7 @@ Represents the latest slashed block height. There is always only a singe value s
 
 ### LastUnbondingBlockHeight
 
-Represents the latest bloch height at which a `Validator` started unbonding from the `Validator Set`. Used to determine slashing conditions.
+Represents the latest block height at which a `Validator` started unbonding from the `Validator Set`. Used to determine slashing conditions.
 
 | Key            | Value                                                | Type     | Encoding           |
 |----------------|------------------------------------------------------|----------|--------------------|
@@ -213,7 +213,7 @@ This block height of the last observed event on Ethereum. There will always only
 
 ### LastEventByValidator
 
-This is the last observed event on Ethereum from a particular `Validator`. Updated every time the asssociated `Orchestrator` sends an event claim.
+This is the last observed event on Ethereum from a particular `Validator`. Updated every time the associated `Orchestrator` sends an event claim.
 
 ```go
 type LastClaimEvent struct {
