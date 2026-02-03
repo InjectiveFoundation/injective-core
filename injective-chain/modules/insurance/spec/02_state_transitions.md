@@ -52,7 +52,7 @@ that the insurance fund associated to.
         2. set `Balance` to deposit amount
         3. set `ShareDenomSupply` to `InsuranceFundInitialSupply`
     * B. when `Balance` is zero and `ShareDenomSupply` is not zero
-        1. change `ShareDenom` of the the insurance fund to start new insurance fund from beginning.
+        1. change `ShareDenom` of the insurance fund to start new insurance fund from beginning.
         2. register newly created `ShareDenom` in bank keeper
         3. mint `InsuranceFundInitialSupply` (10^18) to the sender.
         4. set `Balance` to deposit amount
