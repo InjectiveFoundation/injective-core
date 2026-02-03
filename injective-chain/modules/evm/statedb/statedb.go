@@ -876,7 +876,7 @@ func (*StateDB) GetStorageRoot(_ common.Address) common.Hash {
 	return types.EmptyRootHash
 }
 
-// PointCache is not relevant for Etheremint.
+// PointCache is not relevant for Ethermint.
 // In go-ethereum, it returns the cache of evaluated curve points used in verkle
 // tree key computation (part of the state's underlying trie). This is in turn
 // used to calculate gas costs.
