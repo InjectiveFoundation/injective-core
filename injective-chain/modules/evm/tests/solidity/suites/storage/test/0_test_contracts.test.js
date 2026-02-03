@@ -10,19 +10,19 @@ contract('Test Storage Contract', async function (accounts) {
     console.log('==========================\n');
   })
 
-  it('should deploy Stroage contract', async function () {
+  it('should deploy Storage contract', async function () {
     storageInstance = await Storage.new();
     console.log(`Deployed Storage at: ${storageInstance.address}`);
     expect(storageInstance.address).not.to.be.undefined;
   });
 
-  it('should succesfully stored a value', async function () {
+  it('should successfully store a value', async function () {
     const tx = await storageInstance.store(888);
     console.log(`Stored value 888 by tx: ${tx.tx}`);
     expect(tx.tx).not.to.be.undefined;
   });
 
-  it('should succesfully retrieve a value', async function () {
+  it('should successfully retrieve a value', async function () {
     const value = await storageInstance.retrieve();
     expect(value.toString()).to.equal('888');
   });
