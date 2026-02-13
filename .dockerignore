@@ -1,5 +1,0 @@
-Dockerfile
-deployment
-upgrade-test/
-interchaintest/
-.dockerignore
