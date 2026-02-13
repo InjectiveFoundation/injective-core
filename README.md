@@ -1,4 +1,4 @@
-# Injective-Core [![codecov](https://codecov.io/gh/InjectiveLabs/injective-core/branch/dev/graph/badge.svg?token=WTDFT58GB8)](https://codecov.io/gh/InjectiveLabs/injective-core)
+# Injective-Core
 
 ![Banner!](assets/logo.png)
 
@@ -8,14 +8,18 @@
 [//]: # ([![GoDoc]&#40;https://img.shields.io/badge/godoc-reference-blue?style=flat-square&logo=go&#41;]&#40;https://pkg.go.dev/github.com/InjectiveLabs/sdk-go/chain&#41;)
 [//]: # ([![Discord]&#40;https://badgen.net/badge/icon/discord?icon=discord&label&#41;]&#40;https://discord.gg/injective&#41;)
 
-
 Home of the following services:
 
 * [injectived](/cmd/injectived)
 
-## Architecture
+## Releases and Source
 
-<img alt="architecture.png" src="./assets/architecture.png" width="100%"/>
+See individual branches:
+
+* [release/v1.17.x](https://github.com/InjectiveFoundation/injective-core/tree/release/v1.17.x)
+* [release/v1.18.x](https://github.com/InjectiveFoundation/injective-core/tree/release/v1.18.x)
+
+For all past release artifacts, see [Releases Page](https://github.com/InjectiveFoundation/injective-core/releases).
 
 ## Installation
 
@@ -25,48 +29,56 @@ In order to build from source you’ll need at least [Go 1.16+](https://golang.o
 
 ```bash
 # need to clone if you plan to run tests, and use Makefile
-$ git clone git@github.com:InjectiveLabs/injective-core.git
+$ git clone git@github.com:InjectiveFoundation/injective-core.git
 $ cd injective-core
 $ make install
 
 # or simply do this to fetch modules and build executables
-$ go install github.com/InjectiveLabs/injective-core/cmd/...
+$ go install github.com/InjectiveFoundation/injective-core/cmd/...
 ```
+
 ### Quick Setup
+
 The most convenient way to launch services is by running the setup script:
+
 ```bash
-$ ./setup.sh
+./setup.sh
 ```
+
 Then run an instance of the injectived node.
+
 ```bash
-$ ./injectived.sh
+./injectived.sh
 ```
 
 Voila! You have now successfully setup a full node on the Injective Chain.
 
 ## Generating REST and gRPC Gateway docs
+
 First, ensure that the `Enable` and `Swagger` values are true in APIConfig set in `cmd/injectived/config/config.go`.
 
 Then simply run the following command to auto-generate the Swagger UI docs.
+
 ```bash
-$ make proto-swagger-gen
+make proto-swagger-gen
 ```
+
 Then when you start the Injective Daemon, simply navigate to [http://localhost:10337/swagger/](http://localhost:10337/swagger/).
 
 ## Generating Injective Chain API gRPC Typescript bindings
 
 ```bash
-$ make gen
+make gen
 ```
-Then when you start the Injective Daemon, simply navigate to [http://localhost:10337/swagger/](http://localhost:10337/swagger/).
 
+Then when you start the Injective Daemon, simply navigate to [http://localhost:10337/swagger/](http://localhost:10337/swagger/).
 
 ## Maintenance
 
 To run all unit tests:
 
 ```bash
-$ go test ./injective-chain/...
+go test ./injective-chain/...
 ```
 
 ## License
