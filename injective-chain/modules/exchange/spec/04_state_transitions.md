@@ -394,7 +394,7 @@ The update of spot market param is handled by `SpotMarketParamUpdateProposal` wh
 - `ValidateBasic` for proposal
 - Get spot market by `p.MarketId` and if not exist, revert
 - Reset the params for `MakerFeeRate`, `TakerFeeRate`, `RelayerFeeShareRate`, `MinPriceTickSize`, `MinQuantityTickSize` and `Status` if not empty, if empty keep as it is.
-- Validate `MakerFeeRate` is bigger than `TakerFeeRate`.
+- Validate that `MakerFeeRate` should not be bigger than `TakerFeeRate`.
 
 ## Derivative market param update proposal
 
@@ -405,7 +405,7 @@ Derivative market param update is handled by `DerivativeMarketParamUpdateProposa
 - `ValidateBasic` for proposal
 - Validate Derivative market exists by `p.MarketId` and if not exist, revert
 - Reset the params for `InitialMarginRatio`, `MaintenanceMarginRatio`, `MakerFeeRate`, `TakerFeeRate`, `RelayerFeeShareRate`, `MinPriceTickSize`, `MinQuantityTickSize` and `Status` if not empty, if empty keep as it is.
-- Validate `MakerFeeRate` is bigger than `TakerFeeRate`.
+- Validate that `MakerFeeRate` should not be bigger than `TakerFeeRate`.
 - Validate `InitialMarginRatio` is bigger than `MaintenanceMarginRatio`.
 - Schedule Derivative market param update and update finalization on Endblocker - **Note:** this is due to the orders update for derivative market param update - should make sure nothing panics here.
 
