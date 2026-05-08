@@ -237,7 +237,7 @@ func (h *BlockHandler) EndBlocker(ctx sdk.Context) {
 		return false
 	})
 
-	/** =========== Stage 8: Process Derivative Market Param Updates if any =========== */
+	/** =========== Stage 8: Process Binary Options Market Param Updates if any =========== */
 	h.k.IterateBinaryOptionsMarketParamUpdates(ctx, func(p *v2.BinaryOptionsMarketParamUpdateProposal) (stop bool) {
 		err := h.k.ExecuteBinaryOptionsMarketParamUpdateProposal(ctx, p)
 		if err != nil {
