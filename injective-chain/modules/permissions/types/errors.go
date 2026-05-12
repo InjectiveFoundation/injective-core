@@ -25,4 +25,6 @@ var (
 	ErrUnauthorizedPolicyChange = errors.Register(ModuleName, 16, "unauthorized policy change")
 	ErrInvalidEVMHook           = errors.Register(ModuleName, 17, "invalid evm hook")
 	ErrInvalidERC20Denom        = errors.Register(ModuleName, 18, "invalid erc20 denom")
+	ErrContractPostHookError    = errors.Register(ModuleName, 19, "contract post hook execution error")
+	ErrInvalidEVMPostHook       = errors.Register(ModuleName, 20, "invalid evm post send hook")
 )

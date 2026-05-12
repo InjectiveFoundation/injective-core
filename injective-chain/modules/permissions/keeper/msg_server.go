@@ -89,6 +89,11 @@ func (k msgServer) CreateNamespace(c context.Context, msg *types.MsgCreateNamesp
 			return nil, err
 		}
 	}
+	if namespace.EvmPostHook != "" {
+		if err := k.validateEvmPostHook(ctx, gethtypes.HexToAddress(namespace.EvmPostHook)); err != nil {
+			return nil, err
+		}
+	}
 
 	// pre-populate the namespace with permissive default values in the event role managers, policy statuses and/or
 	// policy manager capabilities are unspecified
@@ -145,6 +150,18 @@ func (k msgServer) UpdateNamespace(c context.Context, msg *types.MsgUpdateNamesp
 				namespace.EvmHook = evmContract.String()
 			} else {
 				namespace.EvmHook = ""
+			}
+		}
+
+		if msg.EvmPostHook != nil {
+			if msg.EvmPostHook.NewValue != "" {
+				evmContract := gethtypes.HexToAddress(msg.EvmPostHook.NewValue)
+				if err := k.validateEvmPostHook(ctx, evmContract); err != nil {
+					return nil, err
+				}
+				namespace.EvmPostHook = evmContract.String()
+			} else {
+				namespace.EvmPostHook = ""
 			}
 		}
 

@@ -11,6 +11,7 @@ import (
 
 type BankKeeper interface {
 	AppendSendRestriction(restriction banktypes.SendRestrictionFn)
+	AppendPostSendHook(postHook banktypes.PostSendHook)
 	PrependSendRestriction(restriction banktypes.SendRestrictionFn)
 	ClearSendRestriction()
 	SendCoinsFromModuleToAccount(ctx context.Context, senderModule string, recipientAddr sdk.AccAddress, amt sdk.Coins) error
@@ -27,4 +28,9 @@ type WasmKeeper interface {
 
 type EvmKeeper interface {
 	EthCall(c context.Context, req *evmtypes.EthCallRequest) (*evmtypes.MsgEthereumTxResponse, error)
+	ApplyTransaction(ctx sdk.Context, msg *evmtypes.MsgEthereumTx) (*evmtypes.MsgEthereumTxResponse, error)
+}
+
+type AccountKeeper interface {
+	GetSequence(ctx context.Context, addr sdk.AccAddress) (uint64, error)
 }

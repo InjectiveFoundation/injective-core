@@ -162,17 +162,18 @@ func (k *Keeper) ApplyTransaction(ctx sdk.Context, msgEth *types.MsgEthereumTx) 
 	defer k.Meter(ctx).FuncTiming(&ctx, "ApplyTransaction")()
 
 	ethTx := msgEth.AsTransaction()
-	cfg, err := k.EVMConfig(ctx, ethTx.Hash())
-	if err != nil {
-		return nil, errorsmod.Wrap(err, "failed to load evm config")
-	}
-
 	msg := msgEth.AsMessage()
 
 	// Decline MsgEthereumTx that has GasLimit higher than tx ctx.RemainingGas() to prevent chain halt via unbounded EVM execution
 	// via bypassing EVM antehandlers (through wasm/authz/ica/etc)
+	// IMPORTANT: this check should be first, before any gas consumption calls are made on a ctx gas meter
 	if msg.GasLimit > ctx.GasMeter().GasRemaining() {
 		return nil, errorsmod.Wrap(types.ErrGasOverflow, "MsgEthereumTx GasLimit is higher than remaining tx GasLimit")
+	}
+
+	cfg, err := k.EVMConfig(ctx, ethTx.Hash())
+	if err != nil {
+		return nil, errorsmod.Wrap(err, "failed to load evm config")
 	}
 
 	// snapshot to contain the tx processing and post-processing in same scope

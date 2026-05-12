@@ -21,7 +21,7 @@ func NewParams(contractHookQueryMaxGas uint64) Params {
 // default module parameters.
 func DefaultParams() Params {
 	return Params{
-		ContractHookMaxGas: 200_000,
+		ContractHookMaxGas: 15_000_000,
 	}
 }
 

@@ -1418,6 +1418,7 @@ func (app *InjectiveApp) initKeepers(authority string, appOpts servertypes.AppOp
 		app.TokenFactoryKeeper,
 		app.WasmKeeper,
 		app.EvmKeeper,
+		app.AccountKeeper,
 		app.okeys[permissionsmodule.ObjStoreKey],
 		authtypes.NewModuleAddress(tokenfactorytypes.ModuleName).String(),
 		GetModuleAccAddressesForPermissions(),

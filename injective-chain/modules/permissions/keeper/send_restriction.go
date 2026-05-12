@@ -22,7 +22,7 @@ import (
 //nolint:revive // cyclo complexity is high but it's okey since fn is short
 func (k Keeper) SendRestrictionFn(c context.Context, fromAddr, toAddr sdk.AccAddress, amount sdk.Coin) (newToAddr sdk.AccAddress, err error) {
 	ctx := sdk.UnwrapSDKContext(c)
-	defer k.Meter(ctx).FuncTiming(&ctx, "SendRestrictionFn")()
+	defer k.Meter(ctx).FuncTiming(&ctx, "SendRestrictionFn")(&err)
 
 	isEnforcedRestrictionDenom := k.IsEnforcedRestrictionsDenom(ctx, amount.Denom)
 

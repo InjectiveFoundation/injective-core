@@ -24,10 +24,11 @@ type Keeper struct {
 	objectStoreKey storetypes.StoreKey
 	meter          metrics.Meter
 
-	bankKeeper types.BankKeeper
-	tfKeeper   types.TokenFactoryKeeper
-	wasmKeeper types.WasmKeeper
-	evmKeeper  types.EvmKeeper
+	bankKeeper    types.BankKeeper
+	tfKeeper      types.TokenFactoryKeeper
+	wasmKeeper    types.WasmKeeper
+	evmKeeper     types.EvmKeeper
+	accountKeeper types.AccountKeeper
 
 	tfModuleAddress string
 	moduleAccounts  map[string]bool
@@ -52,6 +53,7 @@ func NewKeeper(
 	tfKeeper types.TokenFactoryKeeper,
 	wasmKeeper types.WasmKeeper,
 	evmKeeper types.EvmKeeper,
+	accountKeeper types.AccountKeeper,
 	oKey storetypes.StoreKey,
 	tfModuleAddress string,
 	moduleAccounts map[string]bool,
@@ -65,6 +67,7 @@ func NewKeeper(
 		wasmKeeper:      wasmKeeper,
 		evmKeeper:       evmKeeper,
 		tfModuleAddress: tfModuleAddress,
+		accountKeeper:   accountKeeper,
 		moduleAccounts:  moduleAccounts,
 		authority:       authority,
 	}

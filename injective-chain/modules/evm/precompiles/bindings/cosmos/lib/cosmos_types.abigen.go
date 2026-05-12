@@ -32,7 +32,7 @@ var (
 // CosmosTypesMetaData contains all meta data concerning the CosmosTypes contract.
 var CosmosTypesMetaData = &bind.MetaData{
 	ABI: "[][{\"type\":\"function\",\"name\":\"coin\",\"inputs\":[{\"name\":\"\",\"type\":\"tuple\",\"internalType\":\"structCosmos.Coin\",\"components\":[{\"name\":\"amount\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"denom\",\"type\":\"string\",\"internalType\":\"string\"}]}],\"outputs\":[],\"stateMutability\":\"pure\"}]",
-	Bin: "0x6080604052348015600e575f5ffd5b5060ab80601a5f395ff3fe6080604052348015600e575f5ffd5b50600436106026575f3560e01c80632ff6e5df14602a575b5f5ffd5b60386035366004603a565b50565b005b5f602082840312156049575f5ffd5b813567ffffffffffffffff811115605e575f5ffd5b820160408185031215606e575f5ffd5b939250505056fea2646970667358221220b678d2c74b6842b41bdca20ef87d0c1eaa386cbde933cedd23d6647d06e2195964736f6c634300081e0033",
+	Bin: "0x6080604052348015600e575f5ffd5b5060ab80601a5f395ff3fe6080604052348015600e575f5ffd5b50600436106026575f3560e01c80632ff6e5df14602a575b5f5ffd5b60386035366004603a565b50565b005b5f602082840312156049575f5ffd5b813567ffffffffffffffff811115605e575f5ffd5b820160408185031215606e575f5ffd5b939250505056fea2646970667358221220e72f4651cb58db30ec063dee527abae74c689c9e03389727be8440a2499bfd2664736f6c634300081e0033",
 }
 
 // CosmosTypesABI is the input ABI used to generate the binding from.

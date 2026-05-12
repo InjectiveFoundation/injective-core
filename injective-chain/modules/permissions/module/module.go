@@ -122,8 +122,9 @@ func NewAppModule(
 	wasmKeeper types.WasmKeeper,
 	legacySubspace exported.Subspace,
 ) AppModule {
-	// set global bank transfer hook
+	// set global bank transfer hooks
 	bankKeeper.AppendSendRestriction(k.SendRestrictionFn)
+	bankKeeper.AppendPostSendHook(k.PostSendHook)
 
 	return AppModule{
 		AppModuleBasic: NewAppModuleBasic(),
