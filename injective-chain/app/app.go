@@ -33,6 +33,7 @@ import (
 	hyperlanewarp "github.com/bcp-innovations/hyperlane-cosmos/x/warp"
 	hyperlanewarpkeeper "github.com/bcp-innovations/hyperlane-cosmos/x/warp/keeper"
 	hyperlanewarptypes "github.com/bcp-innovations/hyperlane-cosmos/x/warp/types"
+	probabilistic "github.com/cardano-foundation/cardano-ibc-incubator/cosmos/cardano-probabilistic-light-client-v8"
 	abci "github.com/cometbft/cometbft/abci/types"
 	"github.com/cometbft/cometbft/libs/pubsub"
 	dbm "github.com/cosmos/cosmos-db"
@@ -233,6 +234,7 @@ var (
 		slashing.AppModuleBasic{},
 		ibc.AppModuleBasic{},
 		ibctm.AppModuleBasic{},
+		probabilistic.AppModuleBasic{},
 		ica.AppModuleBasic{},
 		ibcfee.AppModuleBasic{},
 		ibchooks.AppModuleBasic{},
@@ -1574,6 +1576,7 @@ func (app *InjectiveApp) initManagers() { //nolint:revive // this is fine
 		ibctransfer.NewAppModule(app.TransferKeeper),
 		ibcfee.NewAppModule(app.IBCFeeKeeper),
 		ibctm.NewAppModule(),
+		probabilistic.NewAppModule(),
 		ibchooks.NewAppModule(app.AccountKeeper),
 		ica.NewAppModule(nil, &app.ICAHostKeeper),
 		packetforward.NewAppModule(app.PacketForwardKeeper, app.GetSubspace(packetforwardtypes.ModuleName)),
