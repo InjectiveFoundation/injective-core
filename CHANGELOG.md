@@ -36,6 +36,10 @@ Ref: https://keepachangelog.com/en/1.1.0/
 
 ## [Unreleased]
 
+### Bug Fixes
+
+- (wasmbinding)  Set top-level `Metadata.Decimals` in `SetTokenMetadata` translation so the bank precompile and auto-deployed ERC20 wrappers report correct `decimals()` for tokenfactory denoms whose metadata is set via wasm bindings (e.g., CW20 Adapter `UpdateMetadata`).
+
 ## [v1.19.0](https://github.com/InjectiveFoundation/injective-core/releases/tag/v1.19.0) - 2026-XX-XX
 
 ### Features
