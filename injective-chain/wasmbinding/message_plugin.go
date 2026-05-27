@@ -142,10 +142,11 @@ func (m *CustomMessenger) DispatchMsg(ctx sdk.Context, contractAddr sdk.AccAddre
 		sdkMsg = &tokenfactorytypes.MsgSetDenomMetadata{
 			Sender: contractAddr.String(),
 			Metadata: banktypes.Metadata{
-				Base:    mt.Denom,
-				Display: mt.Symbol,
-				Name:    mt.Name,
-				Symbol:  mt.Symbol,
+				Base:     mt.Denom,
+				Display:  mt.Symbol,
+				Name:     mt.Name,
+				Symbol:   mt.Symbol,
+				Decimals: mt.Decimals,
 				DenomUnits: []*banktypes.DenomUnit{
 					{
 						Denom:    mt.Denom,
