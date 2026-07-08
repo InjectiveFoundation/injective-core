@@ -7,7 +7,7 @@ ENV PATH="/usr/local/cargo/bin:/usr/local/bin:${PATH}"
 
 ARG CARDANO_IBC_REPO=https://github.com/InjectiveLabs/cardano-ibc-incubator.git
 ARG CARDANO_IBC_BRANCH=v8.x-inj
-ARG CARDANO_IBC_REF=133335c211ccbc3cadfc7847dd9d64b5495b83a8
+ARG CARDANO_IBC_REF=110e3155016b238c86fc86f58cbed544219b52d7
 ARG AIKEN_VERSION=1.1.22
 ARG TARGETARCH
 

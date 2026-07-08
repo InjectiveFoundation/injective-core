@@ -70,7 +70,7 @@ require (
 require (
 	github.com/allegro/bigcache v1.2.1 // indirect
 	github.com/blinklabs-io/gouroboros v0.89.1 // indirect
-	github.com/cardano-foundation/cardano-ibc-incubator/cosmos/cardano-probabilistic-light-client-core v0.1.2 // indirect
+	github.com/cardano-foundation/cardano-ibc-incubator/cosmos/cardano-probabilistic-light-client-core v0.1.3 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/ferranbt/fastssz v0.1.4 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
@@ -325,9 +325,8 @@ replace (
 	github.com/CosmWasm/wasmd => github.com/InjectiveLabs/wasmd v0.53.3-inj.3
 
 	// cardano ibc
-	github.com/cardano-foundation/cardano-ibc-incubator/cosmos/cardano-probabilistic-light-client-core => github.com/InjectiveLabs/cardano-ibc-incubator/cosmos/cardano-probabilistic-light-client-core v0.0.0-20260623111725-133335c211cc
-	github.com/cardano-foundation/cardano-ibc-incubator/cosmos/cardano-probabilistic-light-client-v8 => github.com/InjectiveLabs/cardano-ibc-incubator/cosmos/cardano-probabilistic-light-client-v8 v0.0.0-20260623111725-133335c211cc
-	github.com/coder/websocket => github.com/InjectiveLabs/websocket v1.8.13
+	github.com/cardano-foundation/cardano-ibc-incubator/cosmos/cardano-probabilistic-light-client-core => github.com/InjectiveLabs/cardano-ibc-incubator/cosmos/cardano-probabilistic-light-client-core v0.0.0-20260708114507-110e3155016b
+	github.com/cardano-foundation/cardano-ibc-incubator/cosmos/cardano-probabilistic-light-client-v8 => github.com/InjectiveLabs/cardano-ibc-incubator/cosmos/cardano-probabilistic-light-client-v8 v0.0.0-20260708114507-110e3155016b
 
 	github.com/cometbft/cometbft => github.com/InjectiveLabs/cometbft v1.0.1-inj.9
 	github.com/cometbft/cometbft/api => github.com/InjectiveLabs/cometbft/api v1.0.0-inj.4

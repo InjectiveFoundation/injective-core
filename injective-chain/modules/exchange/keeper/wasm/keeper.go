@@ -1113,7 +1113,7 @@ func (k WasmKeeper) applySyntheticTrade(
 		orderType = v2.OrderType_BUY
 	}
 
-	if err := ensureSyntheticTradeMeetsMarketRequirements(trade, market); err != nil {
+	if err := ensureSyntheticTradeMeetsMarketRequirements(trade, market, markPrice, orderType); err != nil {
 		return nil, err
 	}
 
@@ -1140,6 +1140,9 @@ func (k WasmKeeper) applySyntheticTrade(
 		)
 	}
 
+	profile, _ := k.derivative.RiskEngine().EffectiveProfile(ctx, trade.SubaccountID)
+	isCross := profile != nil && profile.Mode == v2.RiskMode_RISK_MODE_CROSS
+
 	positionDelta := &v2.PositionDelta{
 		IsLong:            trade.IsBuy,
 		ExecutionQuantity: trade.Quantity,
@@ -1151,21 +1154,13 @@ func (k WasmKeeper) applySyntheticTrade(
 	// For cross-margin subaccounts, skip the per-position IM check. In CM, position.Margin
 	// is accounting state — pool-level equity covers the position. The post-batch
 	// ensureCrossMarginPoolHealth validates solvency at the pool level.
-	profile, _ := k.derivative.RiskEngine().EffectiveProfile(ctx, trade.SubaccountID)
-	isCross := profile != nil && profile.Mode == v2.RiskMode_RISK_MODE_CROSS
 	if isCross {
 		if position.Quantity.IsNegative() {
 			return nil, types.ErrNegativePositionQuantity
 		}
 	} else {
-		if isStrictlyReducing {
-			if err := ensurePositionAboveMaintenanceMarginRatio(position, market, markPrice); err != nil {
-				return nil, err
-			}
-		} else {
-			if err := ensureSyntheticTradePositionPostDelta(position, market, markPrice); err != nil {
-				return nil, err
-			}
+		if err := ensureSyntheticTradePositionPostDelta(position); err != nil {
+			return nil, err
 		}
 	}
 
@@ -1287,31 +1282,50 @@ func ensureNotionalCapNotBreached(
 	return nil
 }
 
-func ensureSyntheticTradeMeetsMarketRequirements(trade *types.SyntheticTrade, market *v2.DerivativeMarket) error {
+func ensureSyntheticTradeMeetsMarketRequirements(
+	trade *types.SyntheticTrade,
+	market *v2.DerivativeMarket,
+	markPrice math.LegacyDec,
+	orderType v2.OrderType,
+) error {
 	derivativeOrder := &v2.DerivativeOrder{
 		OrderInfo: v2.OrderInfo{
 			Price:    trade.Price,
 			Quantity: trade.Quantity,
 		},
-		Margin: trade.Margin,
+		OrderType: orderType,
+		Margin:    trade.Margin,
 	}
 
 	if err := derivativeOrder.CheckTickSize(market.GetMinPriceTickSize(), market.GetMinQuantityTickSize()); err != nil {
 		return err
 	}
 
-	return derivativeOrder.CheckNotional(market.GetMinNotional())
+	if err := derivativeOrder.CheckNotional(market.GetMinNotional()); err != nil {
+		return err
+	}
+
+	if trade.IsReduceOnly() {
+		return nil
+	}
+
+	_, err := derivativeOrder.CheckMarginAndGetMarginHold(
+		market.GetInitialMarginRatio(),
+		markPrice,
+		market.GetTakerFeeRate(),
+		market.GetMarketType(),
+		market.GetOracleScaleFactor(),
+	)
+	return err
 }
 
 func ensureSyntheticTradePositionPostDelta(
 	position *v2.Position,
-	market *v2.DerivativeMarket,
-	markPrice math.LegacyDec,
 ) error {
 	if position.Quantity.IsNegative() {
 		return types.ErrNegativePositionQuantity
 	}
-	return ensurePositionAboveInitialMarginRatio(position, market, markPrice)
+	return nil
 }
 
 func updateCapsAfterTrade(
@@ -1407,27 +1421,6 @@ func (WasmKeeper) ensurePositionAboveBankruptcyForClosing(
 		return errors.Wrapf(
 			types.ErrLowPositionMargin,
 			"position margin ratio %s ≥ %s must hold", positionMarginRatio.String(), bankruptcyMarginRatio.String(),
-		)
-	}
-
-	return nil
-}
-
-func ensurePositionAboveInitialMarginRatio(
-	position *v2.Position,
-	market *v2.DerivativeMarket,
-	markPrice math.LegacyDec,
-) error {
-	if !position.Quantity.IsPositive() {
-		return nil
-	}
-
-	positionMarginRatio := position.GetEffectiveMarginRatio(markPrice, math.LegacyZeroDec())
-
-	if positionMarginRatio.LT(market.InitialMarginRatio) {
-		return errors.Wrapf(
-			types.ErrLowPositionMargin,
-			"position margin ratio %s ≥ %s must hold", positionMarginRatio.String(), market.InitialMarginRatio.String(),
 		)
 	}
 

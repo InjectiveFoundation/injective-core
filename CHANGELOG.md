@@ -36,6 +36,10 @@ Ref: https://keepachangelog.com/en/1.1.0/
 
 ## [Unreleased]
 
+### Bug Fixes
+
+- (exchange) #2882 Fix synthetic RFQ margin validation to use trade-level IMR checks and avoid rejecting healthy below-IMR isolated position updates.
+
 ## [v1.20.1](https://github.com/InjectiveFoundation/injective-core/releases/tag/v1.20.1) - 2026-07-02
 
 ### Features

@@ -1251,10 +1251,10 @@ github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapp
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.48.1/go.mod h1:viRWSEhtMZqz1rhwmOVKkWl6SwmVowfL9O2YR5gI2PE=
 github.com/InjectiveLabs/block-sdk/v2 v2.5.1-inj.11 h1:VJw3Azov4PWN+eMCjFTaHyHnV9EwG2RK2UwI6D3CLgc=
 github.com/InjectiveLabs/block-sdk/v2 v2.5.1-inj.11/go.mod h1:M+K9UIoYnQ2ON9lXwukymWqgr9FqTh8wT15chiEnS7k=
-github.com/InjectiveLabs/cardano-ibc-incubator/cosmos/cardano-probabilistic-light-client-core v0.0.0-20260623111725-133335c211cc h1:zaY+I0e4+dkJNqpOO/C8z4prH/uFGnbRg9OD0I3EBBs=
-github.com/InjectiveLabs/cardano-ibc-incubator/cosmos/cardano-probabilistic-light-client-core v0.0.0-20260623111725-133335c211cc/go.mod h1:hTEvgDLEqJSuf6zZYfDcdHySo1uHjNB4LZRkWi/5MzQ=
-github.com/InjectiveLabs/cardano-ibc-incubator/cosmos/cardano-probabilistic-light-client-v8 v0.0.0-20260623111725-133335c211cc h1:V6mGNnZkftnLM2yCiUsNQ9xGEX4h8b8yovaUzYsSFhI=
-github.com/InjectiveLabs/cardano-ibc-incubator/cosmos/cardano-probabilistic-light-client-v8 v0.0.0-20260623111725-133335c211cc/go.mod h1:63O3ytzdSGvF3kND/S8HObBrVTEf0HGpERnWu1uLIMs=
+github.com/InjectiveLabs/cardano-ibc-incubator/cosmos/cardano-probabilistic-light-client-core v0.0.0-20260708114507-110e3155016b h1:3DhPtkjnwb4rpWmehfMSw/dwHAnf+1S3UMSf0bXxTBc=
+github.com/InjectiveLabs/cardano-ibc-incubator/cosmos/cardano-probabilistic-light-client-core v0.0.0-20260708114507-110e3155016b/go.mod h1:hTEvgDLEqJSuf6zZYfDcdHySo1uHjNB4LZRkWi/5MzQ=
+github.com/InjectiveLabs/cardano-ibc-incubator/cosmos/cardano-probabilistic-light-client-v8 v0.0.0-20260708114507-110e3155016b h1:Bw0QRAYu0IT56ePhDZlbzryIwbW8H0zXEIEIXn7VziM=
+github.com/InjectiveLabs/cardano-ibc-incubator/cosmos/cardano-probabilistic-light-client-v8 v0.0.0-20260708114507-110e3155016b/go.mod h1:GnzPiiBgn/muNRwWsMyoLIUmKjaqUW6gCqTPPZ+xK7k=
 github.com/InjectiveLabs/cometbft v1.0.1-inj.9 h1:j83caQ90XKyU9ojs7F6CyR7Ds8uZkamTxR38v1ovB2Y=
 github.com/InjectiveLabs/cometbft v1.0.1-inj.9/go.mod h1:GjHzF+48UzwdWUUG4uUD+e52h2L6Pq9rK4eL+oYIyBU=
 github.com/InjectiveLabs/cometbft/api v1.0.0-inj.4 h1:XibZsTaU2GGq4v07yS3saajY45Abx/m8y8vUq0uRRPE=
@@ -1305,8 +1305,6 @@ github.com/InjectiveLabs/suplog v1.3.3 h1:ARIR3lWD9BxcrmqTwgcGBt8t7e10gwOqllUAXa
 github.com/InjectiveLabs/suplog v1.3.3/go.mod h1:+I9WRgUhzmo1V/n7IkW24kFBFB9ZTPAiXXXCogWxmTM=
 github.com/InjectiveLabs/wasmd v0.53.3-inj.3 h1:lMhBgZdPoR86wTF/uiIs6M6xGzRZ2J3MN1ZGrqojmfg=
 github.com/InjectiveLabs/wasmd v0.53.3-inj.3/go.mod h1:c2kGlfsFstKHD6AwI9B+2K0pmOYnERz322G0vmHjalk=
-github.com/InjectiveLabs/websocket v1.8.13 h1:GTVddOKEzC4EfXplkCN1a6ms4l/81pYP8tocqmddvR4=
-github.com/InjectiveLabs/websocket v1.8.13/go.mod h1:NX3SzP+inril6yawo5CQXx8+fk145lPDC6pumgx0mVg=
 github.com/JohnCGriffin/overflow v0.0.0-20211019200055-46fa312c352c/go.mod h1:X0CRv0ky0k6m906ixxpzmDRLvX58TFUKS2eePweuyxk=
 github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERoyfY=
 github.com/Microsoft/go-winio v0.6.2/go.mod h1:yd8OoFMLzJbo9gZq8j5qaps8bJ9aShtEA8Ipt1oGCvU=
@@ -1460,6 +1458,8 @@ github.com/cockroachdb/redact v1.1.6 h1:zXJBwDZ84xJNlHl1rMyCojqyIxv+7YUpQiJLQ7n4
 github.com/cockroachdb/redact v1.1.6/go.mod h1:BVNblN9mBWFyMyqK1k3AAiSxhvhfK2oOZZ2lK+dpvRg=
 github.com/cockroachdb/tokenbucket v0.0.0-20230807174530-cc333fc44b06 h1:zuQyyAKVxetITBuuhv3BI9cMrmStnpT18zmgmTxunpo=
 github.com/cockroachdb/tokenbucket v0.0.0-20230807174530-cc333fc44b06/go.mod h1:7nc4anLGjupUW/PeY5qiNYsdNXj7zopG+eqsS7To5IQ=
+github.com/coder/websocket v1.8.13 h1:f3QZdXy7uGVz+4uCJy2nTZyM0yTBj8yANEHhqlXZ9FE=
+github.com/coder/websocket v1.8.13/go.mod h1:LNVeNrXQZfe5qhS9ALED3uA+l5pPqvwXg3CKoDBB2gs=
 github.com/cometbft/cometbft-db v1.0.4 h1:cezb8yx/ZWcF124wqUtAFjAuDksS1y1yXedvtprUFxs=
 github.com/cometbft/cometbft-db v1.0.4/go.mod h1:M+BtHAGU2XLrpUxo3Nn1nOCcnVCiLM9yx5OuT0u5SCA=
 github.com/consensys/gnark-crypto v0.18.0 h1:vIye/FqI50VeAr0B3dx+YjeIvmc3LWz4yEfbWBpTUf0=
