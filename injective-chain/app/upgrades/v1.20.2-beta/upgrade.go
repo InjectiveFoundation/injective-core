@@ -1,5 +1,5 @@
 //revive:disable-next-line:package-directory-mismatch // Semver upgrade directory names cannot be valid Go package identifiers.
-package v1dot20dot1beta
+package v1dot20dot2beta
 
 import (
 	storetypes "cosmossdk.io/store/types"

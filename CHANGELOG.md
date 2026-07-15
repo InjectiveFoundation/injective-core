@@ -36,9 +36,15 @@ Ref: https://keepachangelog.com/en/1.1.0/
 
 ## [Unreleased]
 
+## [v1.20.2](https://github.com/InjectiveFoundation/injective-core/releases/tag/v1.20.2) - 2026-07-21
+
+### Improvements
+
+- (ibc)  Bump the Cardano IBC light client to v8.0-inj.2.
+
 ### Bug Fixes
 
-- (exchange) #2882 Fix synthetic RFQ margin validation to use trade-level IMR checks and avoid rejecting healthy below-IMR isolated position updates.
+- (exchange)  Fix synthetic RFQ margin validation to use trade-level IMR checks and avoid rejecting healthy below-IMR isolated position updates.
 
 ## [v1.20.1](https://github.com/InjectiveFoundation/injective-core/releases/tag/v1.20.1) - 2026-07-02
 
