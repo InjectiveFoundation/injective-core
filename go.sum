@@ -1259,8 +1259,8 @@ github.com/InjectiveLabs/cometbft v1.0.1-inj.9 h1:j83caQ90XKyU9ojs7F6CyR7Ds8uZka
 github.com/InjectiveLabs/cometbft v1.0.1-inj.9/go.mod h1:GjHzF+48UzwdWUUG4uUD+e52h2L6Pq9rK4eL+oYIyBU=
 github.com/InjectiveLabs/cometbft/api v1.0.0-inj.4 h1:XibZsTaU2GGq4v07yS3saajY45Abx/m8y8vUq0uRRPE=
 github.com/InjectiveLabs/cometbft/api v1.0.0-inj.4/go.mod h1:rr73UKPAv9CIvQBxZZ3KEVGIl2BUpOncx1krVXmOg1g=
-github.com/InjectiveLabs/cosmos-sdk v0.50.14-inj.11 h1:khFUur4HLS1p95MDv4W+R0ii9XO/ARSzXXvBfZnD4SY=
-github.com/InjectiveLabs/cosmos-sdk v0.50.14-inj.11/go.mod h1:qqYijL7b/lJ95unw02W3Y0pMo/y7MWvFA83R2Oo939g=
+github.com/InjectiveLabs/cosmos-sdk v0.50.14-inj.12.0.20260721031105-4f0cc993192a h1:eyHeNmQ24rwPGhZxXFLpQAGlKnryJuR1ErGRd7b3mHI=
+github.com/InjectiveLabs/cosmos-sdk v0.50.14-inj.12.0.20260721031105-4f0cc993192a/go.mod h1:W2+FQU7xs+ZYPJz476Z5UKk6y7/Js9Oncv2EMBfX2jk=
 github.com/InjectiveLabs/cosmos-sdk/api v0.50.14-inj.11 h1:3MzoyEhCbUooIT4TrH1mY3o9jMQCoJ6bMZdJB7M1K60=
 github.com/InjectiveLabs/cosmos-sdk/api v0.50.14-inj.11/go.mod h1:Su9HBAPf65TPBWBRnMm6awh1Il6kBTAO1NS0Ik9sap4=
 github.com/InjectiveLabs/cosmos-sdk/client/v2 v2.0.0-v0.50.14-inj.11 h1:4iNvv3Ux1Kaob6DhIUgTI4VKS5gzw67FjLf+C1dN7DU=

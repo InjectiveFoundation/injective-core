@@ -82,6 +82,12 @@ func (msg MsgCreateNamespace) ValidateBasic() error {
 		}
 	}
 
+	if n.EvmPostHook != "" {
+		if ok := gethtypes.IsHexAddress(n.EvmPostHook); !ok {
+			return ErrInvalidEVMPostHook
+		}
+	}
+
 	if err := n.ValidateRoles(false); err != nil {
 		return err
 	}
@@ -118,6 +124,12 @@ func (msg MsgUpdateNamespace) ValidateBasic() error {
 	if msg.EvmHook != nil && msg.EvmHook.NewValue != "" {
 		if ok := gethtypes.IsHexAddress(msg.EvmHook.NewValue); !ok {
 			return ErrInvalidEVMHook
+		}
+	}
+
+	if msg.EvmPostHook != nil && msg.EvmPostHook.NewValue != "" {
+		if ok := gethtypes.IsHexAddress(msg.EvmPostHook.NewValue); !ok {
+			return ErrInvalidEVMPostHook
 		}
 	}
 
@@ -171,7 +183,7 @@ func (msg MsgUpdateNamespace) GetNamespaceUpdates() NamespaceUpdates {
 		HasPolicyManagersChange:  false,
 	}
 
-	if msg.WasmHook != nil || msg.EvmHook != nil {
+	if msg.WasmHook != nil || msg.EvmHook != nil || msg.EvmPostHook != nil {
 		actions = append(actions, Action_MODIFY_CONTRACT_HOOK)
 		changes.HasContractHookChange = true
 	}

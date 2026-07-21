@@ -7,7 +7,8 @@ require (
 	cosmossdk.io/x/upgrade v0.1.4
 	github.com/CosmWasm/wasmd v0.53.3
 	github.com/InjectiveLabs/etherman v1.9.0
-	github.com/InjectiveLabs/sdk-go v1.62.1-rc1
+	github.com/InjectiveLabs/injective-core v1.20.2
+	github.com/InjectiveLabs/sdk-go v1.63.1-0.20260721031254-03540aa31bf3
 	github.com/avast/retry-go/v4 v4.6.0
 	github.com/cardano-foundation/cardano-ibc-incubator/cosmos/cardano-probabilistic-light-client-v8 v0.1.3
 	github.com/cometbft/cometbft v1.0.1
@@ -72,7 +73,6 @@ require (
 	github.com/StirlingMarketingGroup/go-namecase v1.0.0 // indirect
 	github.com/VictoriaMetrics/fastcache v1.12.2 // indirect
 	github.com/aws/aws-sdk-go v1.44.327 // indirect
-	github.com/bcp-innovations/hyperlane-cosmos v1.0.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bgentry/go-netrc v0.0.0-20140422174119-9fd32a8b3d3d // indirect
 	github.com/bgentry/speakeasy v0.1.1-0.20220910012023-760eaf8b6816 // indirect
@@ -137,7 +137,6 @@ require (
 	github.com/ferranbt/fastssz v0.1.4 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
-	github.com/gballet/go-libpcsclite v0.0.0-20191108122812-4678299bea08 // indirect
 	github.com/getsentry/sentry-go v0.31.1 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.3 // indirect
 	github.com/go-kit/log v0.2.1 // indirect
@@ -158,7 +157,6 @@ require (
 	github.com/google/flatbuffers v25.2.10+incompatible // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/orderedcode v0.0.1 // indirect
-	github.com/google/pprof v0.0.0-20241210010833-40e02aabc2ad // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.4 // indirect
 	github.com/googleapis/gax-go/v2 v2.14.1 // indirect
@@ -236,9 +234,6 @@ require (
 	github.com/oklog/run v1.1.0 // indirect
 	github.com/oklog/ulid v1.3.1 // indirect
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
-	github.com/onsi/ginkgo v1.16.5 // indirect
-	github.com/onsi/ginkgo/v2 v2.22.2 // indirect
-	github.com/onsi/gomega v1.36.2 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.0-rc5 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
@@ -360,6 +355,8 @@ replace (
 
 	github.com/CosmWasm/wasmd => github.com/InjectiveLabs/wasmd v0.53.3-inj.3
 
+	github.com/InjectiveLabs/injective-core => ../
+
 	github.com/bandprotocol/bandchain-packet => github.com/InjectiveLabs/bandchain-packet v0.0.4-inj-1
 	github.com/cardano-foundation/cardano-ibc-incubator/cosmos/cardano-probabilistic-light-client-core => github.com/InjectiveLabs/cardano-ibc-incubator/cosmos/cardano-probabilistic-light-client-core v0.0.0-20260708114507-110e3155016b
 	github.com/cardano-foundation/cardano-ibc-incubator/cosmos/cardano-probabilistic-light-client-v8 => github.com/InjectiveLabs/cardano-ibc-incubator/cosmos/cardano-probabilistic-light-client-v8 v0.0.0-20260708114507-110e3155016b
@@ -367,7 +364,7 @@ replace (
 
 	github.com/cometbft/cometbft => github.com/InjectiveLabs/cometbft v1.0.1-inj.9
 	github.com/cometbft/cometbft/api => github.com/InjectiveLabs/cometbft/api v1.0.0-inj.4
-	github.com/cosmos/cosmos-sdk => github.com/InjectiveLabs/cosmos-sdk v0.50.14-inj.11
+	github.com/cosmos/cosmos-sdk => github.com/InjectiveLabs/cosmos-sdk v0.50.14-inj.12.0.20260721031105-4f0cc993192a
 	github.com/cosmos/gogoproto => github.com/InjectiveLabs/gogoproto v1.7.2-inj.2
 
 	github.com/cosmos/ibc-apps/middleware/packet-forward-middleware/v8 => github.com/InjectiveLabs/ibc-apps/middleware/packet-forward-middleware/v8 v8.2.0-inj.4

@@ -119,6 +119,7 @@ Ref: https://keepachangelog.com/en/1.1.0/
 - (evm)  Add missing JSON-RPC methods (eth_getBlockReceipts) and tweak limits for tracing
 - (exchange)  Added white-knight liquidator fee split configuration and logic
 - (ops)  switch to OpenTelemetry metrics and tracing
+- (permissions)  Added support for post send hook into permissions namespace
 
 ### Bug Fixes
 

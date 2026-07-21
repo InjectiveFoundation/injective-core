@@ -23,6 +23,14 @@ func GetBlock(ctx context.Context, chainNode *cosmos.ChainNode, height int64) (*
 	return block, nil
 }
 
+func GetBlockResults(ctx context.Context, chainNode *cosmos.ChainNode, height int64) (*ctypes.ResultBlockResults, error) {
+	block, err := chainNode.Client.BlockResults(ctx, &height)
+	if err != nil {
+		return nil, err
+	}
+	return block, nil
+}
+
 // getTxResponseRPC queries a transaction using gRPC.
 // This function retries the query to handle cases where the transaction is not yet committed to state.
 func getTxResponseRPC(ctx context.Context, chainNode *cosmos.ChainNode, txHash string) (*sdk.TxResponse, error) {

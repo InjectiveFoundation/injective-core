@@ -2,6 +2,7 @@
 
 # REQUIRES FOUNDRY
 CONTRACTS_REPO_TAG=v1.20.0
+PERMISSIONS_POST_HOOK_REF=feat/permissions-post-hook
 SOLC_VERSION=0.8.30
 OPTIMIZER=true
 OPTIMIZER_RUNS=200
@@ -18,6 +19,8 @@ CONTRACT_SOURCES="
 ./src/tests/ExchangeProxy.sol
 ./src/Staking.sol
 ./src/tests/StakingTest.sol
+./src/PermissionsHook.sol
+./src/PermissionsPostHook.sol
 ./src/Oracle.sol
 ./src/tests/OracleTest.sol
 "
@@ -30,6 +33,8 @@ rm -fr solidity-contracts
 git clone --depth 1 --branch $CONTRACTS_REPO_TAG git@github.com:InjectiveLabs/solidity-contracts.git
 pushd solidity-contracts
 
+git fetch --depth 1 origin $PERMISSIONS_POST_HOOK_REF
+git checkout FETCH_HEAD -- src/PermissionsPostHook.sol examples/PermissionsHookExamples.sol
 git submodule update --init --depth 1 lib/openzeppelin-contracts
 rm -rf .git .gitmodules lib/devtools lib/layerzero-v2 lib/morpho-blue-oracles lib/openzeppelin-contracts-upgradeable lib/pyth-crosschain
 cat > foundry.toml <<EOF
@@ -133,6 +138,16 @@ echo "\n\n🦋 $CONTRACT...\n\n"
 mkdir -p cosmos/precompile/oracle/test && \
 ${abigen} --pkg oracle --abi "$OUT_DIR/$CONTRACT.sol/$CONTRACT.abi" --bin "$OUT_DIR/$CONTRACT.sol/$CONTRACT.bin" --out "cosmos/precompile/oracle/test/oracle_test.abigen.go" --type $CONTRACT
 
+# permissions
+CONTRACT=PermissionsHook
+echo "\n\n🦋 $CONTRACT...\n\n"
+${abigen} --pkg types --abi "$OUT_DIR/$CONTRACT.sol/$CONTRACT.abi" --bin "$OUT_DIR/$CONTRACT.sol/$CONTRACT.bin" --out "../../../permissions/types/$CONTRACT.abigen.go" --type $CONTRACT
+
+CONTRACT=PermissionsPostHook
+echo "\n\n🦋 $CONTRACT...\n\n"
+${abigen} --pkg types --abi "$OUT_DIR/$CONTRACT.sol/$CONTRACT.abi" --bin "$OUT_DIR/$CONTRACT.sol/$CONTRACT.bin" --out "../../../permissions/types/$CONTRACT.abigen.go" --type $CONTRACT
+strip_cosmos_coin_def "../../../permissions/types/$CONTRACT.abigen.go"
+
 echo "🦋 Building and generating bindings for tests..."
 
 # EXAMPLES - for tests
@@ -154,7 +169,17 @@ jq '.abi' ./out/$FILENAME/$CONTRACT.json > "./out/$FILENAME/$CONTRACT.abi"
 popd
 ${abigen} --pkg evm --abi "$OUT_DIR/$FILENAME/$CONTRACT.abi" --bin "$OUT_DIR/$FILENAME/$CONTRACT.bin" --out "../../../permissions/contract-hook-example/evm/$CONTRACT.abigen.go" --type $CONTRACT
 
-strip_cosmos_coin_def "../../../permissions/contract-hook-example/evm/RestrictAllTransfersHook.abigen.go"
+strip_cosmos_coin_def "../../../permissions/contract-hook-example/evm/${CONTRACT}.abigen.go"
+
+pushd solidity-contracts
+FILENAME=PermissionsHookExamples.sol
+CONTRACT=TransfersHookWithSideEffect
+forge build --no-cache --contracts examples/$FILENAME --extra-output-files bin
+jq '.abi' ./out/$FILENAME/$CONTRACT.json > "./out/$FILENAME/$CONTRACT.abi"
+popd
+${abigen} --pkg evm --abi "$OUT_DIR/$FILENAME/$CONTRACT.abi" --bin "$OUT_DIR/$FILENAME/$CONTRACT.bin" --out "../../../permissions/contract-hook-example/evm/$CONTRACT.abigen.go" --type $CONTRACT
+
+strip_cosmos_coin_def "../../../permissions/contract-hook-example/evm/${CONTRACT}.abigen.go"
 
 rm -fr solidity-contracts
 popd

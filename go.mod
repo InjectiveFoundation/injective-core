@@ -330,7 +330,7 @@ replace (
 
 	github.com/cometbft/cometbft => github.com/InjectiveLabs/cometbft v1.0.1-inj.9
 	github.com/cometbft/cometbft/api => github.com/InjectiveLabs/cometbft/api v1.0.0-inj.4
-	github.com/cosmos/cosmos-sdk => github.com/InjectiveLabs/cosmos-sdk v0.50.14-inj.11
+	github.com/cosmos/cosmos-sdk => github.com/InjectiveLabs/cosmos-sdk v0.50.14-inj.12.0.20260721031105-4f0cc993192a
 	github.com/cosmos/gogoproto => github.com/InjectiveLabs/gogoproto v1.7.2-inj.2
 
 	github.com/cosmos/ibc-apps/middleware/packet-forward-middleware/v8 => github.com/InjectiveLabs/ibc-apps/middleware/packet-forward-middleware/v8 v8.2.0-inj.4

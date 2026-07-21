@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
-	permissionshook "github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/hooks"
 	evmtypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/types"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/permissions/types"
 )
@@ -20,18 +19,23 @@ import (
 const infiniteGasMeterRemainingGas = math.MaxUint64
 
 var permissionsHookABI *abi.ABI
+var permissionsPostHookABI *abi.ABI
 
 func init() {
 	var err error
-	permissionsHookABI, err = permissionshook.PermissionsHookMetaData.GetAbi()
+	permissionsHookABI, err = types.PermissionsHookMetaData.GetAbi()
 	if err != nil {
 		panic("failed to initialize permissions hook ABI: " + err.Error())
+	}
+	permissionsPostHookABI, err = types.PermissionsPostHookMetaData.GetAbi()
+	if err != nil {
+		panic("failed to initialize permissions post hook ABI: " + err.Error())
 	}
 }
 
 // validateEvmHook checks that smart contract implements isTransferRestricted method
-func (k Keeper) validateEvmHook(ctx sdk.Context, contractAddr common.Address) error {
-	defer k.Meter(ctx).FuncTiming(&ctx, "validateEvmHook")()
+func (k *Keeper) validateEvmHook(ctx sdk.Context, contractAddr common.Address) (err error) {
+	defer k.Meter(ctx).FuncTiming(&ctx, "validateEvmHook")(&err)
 	// use dummy params just to check that the smart-contract implements the
 	// correct interface. We don't care whether this specific transfer is
 	// restricted or not.
@@ -41,7 +45,7 @@ func (k Keeper) validateEvmHook(ctx sdk.Context, contractAddr common.Address) er
 	amount := big.NewInt(1)
 	denom := "inj"
 
-	_, err := k.callEvmHook(
+	_, err = k.callEvmHook(
 		ctx,
 		contractAddr,
 		from,
@@ -70,10 +74,11 @@ func (k Keeper) validateEvmHook(ctx sdk.Context, contractAddr common.Address) er
 //
 // Contract: EVM contract should implement single method:
 //   - function isTransferRestricted(address from, address to, Cosmos.Coin calldata amount) external pure override returns (bool)
-func (k Keeper) ExecuteEvmHook(
+func (k *Keeper) ExecuteEvmHook(
 	ctx sdk.Context,
 	namespace *types.Namespace,
-	fromAddr, toAddr sdk.AccAddress,
+	fromAddr,
+	toAddr sdk.AccAddress,
 	amount sdk.Coin,
 ) error {
 	defer k.Meter(ctx).FuncTiming(&ctx, "ExecuteEvmHook")()
@@ -115,7 +120,7 @@ func (k *Keeper) callEvmHook(
 	amount *big.Int,
 	denom string,
 ) (isRestricted bool, err error) {
-	defer k.Meter(ctx).FuncTiming(&ctx, "callEvmHook")()
+	defer k.Meter(ctx).FuncTiming(&ctx, "callEvmHook")(&err)
 
 	defer func() {
 		// treat panics as hook error
@@ -123,28 +128,6 @@ func (k *Keeper) callEvmHook(
 			err = errors.Wrapf(types.ErrContractHookError, "panic during EVM hook: %T: %v", panicErr, panicErr)
 		}
 	}()
-
-	cosmosCoin := struct {
-		Amount *big.Int
-		Denom  string
-	}{
-		Amount: amount,
-		Denom:  denom,
-	}
-
-	callData, err := permissionsHookABI.Pack("isTransferRestricted", from, to, cosmosCoin)
-	if err != nil {
-		return false, errors.Wrapf(types.ErrInvalidEVMHook, "failed to encode function call: %s", err.Error())
-	}
-
-	input := hexutil.Bytes(callData)
-	args, err := json.Marshal(evmtypes.TransactionArgs{
-		To:    &contractAddr,
-		Input: &input,
-	})
-	if err != nil {
-		return false, errors.Wrapf(types.ErrInvalidEVMHook, "failed to marshal transaction args: %v", err)
-	}
 
 	params := k.GetParams(ctx)
 	gasRemaining := ctx.GasMeter().GasRemaining()
@@ -168,15 +151,48 @@ func (k *Keeper) callEvmHook(
 	// prevents EthCall from interpreting GasCap=0 as "use block max"
 	gasCap := min(gasRemaining, params.ContractHookMaxGas)
 
+	cosmosCoin := struct {
+		Amount *big.Int
+		Denom  string
+	}{
+		Amount: amount,
+		Denom:  denom,
+	}
+
+	callData, err := permissionsHookABI.Pack("isTransferRestricted", from, to, cosmosCoin)
+	if err != nil {
+		return false, errors.Wrapf(types.ErrInvalidEVMHook, "failed to encode function call: %s", err.Error())
+	}
+
+	input := hexutil.Bytes(callData)
+	var resp *evmtypes.MsgEthereumTxResponse
+
+	args, err := json.Marshal(evmtypes.TransactionArgs{
+		To:    &contractAddr,
+		Input: &input,
+	})
+	if err != nil {
+		return false, errors.Wrapf(types.ErrInvalidEVMHook, "failed to marshal transaction args: %v", err)
+	}
+
 	req := evmtypes.EthCallRequest{
 		Args:   args,
 		GasCap: gasCap,
 	}
 
-	resp, err := k.evmKeeper.EthCall(execCtx, &req)
+	resp, err = k.evmKeeper.EthCall(execCtx, &req)
 	if err != nil {
 		ctx.GasMeter().ConsumeGas(req.GasCap, "EVM hook call failed")
 		return false, errors.Wrapf(types.ErrContractHookError, "EVM hook call failed: %s", err.Error())
+	}
+
+	if resp == nil {
+		ctx.GasMeter().ConsumeGas(gasCap, "EVM hook tx failed")
+		return false, errors.Wrapf(types.ErrContractHookError, "EVM hook call returned no response")
+	}
+	if resp.VmError != "" {
+		ctx.GasMeter().ConsumeGas(gasCap, "EVM hook tx failed")
+		return false, errors.Wrapf(types.ErrContractHookError, "EVM hook call return VM error: %s", resp.VmError)
 	}
 
 	// consume gas on the original gas meter

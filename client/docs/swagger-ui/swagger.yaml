@@ -26706,7 +26706,20 @@ paths:
                           type: string
                           title: >-
                             The address of the EVM contract to map code-based
-                            permissions
+                            permissions:  must
+
+                            implement isTransferRestricted(address from, address
+                            to, Cosmos.Coin
+
+                            amount) returns (bool)
+                        evm_post_hook:
+                          type: string
+                          title: >-
+                            The address of the EVM contract to get called after
+                            every successful
+
+                            transfer postTransfer(address from, address to,
+                            Cosmos.Coin amount)
                       title: Namespace defines a permissions namespace
                     title: namespaces defines the namespaces of the module
                   vouchers:
@@ -26919,7 +26932,20 @@ paths:
                     type: string
                     title: >-
                       The address of the EVM contract to map code-based
-                      permissions
+                      permissions:  must
+
+                      implement isTransferRestricted(address from, address to,
+                      Cosmos.Coin
+
+                      amount) returns (bool)
+                  evm_post_hook:
+                    type: string
+                    title: >-
+                      The address of the EVM contract to get called after every
+                      successful
+
+                      transfer postTransfer(address from, address to,
+                      Cosmos.Coin amount)
                 title: Namespace defines a permissions namespace
             description: |-
               QueryNamespaceResponse is the response type for the
@@ -27166,7 +27192,20 @@ paths:
                       type: string
                       title: >-
                         The address of the EVM contract to map code-based
-                        permissions
+                        permissions:  must
+
+                        implement isTransferRestricted(address from, address to,
+                        Cosmos.Coin
+
+                        amount) returns (bool)
+                    evm_post_hook:
+                      type: string
+                      title: >-
+                        The address of the EVM contract to get called after
+                        every successful
+
+                        transfer postTransfer(address from, address to,
+                        Cosmos.Coin amount)
                   title: Namespace defines a permissions namespace
                 title: List of namespaces
             description: >-
@@ -118123,7 +118162,22 @@ definitions:
               title: capabilities for each manager for each policy
             evm_hook:
               type: string
-              title: The address of the EVM contract to map code-based permissions
+              title: >-
+                The address of the EVM contract to map code-based permissions:
+                must
+
+                implement isTransferRestricted(address from, address to,
+                Cosmos.Coin
+
+                amount) returns (bool)
+            evm_post_hook:
+              type: string
+              title: >-
+                The address of the EVM contract to get called after every
+                successful
+
+                transfer postTransfer(address from, address to, Cosmos.Coin
+                amount)
           title: Namespace defines a permissions namespace
         title: namespaces defines the namespaces of the module
       vouchers:
@@ -118293,7 +118347,15 @@ definitions:
         title: capabilities for each manager for each policy
       evm_hook:
         type: string
-        title: The address of the EVM contract to map code-based permissions
+        title: |-
+          The address of the EVM contract to map code-based permissions:  must
+          implement isTransferRestricted(address from, address to, Cosmos.Coin
+          amount) returns (bool)
+      evm_post_hook:
+        type: string
+        title: |-
+          The address of the EVM contract to get called after every successful
+          transfer postTransfer(address from, address to, Cosmos.Coin amount)
     title: Namespace defines a permissions namespace
   injective.permissions.v1beta1.Params:
     type: object
@@ -118645,7 +118707,20 @@ definitions:
                   type: string
                   title: >-
                     The address of the EVM contract to map code-based
-                    permissions
+                    permissions:  must
+
+                    implement isTransferRestricted(address from, address to,
+                    Cosmos.Coin
+
+                    amount) returns (bool)
+                evm_post_hook:
+                  type: string
+                  title: >-
+                    The address of the EVM contract to get called after every
+                    successful
+
+                    transfer postTransfer(address from, address to, Cosmos.Coin
+                    amount)
               title: Namespace defines a permissions namespace
             title: namespaces defines the namespaces of the module
           vouchers:
@@ -118832,7 +118907,22 @@ definitions:
             title: capabilities for each manager for each policy
           evm_hook:
             type: string
-            title: The address of the EVM contract to map code-based permissions
+            title: >-
+              The address of the EVM contract to map code-based permissions:
+              must
+
+              implement isTransferRestricted(address from, address to,
+              Cosmos.Coin
+
+              amount) returns (bool)
+          evm_post_hook:
+            type: string
+            title: >-
+              The address of the EVM contract to get called after every
+              successful
+
+              transfer postTransfer(address from, address to, Cosmos.Coin
+              amount)
         title: Namespace defines a permissions namespace
     description: |-
       QueryNamespaceResponse is the response type for the
@@ -118990,7 +119080,22 @@ definitions:
               title: capabilities for each manager for each policy
             evm_hook:
               type: string
-              title: The address of the EVM contract to map code-based permissions
+              title: >-
+                The address of the EVM contract to map code-based permissions:
+                must
+
+                implement isTransferRestricted(address from, address to,
+                Cosmos.Coin
+
+                amount) returns (bool)
+            evm_post_hook:
+              type: string
+              title: >-
+                The address of the EVM contract to get called after every
+                successful
+
+                transfer postTransfer(address from, address to, Cosmos.Coin
+                amount)
           title: Namespace defines a permissions namespace
         title: List of namespaces
     description: |-
