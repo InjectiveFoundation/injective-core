@@ -1,6 +1,9 @@
 package spot
 
 import (
+	"math/big"
+	"slices"
+
 	"cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -88,6 +91,7 @@ func (k SpotKeeper) ExecuteAtomicSpotMarketOrder(
 		Quantity: marketOrderTrade.Quantity,
 		Price:    marketOrderTrade.Price,
 		Fee:      marketOrderTrade.Fee,
+		Notional: marketOrderTrade.Notional,
 	}
 }
 
@@ -125,6 +129,7 @@ func GetSpotMarketOrderBatchExecutionData(
 		trades[idx] = &v2.TradeLog{
 			Quantity:            expansion.BaseChangeAmount.Abs(),
 			Price:               expansion.TradePrice,
+			Notional:            expansion.TradeNotional,
 			SubaccountId:        expansion.SubaccountID.Bytes(),
 			Fee:                 realizedTradeFee,
 			OrderHash:           expansion.OrderHash.Bytes(),
@@ -193,12 +198,14 @@ func (k SpotKeeper) getMarketOrderStateExpansionsAndClearingPrice(
 	if limitOrderbook != nil {
 		defer limitOrderbook.Close()
 	} else {
-		spotMarketOrderStateExpansions = k.ProcessSpotMarketOrderStateExpansions(
+		// No resting liquidity matched: no maker side to conserve against, so the residual is zero.
+		spotMarketOrderStateExpansions, _, _ = k.ProcessSpotMarketOrderStateExpansions(
 			ctx,
 			market.MarketID(),
 			isMarketBuy,
 			marketOrders,
 			make([]math.LegacyDec, len(marketOrders)),
+			math.LegacyDec{},
 			math.LegacyDec{},
 			takerFeeRate,
 			market.RelayerFeeShareRate,
@@ -221,11 +228,6 @@ func (k SpotKeeper) getMarketOrderStateExpansionsAndClearingPrice(
 
 	clearingQuantity = limitOrderbook.GetTotalQuantityFilled()
 
-	if clearingQuantity.IsPositive() {
-		// Clearing Price equals limit orderbook side average weighted price
-		clearingPrice = limitOrderbook.GetNotional().Quo(clearingQuantity)
-	}
-
 	spotLimitOrderStateExpansions = k.ProcessRestingSpotLimitOrderExpansions(
 		ctx,
 		market.MarketID(),
@@ -238,24 +240,218 @@ func (k SpotKeeper) getMarketOrderStateExpansionsAndClearingPrice(
 		feeDiscountConfig,
 	)
 
-	spotMarketOrderStateExpansions = k.ProcessSpotMarketOrderStateExpansions(
+	// Derive the clearing price from the exact settled maker notional, not the orderbook's
+	// increment-rounded GetNotional(), so the price used for taker fees, VWAP and the emitted
+	// TradePrice is consistent with the quote actually settled.
+	matchedNotional := SumSpotStateExpansionNotionals(spotLimitOrderStateExpansions)
+	if clearingQuantity.IsPositive() {
+		clearingPrice = matchedNotional.Quo(clearingQuantity)
+	}
+
+	var buyCapResidual math.LegacyDec
+	spotMarketOrderStateExpansions, buyCapResidual, clearingPrice = k.ProcessSpotMarketOrderStateExpansions(
 		ctx,
 		market.MarketID(),
 		isMarketBuy,
 		marketOrders,
 		marketOrderbook.GetOrderbookFillQuantities(),
 		clearingPrice,
+		matchedNotional,
 		takerFeeRate,
 		market.RelayerFeeShareRate,
 		pointsMultiplier,
+		feeDiscountConfig,
+	)
+	// A market buy's limit-price caps can leave part of the maker notional uncollectable; deduct
+	// that residual from the maker side so the taker debit and maker credit stay equal.
+	ReduceMakerQuoteCredits(
+		spotLimitOrderStateExpansions,
+		buyCapResidual,
+		market.MarketID(),
+		pointsMultiplier.MakerPointsMultiplier,
 		feeDiscountConfig,
 	)
 
 	return
 }
 
+type marketOrderNotionalShare struct {
+	orderIndex   int
+	fillQuantity *big.Int
+	principal    *big.Int
+	maxPrincipal *big.Int
+}
+
+func newZeroLegacyDecs(length int) []math.LegacyDec {
+	decimals := make([]math.LegacyDec, length)
+	for idx := range decimals {
+		decimals[idx] = math.LegacyZeroDec()
+	}
+	return decimals
+}
+
+func collectMarketOrderNotionalShares(
+	marketBuyOrders []*v2.SpotMarketOrder,
+	marketFillQuantities []math.LegacyDec,
+) ([]marketOrderNotionalShare, *big.Int) {
+	shares := make([]marketOrderNotionalShare, 0, len(marketFillQuantities))
+	totalFillQuantity := new(big.Int)
+
+	for idx, fillQuantity := range marketFillQuantities {
+		if fillQuantity.IsNil() || !fillQuantity.IsPositive() {
+			continue
+		}
+
+		fillQuantityMantissa := fillQuantity.BigInt()
+		totalFillQuantity.Add(totalFillQuantity, fillQuantityMantissa)
+		share := marketOrderNotionalShare{
+			orderIndex:   idx,
+			fillQuantity: fillQuantityMantissa,
+		}
+		if len(marketBuyOrders) > 0 {
+			share.maxPrincipal = fillQuantity.Mul(marketBuyOrders[idx].OrderInfo.Price).BigInt()
+		}
+		shares = append(shares, share)
+	}
+
+	return shares, totalFillQuantity
+}
+
+// apportionMarketOrderNotional distributes clearingNotional across the shares and returns the
+// nonnegative residual that could not be assigned. The residual is only ever positive for market
+// buys: a buy's principal is capped at its filled quantity at its limit price (the reserved hold),
+// and when the maker-side notional exceeds the sum of those caps the surplus cannot be collected
+// from any taker. Callers must reconcile a positive residual against the maker side so the taker
+// debit and maker credit stay equal; dropping it would leave the maker credited quote no taker paid.
+func apportionMarketOrderNotional(
+	shares []marketOrderNotionalShare,
+	totalFillQuantity, clearingNotional *big.Int,
+) *big.Int {
+	sumPrincipals := new(big.Int)
+	for idx := range shares {
+		numerator := new(big.Int).Mul(clearingNotional, shares[idx].fillQuantity)
+		shares[idx].principal = new(big.Int).Quo(numerator, totalFillQuantity)
+		if maxPrincipal := shares[idx].maxPrincipal; maxPrincipal != nil && shares[idx].principal.Cmp(maxPrincipal) > 0 {
+			shares[idx].principal.Set(maxPrincipal)
+		}
+		sumPrincipals.Add(sumPrincipals, shares[idx].principal)
+	}
+
+	// Every share was floored, so the residual is nonnegative and smaller than the number of
+	// positive fills. Prefer the largest fills, while ensuring a buy never receives more principal
+	// than its filled quantity at its limit price (the amount reserved for that principal).
+	remainingUnits := new(big.Int).Sub(clearingNotional, sumPrincipals)
+	allocationOrder := make([]int, len(shares))
+	for idx := range shares {
+		allocationOrder[idx] = idx
+	}
+	slices.SortStableFunc(allocationOrder, func(i, j int) int {
+		return shares[j].fillQuantity.Cmp(shares[i].fillQuantity)
+	})
+
+	for _, shareIdx := range allocationOrder {
+		unitsToAllocate := new(big.Int).Set(remainingUnits)
+		if maxPrincipal := shares[shareIdx].maxPrincipal; maxPrincipal != nil {
+			headroom := new(big.Int).Sub(maxPrincipal, shares[shareIdx].principal)
+			if headroom.Sign() <= 0 {
+				continue
+			}
+			if unitsToAllocate.Cmp(headroom) > 0 {
+				unitsToAllocate.Set(headroom)
+			}
+		}
+
+		shares[shareIdx].principal.Add(shares[shareIdx].principal, unitsToAllocate)
+		remainingUnits.Sub(remainingUnits, unitsToAllocate)
+		if remainingUnits.Sign() == 0 {
+			break
+		}
+	}
+
+	return remainingUnits
+}
+
+// computeMarketOrderClearingNotionals apportions the exact matched notional (the maker side's sum
+// of fillQuantity*price) across the filled market orders. It operates on raw LegacyDec mantissas so
+// the proportional multiplication cannot overflow and each share is rounded only once. Each share
+// is floored and the nonnegative residual is assigned to the largest funded fills, keeping every
+// principal nonnegative and within a buy's limit-price hold. The second return value is the residual
+// that a buy's limit-price caps prevented apportioning; the caller must reconcile it against the
+// maker side so the taker and maker quote totals stay equal.
+func computeMarketOrderClearingNotionals(
+	marketBuyOrders []*v2.SpotMarketOrder,
+	marketFillQuantities []math.LegacyDec,
+	clearingPrice, clearingNotional math.LegacyDec,
+) ([]math.LegacyDec, math.LegacyDec) {
+	principals := newZeroLegacyDecs(len(marketFillQuantities))
+
+	if clearingPrice.IsNil() || clearingNotional.IsNil() || !clearingNotional.IsPositive() {
+		return principals, math.LegacyZeroDec()
+	}
+
+	shares, totalFillQuantity := collectMarketOrderNotionalShares(marketBuyOrders, marketFillQuantities)
+	if len(shares) == 0 {
+		return principals, math.LegacyZeroDec()
+	}
+
+	residualMantissa := apportionMarketOrderNotional(shares, totalFillQuantity, clearingNotional.BigInt())
+	for _, share := range shares {
+		principals[share.orderIndex] = math.LegacyNewDecFromBigIntWithPrec(share.principal, math.LegacyPrecision)
+	}
+	return principals, math.LegacyNewDecFromBigIntWithPrec(residualMantissa, math.LegacyPrecision)
+}
+
+// SumSpotStateExpansionNotionals returns the exact matched notional the resting maker side settles
+// against: the sum of each maker order's TradeNotional (round18(cumulativeFill*price), computed once
+// per order). This is the number the taker principal must be apportioned from, NOT the orderbook's
+// GetNotional(), which sums round18(fill*price) per match increment. Because round18(a*p) +
+// round18(b*p) != round18((a+b)*p), a maker order filled across multiple increments makes those two
+// totals diverge, and settling takers against the increment sum credits/debits the maker side a
+// different quote total than the takers pay — the difference leaks from the exchange's pooled
+// balance as unbacked quote.
+func SumSpotStateExpansionNotionals(expansions []*v2.SpotOrderStateExpansion) math.LegacyDec {
+	total := math.LegacyZeroDec()
+	for _, expansion := range expansions {
+		if expansion == nil || expansion.TradeNotional.IsNil() {
+			continue
+		}
+		total = total.Add(expansion.TradeNotional)
+	}
+	return total
+}
+
+// getSettledMarketOrderClearingPrice lowers the common market-buy execution price when its
+// limit-price caps leave part of the matched maker notional uncollectable. The exact per-order
+// notionals remain the settlement source of truth; this price is their common display/VWAP price.
+func getSettledMarketOrderClearingPrice(
+	clearingPrice, clearingNotional, buyCapResidual math.LegacyDec,
+	marketFillQuantities []math.LegacyDec,
+) math.LegacyDec {
+	if buyCapResidual.IsNil() || !buyCapResidual.IsPositive() || clearingNotional.IsNil() {
+		return clearingPrice
+	}
+
+	totalFillQuantity := math.LegacyZeroDec()
+	for _, fillQuantity := range marketFillQuantities {
+		if !fillQuantity.IsNil() && fillQuantity.IsPositive() {
+			totalFillQuantity = totalFillQuantity.Add(fillQuantity)
+		}
+	}
+	if !totalFillQuantity.IsPositive() {
+		return clearingPrice
+	}
+
+	return clearingNotional.Sub(buyCapResidual).Quo(totalFillQuantity)
+}
+
 // ProcessSpotMarketOrderStateExpansions processes the spot market order state expansions.
-// NOTE: clearingPrice may be Nil
+// NOTE: clearingPrice and clearingNotional may be Nil (no resting liquidity matched)
+//
+// The second return value is the buy-cap residual: the portion of the maker notional that the
+// filled buys' limit-price caps prevented apportioning to any taker. It is zero for market sells
+// and for fully-fundable buys. When positive, the caller must deduct it from the maker side (see
+// ReduceMakerQuoteCredits) so the taker debit equals the maker credit; otherwise the maker is
+// credited quote no taker paid and the difference is minted from the module's pooled balance.
 //
 //nolint:revive // ok
 func (k SpotKeeper) ProcessSpotMarketOrderStateExpansions(
@@ -264,14 +460,34 @@ func (k SpotKeeper) ProcessSpotMarketOrderStateExpansions(
 	isMarketBuy bool,
 	marketOrders []*v2.SpotMarketOrder,
 	marketFillQuantities []math.LegacyDec,
-	clearingPrice math.LegacyDec,
+	clearingPrice, clearingNotional math.LegacyDec,
 	tradeFeeRate, relayerFeeShareRate math.LegacyDec,
 	pointsMultiplier v2.PointsMultiplier,
 	feeDiscountConfig *v2.FeeDiscountConfig,
-) []*v2.SpotOrderStateExpansion {
+) ([]*v2.SpotOrderStateExpansion, math.LegacyDec, math.LegacyDec) {
 	defer k.Meter(ctx).FuncTiming(&ctx, "ProcessSpotMarketOrderStateExpansions")()
 
 	stateExpansions := make([]*v2.SpotOrderStateExpansion, len(marketOrders))
+
+	// Settle the taker side against the exact matched notional (not fillQuantity*round(VWAP)) so
+	// the quote debited/credited to the market order side equals the quote credited/debited to the
+	// resting side, conserving quote across the match.
+	var marketBuyOrders []*v2.SpotMarketOrder
+	if isMarketBuy {
+		marketBuyOrders = marketOrders
+	}
+	clearingNotionals, buyCapResidual := computeMarketOrderClearingNotionals(
+		marketBuyOrders,
+		marketFillQuantities,
+		clearingPrice,
+		clearingNotional,
+	)
+	settledClearingPrice := getSettledMarketOrderClearingPrice(
+		clearingPrice,
+		clearingNotional,
+		buyCapResidual,
+		marketFillQuantities,
+	)
 
 	for idx := range marketOrders {
 		stateExpansions[idx] = k.getSpotMarketOrderStateExpansion(
@@ -280,14 +496,91 @@ func (k SpotKeeper) ProcessSpotMarketOrderStateExpansions(
 			marketOrders[idx],
 			isMarketBuy,
 			marketFillQuantities[idx],
-			clearingPrice,
+			settledClearingPrice,
+			clearingNotionals[idx],
 			tradeFeeRate,
 			relayerFeeShareRate,
 			pointsMultiplier,
 			feeDiscountConfig,
 		)
 	}
-	return stateExpansions
+	return stateExpansions, buyCapResidual, settledClearingPrice
+}
+
+// ReduceMakerQuoteCredits deducts the uncollectable residual from the maker side, restoring
+// taker-debit == maker-credit when a market buy's limit-price caps left part of the maker notional
+// uncollectable (see ProcessSpotMarketOrderStateExpansions). It draws from each maker's total quote
+// outflow in fill order — trader credit first, then the fee-side rewards — each clamped to its own
+// positive amount so no field goes negative. The fee side must participate because a dust maker
+// whose trader credit rounded to zero under a high maker fee still credits positive fee rewards, and
+// skipping it would leave the residual uncollected while that fee-side quote leaks unbacked. A
+// maker's outflow (credit + fees) equals its notional, so the residual is always fully absorbed. The
+// reported TradeNotional is reduced by the total drawn so the emitted notional keeps matching the
+// quote actually settled. Trading-reward points and fee-discount volume are then reconciled to that
+// reduced notional. No-op when residual is not positive or there are no maker credits.
+func ReduceMakerQuoteCredits(
+	makerExpansions []*v2.SpotOrderStateExpansion,
+	residual math.LegacyDec,
+	marketID common.Hash,
+	makerPointsMultiplier math.LegacyDec,
+	feeDiscountConfig *v2.FeeDiscountConfig,
+) {
+	if residual.IsNil() || !residual.IsPositive() {
+		return
+	}
+
+	remaining := residual
+	for _, expansion := range makerExpansions {
+		if !remaining.IsPositive() {
+			break
+		}
+		if expansion == nil {
+			continue
+		}
+		previousTradeNotional := expansion.TradeNotional
+		remaining = reduceMakerQuoteCreditsFromExpansion(expansion, remaining)
+		if previousTradeNotional.IsNil() || expansion.TradeNotional.IsNil() {
+			continue
+		}
+		notionalReduction := previousTradeNotional.Sub(expansion.TradeNotional)
+		if !notionalReduction.IsPositive() {
+			continue
+		}
+		expansion.TradingRewardPoints = expansion.TradeNotional.Mul(makerPointsMultiplier).Abs()
+		feeDiscountConfig.DecrementMakerVolumeContribution(
+			expansion.SubaccountID,
+			marketID,
+			notionalReduction,
+		)
+	}
+}
+
+func reduceMakerQuoteCreditsFromExpansion(
+	expansion *v2.SpotOrderStateExpansion,
+	remaining math.LegacyDec,
+) math.LegacyDec {
+	drawn := math.LegacyZeroDec()
+	for _, credit := range []*math.LegacyDec{
+		&expansion.QuoteChangeAmount,
+		&expansion.AuctionFeeReward,
+		&expansion.FeeRecipientReward,
+	} {
+		if !remaining.IsPositive() {
+			break
+		}
+		if credit.IsNil() || !credit.IsPositive() {
+			continue
+		}
+		reduction := math.LegacyMinDec(remaining, *credit)
+		*credit = credit.Sub(reduction)
+		remaining = remaining.Sub(reduction)
+		drawn = drawn.Add(reduction)
+	}
+
+	if drawn.IsPositive() && !expansion.TradeNotional.IsNil() {
+		expansion.TradeNotional = math.LegacyMaxDec(math.LegacyZeroDec(), expansion.TradeNotional.Sub(drawn))
+	}
+	return remaining
 }
 
 //nolint:revive // ok
@@ -296,7 +589,7 @@ func (k SpotKeeper) getSpotMarketOrderStateExpansion(
 	marketID common.Hash,
 	order *v2.SpotMarketOrder,
 	isMarketBuy bool,
-	fillQuantity, clearingPrice math.LegacyDec,
+	fillQuantity, clearingPrice, clearingNotional math.LegacyDec,
 	takerFeeRate, relayerFeeShareRate math.LegacyDec,
 	pointsMultiplier v2.PointsMultiplier,
 	feeDiscountConfig *v2.FeeDiscountConfig,
@@ -308,19 +601,22 @@ func (k SpotKeeper) getSpotMarketOrderStateExpansion(
 	if fillQuantity.IsNil() {
 		fillQuantity = math.LegacyZeroDec()
 	}
+	// The taker principal is the exact matched (maker-side) notional apportioned to this order, not
+	// fillQuantity*round(VWAP). Settling against the exact notional keeps quote conserved: the maker
+	// side is credited/debited its exact per-order notional, so the taker must be debited/credited
+	// the same total.
 	orderNotional := math.LegacyZeroDec()
-	if !clearingPrice.IsNil() {
-		orderNotional = fillQuantity.Mul(clearingPrice)
+	if !clearingPrice.IsNil() && !clearingNotional.IsNil() {
+		orderNotional = clearingNotional
 	}
 
 	isMaker := false
 
-	feeData := k.tradingRewards.GetTradeDataAndIncrementVolumeContribution(
+	feeData := k.tradingRewards.GetTradeDataAndIncrementVolumeContributionWithNotional(
 		ctx,
 		order.SubaccountID(),
 		marketID,
-		fillQuantity,
-		clearingPrice,
+		orderNotional,
 		takerFeeRate,
 		relayerFeeShareRate,
 		pointsMultiplier.TakerPointsMultiplier,
@@ -333,15 +629,15 @@ func (k SpotKeeper) getSpotMarketOrderStateExpansion(
 	if isMarketBuy {
 		// market buys are credited with the order fill quantity in base denom
 		baseChangeAmount = fillQuantity
-		// market buys are debited with (fillQuantity * clearingPrice) * (1 + takerFee) in quote denom
+		// market buys are debited with orderNotional + takerFee in quote denom
 		if !clearingPrice.IsNil() {
-			quoteChangeAmount = fillQuantity.Mul(clearingPrice).Add(feeData.TotalTradeFee).Neg()
+			quoteChangeAmount = orderNotional.Add(feeData.TotalTradeFee).Neg()
 		}
 		quoteRefundAmount = order.BalanceHold.Add(quoteChangeAmount)
 	} else {
 		// market sells are debited by fillQuantity in base denom
 		baseChangeAmount = fillQuantity.Neg()
-		// market sells are credited with the (fillQuantity * clearingPrice) * (1 - TakerFee) in quote denom
+		// market sells are credited with orderNotional - takerFee in quote denom
 		if !clearingPrice.IsNil() {
 			quoteChangeAmount = orderNotional.Sub(feeData.TotalTradeFee)
 		}
@@ -362,6 +658,7 @@ func (k SpotKeeper) getSpotMarketOrderStateExpansion(
 		QuoteChangeAmount:       quoteChangeAmount,
 		QuoteRefundAmount:       quoteRefundAmount,
 		TradePrice:              tradePrice,
+		TradeNotional:           orderNotional,
 		FeeRecipient:            order.FeeRecipient(),
 		FeeRecipientReward:      feeData.FeeRecipientReward,
 		AuctionFeeReward:        feeData.AuctionFeeReward,
@@ -505,6 +802,7 @@ func (k SpotKeeper) getRestingSpotLimitBuyStateExpansion(
 		QuoteChangeAmount:      quoteChangeAmount,
 		QuoteRefundAmount:      quoteRefund,
 		TradePrice:             fillPrice,
+		TradeNotional:          orderNotional,
 		FeeRecipient:           order.FeeRecipient(),
 		FeeRecipientReward:     feeData.FeeRecipientReward,
 		AuctionFeeReward:       feeData.AuctionFeeReward,
@@ -566,6 +864,7 @@ func (k SpotKeeper) getSpotLimitSellStateExpansion(
 		QuoteChangeAmount:      quoteChangeAmount,
 		QuoteRefundAmount:      math.LegacyZeroDec(),
 		TradePrice:             fillPrice,
+		TradeNotional:          orderNotional,
 		FeeRecipient:           order.FeeRecipient(),
 		FeeRecipientReward:     feeData.FeeRecipientReward,
 		AuctionFeeReward:       feeData.AuctionFeeReward,
@@ -765,6 +1064,7 @@ func (k SpotKeeper) getTransientSpotLimitBuyStateExpansion( //nolint:revive // o
 		QuoteChangeAmount:      quoteChangeAmount,
 		QuoteRefundAmount:      quoteRefundAmount,
 		TradePrice:             clearingPrice,
+		TradeNotional:          orderNotional,
 		FeeRecipient:           order.FeeRecipient(),
 		FeeRecipientReward:     feeData.FeeRecipientReward,
 		AuctionFeeReward:       feeData.AuctionFeeReward,

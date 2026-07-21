@@ -94,6 +94,13 @@ func (k SpotKeeper) ValidateSpotOrder(
 			return nil, types.ErrSpotMarketNotFound.Wrapf("active spot market doesn't exist %s", order.MarketId)
 		}
 	}
+	if !market.IsActive() {
+		k.Logger(ctx).Error("spot market is not active", "marketId", order.MarketId)
+		return nil, types.ErrSpotMarketNotFound.Wrapf("spot market %s is not active", order.MarketId)
+	}
+	if err := v2.ValidateSpotMarketTickSizes(market.MinPriceTickSize, market.MinQuantityTickSize); err != nil {
+		return nil, err
+	}
 
 	if err := order.CheckTickSize(market.MinPriceTickSize, market.MinQuantityTickSize); err != nil {
 		return nil, err
@@ -119,7 +126,7 @@ func (k SpotKeeper) ValidateSpotOrder(
 	return market, nil
 }
 
-// CancelAllRestingLimitOrdersFromSpotMarket cancels all resting and transient spot limit orders for a marketID.
+// CancelAllRestingLimitOrdersFromSpotMarket cancels all resting spot limit orders for a marketID.
 func (k SpotKeeper) CancelAllRestingLimitOrdersFromSpotMarket(
 	ctx sdk.Context,
 	market *v2.SpotMarket,
@@ -140,6 +147,21 @@ func (k SpotKeeper) CancelAllRestingLimitOrdersFromSpotMarket(
 	// todo: isn't this a bad practice with cosmos store
 	k.IterateSpotLimitOrdersByMarketDirection(ctx, marketID, true, cancelFunc)
 	k.IterateSpotLimitOrdersByMarketDirection(ctx, marketID, false, cancelFunc)
+}
+
+// CancelAllSpotOrdersForTickSizeChange cancels every order created on the old
+// price and quantity grids before a market starts accepting orders on new grids.
+func (k SpotKeeper) CancelAllSpotOrdersForTickSizeChange(ctx sdk.Context, market *v2.SpotMarket) {
+	defer k.Meter(ctx).FuncTiming(&ctx, "CancelAllSpotOrdersForTickSizeChange")()
+
+	marketID := market.MarketID()
+	k.CancelAllRestingLimitOrdersFromSpotMarket(ctx, market, marketID)
+	k.CancelAllTransientSpotLimitOrdersForMarket(ctx, market)
+	for _, isBuy := range []bool{true, false} {
+		for _, order := range k.GetAllTransientSpotMarketOrders(ctx, marketID, isBuy) {
+			k.CancelTransientSpotMarketOrder(ctx, market, marketID, order)
+		}
+	}
 }
 
 func (k SpotKeeper) CancelSpotLimitOrderByOrderHash(
@@ -470,7 +492,7 @@ func (k SpotKeeper) CancelTransientSpotLimitOrder(
 }
 
 // CancelAllTransientSpotLimitOrdersForMarket cancels all transient spot limit orders for a market,
-// refunding balance holds. Used for fail-closed cleanup when stage-3 FBA matching panics.
+// refunding balance holds.
 func (k SpotKeeper) CancelAllTransientSpotLimitOrdersForMarket(
 	ctx sdk.Context,
 	market *v2.SpotMarket,
@@ -511,7 +533,6 @@ func (k SpotKeeper) CancelAllTransientSpotLimitOrdersForMarket(
 // CancelTransientSpotMarketOrder cancels a transient spot market order, refunding its balance hold.
 // The refund mirrors ReserveSpotMarketOrder: buy orders held NotionalToChainFormat(BalanceHold) of
 // quote denom; sell orders held QuantityToChainFormat(BalanceHold) of base denom.
-//
 func (k SpotKeeper) CancelTransientSpotMarketOrder(
 	ctx sdk.Context,
 	market *v2.SpotMarket,

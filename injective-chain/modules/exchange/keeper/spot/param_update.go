@@ -21,8 +21,10 @@ func (k SpotKeeper) ExecuteSpotMarketParamUpdateProposal(ctx sdk.Context, p *v2.
 		return errors.Wrapf(types.ErrMarketInvalid, "market is not available, market_id %s", p.MarketId)
 	}
 
-	if p.Status == v2.MarketStatus_Demolished {
-		k.CancelAllRestingLimitOrdersFromSpotMarket(ctx, prevMarket, prevMarket.MarketID())
+	if p.Status == v2.MarketStatus_Active {
+		if err := v2.ValidateSpotMarketTickSizes(*p.MinPriceTickSize, *p.MinQuantityTickSize); err != nil {
+			return err
+		}
 	}
 
 	if !k.IsDenomDecimalsValid(ctx, prevMarket.BaseDenom, p.BaseDecimals) {
@@ -30,6 +32,14 @@ func (k SpotKeeper) ExecuteSpotMarketParamUpdateProposal(ctx sdk.Context, p *v2.
 	}
 	if !k.IsDenomDecimalsValid(ctx, prevMarket.QuoteDenom, p.QuoteDecimals) {
 		return errors.Wrapf(types.ErrDenomDecimalsDoNotMatch, "denom %s does not have %d decimals", prevMarket.QuoteDenom, p.QuoteDecimals)
+	}
+
+	hasTickSizeChange := !p.MinPriceTickSize.Equal(prevMarket.MinPriceTickSize) ||
+		!p.MinQuantityTickSize.Equal(prevMarket.MinQuantityTickSize)
+	if hasTickSizeChange {
+		k.CancelAllSpotOrdersForTickSizeChange(ctx, prevMarket)
+	} else if p.Status == v2.MarketStatus_Demolished {
+		k.CancelAllRestingLimitOrdersFromSpotMarket(ctx, prevMarket, prevMarket.MarketID())
 	}
 
 	// we cancel only buy orders, as sell order pay their fee from obtained funds in quote currency upon matching

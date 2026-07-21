@@ -243,6 +243,7 @@ func NewV1SpotTradeFromV2(spotTrade *streamv2types.SpotTrade, market exchangev2t
 		ExecutionType:       spotTrade.ExecutionType,
 		Quantity:            market.QuantityToChainFormat(spotTrade.Quantity),
 		Price:               market.PriceToChainFormat(spotTrade.Price),
+		Notional:            market.NotionalToChainFormat(spotTrade.Notional),
 		SubaccountId:        spotTrade.SubaccountId,
 		Fee:                 market.NotionalToChainFormat(spotTrade.Fee),
 		OrderHash:           spotTrade.OrderHash,

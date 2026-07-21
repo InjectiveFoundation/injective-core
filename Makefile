@@ -6,7 +6,7 @@ COSMOS_VERSION_NAME = injective
 INJECTIVED_VERSION_PKG = github.com/InjectiveLabs/injective-core/version
 PEGGO_VERSION_PKG = github.com/InjectiveLabs/injective-core/peggo/orchestrator/version
 IMAGE_NAME := injectivelabs/injective-core
-GOPROXY ?= https://goproxy.injective.dev,direct
+GOPROXY ?= https://proxy.golang.org,direct
 LEDGER_ENABLED ?= true
 
 ifeq ($(DO_COVERAGE),true)
@@ -319,11 +319,16 @@ ictest-auction-chain-halt-protection: rm-testcache
 	cd interchaintest && go test -timeout 30m -v -run Test_AuctionChainHaltProtection .
 	./scripts/coverage-html.sh interchaintest/coverage/Test_AuctionChainHaltProtection
 
+ictest-staking-delegation-receivers: rm-testcache
+	rm -rf interchaintest/coverage/TestSetDelegationTransferReceivers
+	cd interchaintest && go test -timeout 30m -v -run TestSetDelegationTransferReceivers .
+	./scripts/coverage-html.sh interchaintest/coverage/TestSetDelegationTransferReceivers
+
 .PHONY: rm-testcache rm-ic-coverage
 .PHONY: ictest-all ictest-basic ictest-upgrade ictest-ibchooks ictest-cardano-ibc-client ictest-cardano-full-token-swap ictest-permissions-wasm-hook ictest-pfm ictest-lanes
 .PHONY: ictest-fixed-gas ictest-fixed-gas-regression ictest-fixed-gas-cross-margin ictest-peggo ictest-peggo-ibc ictest-peggo-rate-limit ictest-evm ictest-circle
 .PHONY: ictest-downtime-detector ictest-chainstream ictest-chainstream-websocket ictest-validator-jailed ictest-wasm-fees-to-auction ictest-chainlink-data-streams
-.PHONY: ictest-ante-multisig ictest-peggy-bad-signature-replay ictest-peggo-unbonded-valset-confirm-test ictest-peggy-valset-slashing-rejoin ictest-peggy-confirm-batch-unbonded ictest-auction-chain-halt-protection ictest-oracle-morpho
+.PHONY: ictest-ante-multisig ictest-peggy-bad-signature-replay ictest-peggo-unbonded-valset-confirm-test ictest-peggy-valset-slashing-rejoin ictest-peggy-confirm-batch-unbonded ictest-auction-chain-halt-protection ictest-oracle-morpho ictest-staking-delegation-receivers
 
 ###############################################################################
 

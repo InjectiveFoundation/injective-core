@@ -52,6 +52,14 @@ func (k *ProposalKeeper) HandleSpotMarketParamUpdateProposal(
 	if p.QuoteDecimals == 0 {
 		p.QuoteDecimals = market.QuoteDecimals
 	}
+	if p.Status == v2.MarketStatus_Unspecified {
+		p.Status = market.Status
+	}
+	if p.Status == v2.MarketStatus_Active {
+		if err := v2.ValidateSpotMarketTickSizes(*p.MinPriceTickSize, *p.MinQuantityTickSize); err != nil {
+			return err
+		}
+	}
 
 	if p.AdminInfo == nil {
 		p.AdminInfo = &v2.AdminInfo{
@@ -76,10 +84,6 @@ func (k *ProposalKeeper) HandleSpotMarketParamUpdateProposal(
 		*p.MakerFeeRate, *p.TakerFeeRate, *p.RelayerFeeShareRate, minimalProtocolFeeRate, discountSchedule,
 	); err != nil {
 		return err
-	}
-
-	if p.Status == v2.MarketStatus_Unspecified {
-		p.Status = market.Status
 	}
 
 	k.ScheduleSpotMarketParamUpdate(ctx, p)

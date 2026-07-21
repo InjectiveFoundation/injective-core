@@ -142,12 +142,14 @@ func (e *SpotMarketOrderExecutor) getMarketOrderStateExpansionsAndClearingPrice(
 
 	// Handle case where there are no resting limit orders
 	if e.limitOrderbook == nil {
-		spotMarketOrderStateExpansions = e.keeper.ProcessSpotMarketOrderStateExpansions(
+		// No resting liquidity matched: no maker side to conserve against, so the residual is zero.
+		spotMarketOrderStateExpansions, _, _ = e.keeper.ProcessSpotMarketOrderStateExpansions(
 			ctx,
 			marketID,
 			e.isMarketBuy,
 			marketOrders,
 			make([]math.LegacyDec, len(marketOrders)),
+			math.LegacyDec{},
 			math.LegacyDec{},
 			takerFeeRate,
 			e.market.RelayerFeeShareRate,
@@ -165,13 +167,7 @@ func (e *SpotMarketOrderExecutor) getMarketOrderStateExpansionsAndClearingPrice(
 	}
 	spot.MatchSpotOrderbooks(ctx, buyOrderbook, sellOrderbook)
 
-	// Calculate clearing price as VWAP of limit order fills
 	clearingQuantity = e.limitOrderbook.GetTotalQuantityFilled()
-
-	if clearingQuantity.IsPositive() {
-		// Clearing Price equals limit orderbook side average weighted price
-		clearingPrice = e.limitOrderbook.GetNotional().Quo(clearingQuantity)
-	}
 
 	// Process resting limit order state expansions
 	spotLimitOrderStateExpansions = e.keeper.ProcessRestingSpotLimitOrderExpansions(
@@ -186,17 +182,38 @@ func (e *SpotMarketOrderExecutor) getMarketOrderStateExpansionsAndClearingPrice(
 		feeDiscountConfig,
 	)
 
-	// Process market order state expansions
-	spotMarketOrderStateExpansions = e.keeper.ProcessSpotMarketOrderStateExpansions(
+	// Derive the clearing price from the exact settled maker notional, not the orderbook's
+	// increment-rounded GetNotional(), so the price used for taker fees, VWAP and the emitted
+	// TradePrice is consistent with the quote actually settled.
+	matchedNotional := spot.SumSpotStateExpansionNotionals(spotLimitOrderStateExpansions)
+	if clearingQuantity.IsPositive() {
+		clearingPrice = matchedNotional.Quo(clearingQuantity)
+	}
+
+	// Process market order state expansions. The taker principal is apportioned from the exact sum
+	// of the maker orders' settled notional (round18 per order), not the orderbook's per-increment
+	// GetNotional(); see spot.SumSpotStateExpansionNotionals.
+	var buyCapResidual math.LegacyDec
+	spotMarketOrderStateExpansions, buyCapResidual, clearingPrice = e.keeper.ProcessSpotMarketOrderStateExpansions(
 		ctx,
 		marketID,
 		e.isMarketBuy,
 		marketOrders,
 		e.marketOrderbook.GetOrderbookFillQuantities(),
 		clearingPrice,
+		matchedNotional,
 		takerFeeRate,
 		e.market.RelayerFeeShareRate,
 		pointsMultiplier,
+		feeDiscountConfig,
+	)
+	// A market buy's limit-price caps can leave part of the maker notional uncollectable; deduct
+	// that residual from the maker side so the taker debit and maker credit stay equal.
+	spot.ReduceMakerQuoteCredits(
+		spotLimitOrderStateExpansions,
+		buyCapResidual,
+		marketID,
+		pointsMultiplier.MakerPointsMultiplier,
 		feeDiscountConfig,
 	)
 

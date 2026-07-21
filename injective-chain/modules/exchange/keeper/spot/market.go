@@ -68,6 +68,10 @@ func (k SpotKeeper) SpotMarketLaunchWithCustomFees(
 ) (*v2.SpotMarket, error) {
 	defer k.Meter(ctx).FuncTiming(&ctx, "SpotMarketLaunchWithCustomFees")()
 
+	if err := v2.ValidateSpotMarketTickSizes(minPriceTickSize, minQuantityTickSize); err != nil {
+		return nil, err
+	}
+
 	minimalProtocolFeeRate := k.GetCachedParams(ctx).MinimalProtocolFeeRate
 	discountSchedule := k.GetFeeDiscountSchedule(ctx)
 
