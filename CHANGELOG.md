@@ -36,7 +36,7 @@ Ref: https://keepachangelog.com/en/1.1.0/
 
 ## [Unreleased]
 
-## [v1.20.2](https://github.com/InjectiveFoundation/injective-core/releases/tag/v1.20.2) - 2026-07-21
+## [v1.20.3](https://github.com/InjectiveFoundation/injective-core/releases/tag/v1.20.3) - 2026-07-28
 
 ### Improvements
 
