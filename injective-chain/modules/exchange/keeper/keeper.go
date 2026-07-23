@@ -62,6 +62,7 @@ type Keeper struct {
 	wasmxExecutionKeeper types.WasmxExecutionKeeper
 	DowntimeKeeper       types.DowntimeKeeper
 	permissionsKeeper    types.PermissionsKeeper
+	StakingKeeper        types.StakingKeeper
 
 	authority string
 
@@ -124,6 +125,7 @@ func NewKeeper(
 		DistributionKeeper: dk,
 		OracleKeeper:       ok,
 		bankKeeper:         bk,
+		StakingKeeper:      sk,
 		authority:          authority,
 		fixedGas:           false,
 		riskEngine:         riskEngine,

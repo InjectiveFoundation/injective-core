@@ -377,6 +377,7 @@ func emitLegacyBatchSpotExecution(ctx sdk.Context, k *base.BaseKeeper, event *v2
 		v1Trade := v1.TradeLog{
 			Quantity:            market.QuantityToChainFormat(trade.Quantity),
 			Price:               market.PriceToChainFormat(trade.Price),
+			Notional:            market.NotionalToChainFormat(trade.Notional),
 			SubaccountId:        trade.SubaccountId,
 			Fee:                 market.NotionalToChainFormat(trade.Fee),
 			OrderHash:           trade.OrderHash,

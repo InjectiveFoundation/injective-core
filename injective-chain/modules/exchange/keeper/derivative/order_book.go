@@ -1,6 +1,8 @@
 package derivative
 
 import (
+	"math/big"
+
 	"cosmossdk.io/math"
 	storetypes "cosmossdk.io/store/types"
 	"github.com/InjectiveLabs/metrics/v2"
@@ -470,7 +472,16 @@ type LimitOrderbook struct {
 
 	isBuy         bool
 	isLiquidation bool
-	notional      math.LegacyDec
+	// notional accumulates round18(fillQuantity*price) per fill increment, so it can drift from
+	// the exact matched notional by up to half an ulp per increment, in either direction. It must
+	// not be used for settlement math; use exactNotionalMantissa instead.
+	notional math.LegacyDec
+	// exactNotionalMantissa accumulates mant(fillQuantity)*mant(price) per fill increment — the
+	// matched notional as an exact 36-decimal integer, free of any intermediate rounding. This is
+	// the number the filled orders' positions are latently liable for (positions store quantity
+	// and price exactly and only realize their product at close), so market-order clearing prices
+	// must be derived from it.
+	exactNotionalMantissa *big.Int
 
 	totalQuantity           math.LegacyDec
 	transientOrderbookFills *OrderbookFills
@@ -553,11 +564,12 @@ func NewLimitOrderbook(
 	}
 
 	orderbook := LimitOrderbook{
-		k:             k,
-		isBuy:         isBuy,
-		isLiquidation: isLiquidation,
-		notional:      math.LegacyZeroDec(),
-		totalQuantity: math.LegacyZeroDec(),
+		k:                     k,
+		isBuy:                 isBuy,
+		isLiquidation:         isLiquidation,
+		notional:              math.LegacyZeroDec(),
+		exactNotionalMantissa: new(big.Int),
+		totalQuantity:         math.LegacyZeroDec(),
 
 		transientOrderbookFills: transientOrderbookState,
 		transientOrderIdx:       0,
@@ -590,6 +602,16 @@ func NewLimitOrderbook(
 }
 
 func (b *LimitOrderbook) GetNotional() math.LegacyDec { return b.notional.Clone() }
+
+// GetExactNotionalMantissa returns the exact matched notional as a 36-decimal integer
+// (sum of mant(fillQuantity)*mant(price) over all fills). See the field comment for why
+// settlement must use this over the increment-rounded GetNotional.
+func (b *LimitOrderbook) GetExactNotionalMantissa() *big.Int {
+	if b.exactNotionalMantissa == nil {
+		return new(big.Int)
+	}
+	return new(big.Int).Set(b.exactNotionalMantissa)
+}
 
 func (b *LimitOrderbook) GetTotalQuantityFilled() math.LegacyDec { return b.totalQuantity.Clone() }
 
@@ -804,46 +826,46 @@ func (b *LimitOrderbook) advanceNewOrder(ctx sdk.Context) {
 			continue // iteratively advance to next order
 		}
 
-	isClosingPosition := position != nil && currOrder.IsBuy() != position.IsLong && position.Quantity.IsPositive()
+		isClosingPosition := position != nil && currOrder.IsBuy() != position.IsLong && position.Quantity.IsPositive()
 
-	if isClosingPosition {
-		tradeFeeRate := b.getCurrOrderTradeFeeRate()
-		remainingFillable := b.getCurrFillableQuantity()
-		closingQuantity := math.LegacyMinDec(remainingFillable, position.Quantity)
-		closeExecutionMargin := currOrder.Margin.Mul(closingQuantity).Quo(currOrder.OrderInfo.Quantity)
+		if isClosingPosition {
+			tradeFeeRate := b.getCurrOrderTradeFeeRate()
+			remainingFillable := b.getCurrFillableQuantity()
+			closingQuantity := math.LegacyMinDec(remainingFillable, position.Quantity)
+			closeExecutionMargin := currOrder.Margin.Mul(closingQuantity).Quo(currOrder.OrderInfo.Quantity)
 
-		// NOTE: must be order price, not clearing price !!!
-		// due to security reasons related to margin adjustment case after increased trading fee
-		// see `adjustPositionMarginIfNecessary` for more details
-		err := b.k.RiskEngine().CheckValidPositionToReduce(
-			ctx, subaccountID, position, b.market.GetMarketType(), currOrder.OrderInfo.Price,
-			b.isBuy, tradeFeeRate, b.funding, closeExecutionMargin,
-		)
-		if err != nil {
+			// NOTE: must be order price, not clearing price !!!
+			// due to security reasons related to margin adjustment case after increased trading fee
+			// see `adjustPositionMarginIfNecessary` for more details
+			err := b.k.RiskEngine().CheckValidPositionToReduce(
+				ctx, subaccountID, position, b.market.GetMarketType(), currOrder.OrderInfo.Price,
+				b.isBuy, tradeFeeRate, b.funding, closeExecutionMargin,
+			)
+			if err != nil {
+				b.k.RiskEngine().DecrementLastLookOLR(ctx, subaccountID, currOrder, b.market, b.markPrice, b.getCurrFillableQuantity())
+				b.addInvalidOrderToCancelsAndAdvanceToNextOrder(ctx, currOrder)
+				continue // iteratively advance to next order
+			}
+		}
+
+		// Risk-increasing admission checks are only enforced for non-reduce-only orders.
+		// ShouldSkipDerivativeOrderForMarginRequirement always decrements OLR internally when skipping.
+		if !currOrder.IsReduceOnly() {
+			shouldSkip, _ := b.k.RiskEngine().ShouldSkipDerivativeOrderForMarginRequirement(ctx, subaccountID, currOrder, b.market, b.markPrice, b.getCurrFillableQuantity())
+			if shouldSkip {
+				b.addInvalidOrderToCancelsAndAdvanceToNextOrder(ctx, currOrder)
+				continue
+			}
+		}
+
+		if b.doesBreachOpenNotionalCapForLimitOrderbook(currOrder) {
 			b.k.RiskEngine().DecrementLastLookOLR(ctx, subaccountID, currOrder, b.market, b.markPrice, b.getCurrFillableQuantity())
 			b.addInvalidOrderToCancelsAndAdvanceToNextOrder(ctx, currOrder)
 			continue // iteratively advance to next order
 		}
-	}
 
-	// Risk-increasing admission checks are only enforced for non-reduce-only orders.
-	// ShouldSkipDerivativeOrderForMarginRequirement always decrements OLR internally when skipping.
-	if !currOrder.IsReduceOnly() {
-		shouldSkip, _ := b.k.RiskEngine().ShouldSkipDerivativeOrderForMarginRequirement(ctx, subaccountID, currOrder, b.market, b.markPrice, b.getCurrFillableQuantity())
-		if shouldSkip {
-			b.addInvalidOrderToCancelsAndAdvanceToNextOrder(ctx, currOrder)
-			continue
-		}
-	}
-
-	if b.doesBreachOpenNotionalCapForLimitOrderbook(currOrder) {
-		b.k.RiskEngine().DecrementLastLookOLR(ctx, subaccountID, currOrder, b.market, b.markPrice, b.getCurrFillableQuantity())
-		b.addInvalidOrderToCancelsAndAdvanceToNextOrder(ctx, currOrder)
-		continue // iteratively advance to next order
-	}
-
-	// Order passed all checks — stop advancing.
-	break
+		// Order passed all checks — stop advancing.
+		break
 	}
 }
 
@@ -938,6 +960,13 @@ func (b *LimitOrderbook) Fill(ctx sdk.Context, fillQuantity math.LegacyDec) {
 	fillNotional := fillQuantity.Mul(order.OrderInfo.Price)
 
 	b.notional.AddMut(fillNotional)
+	if b.exactNotionalMantissa == nil {
+		b.exactNotionalMantissa = new(big.Int)
+	}
+	b.exactNotionalMantissa.Add(
+		b.exactNotionalMantissa,
+		new(big.Int).Mul(fillQuantity.BigInt(), order.OrderInfo.Price.BigInt()),
+	)
 	b.totalQuantity.AddMut(fillQuantity)
 
 	b.updateNotionalCapValuesAfterFill(order, fillQuantity)

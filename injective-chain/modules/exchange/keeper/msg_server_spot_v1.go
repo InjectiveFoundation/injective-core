@@ -127,6 +127,7 @@ func (k SpotV1MsgServer) CreateSpotMarketOrder(
 			Quantity: market.QuantityToChainFormat(v2Response.Results.Quantity),
 			Price:    market.PriceToChainFormat(v2Response.Results.Price),
 			Fee:      market.NotionalToChainFormat(v2Response.Results.Fee),
+			Notional: market.NotionalToChainFormat(v2Response.Results.Notional),
 		}
 	}
 

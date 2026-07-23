@@ -3,6 +3,7 @@ package keeper
 import (
 	"context"
 
+	"cosmossdk.io/errors"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	errortypes "github.com/cosmos/cosmos-sdk/types/errors"
 	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
@@ -384,6 +385,31 @@ func (k GeneralMsgServer) UpdateAtomicMarketOrderFeeMultiplierSchedule(
 	}
 
 	return &v2.MsgAtomicMarketOrderFeeMultiplierScheduleResponse{}, nil
+}
+
+// SetDelegationTransferReceivers adds delegation transfer receivers through the staking keeper.
+// Only exchange admins can call this method; existing receivers are preserved.
+func (k GeneralMsgServer) SetDelegationTransferReceivers(
+	c context.Context,
+	msg *v2.MsgSetDelegationTransferReceivers,
+) (*v2.MsgSetDelegationTransferReceiversResponse, error) {
+	ctx := sdk.UnwrapSDKContext(c)
+	defer k.Meter(ctx).FuncTiming(&ctx, "SetDelegationTransferReceivers")()
+
+	if !k.IsAdmin(ctx, msg.Sender) {
+		return nil, errortypes.ErrUnauthorized.Wrap("sender is not an exchange admin")
+	}
+
+	for _, receiverAddr := range msg.Receivers {
+		receiver, err := sdk.AccAddressFromBech32(receiverAddr)
+		if err != nil {
+			return nil, errors.Wrapf(errortypes.ErrInvalidAddress, "invalid receiver address: %s", receiverAddr)
+		}
+
+		k.StakingKeeper.SetDelegationTransferReceiver(c, receiver)
+	}
+
+	return &v2.MsgSetDelegationTransferReceiversResponse{}, nil
 }
 
 // CancelPostOnlyMode sets a flag to cancel post-only mode in the next BeginBlock

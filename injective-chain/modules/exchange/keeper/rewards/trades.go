@@ -38,6 +38,66 @@ func (k TradingKeeper) GetTradeDataAndIncrementVolumeContribution(
 ) *v2.TradeFeeData {
 	defer k.Meter(ctx).FuncTiming(&ctx, "GetTradeDataAndIncrementVolumeContribution")()
 
+	orderFillNotional := math.LegacyZeroDec()
+	if !fillQuantity.IsZero() {
+		orderFillNotional = fillQuantity.Mul(executionPrice)
+	}
+
+	return k.getTradeDataAndIncrementVolumeContribution(
+		ctx,
+		subaccountID,
+		marketID,
+		orderFillNotional,
+		tradeFeeRate,
+		relayerFeeShareRate,
+		tradeRewardMultiplier,
+		feeDiscountConfig,
+		isMaker,
+	)
+}
+
+// GetTradeDataAndIncrementVolumeContributionWithNotional calculates trade data from an exact
+// settlement notional when multiplying the reported execution price by quantity would round to a
+// different value.
+//
+//nolint:revive // mirrors GetTradeDataAndIncrementVolumeContribution with an explicit notional
+func (k TradingKeeper) GetTradeDataAndIncrementVolumeContributionWithNotional(
+	ctx sdk.Context,
+	subaccountID common.Hash,
+	marketID common.Hash,
+	orderFillNotional math.LegacyDec,
+	tradeFeeRate, relayerFeeShareRate math.LegacyDec,
+	tradeRewardMultiplier math.LegacyDec,
+	feeDiscountConfig *v2.FeeDiscountConfig,
+	isMaker bool,
+) *v2.TradeFeeData {
+	defer k.Meter(ctx).FuncTiming(&ctx, "GetTradeDataAndIncrementVolumeContributionWithNotional")()
+
+	return k.getTradeDataAndIncrementVolumeContribution(
+		ctx,
+		subaccountID,
+		marketID,
+		orderFillNotional,
+		tradeFeeRate,
+		relayerFeeShareRate,
+		tradeRewardMultiplier,
+		feeDiscountConfig,
+		isMaker,
+	)
+}
+
+//nolint:revive // shared implementation for quantity/price and exact-notional callers
+func (k TradingKeeper) getTradeDataAndIncrementVolumeContribution(
+	ctx sdk.Context,
+	subaccountID common.Hash,
+	marketID common.Hash,
+	orderFillNotional math.LegacyDec,
+	tradeFeeRate, relayerFeeShareRate math.LegacyDec,
+	tradeRewardMultiplier math.LegacyDec,
+	feeDiscountConfig *v2.FeeDiscountConfig,
+	isMaker bool,
+) *v2.TradeFeeData {
+
 	discountedTradeFeeRate := k.feeDiscounts.FetchAndUpdateDiscountedTradingFeeRate(
 		ctx,
 		tradeFeeRate,
@@ -46,11 +106,9 @@ func (k TradingKeeper) GetTradeDataAndIncrementVolumeContribution(
 		feeDiscountConfig,
 	)
 
-	if fillQuantity.IsZero() {
+	if orderFillNotional.IsZero() {
 		return v2.NewEmptyTradeFeeData(discountedTradeFeeRate)
 	}
-
-	orderFillNotional := fillQuantity.Mul(executionPrice)
 
 	totalTradeFee, traderFee, feeRecipientReward, auctionFeeReward := GetOrderFillFeeInfo(
 		orderFillNotional,

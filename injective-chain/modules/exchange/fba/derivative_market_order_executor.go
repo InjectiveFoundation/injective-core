@@ -261,10 +261,15 @@ func (e *DerivativeMarketOrderExecutor) processMarketOrderSide(
 
 	derivative.MatchDerivativeOrderbooks(ctx, marketOrderbook, limitOrderbook, isMarketBuy)
 
-	// Calculate clearing price
+	// Calculate clearing price from the exact (mantissa-level) resting notional, rounded against
+	// the taker so the taker side's settled notional never falls short of the resting side's.
 	var marketOrderClearingPrice math.LegacyDec
 	if limitOrderbook != nil && !marketOrderbook.GetTotalQuantityFilled().IsZero() {
-		marketOrderClearingPrice = limitOrderbook.GetNotional().Quo(marketOrderbook.GetTotalQuantityFilled())
+		marketOrderClearingPrice = derivative.ComputeMarketOrderClearingPrice(
+			isMarketBuy,
+			limitOrderbook.GetExactNotionalMantissa(),
+			marketOrderbook.GetTotalQuantityFilled(),
+		)
 	}
 
 	marketOrderTradeFeeRate := e.market.GetTakerFeeRate()

@@ -1,6 +1,8 @@
 package derivative
 
 import (
+	"math/big"
+
 	"cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -53,6 +55,39 @@ func MatchDerivativeOrderbooks(
 		marketOrderbook.Fill(ctx, matchQuantityIncrement)
 		limitOrderbook.Fill(ctx, matchQuantityIncrement)
 	}
+}
+
+// ComputeMarketOrderClearingPrice returns the uniform clearing price for market orders matched
+// against resting limit orders: the resting side's exact matched notional divided by the matched
+// quantity, with the final (18th) decimal rounded against the taker — up for market buys, down
+// for market sells.
+//
+// Both sides' latent liabilities are exact products of stored values: resting orders hold
+// positions at their own (fillQuantity, price) and market orders at (fillQuantity, clearingPrice),
+// with the products only realized at position close. The clearing price is therefore the single
+// quantized number in the match, and rounding it against the taker yields an unconditional
+// invariant: clearingPrice*filledQuantity >= exact resting notional for buys (<= for sells), so
+// the representation residual (< 1e-18*filledQuantity) always accrues to the market balance as
+// surplus through future payouts, never as unbacked quote leaking out of it (the derivative
+// analog of Cantina-392 for spot markets).
+//
+// The numerator must be the exact notional mantissa (sum of mant(quantity)*mant(price), a
+// 36-decimal integer), NOT the orderbook's increment-rounded LegacyDec notional: per-increment
+// round18(q*p) drift can push a rounded numerator above the true product sum, which would both
+// break the invariant's reference point and let the ceiling tip the clearing price above a worst
+// price the true VWAP respects. filledQuantity must be positive.
+func ComputeMarketOrderClearingPrice(
+	isMarketBuy bool,
+	restingNotionalMantissa *big.Int,
+	filledQuantity math.LegacyDec,
+) math.LegacyDec {
+	// mantissa scales: restingNotionalMantissa is 1e-36-scaled, filledQuantity.BigInt() is
+	// 1e-18-scaled, so the quotient is the 1e-18-scaled clearing price mantissa.
+	quo, rem := new(big.Int).QuoRem(restingNotionalMantissa, filledQuantity.BigInt(), new(big.Int))
+	if isMarketBuy && rem.Sign() > 0 {
+		quo.Add(quo, big.NewInt(1))
+	}
+	return math.LegacyNewDecFromBigIntWithPrec(quo, math.LegacyPrecision)
 }
 
 //nolint:revive //ok
@@ -173,7 +208,11 @@ func (k DerivativeKeeper) GetDerivativeMarketOrderExecutionData(
 
 		var marketOrderClearingPrice math.LegacyDec
 		if !m.marketOrderbook.totalQuantity.IsZero() {
-			marketOrderClearingPrice = m.limitOrderbook.GetNotional().Quo(m.marketOrderbook.GetTotalQuantityFilled())
+			marketOrderClearingPrice = ComputeMarketOrderClearingPrice(
+				m.isMarketBuy,
+				m.limitOrderbook.GetExactNotionalMantissa(),
+				m.marketOrderbook.GetTotalQuantityFilled(),
+			)
 		}
 
 		if isLiquidation {

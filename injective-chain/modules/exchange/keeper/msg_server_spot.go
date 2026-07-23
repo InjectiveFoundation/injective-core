@@ -84,6 +84,7 @@ func (k SpotMsgServer) UpdateSpotMarket(c context.Context, msg *v2.MsgUpdateSpot
 	if market == nil {
 		return nil, sdkerrors.Wrap(types.ErrSpotMarketNotFound, "unknown market id")
 	}
+	previousMarket := *market
 
 	switch {
 	case market.Admin == "":
@@ -131,7 +132,6 @@ func (k SpotMsgServer) UpdateSpotMarket(c context.Context, msg *v2.MsgUpdateSpot
 
 	if msg.HasMinQuantityTickSizeUpdate() {
 		market.MinQuantityTickSize = msg.NewMinQuantityTickSize
-
 	}
 
 	if msg.HasMinNotionalUpdate() {
@@ -139,6 +139,17 @@ func (k SpotMsgServer) UpdateSpotMarket(c context.Context, msg *v2.MsgUpdateSpot
 			return nil, err
 		}
 		market.MinNotional = msg.NewMinNotional
+	}
+	if market.IsActive() {
+		if err := v2.ValidateSpotMarketTickSizes(market.MinPriceTickSize, market.MinQuantityTickSize); err != nil {
+			return nil, err
+		}
+	}
+
+	hasTickSizeChange := !market.MinPriceTickSize.Equal(previousMarket.MinPriceTickSize) ||
+		!market.MinQuantityTickSize.Equal(previousMarket.MinQuantityTickSize)
+	if hasTickSizeChange {
+		k.CancelAllSpotOrdersForTickSizeChange(ctx, &previousMarket)
 	}
 
 	k.SaveSpotMarket(ctx, market)

@@ -94,6 +94,7 @@ func NewTxCmd() *cobra.Command {
 		// stake grant
 		NewStakeGrantAuthorizationTxCmd(),
 		NewStakeGrantActivationTxCmd(),
+		NewSetDelegationTransferReceiversTxCmd(),
 		// other
 		NewExchangeEnableProposalTxCmd(),
 		NewMarketForcedSettlementTxCmd(),
@@ -3477,6 +3478,38 @@ func NewStakeGrantActivationTxCmd() *cobra.Command {
 			}
 
 			return tx.GenerateOrBroadcastTxCLI(clientCtx, cmd.Flags(), &msg)
+		},
+	}
+
+	cliflags.AddTxFlagsToCmd(cmd)
+	return cmd
+}
+
+func NewSetDelegationTransferReceiversTxCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "set-delegation-transfer-receivers [receivers]",
+		Args:  cobra.ExactArgs(1),
+		Short: "Add delegation transfer receivers to the staking allowlist",
+		Long: `Add delegation transfer receivers to the staking allowlist. Existing receivers are preserved.
+
+		Example:
+		$ injectived tx exchange set-delegation-transfer-receivers inj1jcltmuhplrdcwp7stlr4hlhlhgd4htqhe4c0cs,inj17vytdwqczqz72j65saukplrktd4gyfme5agf6c \
+			--yes`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clientCtx, err := client.GetClientTxContext(cmd)
+			if err != nil {
+				return err
+			}
+
+			msg := &exchangev2.MsgSetDelegationTransferReceivers{
+				Sender:    clientCtx.GetFromAddress().String(),
+				Receivers: strings.Split(args[0], ","),
+			}
+			if err := msg.ValidateBasic(); err != nil {
+				return err
+			}
+
+			return tx.GenerateOrBroadcastTxCLI(clientCtx, cmd.Flags(), msg)
 		},
 	}
 

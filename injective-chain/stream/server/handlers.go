@@ -277,6 +277,7 @@ func handleBatchSpotExecutionEvent(inBuffer *v2.StreamResponseMap, ev *exchangev
 			ExecutionType:       ev.ExecutionType.String(),
 			Quantity:            tradeLog.Quantity,
 			Price:               tradeLog.Price,
+			Notional:            tradeLog.Notional,
 			SubaccountId:        common.BytesToHash(tradeLog.SubaccountId).String(),
 			Fee:                 tradeLog.Fee,
 			OrderHash:           common.BytesToHash(tradeLog.OrderHash).String(),
