@@ -1,6 +1,8 @@
 package exchangelane
 
 import (
+	"strings"
+
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/x/authz"
 
@@ -29,8 +31,21 @@ func WithCustomMempool(mempool block.LaneMempool) skipbase.LaneOption {
 }
 
 func isExchangeMsg(msgTypeURL string) bool {
-	moduleName := sdk.GetModuleNameFromTypeURL(msgTypeURL)
-	return moduleName == "exchange"
+	if sdk.GetModuleNameFromTypeURL(msgTypeURL) != "exchange" {
+		return false
+	}
+
+	// MsgPrivilegedExecuteContract runs arbitrary CosmWasm logic in a privileged
+	// context instead of placing or cancelling orders, so it does not belong in
+	// the exchange lane, which is built ahead of the default lane in every block.
+	// Treat it as a non-exchange message so a transaction carrying it is ordered
+	// in the default lane like any other contract execution. Matches both the
+	// v1beta1 and v2 message.
+	if strings.HasSuffix(msgTypeURL, ".MsgPrivilegedExecuteContract") {
+		return false
+	}
+
+	return true
 }
 
 func hasOnlyExchangeMsgs(msg sdk.Msg) bool {
