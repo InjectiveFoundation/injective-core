@@ -18,6 +18,16 @@ type BinaryOptionsMsgServer struct {
 	*Keeper
 }
 
+const mainnetChainID = "injective-1"
+
+func isBinaryOptionsDisabled(ctx sdk.Context) bool {
+	return ctx.ChainID() == mainnetChainID
+}
+
+func binaryOptionsDisabledError() error {
+	return errors.Wrap(types.ErrFeatureDisabled, "binary options are disabled")
+}
+
 // NewBinaryOptionsMsgServerImpl returns an implementation of the exchange MsgServer interface for the provided Keeper for binary options market functions.
 func NewBinaryOptionsMsgServerImpl(keeper *Keeper) BinaryOptionsMsgServer {
 	return BinaryOptionsMsgServer{
@@ -30,6 +40,10 @@ func (k BinaryOptionsMsgServer) InstantBinaryOptionsMarketLaunch(
 ) (*v2.MsgInstantBinaryOptionsMarketLaunchResponse, error) {
 	ctx := sdk.UnwrapSDKContext(c)
 	defer k.Meter(ctx).FuncTiming(&ctx, "InstantBinaryOptionsMarketLaunch")()
+
+	if isBinaryOptionsDisabled(ctx) {
+		return nil, binaryOptionsDisabledError()
+	}
 
 	senderAddr, _ := sdk.AccAddressFromBech32(msg.Sender)
 	fee := k.GetCachedParams(ctx).BinaryOptionsMarketInstantListingFee
@@ -90,6 +104,10 @@ func (k BinaryOptionsMsgServer) CreateBinaryOptionsLimitOrder(
 	ctx := sdk.UnwrapSDKContext(c)
 	defer k.Meter(ctx).FuncTiming(&ctx, "CreateBinaryOptionsLimitOrder")()
 
+	if isBinaryOptionsDisabled(ctx) {
+		return nil, binaryOptionsDisabledError()
+	}
+
 	if k.IsFixedGasEnabled() {
 		ctx.GasMeter().ConsumeGas(DetermineGas(msg), "MsgCreateBinaryOptionsLimitOrder")
 		ctx = ctx.WithGasMeter(storetypes.NewInfiniteGasMeter())
@@ -128,6 +146,10 @@ func (k BinaryOptionsMsgServer) CreateBinaryOptionsMarketOrder(
 ) (*v2.MsgCreateBinaryOptionsMarketOrderResponse, error) {
 	ctx := sdk.UnwrapSDKContext(c)
 	defer k.Meter(ctx).FuncTiming(&ctx, "CreateBinaryOptionsMarketOrder")()
+
+	if isBinaryOptionsDisabled(ctx) {
+		return nil, binaryOptionsDisabledError()
+	}
 
 	if k.IsFixedGasEnabled() {
 		ctx.GasMeter().ConsumeGas(DetermineGas(msg), "MsgCreateBinaryOptionsMarketOrder")
@@ -201,6 +223,10 @@ func (k BinaryOptionsMsgServer) AdminUpdateBinaryOptionsMarket(
 ) (*v2.MsgAdminUpdateBinaryOptionsMarketResponse, error) {
 	ctx := sdk.UnwrapSDKContext(c)
 	defer k.Meter(ctx).FuncTiming(&ctx, "AdminUpdateBinaryOptionsMarket")()
+
+	if isBinaryOptionsDisabled(ctx) {
+		return nil, binaryOptionsDisabledError()
+	}
 
 	marketID := common.HexToHash(msg.MarketId)
 	market := k.GetBinaryOptionsMarketByID(ctx, marketID)

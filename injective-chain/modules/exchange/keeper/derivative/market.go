@@ -560,7 +560,12 @@ func (k DerivativeKeeper) executeSocializedLoss(
 	}
 
 	chainFormatDeficitAmount := market.NotionalToChainFormat(socializedLossData.DeficitAmountAbs)
-	chainFormattedDeficitAmountAfterInsuranceFunds, err := k.PayDeficitFromInsuranceFund(ctx, marketID, chainFormatDeficitAmount)
+	chainFormattedDeficitAmountAfterInsuranceFunds, err := k.PayDeficitFromInsuranceFund(
+		ctx,
+		marketID,
+		market.GetQuoteDenom(),
+		chainFormatDeficitAmount,
+	)
 
 	if err != nil {
 		k.Logger(ctx).Error(
@@ -681,6 +686,7 @@ func (k DerivativeKeeper) GetInsuranceFundBalance(ctx sdk.Context, marketID comm
 func (k DerivativeKeeper) PayDeficitFromInsuranceFund(
 	ctx sdk.Context,
 	marketID common.Hash,
+	marketQuoteDenom string,
 	absoluteDeficitAmount math.LegacyDec,
 ) (remainingAbsoluteDeficitAmount math.LegacyDec, err error) {
 	defer k.Meter(ctx).FuncTiming(&ctx, "PayDeficitFromInsuranceFund")()
@@ -693,6 +699,9 @@ func (k DerivativeKeeper) PayDeficitFromInsuranceFund(
 
 	if insuranceFund == nil {
 		return absoluteDeficitAmount, insurancetypes.ErrInsuranceFundNotFound
+	}
+	if err := validateInsuranceFundDenom(insuranceFund, marketID, marketQuoteDenom); err != nil {
+		return absoluteDeficitAmount, err
 	}
 
 	withdrawalAmount := absoluteDeficitAmount.Ceil().RoundInt()
@@ -710,6 +719,24 @@ func (k DerivativeKeeper) PayDeficitFromInsuranceFund(
 	remainingAbsoluteDeficitAmount = absoluteDeficitAmount.Sub(withdrawalAmount.ToLegacyDec())
 
 	return remainingAbsoluteDeficitAmount, nil
+}
+
+func validateInsuranceFundDenom(
+	insuranceFund *insurancetypes.InsuranceFund,
+	marketID common.Hash,
+	marketQuoteDenom string,
+) error {
+	if insuranceFund.DepositDenom == marketQuoteDenom {
+		return nil
+	}
+
+	return errors.Wrapf(
+		types.ErrInvalidQuoteDenom,
+		"insurance fund denom %s does not match market quote denom %s for market %s",
+		insuranceFund.DepositDenom,
+		marketQuoteDenom,
+		marketID.Hex(),
+	)
 }
 
 // if regular settlement fails due to missing oracle price, we at least pause the market and cancel all orders
@@ -734,7 +761,7 @@ func (k DerivativeKeeper) HandleFailedRegularSettlement(
 	k.CancelAllConditionalDerivativeOrders(ctx, market)
 
 	// ensure that no additional funds are withdrawn from the insurance fund by transferring to market balance
-	k.TransferFullInsuranceFundBalance(ctx, marketID)
+	k.TransferFullInsuranceFundBalance(ctx, marketID, market.GetQuoteDenom())
 
 	err := k.DemolishOrPauseGenericMarket(ctx, market)
 	if err != nil {
@@ -748,11 +775,19 @@ func (k DerivativeKeeper) HandleFailedRegularSettlement(
 }
 
 // We transfer full amount from insurance fund to market balance
-func (k DerivativeKeeper) TransferFullInsuranceFundBalance(ctx sdk.Context, marketID common.Hash) {
+func (k DerivativeKeeper) TransferFullInsuranceFundBalance(
+	ctx sdk.Context,
+	marketID common.Hash,
+	marketQuoteDenom string,
+) {
 	defer k.Meter(ctx).FuncTiming(&ctx, "TransferFullInsuranceFundBalance")()
 
 	insuranceFund := k.insurance.GetInsuranceFund(ctx, marketID)
 	if insuranceFund == nil {
+		return
+	}
+	if err := validateInsuranceFundDenom(insuranceFund, marketID, marketQuoteDenom); err != nil {
+		k.Logger(ctx).Error("refusing mismatched insurance fund transfer", "error", err)
 		return
 	}
 
@@ -973,8 +1008,12 @@ func (k DerivativeKeeper) MoveCoinsIntoInsuranceFund(
 
 	marketID := market.MarketID()
 
-	if !k.insurance.HasInsuranceFund(ctx, marketID) {
+	insuranceFund := k.insurance.GetInsuranceFund(ctx, marketID)
+	if insuranceFund == nil {
 		return insurancetypes.ErrInsuranceFundNotFound
+	}
+	if err := validateInsuranceFundDenom(insuranceFund, marketID, market.GetQuoteDenom()); err != nil {
+		return err
 	}
 
 	coinAmount := sdk.NewCoins(sdk.NewCoin(market.GetQuoteDenom(), insuranceFundPaymentAmount))

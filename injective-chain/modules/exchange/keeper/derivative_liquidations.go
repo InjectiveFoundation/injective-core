@@ -160,7 +160,12 @@ func (k DerivativesMsgServer) handleNegativeLiquidationPayout(
 		return shouldSettleMarket, nil
 	}
 
-	if absoluteDeficitAmount, err = k.PayDeficitFromInsuranceFund(ctx, marketID, absoluteDeficitAmount); err != nil {
+	if absoluteDeficitAmount, err = k.PayDeficitFromInsuranceFund(
+		ctx,
+		marketID,
+		market.QuoteDenom,
+		absoluteDeficitAmount,
+	); err != nil {
 		return shouldSettleMarket, err
 	}
 
@@ -210,7 +215,7 @@ func (k DerivativesMsgServer) handleNegativeCrossPoolPayout(
 	deposit.TotalBalance = deposit.TotalBalance.Add(absoluteDeficit)
 	k.SetDeposit(ctx, subaccountID, quoteDenom, deposit)
 
-	remainingDeficit, err := k.drawDeficitFromInsuranceFundsProportionally(ctx, poolMarketIDs, absoluteDeficit)
+	remainingDeficit, err := k.drawDeficitFromInsuranceFundsProportionally(ctx, poolMarketIDs, quoteDenom, absoluteDeficit)
 	if err != nil {
 		return nil, err
 	}
@@ -233,6 +238,7 @@ type insuranceFundEntry struct {
 func (k DerivativesMsgServer) drawDeficitFromInsuranceFundsProportionally(
 	ctx sdk.Context,
 	poolMarketIDs []common.Hash,
+	quoteDenom string,
 	absoluteDeficit math.LegacyDec,
 ) (math.LegacyDec, error) {
 	var funds []insuranceFundEntry
@@ -260,7 +266,7 @@ func (k DerivativesMsgServer) drawDeficitFromInsuranceFundsProportionally(
 			share = math.LegacyMinDec(share, f.balance)
 			share = math.LegacyMinDec(share, remainingDeficit)
 
-			shareRemainder, err := k.PayDeficitFromInsuranceFund(ctx, f.marketID, share)
+			shareRemainder, err := k.PayDeficitFromInsuranceFund(ctx, f.marketID, quoteDenom, share)
 			if err != nil {
 				return remainingDeficit, err
 			}
@@ -277,7 +283,7 @@ func (k DerivativesMsgServer) drawDeficitFromInsuranceFundsProportionally(
 			break
 		}
 		var err error
-		remainingDeficit, err = k.PayDeficitFromInsuranceFund(ctx, f.marketID, remainingDeficit)
+		remainingDeficit, err = k.PayDeficitFromInsuranceFund(ctx, f.marketID, quoteDenom, remainingDeficit)
 		if err != nil {
 			return remainingDeficit, err
 		}

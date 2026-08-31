@@ -9,6 +9,7 @@ import (
 	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
 	"github.com/ethereum/go-ethereum/common"
 
+	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types"
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 )
 
@@ -126,6 +127,11 @@ func (k GeneralMsgServer) BatchUpdateOrders(
 ) (*v2.MsgBatchUpdateOrdersResponse, error) {
 	ctx := sdk.UnwrapSDKContext(c)
 	defer k.Meter(ctx).FuncTiming(&ctx, "BatchUpdateOrders")()
+
+	if isBinaryOptionsDisabled(ctx) &&
+		(len(msg.BinaryOptionsOrdersToCreate) > 0 || len(msg.BinaryOptionsMarketOrdersToCreate) > 0) {
+		return nil, errors.Wrap(types.ErrFeatureDisabled, "binary options are disabled")
+	}
 
 	if k.IsFixedGasEnabled() {
 		return k.FixedGasBatchUpdateOrders(ctx, msg)

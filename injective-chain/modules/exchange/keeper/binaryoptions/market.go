@@ -14,6 +14,8 @@ import (
 	oracletypes "github.com/InjectiveLabs/injective-core/injective-chain/modules/oracle/types"
 )
 
+const mainnetChainID = "injective-1"
+
 //nolint:revive // ok
 func (k BinaryOptionsKeeper) BinaryOptionsMarketLaunch(
 	ctx sdk.Context,
@@ -227,6 +229,10 @@ func (k BinaryOptionsKeeper) trySetSettlementPrice(ctx sdk.Context, market *v2.B
 
 func (k BinaryOptionsKeeper) ProcessBinaryOptionsMarketsToExpireAndSettle(ctx sdk.Context) {
 	defer k.Meter(ctx).FuncTiming(&ctx, "ProcessBinaryOptionsMarketsToExpireAndSettle")()
+
+	if ctx.ChainID() == mainnetChainID {
+		return
+	}
 
 	// 1. Find all markets whose expiration time has just passed and cancel all orders
 	marketsToExpire := k.GetAllBinaryOptionsMarketsToExpire(ctx)
