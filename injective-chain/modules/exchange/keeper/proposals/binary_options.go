@@ -10,11 +10,17 @@ import (
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/exchange/types/v2"
 )
 
+const mainnetChainID = "injective-1"
+
 func (k *ProposalKeeper) HandleBinaryOptionsMarketLaunchProposal(
 	ctx sdk.Context,
 	p *v2.BinaryOptionsMarketLaunchProposal,
 ) error {
 	defer k.Meter(ctx).FuncTiming(&ctx, "ProposalKeeper.HandleBinaryOptionsMarketLaunchProposal")()
+
+	if ctx.ChainID() == mainnetChainID {
+		return errors.Wrap(types.ErrFeatureDisabled, "binary options are disabled")
+	}
 
 	if err := p.ValidateBasic(); err != nil {
 		return err
@@ -47,6 +53,10 @@ func (k *ProposalKeeper) HandleBinaryOptionsMarketLaunchProposal(
 
 func (k *ProposalKeeper) HandleBinaryOptionsMarketParamUpdateProposal(ctx sdk.Context, p *v2.BinaryOptionsMarketParamUpdateProposal) error {
 	defer k.Meter(ctx).FuncTiming(&ctx, "ProposalKeeper.HandleBinaryOptionsMarketParamUpdateProposal")()
+
+	if ctx.ChainID() == mainnetChainID {
+		return errors.Wrap(types.ErrFeatureDisabled, "binary options are disabled")
+	}
 
 	if err := p.ValidateBasic(); err != nil {
 		return err

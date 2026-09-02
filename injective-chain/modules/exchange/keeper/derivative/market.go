@@ -19,6 +19,8 @@ import (
 	chaintypes "github.com/InjectiveLabs/injective-core/injective-chain/types"
 )
 
+const mainnetChainID = "injective-1"
+
 func (k DerivativeKeeper) GetDerivativeMarketInfo(ctx sdk.Context, marketID common.Hash, isEnabled bool) *v2.DerivativeMarketInfo {
 	defer k.Meter(ctx).FuncTiming(&ctx, "GetDerivativeMarketInfo")()
 
@@ -241,19 +243,22 @@ func (k DerivativeKeeper) GetDerivativeMarketPrice(
 func (k DerivativeKeeper) GetAvailableMarketFunds(
 	ctx sdk.Context,
 	marketID common.Hash,
+	marketQuoteDenom string,
 ) math.LegacyDec {
 	defer k.Meter(ctx).FuncTiming(&ctx, "GetAvailableMarketFunds")()
-
-	var insuranceFundBalance math.LegacyDec
 
 	marketBalance := k.GetMarketBalance(ctx, marketID)
 	insuranceFund := k.insurance.GetInsuranceFund(ctx, marketID)
 	if insuranceFund == nil {
-		insuranceFundBalance = math.LegacyZeroDec()
-	} else {
-		insuranceFundBalance = insuranceFund.Balance.ToLegacyDec()
+		return marketBalance
 	}
-	return marketBalance.Add(insuranceFundBalance)
+
+	if err := k.validateInsuranceFundForMarket(ctx, insuranceFund, marketID, marketQuoteDenom); err != nil {
+		k.Logger(ctx).Error("excluding mismatched insurance fund from available market funds", "error", err)
+		return marketBalance
+	}
+
+	return marketBalance.Add(insuranceFund.Balance.ToLegacyDec())
 }
 
 // GetDerivativeMarketCumulativePrice fetches both base and quote cumulative prices for proper TWAP calculation.
@@ -323,8 +328,20 @@ func (k DerivativeKeeper) PerpetualMarketLaunch(
 		return nil, nil, err
 	}
 
-	if !k.insurance.HasInsuranceFund(ctx, marketID) {
+	insuranceFund := k.insurance.GetInsuranceFund(ctx, marketID)
+	if insuranceFund == nil {
 		return nil, nil, errors.Wrapf(insurancetypes.ErrInsuranceFundNotFound, "ticker %s marketID %s", ticker, marketID.Hex())
+	}
+	if err := validateInsuranceFundForMarketLaunch(
+		insuranceFund,
+		marketID,
+		quoteDenom,
+		oracleBase,
+		oracleQuote,
+		oracleType,
+		insurancetypes.PerpetualExpiryFlag,
+	); err != nil {
+		return nil, nil, err
 	}
 
 	params := k.GetCachedParams(ctx)
@@ -444,8 +461,20 @@ func (k DerivativeKeeper) ExpiryFuturesMarketLaunch(
 		return nil, nil, err
 	}
 
-	if !k.insurance.HasInsuranceFund(ctx, marketID) {
+	insuranceFund := k.insurance.GetInsuranceFund(ctx, marketID)
+	if insuranceFund == nil {
 		return nil, nil, errors.Wrapf(insurancetypes.ErrInsuranceFundNotFound, "ticker %s marketID %s", ticker, marketID.Hex())
+	}
+	if err := validateInsuranceFundForMarketLaunch(
+		insuranceFund,
+		marketID,
+		quoteDenom,
+		oracleBase,
+		oracleQuote,
+		oracleType,
+		expiry,
+	); err != nil {
+		return nil, nil, err
 	}
 
 	market := &v2.DerivativeMarket{
@@ -673,10 +702,18 @@ func (k DerivativeKeeper) executeSocializedLoss(
 	return socializedLossData.DeficitPositions
 }
 
-// GetInsuranceFundBalance returns the insurance fund balance for a market, or zero if no fund exists.
-func (k DerivativeKeeper) GetInsuranceFundBalance(ctx sdk.Context, marketID common.Hash) math.Int {
+// GetInsuranceFundBalance returns the valid insurance fund balance for a market, or zero if no matching fund exists.
+func (k DerivativeKeeper) GetInsuranceFundBalance(
+	ctx sdk.Context,
+	marketID common.Hash,
+	marketQuoteDenom string,
+) math.Int {
 	fund := k.insurance.GetInsuranceFund(ctx, marketID)
 	if fund == nil {
+		return math.ZeroInt()
+	}
+	if err := k.validateInsuranceFundForMarket(ctx, fund, marketID, marketQuoteDenom); err != nil {
+		k.Logger(ctx).Error("excluding mismatched insurance fund balance", "error", err)
 		return math.ZeroInt()
 	}
 	return fund.Balance
@@ -700,8 +737,9 @@ func (k DerivativeKeeper) PayDeficitFromInsuranceFund(
 	if insuranceFund == nil {
 		return absoluteDeficitAmount, insurancetypes.ErrInsuranceFundNotFound
 	}
-	if err := validateInsuranceFundDenom(insuranceFund, marketID, marketQuoteDenom); err != nil {
-		return absoluteDeficitAmount, err
+	if err := k.validateInsuranceFundForMarket(ctx, insuranceFund, marketID, marketQuoteDenom); err != nil {
+		k.Logger(ctx).Error("treating invalid insurance fund as unavailable", "error", err)
+		return absoluteDeficitAmount, nil
 	}
 
 	withdrawalAmount := absoluteDeficitAmount.Ceil().RoundInt()
@@ -735,6 +773,86 @@ func validateInsuranceFundDenom(
 		"insurance fund denom %s does not match market quote denom %s for market %s",
 		insuranceFund.DepositDenom,
 		marketQuoteDenom,
+		marketID.Hex(),
+	)
+}
+
+func (k DerivativeKeeper) validateInsuranceFundForMarket(
+	ctx sdk.Context,
+	insuranceFund *insurancetypes.InsuranceFund,
+	marketID common.Hash,
+	marketQuoteDenom string,
+) error {
+	if err := validateInsuranceFundDenom(insuranceFund, marketID, marketQuoteDenom); err != nil {
+		return err
+	}
+
+	if market := k.GetDerivativeMarketByID(ctx, marketID); market != nil {
+		expiry := insurancetypes.PerpetualExpiryFlag
+		if market.IsTimeExpiry() {
+			marketInfo := k.GetExpiryFuturesMarketInfo(ctx, marketID)
+			if marketInfo == nil {
+				return errors.Wrapf(
+					insurancetypes.ErrInvalidMarketID,
+					"expiry metadata not found for market %s",
+					marketID.Hex(),
+				)
+			}
+			expiry = marketInfo.ExpirationTimestamp
+		}
+
+		return validateInsuranceFundForMarketLaunch(
+			insuranceFund,
+			marketID,
+			market.QuoteDenom,
+			market.OracleBase,
+			market.OracleQuote,
+			market.OracleType,
+			expiry,
+		)
+	}
+
+	if market := k.GetBinaryOptionsMarketByID(ctx, marketID); market != nil {
+		return validateInsuranceFundForMarketLaunch(
+			insuranceFund,
+			marketID,
+			market.QuoteDenom,
+			market.OracleSymbol,
+			market.OracleProvider,
+			market.OracleType,
+			insurancetypes.BinaryOptionsExpiryFlag,
+		)
+	}
+
+	return errors.Wrapf(
+		insurancetypes.ErrInvalidMarketID,
+		"market %s not found for insurance fund validation",
+		marketID.Hex(),
+	)
+}
+
+func validateInsuranceFundForMarketLaunch(
+	insuranceFund *insurancetypes.InsuranceFund,
+	marketID common.Hash,
+	quoteDenom,
+	oracleBase,
+	oracleQuote string,
+	oracleType oracletypes.OracleType,
+	expiry int64,
+) error {
+	isExactMatch := common.HexToHash(insuranceFund.MarketId) == marketID &&
+		insuranceFund.DepositDenom == quoteDenom &&
+		insuranceFund.OracleBase == oracleBase &&
+		insuranceFund.OracleQuote == oracleQuote &&
+		insuranceFund.OracleType == oracleType &&
+		insuranceFund.Expiry == expiry
+	if isExactMatch {
+		return nil
+	}
+
+	return errors.Wrapf(
+		insurancetypes.ErrInvalidMarketID,
+		"insurance fund metadata does not match market %s",
 		marketID.Hex(),
 	)
 }
@@ -786,7 +904,7 @@ func (k DerivativeKeeper) TransferFullInsuranceFundBalance(
 	if insuranceFund == nil {
 		return
 	}
-	if err := validateInsuranceFundDenom(insuranceFund, marketID, marketQuoteDenom); err != nil {
+	if err := k.validateInsuranceFundForMarket(ctx, insuranceFund, marketID, marketQuoteDenom); err != nil {
 		k.Logger(ctx).Error("refusing mismatched insurance fund transfer", "error", err)
 		return
 	}
@@ -808,7 +926,7 @@ func (k DerivativeKeeper) EnsureMarketSolvency(
 	defer k.Meter(ctx).FuncTiming(&ctx, "EnsureMarketSolvency")()
 
 	marketID := market.MarketID()
-	availableMarketFunds := k.GetAvailableMarketFunds(ctx, marketID)
+	availableMarketFunds := k.GetAvailableMarketFunds(ctx, marketID, market.GetQuoteDenom())
 	isMarketSolvent := v2.IsMarketSolvent(availableMarketFunds, marketBalanceDelta)
 
 	if isMarketSolvent {
@@ -1012,7 +1130,7 @@ func (k DerivativeKeeper) MoveCoinsIntoInsuranceFund(
 	if insuranceFund == nil {
 		return insurancetypes.ErrInsuranceFundNotFound
 	}
-	if err := validateInsuranceFundDenom(insuranceFund, marketID, market.GetQuoteDenom()); err != nil {
+	if err := k.validateInsuranceFundForMarket(ctx, insuranceFund, marketID, market.GetQuoteDenom()); err != nil {
 		return err
 	}
 
@@ -1370,6 +1488,14 @@ func (k DerivativeKeeper) ProcessMarketsScheduledToSettle(ctx sdk.Context) {
 		if derivativeMarket != nil {
 			market = derivativeMarket
 		} else {
+			if ctx.ChainID() == mainnetChainID {
+				k.Logger(ctx).Error(
+					"skipping binary options market in generic settlement processor",
+					"marketID",
+					marketID.Hex(),
+				)
+				continue
+			}
 			market = k.GetBinaryOptionsMarketByID(ctx, marketID)
 		}
 

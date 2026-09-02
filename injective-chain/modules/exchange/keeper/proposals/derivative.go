@@ -78,7 +78,7 @@ func (k *ProposalKeeper) HandleDerivativeMarketParamUpdateProposal(
 		hasOpenPositions := k.HasPositionsInMarket(ctx, marketID)
 
 		if hasOpenPositions {
-			marketBalance := k.GetAvailableMarketFunds(ctx, marketID)
+			marketBalance := k.GetAvailableMarketFunds(ctx, marketID, market.QuoteDenom)
 			if marketBalance.LTE(math.LegacyZeroDec()) {
 				return types.ErrInsufficientMarketBalance
 			}

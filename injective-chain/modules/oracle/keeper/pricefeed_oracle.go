@@ -147,6 +147,11 @@ func (k *Keeper) GetPriceFeedPriceState(ctx sdk.Context, base, quote string) *ty
 	defer k.Meter(ctx).FuncTiming(&ctx, "GetPriceFeedPriceState")()
 
 	baseQuoteHash := types.GetBaseQuoteHash(base, quote)
+	priceFeedInfo := k.GetPriceFeedInfo(ctx, baseQuoteHash)
+	if priceFeedInfo == nil || priceFeedInfo.Base != base || priceFeedInfo.Quote != quote {
+		return nil
+	}
+
 	key := types.GetPriceFeedPriceStoreKey(baseQuoteHash)
 	bz := k.getStore(ctx).Get(key)
 
@@ -164,6 +169,10 @@ func (k *Keeper) SetPriceFeedPriceState(ctx sdk.Context, oracleBase, oracleQuote
 	defer k.Meter(ctx).FuncTiming(&ctx, "SetPriceFeedPriceState")()
 
 	baseQuoteHash := types.GetBaseQuoteHash(oracleBase, oracleQuote)
+	if !k.HasPriceFeedInfoByHash(ctx, baseQuoteHash) {
+		k.SetPriceFeedInfo(ctx, &types.PriceFeedInfo{Base: oracleBase, Quote: oracleQuote})
+	}
+
 	priceKey := types.GetPriceFeedPriceStoreKey(baseQuoteHash)
 	bz := k.cdc.MustMarshal(priceState)
 	k.getStore(ctx).Set(priceKey, bz)

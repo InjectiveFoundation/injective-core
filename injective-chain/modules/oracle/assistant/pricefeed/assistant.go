@@ -17,7 +17,7 @@ import (
 type Keeper interface {
 	Meter(ctx context.Context) metrics.Meter
 	IsPriceFeedRelayer(ctx sdk.Context, base, quote string, relayer sdk.AccAddress) bool
-	HasPriceFeedInfoByHash(ctx sdk.Context, baseQuoteHash common.Hash) bool
+	GetPriceFeedInfo(ctx sdk.Context, baseQuoteHash common.Hash) *types.PriceFeedInfo
 	SetPriceFeedInfo(ctx sdk.Context, priceFeedInfo *types.PriceFeedInfo)
 	GetPriceFeedPriceStateByHash(ctx sdk.Context, baseQuoteHash common.Hash) *types.PriceState
 	GetPriceFeedPriceState(ctx sdk.Context, base, quote string) *types.PriceState
@@ -44,24 +44,55 @@ func (a *Assistant) ProcessRelay(ctx sdk.Context, msg sdk.Msg) (err error) {
 	if !ok {
 		return errors.Wrap(types.ErrInvalidOracleRequest, "expected MsgRelayPriceFeedPrice")
 	}
+	if err := m.ValidateBasic(); err != nil {
+		return err
+	}
 	return a.processPriceFeedPrice(ctx, m)
 }
 
 func (a *Assistant) processPriceFeedPrice(ctx sdk.Context, msg *types.MsgRelayPriceFeedPrice) error {
 	defer a.keeper.Meter(ctx).FuncTiming(&ctx, "Assistant.processPriceFeedPrice")()
 
-	relayer, _ := sdk.AccAddressFromBech32(msg.Sender)
+	relayer, err := sdk.AccAddressFromBech32(msg.Sender)
+	if err != nil {
+		return err
+	}
+
+	baseQuoteHashes := make([]common.Hash, len(msg.Price))
 
 	for idx := range msg.Price {
-		base, quote, price := msg.Base[idx], msg.Quote[idx], msg.Price[idx]
+		base, quote := msg.Base[idx], msg.Quote[idx]
 		if !a.keeper.IsPriceFeedRelayer(ctx, base, quote, relayer) {
 			return errors.Wrapf(types.ErrRelayerNotAuthorized, "base %s quote %s relayer %s", base, quote, relayer.String())
 		}
 
 		baseQuoteHash := types.GetBaseQuoteHash(base, quote)
-		if !a.keeper.HasPriceFeedInfoByHash(ctx, baseQuoteHash) {
-			a.keeper.SetPriceFeedInfo(ctx, &types.PriceFeedInfo{Base: base, Quote: quote})
+		priceFeedInfo := a.keeper.GetPriceFeedInfo(ctx, baseQuoteHash)
+		if priceFeedInfo == nil {
+			return errors.Wrapf(
+				types.ErrInvalidOracleRequest,
+				"missing price feed metadata for %s/%s",
+				base,
+				quote,
+			)
 		}
+		if priceFeedInfo.Base != base || priceFeedInfo.Quote != quote {
+			return errors.Wrapf(
+				types.ErrInvalidOracleRequest,
+				"price feed pair %s/%s conflicts with stored pair %s/%s",
+				base,
+				quote,
+				priceFeedInfo.Base,
+				priceFeedInfo.Quote,
+			)
+		}
+
+		baseQuoteHashes[idx] = baseQuoteHash
+	}
+
+	for idx := range msg.Price {
+		base, quote, price := msg.Base[idx], msg.Quote[idx], msg.Price[idx]
+		baseQuoteHash := baseQuoteHashes[idx]
 		priceState := a.keeper.GetPriceFeedPriceStateByHash(ctx, baseQuoteHash)
 		blockTime := ctx.BlockTime().Unix()
 		if priceState == nil {

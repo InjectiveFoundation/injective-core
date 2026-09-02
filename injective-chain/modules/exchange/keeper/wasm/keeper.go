@@ -984,7 +984,7 @@ func (k WasmKeeper) applyPositionTransferMarketBalanceDelta(
 	marketBalanceDelta := payout.Add(closeExecutionMargin).Neg()
 	chainFormattedMarketBalanceDelta := market.NotionalToChainFormat(marketBalanceDelta)
 
-	availableMarketFunds := k.derivative.GetAvailableMarketFunds(ctx, marketID)
+	availableMarketFunds := k.derivative.GetAvailableMarketFunds(ctx, marketID, market.QuoteDenom)
 	isMarketSolvent := v2.IsMarketSolvent(availableMarketFunds, chainFormattedMarketBalanceDelta)
 	if !isMarketSolvent {
 		return types.ErrInsufficientMarketBalance
@@ -1358,7 +1358,7 @@ func (k WasmKeeper) ensureAndApplySyntheticTradeMarketBalanceDelta(
 
 	marketBalanceDelta := v2.GetMarketBalanceDelta(payout, collateralizationMargin, tradingFee, trade.Margin.IsZero())
 	chainFormattedMarketBalanceDelta := market.NotionalToChainFormat(marketBalanceDelta)
-	availableMarketFunds := k.derivative.GetAvailableMarketFunds(ctx, trade.MarketID)
+	availableMarketFunds := k.derivative.GetAvailableMarketFunds(ctx, trade.MarketID, market.QuoteDenom)
 
 	isMarketSolvent := v2.IsMarketSolvent(availableMarketFunds, chainFormattedMarketBalanceDelta)
 	if !isMarketSolvent {

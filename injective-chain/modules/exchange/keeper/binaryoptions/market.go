@@ -28,6 +28,10 @@ func (k BinaryOptionsKeeper) BinaryOptionsMarketLaunch(
 ) (*v2.BinaryOptionsMarket, error) {
 	defer k.Meter(ctx).FuncTiming(&ctx, "BinaryOptionsMarketLaunch")()
 
+	if ctx.ChainID() == mainnetChainID {
+		return nil, errors.Wrap(types.ErrFeatureDisabled, "binary options are disabled")
+	}
+
 	params := k.GetParams(ctx)
 	relayerFeeShareRate := params.RelayerFeeShareRate
 	minimalProtocolFeeRate := params.MinimalProtocolFeeRate
@@ -309,6 +313,10 @@ func (k BinaryOptionsKeeper) ExecuteBinaryOptionsMarketParamUpdateProposal(
 	p *v2.BinaryOptionsMarketParamUpdateProposal,
 ) error {
 	defer k.Meter(ctx).FuncTiming(&ctx, "ExecuteBinaryOptionsMarketParamUpdateProposal")()
+
+	if ctx.ChainID() == mainnetChainID {
+		return errors.Wrap(types.ErrFeatureDisabled, "binary options are disabled")
+	}
 
 	marketID := common.HexToHash(p.MarketId)
 	market := k.GetBinaryOptionsMarketByID(ctx, marketID)

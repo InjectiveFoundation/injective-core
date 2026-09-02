@@ -40,6 +40,9 @@ func handleGrantPriceFeederPrivilegeProposal(ctx sdk.Context, k keeper.Keeper, p
 	if err := p.ValidateBasic(); err != nil {
 		return err
 	}
+	if err := validatePriceFeedPairIdentity(ctx, k, p.Base, p.Quote); err != nil {
+		return err
+	}
 
 	for _, relayer := range p.Relayers {
 		priceFeedRelayer, err := sdk.AccAddressFromBech32(relayer)
@@ -64,6 +67,9 @@ func handleRevokePriceFeederPrivilegeProposal(ctx sdk.Context, k keeper.Keeper, 
 	if err := p.ValidateBasic(); err != nil {
 		return err
 	}
+	if err := validatePriceFeedPairIdentity(ctx, k, p.Base, p.Quote); err != nil {
+		return err
+	}
 
 	for _, relayer := range p.Relayers {
 		priceFeedRelayer, err := sdk.AccAddressFromBech32(relayer)
@@ -79,6 +85,23 @@ func handleRevokePriceFeederPrivilegeProposal(ctx sdk.Context, k keeper.Keeper, 
 	}
 
 	return nil
+}
+
+func validatePriceFeedPairIdentity(ctx sdk.Context, k keeper.Keeper, base, quote string) error {
+	baseQuoteHash := types.GetBaseQuoteHash(base, quote)
+	priceFeedInfo := k.GetPriceFeedInfo(ctx, baseQuoteHash)
+	if priceFeedInfo == nil || (priceFeedInfo.Base == base && priceFeedInfo.Quote == quote) {
+		return nil
+	}
+
+	return errors.Wrapf(
+		types.ErrInvalidOracleRequest,
+		"price feed pair %s/%s conflicts with stored pair %s/%s",
+		base,
+		quote,
+		priceFeedInfo.Base,
+		priceFeedInfo.Quote,
+	)
 }
 
 func handleGrantProviderPrivilegeProposal(ctx sdk.Context, k keeper.Keeper, p *types.GrantProviderPrivilegeProposal) (err error) {

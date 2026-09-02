@@ -27,7 +27,9 @@ func (k *Keeper) InitGenesis(ctx sdk.Context, data types.GenesisState) {
 			k.SetPriceFeedRelayer(ctx, priceFeedState.Base, priceFeedState.Quote, relayerAddr)
 		}
 
-		k.SetPriceFeedPriceState(ctx, priceFeedState.Base, priceFeedState.Quote, priceFeedState.PriceState)
+		if priceFeedState.PriceState != nil {
+			k.SetPriceFeedPriceState(ctx, priceFeedState.Base, priceFeedState.Quote, priceFeedState.PriceState)
+		}
 	}
 
 	for _, priceData := range data.CoinbasePriceStates {

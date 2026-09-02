@@ -11,12 +11,13 @@ RUN apt update && apt install -y \
     python3-pip
     
 # Install foundry (forge, cast, anvil, chisel)
+ENV FOUNDRY_DIR=/root/.foundry
 RUN curl -L https://foundry.paradigm.xyz | bash && \
-    bash -c "source /root/.bashrc && foundryup" && \
-    ln -s /root/.foundry/bin/forge /usr/local/bin/forge && \
-    ln -s /root/.foundry/bin/cast /usr/local/bin/cast && \
-    ln -s /root/.foundry/bin/anvil /usr/local/bin/anvil && \
-    ln -s /root/.foundry/bin/chisel /usr/local/bin/chisel
+    "$FOUNDRY_DIR/bin/foundryup" && \
+    ln -s "$FOUNDRY_DIR/bin/forge" /usr/local/bin/forge && \
+    ln -s "$FOUNDRY_DIR/bin/cast" /usr/local/bin/cast && \
+    ln -s "$FOUNDRY_DIR/bin/anvil" /usr/local/bin/anvil && \
+    ln -s "$FOUNDRY_DIR/bin/chisel" /usr/local/bin/chisel
 
 # Install Node.js 20.18.3 via nvm and yarn
 ENV NVM_DIR=/root/.nvm

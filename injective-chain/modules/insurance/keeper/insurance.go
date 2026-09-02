@@ -23,7 +23,14 @@ import (
 // Added as additional gas consumption to the end to account for EndBlock processing
 const MsgRequestRedemptionGasIncrement = storetypes.Gas(100_000)
 
-const redemptionBatchingWindow = 24 * time.Hour
+const (
+	mainnetChainID           = "injective-1"
+	redemptionBatchingWindow = 24 * time.Hour
+)
+
+func isBinaryOptionsInsuranceDisabled(ctx sdk.Context, expiry int64) bool {
+	return ctx.ChainID() == mainnetChainID && expiry == types.BinaryOptionsExpiryFlag
+}
 
 func (k *Keeper) unmarshalRedemptionSchedule(bz []byte) *types.RedemptionSchedule {
 	if bz == nil {
@@ -392,6 +399,19 @@ func (k *Keeper) CreateInsuranceFund(
 ) error {
 	defer k.Meter(ctx).FuncTiming(&ctx, "CreateInsuranceFund")()
 
+	if isBinaryOptionsInsuranceDisabled(ctx, expiry) {
+		return errors.Wrap(exchangetypes.ErrFeatureDisabled, "binary options insurance funds are disabled")
+	}
+
+	if deposit.Denom != quoteDenom {
+		return errors.Wrapf(
+			types.ErrInvalidDepositDenom,
+			"quote denom %s does not match deposit denom %s",
+			quoteDenom,
+			deposit.Denom,
+		)
+	}
+
 	var marketID common.Hash
 	isBinaryOptions := expiry == types.BinaryOptionsExpiryFlag
 	if isBinaryOptions {
@@ -481,6 +501,10 @@ func (k *Keeper) UnderwriteInsuranceFund(ctx sdk.Context, underwriter sdk.AccAdd
 	fund := k.GetInsuranceFund(ctx, marketID)
 	if fund == nil {
 		return errors.Wrapf(types.ErrInsuranceFundNotFound, "insurance fund for %s does not exist", marketID.Hex())
+	}
+
+	if isBinaryOptionsInsuranceDisabled(ctx, fund.Expiry) {
+		return errors.Wrap(exchangetypes.ErrFeatureDisabled, "binary options insurance fund underwriting is disabled")
 	}
 
 	if deposit.Denom != fund.DepositDenom {

@@ -245,7 +245,7 @@ func (k DerivativesMsgServer) drawDeficitFromInsuranceFundsProportionally(
 	totalFundBalance := math.LegacyZeroDec()
 
 	for _, marketID := range poolMarketIDs {
-		fundBalance := k.GetInsuranceFundBalance(ctx, marketID)
+		fundBalance := k.GetInsuranceFundBalance(ctx, marketID, quoteDenom)
 		if !fundBalance.IsPositive() {
 			continue
 		}
