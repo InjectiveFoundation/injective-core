@@ -157,6 +157,7 @@ import (
 	"github.com/InjectiveLabs/injective-core/injective-chain/modules/evm"
 	evmkeeper "github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/keeper"
 	bankpc "github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/precompiles/bank"
+	cosmwasmpc "github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/precompiles/cosmwasm"
 	exchangepc "github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/precompiles/exchange"
 	oraclepc "github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/precompiles/oracle"
 	stakingpc "github.com/InjectiveLabs/injective-core/injective-chain/modules/evm/precompiles/staking"
@@ -1188,6 +1189,14 @@ func (app *InjectiveApp) initKeepers(authority string, cfg appconfig.Config, was
 				// function that will only be called at tx time, after full app init.
 				return oraclepc.NewContract(
 					&app.OracleKeeper,
+					storetypes.TransientGasConfig(),
+				)
+			},
+			func(_ sdk.Context, _ ethparams.Rules) vm.PrecompiledContract {
+				// referencing &app.WasmKeeper is safe here: this generator only runs at
+				// tx time, after WasmKeeper is initialized further below in NewInjectiveApp.
+				return cosmwasmpc.NewContract(
+					&app.WasmKeeper,
 					storetypes.TransientGasConfig(),
 				)
 			},
